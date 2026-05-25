@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block html_attrs %}data-theme="dark"{% endblock %}
+{% block title %}生成链接 · {{ note.title }}{% endblock %}
+{% block navbar_title %}
+<span class="text-sm text-base-content/50 ml-3 hidden sm:inline">· <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.225a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.606 6.364.75.75 0 101.06-1.06 2.5 2.5 0 01-.378-3.477l3-3zM7.768 15.768a2.5 2.5 0 01-3.536-3.536l1.225-1.225a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 005.656 5.656l3-3a4 4 0 00-.606-6.364.75.75 0 00-1.06 1.06 2.5 2.5 0 01.378 3.477l-3 3z"/></svg> 生成链接</span>
+{% endblock %}
+
+{% block body %}
+<div class="container mx-auto px-4 py-6 max-w-3xl">
+  <div class="card bg-base-200 border border-base-300 mb-6">
+    <div class="card-body p-4">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">
+          {% if note.note_type == 'catalog' %}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M15.5 2A1.5 1.5 0 0014 3.5v13a1.5 1.5 0 001.5 1.5h1a1.5 1.5 0 001.5-1.5v-13A1.5 1.5 0 0016.5 2h-1zM9.5 6A1.5 1.5 0 008 7.5v9A1.5 1.5 0 009.5 18h1a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0010.5 6h-1zM3.5 10A1.5 1.5 0 002 11.5v5A1.5 1.5 0 003.5 18h1A1.5 1.5 0 006 16.5v-5A1.5 1.5 0 004.5 10h-1z"/></svg>{% else %}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M4.5 2A1.5 1.5 0 003 3.5v13A1.5 1.5 0 004.5 18h11a1.5 1.5 0 001.5-1.5V7.621a1.5 1.5 0 00-.44-1.06l-4.12-4.122A1.5 1.5 0 0011.378 2H4.5zm2.25 8.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zm0 3a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5z" clip-rule="evenodd"/></svg>{% endif %}
+        </span>
+        <div class="flex-1">
+          <div class="font-bold tracking-wide text-accent">{{ note.title }}</div>
+          <div class="text-xs text-base-content/50 mt-0.5">阅后即焚 · 关闭页面后无法再次访问</div>
+        </div>
+        <span class="badge badge-error badge-sm animate-pulse">一次性链接</span>
+      </div>
+    </div>
+  </div>
+  <div class="flex items-center gap-2 px-4 mb-6 text-sm text-base-content/50">
+    <span class="w-2 h-2 rounded-full bg-success"></span>
+    <span>此页面仅可查看一次</span>
+  </div>
+  {{ html|safe }}
+  <div class="divider"></div>
+  <div class="flex justify-between text-xs text-base-content/30 pb-8">
+    <span>莫斯科仓 · 仅供内部参考</span>
+    <span class="text-error/50"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg> 关闭后立即销毁</span>
+  </div>
+</div>
+{% endblock %}

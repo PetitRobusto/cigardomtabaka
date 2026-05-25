@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>方案三：现代玻璃 · 雪茄详情</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:Georgia,"Noto Serif SC",serif;min-height:100vh;
+  background:#0a0a0a;color:#e8dcc8;
+  background-image:
+    radial-gradient(ellipse at 50% 0%,rgba(200,164,92,0.06) 0%,transparent 60%);
+}
+nav{
+  position:sticky;top:0;z-index:100;
+  background:rgba(15,15,15,0.65);backdrop-filter:blur(20px) saturate(180%);
+  border-bottom:1px solid rgba(255,255,255,0.05);
+  padding:0 24px;height:56px;display:flex;align-items:center;gap:12px;
+}
+nav .logo{font-size:16px;font-weight:bold;color:#c8a45c;letter-spacing:2px;}
+main{max-width:1100px;margin:0 auto;padding:24px 24px 80px;}
+
+.breadcrumb{display:flex;gap:6px;font-size:11px;color:rgba(255,255,255,0.25);margin-bottom:32px;flex-wrap:wrap;align-items:center;}
+
+.detail-layout{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:48px;}
+.detail-img{
+  background:rgba(255,255,255,0.02);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,0.05);border-radius:20px;
+  display:flex;align-items:center;justify-content:center;
+  min-height:380px;position:relative;overflow:hidden;cursor:pointer;
+  transition:all .4s;
+}
+.detail-img:hover{border-color:rgba(200,164,92,0.15);}
+.detail-img .placeholder{font-size:80px;opacity:.06;}
+
+.detail-info{display:flex;flex-direction:column;justify-content:center;padding:8px 0;}
+.detail-info h1{font-size:clamp(24px,4vw,36px);font-weight:normal;letter-spacing:2px;margin-bottom:4px;}
+.detail-info .en{font-size:14px;color:rgba(255,255,255,0.2);font-style:italic;margin-bottom:16px;}
+.detail-info .tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:24px;}
+.tag{font-size:9px;padding:4px 12px;border-radius:6px;}
+.tag-cuban{background:rgba(200,50,50,0.15);color:#D48888;border:1px solid rgba(200,50,50,0.2);}
+.tag-accent{background:rgba(200,164,92,0.1);color:#c8a45c;border:1px solid rgba(200,164,92,0.2);}
+
+.spec-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.spec{
+  background:rgba(255,255,255,0.02);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,0.04);border-radius:12px;
+  padding:16px 20px;transition:all .3s;
+}
+.spec:hover{background:rgba(255,255,255,0.04);border-color:rgba(200,164,92,0.1);}
+.spec .label{font-size:9px;color:rgba(255,255,255,0.2);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+.spec .value{font-size:16px;}
+
+.section{margin-top:32px;}
+.section h2{font-size:11px;font-weight:normal;letter-spacing:2px;color:rgba(255,255,255,0.3);margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.04);}
+
+.pkg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;}
+.pkg{
+  background:rgba(255,255,255,0.02);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,0.04);border-radius:12px;
+  padding:20px;text-align:center;font-size:13px;transition:all .3s;
+}
+.pkg:hover{background:rgba(255,255,255,0.04);border-color:rgba(200,164,92,0.1);}
+.pkg .icon{font-size:24px;margin-bottom:8px;}
+
+.child-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;}
+.child{
+  background:rgba(255,255,255,0.02);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,0.04);border-radius:12px;
+  padding:16px 20px;text-decoration:none;color:inherit;transition:all .3s;
+}
+.child:hover{background:rgba(255,255,255,0.04);border-color:rgba(200,164,92,0.1);}
+.child .cn{font-size:13px;font-weight:bold;margin-bottom:4px;}
+.child .meta{font-size:10px;color:rgba(255,255,255,0.2);}
+
+.gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;}
+.gallery-item{
+  aspect-ratio:1;background:rgba(255,255,255,0.02);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,0.04);border-radius:10px;
+  cursor:pointer;transition:all .3s;position:relative;overflow:hidden;
+}
+.gallery-item:hover{border-color:rgba(200,164,92,0.15);transform:scale(1.04);}
+.gallery-item .badge{
+  position:absolute;top:6px;right:6px;font-size:8px;padding:2px 6px;border-radius:4px;
+  background:#c8a45c;color:#0a0a0a;
+}
+
+.related-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;}
+.related{
+  background:rgba(255,255,255,0.02);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,0.04);border-radius:12px;
+  padding:16px 20px;text-decoration:none;color:inherit;display:flex;align-items:center;gap:14px;transition:all .3s;
+}
+.related:hover{background:rgba(255,255,255,0.04);border-color:rgba(200,164,92,0.1);}
+.related .thumb{width:40px;height:40px;border-radius:8px;background:rgba(200,164,92,0.06);display:flex;align-items:center;justify-content:center;font-size:16px;}
+.related .cn{font-size:13px;font-weight:bold;margin-bottom:2px;}
+.related .meta{font-size:10px;color:rgba(255,255,255,0.2);}
+
+@media(max-width:768px){
+  .detail-layout{grid-template-columns:1fr}
+  .detail-img{min-height:280px}
+}
+</style>
+</head>
+<body>
+<nav><div class="logo">MOSCOW CIGAR</div></nav>
+<main>
+  <div class="breadcrumb">
+    <a href="#" style="color:inherit;text-decoration:none">品牌目录</a><span>/</span>
+    <a href="#" style="color:inherit;text-decoration:none">高希霸</a><span>/</span>
+    <span style="color:rgba(255,255,255,0.5)">世纪六号</span>
+  </div>
+
+  <div class="detail-layout">
+    <div class="detail-img"><span class="placeholder">🚬</span></div>
+    <div class="detail-info">
+      <h1>世纪六号</h1>
+      <div class="en">Siglo VI</div>
+      <div class="tags">
+        <span class="tag tag-cuban">🇨🇺 古巴</span>
+        <span class="tag tag-accent">常规生产</span>
+      </div>
+      <div class="spec-grid">
+        <div class="spec"><div class="label">长度</div><div class="value">150 mm</div></div>
+        <div class="spec"><div class="label">环径</div><div class="value">⌀ 52</div></div>
+        <div class="spec"><div class="label">规格</div><div class="value">Canonazo</div></div>
+        <div class="spec"><div class="label">型号</div><div class="value">Canonazo</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>📦 包装规格</h2>
+    <div class="pkg-grid">
+      <div class="pkg"><div class="icon">📦</div>25 支装木盒</div>
+      <div class="pkg"><div class="icon">🥫</div>3 支装铝管</div>
+      <div class="pkg"><div class="icon">🚬</div>单支装</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>🎁 包含款式 (5)</h2>
+    <div class="child-grid">
+      <div class="child"><div class="cn">世纪六号 A/T</div><div class="meta">铝管 · 150 × 52</div></div>
+      <div class="child"><div class="cn">世纪六号 SLB</div><div class="meta">滑盖盒 · 150 × 52</div></div>
+      <div class="child"><div class="cn">世纪六号 CB</div><div class="meta">纸盒 · 150 × 52</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>🖼️ 图片 (8 张)</h2>
+    <div class="gallery-grid">
+      <div class="gallery-item"><span class="badge">主图</span></div>
+      <div class="gallery-item"></div>
+      <div class="gallery-item"></div>
+      <div class="gallery-item"></div>
+      <div class="gallery-item"></div>
+      <div class="gallery-item"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>🔗 同品牌更多雪茄</h2>
+    <div class="related-grid">
+      <a href="#" class="related"><div class="thumb">R</div><div><div class="cn">罗布图</div><div class="meta">Robusto · 124×50</div></div></a>
+      <a href="#" class="related"><div class="thumb">V</div><div><div class="cn">世纪五号</div><div class="meta">Siglo V · 170×43</div></div></a>
+      <a href="#" class="related"><div class="thumb">B</div><div><div class="cn">贝伊可 54</div><div class="meta">Behike 54 · 144×54</div></div></a>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block html_attrs %}data-theme="dark"{% endblock %}
+{% block title %}已销毁 · 生成链接{% endblock %}
+{% block navbar_title %}
+<span class="text-sm text-base-content/50 ml-3 hidden sm:inline">· <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.225a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.606 6.364.75.75 0 101.06-1.06 2.5 2.5 0 01-.378-3.477l3-3zM7.768 15.768a2.5 2.5 0 01-3.536-3.536l1.225-1.225a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 005.656 5.656l3-3a4 4 0 00-.606-6.364.75.75 0 00-1.06 1.06 2.5 2.5 0 01.378 3.477l-3 3z"/></svg> 生成链接</span>
+{% endblock %}
+
+{% block body %}
+<div class="container mx-auto px-4 py-20 max-w-md text-center">
+  <div class="text-5xl mb-6">
+    {% if reason == 'expired' %}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clip-rule="evenodd"/></svg>{% else %}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.285a.75.75 0 10.23 1.482l.149-.022.841 10.452A2.75 2.75 0 007.598 19h4.804a2.75 2.75 0 002.743-2.61l.841-10.452.149.022a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075v-.325c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.08 6.383a.75.75 0 00-1.16.934l2 2.5a.75.75 0 001.16 0l2-2.5a.75.75 0 00-1.16-.934L10 8.035 8.08 6.383z" clip-rule="evenodd"/></svg>{% endif %}
+  </div>
+  <h2 class="text-2xl font-bold text-base-content mb-3">
+    {% if reason == 'expired' %}链接已过期{% else %}链接已销毁{% endif %}
+  </h2>
+  <p class="text-base-content/50 text-lg mb-8">
+    {% if reason == 'expired' %}
+    此链接已超过有效期限，内容已被自动清除。
+    {% else %}
+    此链接已被查看或已过期，内容已自动销毁。如需重新查看，请联系发送者。
+    {% endif %}
+  </p>
+</div>
+{% endblock %}

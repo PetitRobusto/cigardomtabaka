@@ -12,6 +12,11 @@ interface PriceCardProps {
 
 export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
   const brandLogo = BRAND_LOGO_LOCAL[cigar.cigar_brand] || '';
+  // Build slug→short_name map from source entries
+  const slugNameMap: Record<string, string> = {};
+  cigar.sources.forEach(s => {
+    slugNameMap[s.source_slug] = s.source_short_name || s.source_name;
+  });
   const sourceSlugs = [...new Set(cigar.sources.map(s => s.source_slug))];
 
   return (
@@ -102,7 +107,7 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
         {/* 来源标签 */}
         <div className="flex flex-wrap gap-1">
           {sourceSlugs.map((slug) => (
-            <SourceTag key={slug} slug={slug} />
+            <SourceTag key={slug} slug={slug} shortName={slugNameMap[slug]} />
           ))}
         </div>
       </div>

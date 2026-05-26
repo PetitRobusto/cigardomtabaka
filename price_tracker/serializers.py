@@ -7,7 +7,7 @@ class PriceSourceSerializer(serializers.ModelSerializer):
     class Meta:
         model = PriceSource
         fields = [
-            'id', 'name', 'slug', 'base_url', 'active',
+            'id', 'name', 'slug', 'short_name', 'base_url', 'active',
             'currency', 'exchange_rate', 'last_scraped',
             'scrape_interval_hours',
         ]
@@ -16,6 +16,7 @@ class PriceSourceSerializer(serializers.ModelSerializer):
 class PriceSnapshotSerializer(serializers.ModelSerializer):
     source_name = serializers.CharField(source='source.name', read_only=True)
     source_slug = serializers.CharField(source='source.slug', read_only=True)
+    source_short_name = serializers.CharField(source='source.short_name', read_only=True)
     source_currency = serializers.CharField(source='source.currency', read_only=True)
     cigar_name = serializers.CharField(source='cigar.name', read_only=True)
     cigar_english_name = serializers.CharField(source='cigar.english_name', read_only=True)

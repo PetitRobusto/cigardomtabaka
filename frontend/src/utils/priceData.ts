@@ -103,14 +103,16 @@ export function extractSourceSlugs(snapshots: PriceSnapshot[]): string[] {
   return [...slugs];
 }
 
+/** 为价格走势图构建数据：所有 variant 按日期对齐，Y轴统一用 人民币 */
 export function buildChartData(variants: Variant[]) {
   const dateMap: Record<string, Record<string, number | string>> = {};
   variants.forEach((v) => {
-    const label = `${v.source_name} ${v.box_label}`;
+    const label = `${v.source_short_name || v.source_name} ${v.box_label}`;
     (v.points || []).forEach((p: HistoryPoint) => {
       const date = p.date?.split('T')[0] || p.date;
       if (!dateMap[date]) dateMap[date] = { date };
-      dateMap[date][label] = p.price;
+      // 用人民币价格，保证不同币种可对比
+      dateMap[date][label] = p.price_cny ?? p.price;
     });
   });
   return Object.values(dateMap).sort((a, b) =>
@@ -119,5 +121,5 @@ export function buildChartData(variants: Variant[]) {
 }
 
 export function variantLabel(v: Variant): string {
-  return `${v.source_name} ${v.box_label}`;
+  return `${v.source_short_name || v.source_name} ${v.box_label}`;
 }

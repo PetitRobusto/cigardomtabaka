@@ -18,6 +18,7 @@ class ScrapedItem:
     box_price: Optional[float] = None  # 整盒价
     url: str = ''                      # 商品页链接
     in_stock: bool = True
+    currency: str = 'USD'               # 原币种（CHF/EUR/USD等）
     raw_data: dict = field(default_factory=dict)
 
 
@@ -45,6 +46,7 @@ class BaseScraper:
 # --- 名字匹配（委托给独立匹配模块） ---
 
 from price_tracker.matcher import match_cigar as _match_cigar
+from .models import ExchangeRate
 
 
 def match_cigar_by_name(
@@ -103,7 +105,11 @@ def run_scrape_sync(source_slug: str) -> dict:
     created = 0
     skipped = 0
 
-    exchange_rate = source.exchange_rate or 7.25
+    exchange_rate = source.exchange_rate or None
+    if exchange_rate is None:
+        # 用实时汇率表（优先）→ 兜底
+        rate_obj = ExchangeRate.get_rate(source.currency)
+        exchange_rate = rate_obj if rate_obj else 7.0
 
     for item in items:
         cigar = scraper.match_cigar(item) or match_cigar_by_name(item.name, source.name)
@@ -120,9 +126,18 @@ def run_scrape_sync(source_slug: str) -> dict:
             scraped_date=today,
         ).first()
 
+        # 币种：优先 item 自带的 → source 默认
+        item_currency = getattr(item, 'currency', None) or source.currency or 'USD'
+        # CNY 换算：用最新汇率表
+        cny_rate = ExchangeRate.get_rate(item_currency)
+        if cny_rate is None:
+            cny_rate = exchange_rate  # fallback
+        price_cny = round(item.price * cny_rate, 2) if item.price else None
+
         if existing:
             existing.price = item.price
-            existing.price_cny = round(item.price * exchange_rate, 2)
+            existing.currency = item_currency
+            existing.price_cny = price_cny
             existing.box_size = item.box_size
             existing.box_price = item.box_price
             existing.in_stock = item.in_stock
@@ -134,8 +149,8 @@ def run_scrape_sync(source_slug: str) -> dict:
                 source=source,
                 cigar=cigar,
                 price=item.price,
-                currency=source.currency,
-                price_cny=round(item.price * exchange_rate, 2),
+                currency=item_currency,
+                price_cny=price_cny,
                 box_size=item.box_size,
                 box_price=item.box_price,
                 url=item.url,

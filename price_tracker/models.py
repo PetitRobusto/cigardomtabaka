@@ -15,6 +15,8 @@ class PriceSource(models.Model):
     active = models.BooleanField('启用', default=True)
     currency = models.CharField('货币', max_length=10, default='USD')
     exchange_rate = models.FloatField('参考汇率（兑CNY）', null=True, blank=True)
+    short_name = models.CharField('简称', max_length=30, blank=True, default='',
+        help_text='前端展示用的简短名称，如 COH、LCDH尼翁')
     last_scraped = models.DateTimeField('上次抓取', null=True, blank=True)
     scrape_interval_hours = models.IntegerField('抓取间隔（小时）', default=24)
     config = models.JSONField('额外配置', default=dict, blank=True)

@@ -142,19 +142,26 @@ def brand_list(request):
 
 
 def brand_detail(request, slug):
-    """品牌详情页 — 三区：常规款 | 特别发行 | 停产款"""
+    """品牌详情页 — 三区：常规款 | 特别发行 | 停产款 + 机制茄"""
     brand = Brand.objects.get(slug=slug)
     all_cigars = Cigar.objects.filter(brand=brand.english_name)\
         .order_by('english_name')\
         .prefetch_related('images')
 
-    current = []         # 所有 Current
-    orphan_special = {}  # 无 parent 的 Special Releases
-    discontinued = []    # Discontinued（不含子款）
+    current = []         # 所有 Current（不含机制茄）
+    orphan_special = {}  # 无 parent 的 Special Releases（不含机制茄）
+    discontinued = []    # Discontinued（不含子款，不含机制茄）
+    machine_rolled = []  # 机制茄 (machine_rolled_short_filler)
 
     for c in all_cigars:
         if c.parent_id:
             continue  # 子雪茄 → 不独立展示
+        
+        # 机制茄单独分组
+        if c.production_method == 'machine_rolled_short_filler':
+            machine_rolled.append(c)
+            continue
+        
         status = c.status or ''
         rt = c.release_type or ''
         if status == 'Discontinued':
@@ -165,7 +172,7 @@ def brand_detail(request, slug):
             current.append(c)
 
     # 为所有父款统计子款数量
-    all_parents = current + discontinued
+    all_parents = current + discontinued + machine_rolled
     for v in orphan_special.values():
         all_parents.extend(v)
     for c in all_parents:
@@ -211,6 +218,14 @@ def brand_detail(request, slug):
         if child_count:
             label += f' · {child_count} 款含子款'
         sections.append({'label': label, 'cigars': discontinued})
+
+    # ⚙️ 机制茄 (machine_rolled_short_filler)
+    if machine_rolled:
+        child_count = sum(1 for c in machine_rolled if c.children)
+        label = f'⚙️ 机制茄 ({len(machine_rolled)})'
+        if child_count:
+            label += f' · {child_count} 款含子款'
+        sections.append({'label': label, 'cigars': machine_rolled})
 
     return render(request, 'cigars/brand_detail.html', {
         'brand': brand,

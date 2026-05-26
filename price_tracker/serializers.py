@@ -97,3 +97,34 @@ class LatestPriceSerializer(serializers.Serializer):
     # 涨跌 (需传前次价格算)
     change_pct = serializers.FloatField(allow_null=True, default=None)
     change_direction = serializers.CharField(allow_null=True, default=None)  # 'up'/'down'/'flat'
+
+
+class AggregatedSourceEntry(serializers.Serializer):
+    """聚合视图：单个来源的价格+库存"""
+    source_id = serializers.IntegerField()
+    source_name = serializers.CharField()
+    source_slug = serializers.CharField()
+    price = serializers.FloatField(allow_null=True)
+    currency = serializers.CharField()
+    price_cny = serializers.FloatField(allow_null=True)
+    box_size = serializers.IntegerField(allow_null=True)
+    box_price = serializers.FloatField(allow_null=True)
+    in_stock = serializers.BooleanField()
+    scraped_at = serializers.DateTimeField(allow_null=True)
+    url = serializers.URLField(allow_null=True)
+
+
+class AggregatedCigarSerializer(serializers.Serializer):
+    """聚合视图：单款雪茄的完整价格+库存信息"""
+    cigar_id = serializers.IntegerField()
+    cigar_name = serializers.CharField()
+    cigar_english_name = serializers.CharField(allow_null=True)
+    cigar_brand = serializers.CharField()
+    cigar_brand_cn = serializers.CharField(allow_null=True)
+    sources = AggregatedSourceEntry(many=True)
+    # 整体库存状态
+    any_in_stock = serializers.BooleanField()
+    best_price = serializers.FloatField(allow_null=True)
+    best_price_source = serializers.CharField(allow_null=True)
+    change_pct = serializers.FloatField(allow_null=True)
+    change_direction = serializers.CharField(allow_null=True)

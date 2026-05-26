@@ -66,6 +66,7 @@ class Command(BaseCommand):
                 self.stdout.write(
                     f'  ✅ {source.name}: {result["matched"]}/{result["total_items"]} '
                     f'匹配，{result["created"]} 新增'
+                    + (f'，{result["marked_oos"]} 缺货' if result.get('marked_oos') else '')
                 )
 
         self.stdout.write(self.style.SUCCESS(
@@ -74,6 +75,7 @@ class Command(BaseCommand):
             f'\n  ✅ 匹配: {total_matched}'
             f'\n  🆕 新增: {total_created}'
             f'\n  ⏭️  跳過: {total_skipped}'
+            + (f'\n  📦 歷史缺貨: {sum(r.get("marked_oos", 0) for r in errors)}' if errors else '')
             + (f'\n  ❌ 錯誤: {len(errors)}' if errors else '')
         ))
 

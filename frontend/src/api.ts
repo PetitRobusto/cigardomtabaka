@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { PriceSnapshot, PriceHistoryResponse, Source } from './types';
+import type { PriceSnapshot, PriceHistoryResponse, Source, AggregatedCigar } from './types';
 
 function getCSRFToken(): string {
   const match = document.cookie.match(/csrftoken=([^;]+)/);
@@ -27,4 +27,5 @@ export const createAlert = (data: unknown) => api.post('/alerts/', data).then(r 
 export const updateAlert = (id: number, data: unknown) => api.patch(`/alerts/${id}/`, data).then(r => r.data);
 export const deleteAlert = (id: number) => api.delete(`/alerts/${id}/`).then(r => r.data);
 
-export default api;
+export const fetchAggregatedPrices = (params = {} as Record<string, string>): Promise<AggregatedCigar[]> =>
+  api.get('/snapshots/aggregated/', { params }).then(r => r.data || r.data.results);

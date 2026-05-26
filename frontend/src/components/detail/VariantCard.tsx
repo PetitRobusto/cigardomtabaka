@@ -23,12 +23,14 @@ export function VariantCard({ variant, index }: VariantCardProps) {
   const { formatPrice } = usePriceFormat();
   const points = variant.points || [];
   const latest = points[points.length - 1];
-  const min = variant.min_price ?? (points.length ? Math.min(...points.map((p) => p.price)) : null);
-  const max = variant.max_price ?? (points.length ? Math.max(...points.map((p) => p.price)) : null);
+  const minCny = points.length ? Math.min(...points.map((p) => p.price_cny ?? Infinity)) : null;
+  const maxCny = points.length ? Math.max(...points.map((p) => p.price_cny ?? -Infinity)) : null;
   const recordCount = variant.record_count ?? points.length;
   const inStock = variant.in_stock ?? true;
   const priceCny = variant.current_price_cny;
   const pricePerStick = variant.price_per_stick;
+  const boxSize = variant.box_size;
+  const sourceLabel = variant.source_short_name || variant.source_name;
 
   return (
     <motion.div
@@ -38,11 +40,15 @@ export function VariantCard({ variant, index }: VariantCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
     >
-      {/* Header: source name + stock badge */}
+      {/* Header: source name + box size (prominent) + stock badge */}
       <div className="px-5 py-3.5 bg-stone-50 border-b border-stone-100 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-stone-900 tracking-wide">{variant.source_name}</span>
-          <span className="text-xs text-stone-400 font-medium">· {variant.box_label}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-bold text-stone-900 tracking-wide">{sourceLabel}</span>
+          {boxSize != null && (
+            <span className="text-lg font-extrabold text-gold-500 font-serif tracking-tight">
+              {boxSize}<span className="text-xs text-stone-400 font-normal ml-0.5">支/盒</span>
+            </span>
+          )}
         </div>
         <span
           className={`text-[11px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
@@ -67,7 +73,7 @@ export function VariantCard({ variant, index }: VariantCardProps) {
       <div className="p-5">
         {latest ? (
           <div className="space-y-4">
-            {/* Primary prices: per-stick + box */}
+            {/* Primary: per-stick CNY + box CNY */}
             <div className="flex items-baseline gap-4">
               {pricePerStick != null && (
                 <div>
@@ -82,7 +88,7 @@ export function VariantCard({ variant, index }: VariantCardProps) {
               {priceCny != null && (
                 <div className={pricePerStick != null ? 'border-l border-stone-100 pl-4' : ''}>
                   <span className="block text-[10px] text-stone-400 uppercase tracking-widest font-semibold mb-0.5">
-                    整盒
+                    整盒 CNY
                   </span>
                   <span className="text-xl font-bold text-stone-900 font-serif">
                     ¥{priceCny.toLocaleString()}
@@ -101,15 +107,29 @@ export function VariantCard({ variant, index }: VariantCardProps) {
               )}
             </div>
 
-            {/* Secondary stats: min/max/records */}
+            {/* Original currency price row */}
+            {latest.price != null && (
+              <div className="text-xs text-stone-400 flex items-center gap-1">
+                <span>原价</span>
+                <span className="font-mono font-semibold text-stone-500">
+                  {formatPrice(latest.price, variant.currency)}
+                </span>
+              </div>
+            )}
+
+            {/* Secondary stats: min/max/records (all in CNY) */}
             <div className="grid grid-cols-3 gap-2 pt-3 border-t border-stone-100">
               <div className="text-center">
                 <span className="block text-[10px] text-stone-400 uppercase tracking-wider">最低</span>
-                <span className="text-sm font-semibold text-stone-700">{formatPrice(min, variant.currency)}</span>
+                <span className="text-sm font-semibold text-stone-700">
+                  {minCny != null && minCny !== Infinity ? `¥${minCny.toLocaleString()}` : '-'}
+                </span>
               </div>
               <div className="text-center border-l border-stone-100">
                 <span className="block text-[10px] text-stone-400 uppercase tracking-wider">最高</span>
-                <span className="text-sm font-semibold text-stone-700">{formatPrice(max, variant.currency)}</span>
+                <span className="text-sm font-semibold text-stone-700">
+                  {maxCny != null && maxCny !== -Infinity ? `¥${maxCny.toLocaleString()}` : '-'}
+                </span>
               </div>
               <div className="text-center border-l border-stone-100">
                 <span className="block text-[10px] text-stone-400 uppercase tracking-wider">记录</span>

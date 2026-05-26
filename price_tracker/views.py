@@ -155,16 +155,19 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             bs = snap.box_size
             key = f'{snap.source.slug}__{bs}'
             if key not in variants:
+                short_nm = snap.source.short_name or snap.source.name
                 box_label = f'{bs}支' if bs else '25支'
                 variants[key] = {
                     'source_id': snap.source_id,
                     'source_name': snap.source.name,
+                    'source_short_name': short_nm,
                     'source_slug': snap.source.slug,
                     'source_url': snap.source.base_url,
                     'currency': snap.currency,
                     'box_size': bs,
                     'box_label': box_label,
                     'url': snap.url or snap.source.base_url,
+                    'scraped_name': (snap.raw_data or {}).get('title_original', '') or '',
                     'points': [],
                 }
             variants[key]['points'].append({
@@ -286,6 +289,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             entry['sources'].append({
                 'source_id': snap.source_id,
                 'source_name': snap.source.name,
+                'source_short_name': snap.source.short_name or snap.source.name,
                 'source_slug': snap.source.slug,
                 'price': snap.price,
                 'price_cny': price_cny,
@@ -408,9 +412,11 @@ def import_coh_bulk(request):
                     scraped_date=now.date()
                 ).first()
                 if not existing:
+                    from price_tracker.models import ExchangeRate
+                    usd_rate = ExchangeRate.get_rate('USD') or 7.0
                     PriceSnapshot.objects.create(
                         cigar=cigar, source=source, price=price,
-                        currency='USD', price_cny=round(price * 7.25, 2),
+                        currency='USD', price_cny=round(price * usd_rate, 2),
                         box_size=box_size, box_price=price,
                         in_stock=True, scraped_at=now,
                         raw_data={'coh_name': prod.get('name',''), 'box_info': box_info},

@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import type { BrandInfo } from '../../types';
 
 interface BrandTabsProps {
@@ -8,12 +9,12 @@ interface BrandTabsProps {
 
 export function BrandTabs({ brands, activeBrand, onSelect }: BrandTabsProps) {
   return (
-    <div className="flex flex-wrap gap-2 mb-6 p-2 bg-white rounded-sm border border-[#E5E5E5]">
+    <div className="flex flex-wrap gap-2 mb-6 p-2 bg-white rounded-xl border border-stone-100 shadow-sm">
       <button
-        className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+        className={`relative px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
           !activeBrand
-            ? 'bg-[#A16207] text-white border border-[#A16207]'
-            : 'bg-transparent text-[#78716C] border border-transparent hover:text-[#A16207] hover:bg-[#F5F5F4]'
+            ? 'bg-gold-500 text-white shadow-sm'
+            : 'bg-transparent text-stone-500 hover:text-gold-600 hover:bg-stone-50'
         }`}
         onClick={() => onSelect('')}
       >
@@ -22,10 +23,10 @@ export function BrandTabs({ brands, activeBrand, onSelect }: BrandTabsProps) {
       {brands.map((b) => (
         <button
           key={b.name}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+          className={`relative flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
             activeBrand === b.name
-              ? 'bg-[#A16207] text-white border border-[#A16207]'
-              : 'bg-transparent text-[#78716C] border border-transparent hover:text-[#A16207] hover:bg-[#F5F5F4]'
+              ? 'bg-gold-500 text-white shadow-sm'
+              : 'bg-transparent text-stone-500 hover:text-gold-600 hover:bg-stone-50'
           }`}
           onClick={() => onSelect(b.name)}
         >
@@ -33,11 +34,18 @@ export function BrandTabs({ brands, activeBrand, onSelect }: BrandTabsProps) {
             <img
               src={b.logoUrl}
               alt={b.name}
-              className="w-6 h-6 object-contain rounded-sm"
+              className="w-5 h-5 object-contain rounded-sm"
               loading="lazy"
             />
           )}
           <span>{b.name}</span>
+          {activeBrand === b.name && (
+            <motion.div
+              layoutId="activeBrandIndicator"
+              className="absolute inset-0 bg-gold-500 rounded-full -z-10"
+              transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
+            />
+          )}
         </button>
       ))}
     </div>

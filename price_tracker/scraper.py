@@ -1,10 +1,8 @@
 """价格爬虫基类 + 名字匹配器"""
-import re
 import logging
 from typing import Optional
 from dataclasses import dataclass, field
 
-from django.db.models import Q
 from cigars.models import Cigar
 from .models import PriceSource, PriceSnapshot
 
@@ -44,7 +42,10 @@ class BaseScraper:
         )
 
 
-# --- 名字匹配 ---
+# --- 名字匹配（委托给独立匹配模块） ---
+
+from price_tracker.matcher import match_cigar as _match_cigar
+
 
 def match_cigar_by_name(
     scraped_name: str,
@@ -52,60 +53,22 @@ def match_cigar_by_name(
     brand_hint: Optional[str] = None,
 ) -> Optional[Cigar]:
     """
-    通用名字匹配器：模糊匹配 scraped_name → Cigar.english_name
-
-    策略：
-    1. 精确匹配 english_name
-    2. 精确匹配 name（中文）
-    3. english_name__icontains（双向）
-    4. FTS5 全文搜索（如果是 SQLite）
-    5. 带 brand_hint 缩小范围
+    薄封装：转发给 price_tracker.matcher.match_cigar()
+    
+    策略管线（见 matcher.py）：
+    1. 归一化精确匹配（Current 优先）
+    2. icontains 收集+评分（选最优而非首匹配）
+    3. no-prefix fallback
+    4. 单词级匹配
+    5. 中文名精确匹配
+    6. 全量匹配（所有状态）
     """
-    name = scraped_name.strip()
-
-    # 1. 精确匹配 english_name（大小写不敏感）
-    qs = Cigar.objects.filter(english_name__iexact=name)
-    if brand_hint:
-        qs = qs.filter(brand__iexact=brand_hint)
-
-    match = qs.first()
-    if match:
-        logger.debug(f'[exact] {name} → {match}')
-        return match
-
-    # 2. 中文名精确匹配
-    qs = Cigar.objects.filter(name=name)
-    if brand_hint:
-        qs = qs.filter(brand__iexact=brand_hint)
-
-    match = qs.first()
-    if match:
-        logger.debug(f'[cn-exact] {name} → {match}')
-        return match
-
-    # 3. icontains 双向
-    qs = Cigar.objects.filter(english_name__icontains=name)
-    if brand_hint:
-        qs = qs.filter(brand__iexact=brand_hint)
-
-    if qs.count() == 1:
-        match = qs.first()
-        logger.debug(f'[icontains] {name} → {match}')
-        return match
-
-    # 反向 icontains（scraped 名字包含 DB 名字）
-    qs = Cigar.objects.all()
-    if brand_hint:
-        qs = qs.filter(brand__iexact=brand_hint)
-
-    # 找 scraped_name 中包含 english_name 的
-    for cigar in qs.only('id', 'english_name', 'brand'):
-        if cigar.english_name and cigar.english_name.lower() in name.lower():
-            logger.debug(f'[reverse-icontains] {name} → {cigar}')
-            return cigar
-
-    logger.warning(f'[no-match] {name} ({source_name})')
-    return None
+    return _match_cigar(
+        scraped_name,
+        brand_hint=brand_hint,
+        source_name=source_name,
+        prefer_current=True,
+    )
 
 
 # --- 批量抓取入库 ---

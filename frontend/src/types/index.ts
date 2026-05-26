@@ -85,3 +85,33 @@ export interface AlertItem {
   enabled: boolean;
   last_triggered?: string;
 }
+
+export interface AggregatedSourceEntry {
+  source_id: number;
+  source_name: string;
+  source_slug: string;
+  price: number | null;
+  currency: string;
+  price_cny: number | null;
+  box_size: number | null;
+  box_price: number | null;
+  in_stock: boolean;
+  scraped_at: string | null;
+  url: string | null;
+  change_pct?: number | null;
+  change_direction?: string | null;
+}
+
+export interface AggregatedCigar {
+  cigar_id: number;
+  cigar_name: string;
+  cigar_english_name: string | null;
+  cigar_brand: string;
+  cigar_brand_cn: string | null;
+  sources: AggregatedSourceEntry[];
+  any_in_stock: boolean;
+  best_price: number | null;
+  best_price_source: string | null;
+  change_pct?: number | null;
+  change_direction?: string | null;
+}

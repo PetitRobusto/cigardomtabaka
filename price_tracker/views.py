@@ -14,7 +14,10 @@ from .serializers import (
     PriceSnapshotSerializer,
     PriceAlertSerializer,
     LatestPriceSerializer,
+    AggregatedCigarSerializer,
 )
+
+from django.db.models import Max, OuterRef, Subquery
 
 
 # --- Template View ---
@@ -187,6 +190,118 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             'cigar_name_en': cigar.english_name if cigar else None,
             'variants': list(variants.values()),
         })
+
+    @action(detail=False, methods=['get'])
+    def aggregated(self, request):
+        """聚合视图：每款雪茄的跨源价格+库存汇总，前端仪表盘单次加载"""
+        from django.db.models import Max as DMax, Min as DMin
+        from cigars.models import Brand, Cigar
+
+        # 获取每个 (cigar, source, box_size) 的最新快照（含缺货记录）
+        latest_ids = (
+            PriceSnapshot.objects
+            .values('cigar_id', 'source_id', 'box_size')
+            .annotate(max_id=DMax('id'))
+            .values_list('max_id', flat=True)
+        )
+        snapshots = (
+            PriceSnapshot.objects
+            .select_related('cigar', 'source')
+            .filter(id__in=latest_ids)
+            .order_by('cigar__brand', 'cigar__english_name', 'source__name')
+        )
+
+        # 品牌过滤
+        brand = request.query_params.get('brand')
+        if brand:
+            snapshots = snapshots.filter(cigar__brand=brand)
+
+        # 按雪茄组织
+        cigars_map = {}
+        for snap in snapshots:
+            cid = snap.cigar_id
+            if cid not in cigars_map:
+                # 获取中文品牌名
+                brand_name = snap.cigar.brand
+                brand_obj = Brand.objects.filter(english_name=brand_name).first()
+                if not brand_obj:
+                    brand_obj = Brand.objects.filter(english_name__startswith=brand_name).first()
+                if not brand_obj:
+                    brand_obj = Brand.objects.filter(english_name__icontains=brand_name).first()
+
+                cigars_map[cid] = {
+                    'cigar_id': cid,
+                    'cigar_name': snap.cigar.name or '',
+                    'cigar_english_name': snap.cigar.english_name or '',
+                    'cigar_brand': brand_name,
+                    'cigar_brand_cn': brand_obj.name if brand_obj else brand_name,
+                    'sources': [],
+                    'any_in_stock': False,
+                    'best_price': None,
+                    'best_price_source': None,
+                }
+
+            entry = cigars_map[cid]
+            entry['sources'].append({
+                'source_id': snap.source_id,
+                'source_name': snap.source.name,
+                'source_slug': snap.source.slug,
+                'price': snap.price,
+                'currency': snap.currency or 'USD',
+                'price_cny': snap.price_cny,
+                'box_size': snap.box_size,
+                'box_price': snap.box_price,
+                'in_stock': snap.in_stock,
+                'scraped_at': snap.scraped_at.isoformat() if snap.scraped_at else None,
+                'url': snap.url or None,
+            })
+
+            if snap.in_stock:
+                entry['any_in_stock'] = True
+                if entry['best_price'] is None or snap.price < entry['best_price']:
+                    entry['best_price'] = snap.price
+                    entry['best_price_source'] = snap.source.name
+
+        result = list(cigars_map.values())
+
+        # 计算涨跌（对比上一次同源同包装的价格）
+        for entry in result:
+            for src in entry['sources']:
+                cid = entry['cigar_id']
+                sid = src['source_id']
+                bs = src['box_size']
+                # 找上一条不同日期的快照
+                prev = PriceSnapshot.objects.filter(
+                    cigar_id=cid, source_id=sid, box_size=bs,
+                    in_stock=True,
+                ).exclude(
+                    scraped_at=src.get('scraped_at'),
+                ).order_by('-scraped_at').first()
+                if prev and prev.price:
+                    change = src['price'] - prev.price if src['price'] else 0
+                    pct = round((change / prev.price) * 100, 1) if prev.price else None
+                    direction = 'up' if change > 0 else ('down' if change < 0 else 'flat')
+                    src['change_pct'] = pct
+                    src['change_direction'] = direction
+
+        # 支持只回 in_stock 的雪茄
+        in_stock_only = request.query_params.get('in_stock_only')
+        if in_stock_only:
+            result = [e for e in result if e['any_in_stock']]
+
+        search = request.query_params.get('search')
+        if search:
+            q = search.lower()
+            result = [
+                e for e in result
+                if q in e['cigar_name'].lower()
+                or q in (e['cigar_english_name'] or '').lower()
+                or q in e['cigar_brand'].lower()
+                or q in (e['cigar_brand_cn'] or '').lower()
+            ]
+
+        serializer = AggregatedCigarSerializer(result, many=True)
+        return Response(serializer.data)
 
 
 class PriceAlertViewSet(viewsets.ModelViewSet):

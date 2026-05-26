@@ -181,7 +181,55 @@ def run_scrape_sync(source_slug: str) -> dict:
             )
             created += 1
 
+    # --- in_stock 缺货检测：标记本次爬取中未出现的历史商品为缺货 ---
     from django.utils import timezone
+    today = timezone.now().date()
+
+    # 收集本次爬取到的 (cigar_id, box_size) combos
+    scraped_combos = set()
+    fresh_snapshots = PriceSnapshot.objects.filter(
+        source=source, scraped_date=today,
+    ).values_list('cigar_id', 'box_size')
+    for cid, bs in fresh_snapshots:
+        scraped_combos.add((cid, bs))
+
+    # 找以前有货但今天没出现的 combo → 标记缺货
+    # 策略：找到每个 (cigar, box_size) 最新的 in_stock=True 的记录，
+    # 如果它不在 scraped_combos 里，创建一条今日 in_stock=False 快照
+    from django.db.models import Max as DMax
+    subquery = (
+        PriceSnapshot.objects
+        .filter(source=source)
+        .values('cigar_id', 'box_size')
+        .annotate(latest_id=DMax('id'))
+        .values_list('latest_id', flat=True)
+    )
+    latest_snapshots = PriceSnapshot.objects.filter(
+        id__in=subquery, in_stock=True, source=source,
+    )
+    oos_count = 0
+    for snap in latest_snapshots:
+        if (snap.cigar_id, snap.box_size) not in scraped_combos:
+            # 创建缺货快照（当日无爬取记录的才创建）
+            existing_oos = PriceSnapshot.objects.filter(
+                source=source, cigar=snap.cigar,
+                box_size=snap.box_size, scraped_date=today,
+            ).exists()
+            if not existing_oos:
+                PriceSnapshot.objects.create(
+                    source=source,
+                    cigar=snap.cigar,
+                    price=snap.price,
+                    currency=snap.currency,
+                    price_cny=snap.price_cny,
+                    box_size=snap.box_size,
+                    box_price=snap.box_price,
+                    url=snap.url,
+                    in_stock=False,
+                    raw_data={'oos_detected': True, 'last_seen': str(snap.scraped_date)},
+                )
+                oos_count += 1
+
     source.last_scraped = timezone.now()
     source.save(update_fields=['last_scraped'])
 
@@ -191,4 +239,5 @@ def run_scrape_sync(source_slug: str) -> dict:
         'matched': matched,
         'created': created,
         'skipped': skipped,
+        'marked_oos': oos_count,
     }

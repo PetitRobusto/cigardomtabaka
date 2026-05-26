@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static vite_manifest %}
 
 {% block title %}市场价格监控 — 莫斯科烟草之家{% endblock %}
 
@@ -12,7 +12,6 @@
     <script type="module" src="http://localhost:5173/@vite/client"></script>
     <script type="module" src="http://localhost:5173/src/main.jsx"></script>
   {% else %}
-    <script type="module" crossorigin src="{% static 'price-tracker/assets/index-dL-FJR7O.js' %}"></script>
-    <link rel="stylesheet" crossorigin href="{% static 'price-tracker/assets/index-CpaGkods.css' %}">
+    {% vite_asset 'index.html' %}
   {% endif %}
 {% endblock %}

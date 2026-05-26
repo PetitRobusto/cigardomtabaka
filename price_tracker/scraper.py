@@ -21,7 +21,6 @@ class ScrapedItem:
     url: str = ''                      # 商品页链接
     in_stock: bool = True
     raw_data: dict = field(default_factory=dict)
-    brand_hint: Optional[str] = None   # 品牌提示（品牌页爬取时提供，用于精准匹配）
 
 
 class BaseScraper:
@@ -45,87 +44,6 @@ class BaseScraper:
         )
 
 
-# --- 名字归一化（处理口音/空格/前缀差异） ---
-
-import unicodedata
-
-# Known COH misspellings/aliases → corrected form
-COH_NAME_FIXES = {
-    'vitosos': 'vistosos',           # COH typo for Vistosos
-    'connoisseur': 'connossieur',     # COH: double-S, DB: double-N
-    'omhros': 'omhpos',              # COH Greek Ρ→R, DB Latin P
-}
-
-# Greek → Latin transliteration
-GREEK_TO_LATIN = {
-    'Α': 'A', 'Β': 'B', 'Γ': 'G', 'Δ': 'D', 'Ε': 'E', 'Ζ': 'Z',
-    'Η': 'H', 'Θ': 'TH', 'Ι': 'I', 'Κ': 'K', 'Λ': 'L', 'Μ': 'M',
-    'Ν': 'N', 'Ξ': 'X', 'Ο': 'O', 'Π': 'P', 'Ρ': 'R', 'Σ': 'S',
-    'Τ': 'T', 'Υ': 'Y', 'Φ': 'F', 'Χ': 'CH', 'Ψ': 'PS', 'Ω': 'O',
-    'α': 'a', 'β': 'b', 'γ': 'g', 'δ': 'd', 'ε': 'e', 'ζ': 'z',
-    'η': 'h', 'θ': 'th', 'ι': 'i', 'κ': 'k', 'λ': 'l', 'μ': 'm',
-    'ν': 'n', 'ξ': 'x', 'ο': 'o', 'π': 'p', 'ρ': 'r', 'σ': 's',
-    'τ': 't', 'υ': 'y', 'φ': 'f', 'χ': 'ch', 'ψ': 'ps', 'ω': 'o',
-}
-
-def _transliterate_greek(s: str) -> str:
-    """ΟΜΗΡΟΣ → HOMEROS"""
-    return ''.join(GREEK_TO_LATIN.get(c, c) for c in s)
-
-def _normalize_for_match(s: str) -> str:
-    """归一化字符串以便匹配：去重音、strip 前缀、统一空格、希腊字母转写"""
-    if not s:
-        return ''
-    s = s.strip()
-    # Transliterate Greek characters FIRST (before NFKD eats them)
-    s = _transliterate_greek(s)
-    # Strip "5 Pack-" / "5 Pack -" anywhere in name (COH 5-pack variants)
-    s = re.sub(r'\b\d+\s*Pack\s*-?\s*', '', s)
-    # NFKD decomposes accented chars → base + combining diacritic
-    nfkd = unicodedata.normalize('NFKD', s)
-    ascii_only = nfkd.encode('ascii', 'ignore').decode('ascii')
-    # Normalize spaces and numbering
-    ascii_only = re.sub(r'\s+', ' ', ascii_only)
-    ascii_only = re.sub(r'No\.\s+', 'No.', ascii_only)
-    ascii_only = re.sub(r'No\s+(\d)', r'No.\1', ascii_only)
-    ascii_only = ascii_only.replace('.', '')
-    # Normalize Connoisseur/Connossieur spelling variance
-    result = ascii_only.strip().lower()
-    # Apply known COH typo fixes
-    for bad, good in COH_NAME_FIXES.items():
-        result = result.replace(bad, good)
-    # Normalize "2" ↔ "No2": strip "no" prefix for comparison, then re-check
-    # If one has "no2" and the other has just "2", normalize both to bare digit
-    result = re.sub(r'\bno\s*(\d+)\b', r'\1', result)
-    # Strip known brand prefixes to avoid brand-name substring matching
-    # e.g. "romeo y julieta linea de oro nobles" → "linea de oro nobles"
-    # This prevents "julieta" matching as a substring of the scraped name
-    for brand in _KNOWN_BRAND_NORMS:
-        prefix = brand + ' '
-        if result.startswith(prefix):
-            result = result[len(prefix):]
-            break
-        # Also try "brand - " pattern
-        prefix2 = brand + ' - '
-        if result.startswith(prefix2):
-            result = result[len(prefix2):]
-            break
-    return result
-
-
-# Pre-compute normalized brand names for prefix stripping
-_KNOWN_BRAND_NORMS = sorted([
-    'belinda', 'bolivar', 'cohiba', 'combinaciones', 'cuaba',
-    'diplomaticos', 'el rey del mundo', 'fonseca', 'guantanamera',
-    'h upmann', 'hoyo de monterrey', 'jose l piedra', 'juan lopez',
-    'la flor de cano', 'la gloria cubana', 'montecristo', 'partagas',
-    'por larranaga', 'punch', 'quai dorsay', 'quintero y hermano',
-    'rafael gonzalez', 'ramon allones', 'romeo y julieta',
-    'saint luis rey', 'san cristobal de la habana', 'sancho panza',
-    'trinidad', 'troya', 'vegas robaina', 'vegueros',
-], key=len, reverse=True)  # Sort by length descending: strip longest match first
-
-
 # --- 名字匹配 ---
 
 def match_cigar_by_name(
@@ -137,74 +55,54 @@ def match_cigar_by_name(
     通用名字匹配器：模糊匹配 scraped_name → Cigar.english_name
 
     策略：
-    1. 归一化后精确匹配（去重音/空格/前缀）
-    2. 中文名精确匹配
-    3. english_name__icontains（双向前缀匹配）
-    4. 带 brand_hint 缩小范围
+    1. 精确匹配 english_name
+    2. 精确匹配 name（中文）
+    3. english_name__icontains（双向）
+    4. FTS5 全文搜索（如果是 SQLite）
+    5. 带 brand_hint 缩小范围
     """
     name = scraped_name.strip()
 
-    # 0. 归一化 scraped name
-    norm = _normalize_for_match(name)
-
-    # 1. 归一化精确匹配：遍历同品牌雪茄，归一化 english_name 后比对
-    qs = Cigar.objects.all()
+    # 1. 精确匹配 english_name（大小写不敏感）
+    qs = Cigar.objects.filter(english_name__iexact=name)
     if brand_hint:
-        from cigars.models import Cigar as CigarModel
-        qs = CigarModel.objects.filter(brand__iexact=brand_hint)
+        qs = qs.filter(brand__iexact=brand_hint)
 
-    for cigar in qs.only('id', 'english_name', 'brand'):
-        if cigar.english_name and _normalize_for_match(cigar.english_name) == norm:
-            logger.debug(f'[norm-exact] {name} → {cigar}')
-            return cigar
+    match = qs.first()
+    if match:
+        logger.debug(f'[exact] {name} → {match}')
+        return match
 
     # 2. 中文名精确匹配
-    qs_ch = Cigar.objects.filter(name=name)
+    qs = Cigar.objects.filter(name=name)
     if brand_hint:
-        qs_ch = qs_ch.filter(brand__iexact=brand_hint)
-    match = qs_ch.first()
+        qs = qs.filter(brand__iexact=brand_hint)
+
+    match = qs.first()
     if match:
         logger.debug(f'[cn-exact] {name} → {match}')
         return match
 
-    # 3. icontains 归一化后双向匹配（含品牌前缀剥离尝试）
+    # 3. icontains 双向
+    qs = Cigar.objects.filter(english_name__icontains=name)
+    if brand_hint:
+        qs = qs.filter(brand__iexact=brand_hint)
+
+    if qs.count() == 1:
+        match = qs.first()
+        logger.debug(f'[icontains] {name} → {match}')
+        return match
+
+    # 反向 icontains（scraped 名字包含 DB 名字）
     qs = Cigar.objects.all()
     if brand_hint:
         qs = qs.filter(brand__iexact=brand_hint)
 
+    # 找 scraped_name 中包含 english_name 的
     for cigar in qs.only('id', 'english_name', 'brand'):
-        if not cigar.english_name:
-            continue
-        db_norm = _normalize_for_match(cigar.english_name)
-        if brand_hint:
-            # 有品牌范围：in 匹配安全
-            if db_norm in norm or norm in db_norm:
-                logger.debug(f'[norm-icontains] {name} → {cigar}')
-                return cigar
-        else:
-            # 无品牌范围：收紧，只用 startswith/endswith（不用 in，避免跨品牌误匹配）
-            if norm.startswith(db_norm) or db_norm.startswith(norm):
-                logger.debug(f'[norm-icontains] {name} → {cigar}')
-                return cigar
-
-    # 4. 品牌前缀剥离后重试（"Cohiba Esplendidos" → "Esplendidos"）
-    # 只在同品牌范围内搜索，避免 "Romeo y Julieta Churchills" 匹配到 Bolívar
-    parts = norm.split(None, 1)
-    if len(parts) == 2:
-        without_brand = parts[1]
-        # 只 scoped 搜索：强制使用 brand_hint 或当前已 scoped 的 qs
-        search_qs = qs
-        if not brand_hint:
-            # 没有品牌提示时，不加限制，但收紧匹配：只用 == 
-            search_qs = Cigar.objects.all()
-        for cigar in search_qs.only('id', 'english_name', 'brand'):
-            if not cigar.english_name:
-                continue
-            db_norm = _normalize_for_match(cigar.english_name)
-            # 收紧：只用 ==（不用 in，避免 "y julieta churchills" 包含 "churchills"）
-            if db_norm == without_brand:
-                logger.debug(f'[brand-stripped] {name} → {cigar}')
-                return cigar
+        if cigar.english_name and cigar.english_name.lower() in name.lower():
+            logger.debug(f'[reverse-icontains] {name} → {cigar}')
+            return cigar
 
     logger.warning(f'[no-match] {name} ({source_name})')
     return None

@@ -48,12 +48,19 @@ class PriceSnapshot(models.Model):
     in_stock = models.BooleanField('有货', default=True)
     raw_data = models.JSONField('原始数据', default=dict, blank=True)
     scraped_at = models.DateTimeField('抓取时间', auto_now_add=True)
+    scraped_date = models.DateField('抓取日期', auto_now_add=True)
 
     class Meta:
         ordering = ['cigar', '-scraped_at']
         indexes = [
             Index(fields=['cigar', 'source', '-scraped_at']),
             Index(fields=['source', '-scraped_at']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['cigar', 'source', 'box_size', 'scraped_date'],
+                name='uq_snapshot_per_day',
+            ),
         ]
         get_latest_by = 'scraped_at'
         verbose_name = '价格快照'

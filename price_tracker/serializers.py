@@ -1,7 +1,6 @@
 """价格跟踪系统 — DRF Serializers"""
 from rest_framework import serializers
 from .models import PriceSource, PriceSnapshot, PriceAlert
-from cigars.models import Brand
 
 
 class PriceSourceSerializer(serializers.ModelSerializer):
@@ -22,38 +21,36 @@ class PriceSnapshotSerializer(serializers.ModelSerializer):
     cigar_english_name = serializers.CharField(source='cigar.english_name', read_only=True)
     cigar_brand = serializers.CharField(source='cigar.brand', read_only=True)
     cigar_brand_cn = serializers.SerializerMethodField()
-    cigar_image_url = serializers.SerializerMethodField()
+    # Variant-level aggregates (annotated by views, not model fields)
+    min_price = serializers.FloatField(read_only=True, allow_null=True, default=None)
+    max_price = serializers.FloatField(read_only=True, allow_null=True, default=None)
+    record_count = serializers.IntegerField(read_only=True, default=0)
+
+    def get_cigar_brand_cn(self, obj):
+        """Look up Chinese brand name from Brand model (fuzzy match)"""
+        from cigars.models import Brand
+        brand_name = obj.cigar.brand
+        # Exact match first
+        brand = Brand.objects.filter(english_name=brand_name).first()
+        if not brand:
+            # Try prefix match (e.g. 'San Cristóbal' → 'San Cristóbal de la Habana')
+            brand = Brand.objects.filter(english_name__startswith=brand_name).first()
+        if not brand:
+            # Try icontains
+            brand = Brand.objects.filter(english_name__icontains=brand_name).first()
+        return brand.name if brand else brand_name
 
     class Meta:
         model = PriceSnapshot
         fields = [
             'id', 'source', 'source_name', 'source_slug', 'source_currency',
-            'cigar', 'cigar_name', 'cigar_english_name', 'cigar_brand', 'cigar_brand_cn', 'cigar_image_url',
+            'cigar', 'cigar_name', 'cigar_english_name', 'cigar_brand', 'cigar_brand_cn',
             'price', 'currency', 'price_cny',
             'box_size', 'box_price', 'url', 'in_stock',
             'scraped_at',
+            'min_price', 'max_price', 'record_count',
         ]
         read_only_fields = ['scraped_at']
-
-    def get_cigar_brand_cn(self, obj):
-        if obj.cigar and obj.cigar.brand:
-            brand = Brand.objects.filter(english_name__iexact=obj.cigar.brand).first()
-            if brand:
-                return brand.name
-        return None
-
-    def get_cigar_image_url(self, obj):
-        """获取雪茄第一张图片URL（优先本地，否则远程）"""
-        if not obj.cigar:
-            return None
-        from cigars.models import CigarImage
-        img = CigarImage.objects.filter(cigar=obj.cigar).order_by('order').first()
-        if img:
-            if img.image:
-                return img.image.url
-            if img.image_url:
-                return img.image_url
-        return None
 
 
 class PriceAlertSerializer(serializers.ModelSerializer):
@@ -88,8 +85,6 @@ class LatestPriceSerializer(serializers.Serializer):
     cigar_id = serializers.IntegerField()
     cigar_name = serializers.CharField()
     cigar_brand = serializers.CharField()
-    cigar_brand_cn = serializers.CharField()
-    cigar_image_url = serializers.CharField()
     source_id = serializers.IntegerField()
     source_name = serializers.CharField()
     source_slug = serializers.CharField()

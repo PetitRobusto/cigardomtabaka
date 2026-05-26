@@ -20,7 +20,7 @@ from .serializers import (
 # --- Template View ---
 
 @login_required
-def price_dashboard(request):
+def price_dashboard(request, path=None):
     """价格仪表盘页面（React SPA 挂载）"""
     return render(request, 'price_tracker/dashboard.html')
 
@@ -58,7 +58,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def latest(self, request):
-        """所有今天的价格快照（含多包装）"""
+        """所有今天的价格快照（含多包装），附 variant 聚合统计"""
         today = timezone.now().date()
         snapshots = (
             PriceSnapshot.objects
@@ -77,9 +77,35 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         if source_slug:
             snapshots = snapshots.filter(source__slug=source_slug)
 
-        # 不分页——仪表盘需要全部数据
-        serializer = PriceSnapshotSerializer(snapshots, many=True)
-        return Response(serializer.data)
+        # Pre-compute variant-level aggregates (min_price, max_price, record_count)
+        # for every (cigar_id, source_id, box_size) combination found in today's data
+        from django.db.models import Min as DMin, Max as DMax, Count as DCount
+        agg_map = {}
+        today_variants = snapshots.values('cigar_id', 'source_id', 'box_size').distinct()
+        for v in today_variants:
+            agg = PriceSnapshot.objects.filter(
+                cigar_id=v['cigar_id'],
+                source_id=v['source_id'],
+                box_size=v['box_size'],
+            ).aggregate(
+                min_p=DMin('price'),
+                max_p=DMax('price'),
+                cnt=DCount('id'),
+            )
+            agg_map[(v['cigar_id'], v['source_id'], v['box_size'])] = agg
+
+        serializer = PriceSnapshotSerializer(snapshots, many=True, context={'request': request})
+        data = serializer.data
+
+        # Attach variant-level aggregates to each snapshot
+        for item in data:
+            key = (item['cigar'], item['source'], item.get('box_size'))
+            agg = agg_map.get(key, {})
+            item['min_price'] = agg.get('min_p')
+            item['max_price'] = agg.get('max_p')
+            item['record_count'] = agg.get('cnt', 0)
+
+        return Response(data)
 
     @action(detail=False, methods=['get'])
     def history(self, request):
@@ -101,6 +127,17 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
         cigar = snapshots[0].cigar if snapshots.exists() else None
+
+        # Resolve Chinese brand name
+        brand_cn = None
+        if cigar:
+            from cigars.models import Brand
+            brand_obj = Brand.objects.filter(english_name=cigar.brand).first()
+            if not brand_obj:
+                brand_obj = Brand.objects.filter(english_name__startswith=cigar.brand).first()
+            if not brand_obj:
+                brand_obj = Brand.objects.filter(english_name__icontains=cigar.brand).first()
+            brand_cn = brand_obj.name if brand_obj else cigar.brand
 
         # 按 (来源, 包装) 分组 —— 每个 variant 独立追踪
         variants = {}
@@ -127,9 +164,18 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                 'in_stock': snap.in_stock,
             })
 
+        # Compute aggregates per variant
+        for v in variants.values():
+            prices = [p['price'] for p in v['points'] if p['price'] is not None]
+            v['current_price'] = prices[-1] if prices else None
+            v['min_price'] = min(prices) if prices else None
+            v['max_price'] = max(prices) if prices else None
+            v['record_count'] = len(v['points'])
+
         return Response({
             'cigar_id': int(cigar_id),
             'cigar_brand': cigar.brand if cigar else None,
+            'cigar_brand_cn': brand_cn,
             'cigar_name': (cigar.name or cigar.english_name) if cigar else None,
             'cigar_name_en': cigar.english_name if cigar else None,
             'variants': list(variants.values()),
@@ -220,7 +266,7 @@ def import_coh_bulk(request):
                 # Dedup by cigar + source + box_size + date (allow multiple packagings)
                 existing = PriceSnapshot.objects.filter(
                     cigar=cigar, source=source, box_size=box_size,
-                    scraped_at__date=now.date()
+                    scraped_date=now.date()
                 ).first()
                 if not existing:
                     PriceSnapshot.objects.create(

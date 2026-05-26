@@ -26,7 +26,6 @@ from bs4 import BeautifulSoup
 
 from price_tracker.scraper import BaseScraper, ScrapedItem, match_cigar_by_name
 from price_tracker.scrapers import register_scraper
-from cigars.models import Cigar
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +177,6 @@ def _parse_coh_page(html: str, brand_name: str, brand_hint: str) -> list[Scraped
                     box_price=price,
                     url=f'{BASE_URL}/cigars-{BRAND_SLUGS.get(brand_name, brand_name.lower().replace(" ", "-"))}',
                     in_stock=True,
-                    brand_hint=brand_hint,
                     raw_data={
                         'brand': brand_from_line,
                         'product': product_name,
@@ -211,14 +209,6 @@ class COHCigarsScraper(BaseScraper):
             'Accept': 'text/html,application/xhtml+xml',
             'Accept-Language': 'en-US,en;q=0.9',
         })
-
-    def match_cigar(self, item: ScrapedItem) -> Optional[Cigar]:
-        """COH 品牌页爬取：使用 brand_hint 限定匹配范围，避免跨品牌误匹配"""
-        return match_cigar_by_name(
-            item.name,
-            source_name=self.source.name,
-            brand_hint=item.brand_hint,
-        )
 
     async def scrape_catalog(self) -> list[ScrapedItem]:
         all_items = []

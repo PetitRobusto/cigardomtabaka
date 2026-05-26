@@ -1,4 +1,5 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { motion } from 'framer-motion';
 import type { Variant } from '../../types';
 import { buildChartData, variantLabel } from '../../utils/priceData';
 
@@ -17,8 +18,13 @@ export function PriceChart({ variants }: PriceChartProps) {
   if (chartData.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-lg border border-[#E8E4DF] shadow-sm p-5 mb-8">
-      <h3 className="text-sm font-bold text-[#1C1917] uppercase tracking-widest mb-4">
+    <motion.div
+      className="bg-white rounded-xl border border-stone-100 shadow-sm p-5 mb-8"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.1 }}
+    >
+      <h3 className="text-sm font-bold text-stone-900 uppercase tracking-widest mb-4">
         价格走势
       </h3>
       <ResponsiveContainer width="100%" height={380}>
@@ -41,7 +47,7 @@ export function PriceChart({ variants }: PriceChartProps) {
             contentStyle={{
               background: '#fff',
               border: '1px solid #E8E4DF',
-              borderRadius: 8,
+              borderRadius: 12,
               boxShadow: '0 4px 20px rgba(28,25,23,0.08)',
             }}
             labelStyle={{ color: '#1C1917', fontWeight: 700, fontSize: 13 }}
@@ -64,6 +70,6 @@ export function PriceChart({ variants }: PriceChartProps) {
           ))}
         </LineChart>
       </ResponsiveContainer>
-    </div>
+    </motion.div>
   );
 }

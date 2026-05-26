@@ -8,6 +8,7 @@ import { PriceCardGrid } from '../components/dashboard/PriceCardGrid';
 import { LoadingState } from '../components/shared/LoadingState';
 import { EmptyState } from '../components/shared/EmptyState';
 import { ErrorState } from '../components/shared/ErrorState';
+import { PageTransition } from '../components/animations/PageTransition';
 import type { CigarListItem, BrandInfo } from '../types';
 
 function extractBrands(cigars: CigarListItem[]): BrandInfo[] {
@@ -54,15 +55,17 @@ export default function Dashboard() {
   if (filtered.length === 0) return <EmptyState title="暂无价格数据" description="等待价格数据抓取完成后自动显示" />;
 
   return (
-    <div>
-      <StatsBar
-        snapshotCount={cigars.reduce((sum, c) => sum + c.sources.length, 0)}
-        cigarCount={cigars.length}
-        brandCount={brands.length}
-        sourceCount={[...new Set(cigars.flatMap(c => c.sources.map(s => s.source_slug)))].length}
-      />
-      <BrandTabs brands={brands} activeBrand={activeBrand} onSelect={setActiveBrand} />
-      <PriceCardGrid cigars={filtered} onCardClick={(id) => navigate(`/cigar/${id}`)} />
-    </div>
+    <PageTransition>
+      <div>
+        <StatsBar
+          snapshotCount={cigars.reduce((sum, c) => sum + c.sources.length, 0)}
+          cigarCount={cigars.length}
+          brandCount={brands.length}
+          sourceCount={[...new Set(cigars.flatMap(c => c.sources.map(s => s.source_slug)))].length}
+        />
+        <BrandTabs brands={brands} activeBrand={activeBrand} onSelect={setActiveBrand} />
+        <PriceCardGrid cigars={filtered} onCardClick={(id) => navigate(`/cigar/${id}`)} />
+      </div>
+    </PageTransition>
   );
 }

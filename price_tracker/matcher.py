@@ -389,6 +389,13 @@ def _collect_icontains_candidates(
                     score = 4500 + len(stripped)
                     reason = f'icontains-scraped-in-db-nostrip'
 
+        # ── 状态优先级加成（同分或接近时，优先当前生产款）──
+        if score > 0:
+            status_bonus = {'Current': 300, 'Special Releases': 200}.get(
+                getattr(cigar, 'status', ''), 100
+            )
+            score += status_bonus
+
         if score > best_score:
             best = cigar
             best_score = score
@@ -443,22 +450,29 @@ def match_cigar(
 
     # ── 辅助：精确匹配扫描（策略 1） ──
     def _exact_scan(candidates, tag=''):
+        best = None
+        best_status = 0
+        status_rank = {'Current': 3, 'Special Releases': 2, 'Discontinued': 1}
         for cigar in candidates:
             if not cigar.english_name or not _brand_match(cigar):
                 continue
+            match = False
             if normalize(cigar.english_name) == norm_full:
-                logger.debug(f'[exact-norm{tag}] {name} → {cigar.english_name}')
-                return cigar
-            stripped_norm = normalize(strip_brand(name))
-            if normalize(cigar.english_name) == stripped_norm:
-                logger.debug(f'[stripped-norm{tag}] {name} → {cigar.english_name}')
-                return cigar
-            if normalize_plural(cigar.english_name) == normalize_plural(name):
-                logger.debug(f'[plural-norm{tag}] {name} → {cigar.english_name}')
-                return cigar
-            if normalize_plural(cigar.english_name) == normalize_plural(strip_brand(name)):
-                logger.debug(f'[stripped-plural{tag}] {name} → {cigar.english_name}')
-                return cigar
+                match = True
+            elif normalize(cigar.english_name) == normalize(strip_brand(name)):
+                match = True
+            elif normalize_plural(cigar.english_name) == normalize_plural(name):
+                match = True
+            elif normalize_plural(cigar.english_name) == normalize_plural(strip_brand(name)):
+                match = True
+            if match:
+                rank = status_rank.get(getattr(cigar, 'status', ''), 0)
+                if rank > best_status:
+                    best = cigar
+                    best_status = rank
+        if best:
+            logger.debug(f'[exact-norm{tag}] {name} → {best.english_name} ({best.status})')
+            return best
         return None
 
     if prefer_current:
@@ -475,12 +489,6 @@ def match_cigar(
             _brand_match, source_tag='current'
         )
         if match:
-            return match
-
-        # 策略 3：单词级匹配
-        match = _match_word_level(strip_brand(name), current_qs, brand_hint)
-        if match:
-            logger.debug(f'[word-match] {name} → {match.english_name}')
             return match
 
     # ── 全量匹配（所有状态） ──

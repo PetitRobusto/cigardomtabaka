@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { PriceRow } from './PriceRow';
+import { BRAND_LOGO_LOCAL } from '../../utils/priceData';
 import type { CigarGroup } from '../../types';
 
 interface PriceCardProps {
@@ -8,18 +9,8 @@ interface PriceCardProps {
   onClick: () => void;
 }
 
-function getBrandLogoUrl(brandName: string): string | null {
-  const slug = brandName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  if (!slug) return null;
-  return `/media/brand_logos/${slug}.jpg`;
-}
-
 export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
-  // 用英文品牌名查 logo，否则中文 slugify 会匹配不到文件
-  const brandLogo = getBrandLogoUrl(cigar.brand_en || cigar.brand);
+  const brandLogo = BRAND_LOGO_LOCAL[cigar.brand_en || '']; 
 
   return (
     <motion.div

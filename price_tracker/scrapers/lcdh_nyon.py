@@ -56,22 +56,42 @@ class LCDHNyonScraper(BaseScraper):
         super().__init__(source)
         self._page = browser_page
     
-    def scrape(self) -> list[ScrapedItem]:
-        """从 Playwright page context 抓取所有产品"""
-        if not self._page:
-            raise RuntimeError('LCDHNyonScraper requires a Playwright browser page')
+    async def scrape_catalog(self) -> list[ScrapedItem]:
+        """独立运行：启动 Playwright + stealth，抓取全站"""
+        from playwright.async_api import async_playwright
+        from playwright_stealth import Stealth
         
-        all_items = []
-        for cat_slug, brand_name in BRAND_CATEGORIES.items():
-            url = f'{BASE_URL}/en/product-category/cigares-cubains/{cat_slug}/'
-            try:
-                items = self._scrape_brand(brand_name, cat_slug)
-                all_items.extend(items)
-                logger.info(f'  {brand_name}: {len(items)} products')
-            except Exception as e:
-                logger.error(f'  {brand_name}: {e}')
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-setuid-sandbox']
+            )
+            context = await browser.new_context(
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+                viewport={'width': 1920, 'height': 1080},
+                locale='en-US'
+            )
+            page = await context.new_page()
+            stealth = Stealth()
+            await stealth.apply_stealth_async(page)
+            
+            # Load homepage to pass Cloudflare
+            await page.goto(f'{BASE_URL}/en/', wait_until='domcontentloaded', timeout=60000)
+            await page.wait_for_timeout(8000)
+            
+            # Use fetch() to scrape all brands
+            all_items = []
+            for cat_slug, brand_name in BRAND_CATEGORIES.items():
+                try:
+                    items = await self._scrape_brand_async(page, brand_name, cat_slug)
+                    all_items.extend(items)
+                    logger.info(f'  {brand_name}: {len(items)} products')
+                except Exception as e:
+                    logger.error(f'  {brand_name}: {e}')
+            
+            await browser.close()
         
-        # 去重（按URL）
+        # Dedup
         seen = set()
         unique = []
         for item in all_items:
@@ -81,51 +101,44 @@ class LCDHNyonScraper(BaseScraper):
         
         return unique
     
-    def _scrape_brand(self, brand_name: str, cat_slug: str) -> list[ScrapedItem]:
-        """抓取单个品牌的所有产品"""
-        result = self._page.evaluate(f'''
-            async () => {{
-                const resp = await fetch('/en/product-category/cigares-cubains/{cat_slug}/');
-                const html = await resp.text();
-                const div = document.createElement('div');
-                div.innerHTML = html;
-                
-                const products = [];
-                const cards = div.querySelectorAll('.product-small, li.product');
-                
-                cards.forEach(card => {{
-                    const titleEl = card.querySelector('.product-title a, .woocommerce-loop-product__title');
-                    const priceEl = card.querySelector('.price .woocommerce-Price-amount, .price');
-                    const linkEl = card.querySelector('a[href*="/boutique/"]');
-                    const imgEl = card.querySelector('img');
-                    const badgeEl = card.querySelector('.out-of-stock, .badge-inner');
-                    
-                    if (!titleEl) return;
-                    
-                    const title = titleEl.textContent.trim();
-                    const price = priceEl?.textContent?.trim() || '';
-                    const url = linkEl?.getAttribute('href') || '';
-                    const img = imgEl?.getAttribute('src') || '';
-                    const badge = badgeEl?.textContent?.trim() || '';
-                    const inStock = !badge.includes('out of stock') && !badge.includes('Out of stock');
-                    
-                    products.push({{
-                        title, price, url, img, badge, inStock
+    async def _scrape_brand_async(self, page, brand_name: str, cat_slug: str) -> list[ScrapedItem]:
+        """Async version: 用 fetch() 抓取单个品牌"""
+        try:
+            result = await page.evaluate(f'''
+                async () => {{
+                    const resp = await fetch('/en/product-category/cigares-cubains/{cat_slug}/');
+                    const html = await resp.text();
+                    const div = document.createElement('div');
+                    div.innerHTML = html;
+                    const products = [];
+                    div.querySelectorAll('.product-small, li.product').forEach(card => {{
+                        const titleEl = card.querySelector('.product-title a, .woocommerce-loop-product__title');
+                        const priceEl = card.querySelector('.price');
+                        const linkEl = card.querySelector('a[href*="/boutique/"]');
+                        const badgeEl = card.querySelector('.out-of-stock, .badge-inner');
+                        if (!titleEl || !priceEl) return;
+                        products.push({{
+                            title: titleEl.textContent.trim(),
+                            price: priceEl.textContent.trim(),
+                            url: linkEl?.getAttribute('href') || '',
+                            badge: badgeEl?.textContent?.trim() || '',
+                            inStock: !(badgeEl?.textContent || '').toLowerCase().includes('out of stock')
+                        }});
                     }});
-                }});
-                
-                return JSON.stringify(products);
-            }}
-        ''')
-        
-        data = json.loads(result)
-        items = []
-        for p in data:
-            item = self._parse_product(p, brand_name)
-            if item:
-                items.append(item)
-        
-        return items
+                    return JSON.stringify(products);
+                }}
+            ''')
+            
+            data = json.loads(result)
+            items = []
+            for p in data:
+                item = self._parse_product(p, brand_name)
+                if item:
+                    items.append(item)
+            return items
+        except Exception as e:
+            logger.error(f'{brand_name}: {e}')
+            return []
     
     def _parse_product(self, raw: dict, brand: str) -> Optional[ScrapedItem]:
         """解析单个产品"""

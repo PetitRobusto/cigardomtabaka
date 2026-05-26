@@ -167,6 +167,10 @@ def normalize(s: str) -> str:
     # 2b. 去掉 "EL 2011" / "EL 2005" 等限量版年份后缀
     s = re.sub(r'\bEL\s+\d{4}\b', '', s, flags=re.IGNORECASE)
 
+    # 2c. 去掉品名末尾的盒装尺寸标注 "(25)" / "(5×20)" / "(10)" 等
+    # 这些是爬虫页面上的包装尺寸，不是雪茄品名的一部分
+    s = re.sub(r'\s*\(\s*\d+\s*(?:[x×]\s*\d+)?\s*\)\s*$', '', s)
+
     # 3. NFKD 分解重音字符 → base + combining diacritic
     nfkd = unicodedata.normalize('NFKD', s)
     ascii_only = nfkd.encode('ascii', 'ignore').decode('ascii')
@@ -210,6 +214,26 @@ def strip_brand(name: str) -> str:
     "Cohiba Behike BHK 52" → "Behike BHK 52"
     "H. Upmann Connoisseur No.2" → "Connoisseur No.2"
     """
+    stripped, _ = _strip_brand_with_hint(name)
+    return stripped
+
+
+def extract_brand_hint(name: str):
+    """
+    从品名自动提取品牌提示词。
+    "Cuaba Salomones" → "Cuaba"
+    "Romeo y Julieta Churchills" → "Romeo y Julieta"
+    "Churchills" → None（无品牌前缀）
+    
+    用于 matcher 自动加品牌过滤，防止裸名单词跨品牌误匹配
+    （如 "Salomones" 在 DB 中有 Cuaba/Partagás/Montecristo 三款）。
+    """
+    _, hint = _strip_brand_with_hint(name)
+    return hint
+
+
+def _strip_brand_with_hint(name: str):
+    """剥离品牌前缀，返回 (剥离后品名, 匹配到的品牌原名 或 None)"""
     _ensure_brand_map()
     name_norm = _basic_normalize(name)
 
@@ -219,28 +243,22 @@ def strip_brand(name: str) -> str:
     ):
         if name_norm.startswith(brand_norm):
             # 用归一化计算切点（避免 Partagás ≠ Partagas 偏移问题）
-            # brand_original 可能带重音，name 也可能带，需要对齐
-            cut = len(brand_norm)  # 用归一化后的长度定位
-            # 对齐到原始字符串：从 name 开头扫描，累计归一化后字符数到 cut
+            cut = len(brand_norm)
             pos = 0
             acc = 0
             while pos < len(name) and acc < cut:
                 ch = name[pos]
-                # 跳过品牌和原名之间的空格/连字符
                 nch = _basic_normalize(ch)
                 if nch:
                     acc += 1
                 pos += 1
             stripped = name[pos:].strip()
-            # 去掉开头的连字符或多余空格
             stripped = re.sub(r'^[\s\-]+', '', stripped)
             if stripped:
-                return stripped
-            # 如果剥离后为空（整串就是品牌名），返回原名
-            return name
+                return stripped, brand_original
+            return name, brand_original
 
-    return name
-
+    return name, None
 
 # ═══════════════════════════════════════════════════════════
 #  策略：单词级匹配
@@ -440,6 +458,17 @@ def match_cigar(
     # 构建候选集（不做 DB 品牌过滤，在 Python 中归一化后比对）
     qs = Cigar.objects.all()
 
+    # ── 脆弱名单词检测 ──
+    # 当 brand_hint 为空且剥离品牌后只剩1个短词（如 "Salomones"），
+    # icontains 会跨品牌误匹配（Partagás/Cuaba/Montecristo 都有 Salomones）。
+    # → 跳过 icontains，仅保留精确匹配 + 单词级匹配作为防线。
+    stripped_norm = normalize(strip_brand(name))
+    fragile = (
+        brand_hint is None 
+        and len(stripped_norm) <= 15 
+        and len([w for w in stripped_norm.split() if w not in STOP_WORDS]) == 1
+    )
+
     # Python 端品牌过滤（SQLite icontains 无法处理重音差异）
     # 必须用 _basic_normalize（去空格+去标点），因为 normalize 保留空格
     # 会导致 "H.Upmann"→"hupmann" vs "H. Upmann"→"h upmann" 不匹配！
@@ -484,12 +513,14 @@ def match_cigar(
             return match
 
         # 策略 2：icontains 评分匹配（收集全部候选→选最优）
-        match = _collect_icontains_candidates(
-            name, current_qs.only('id','english_name','brand','status','name'),
-            _brand_match, source_tag='current'
-        )
-        if match:
-            return match
+        # 脆弱名单词（无品牌+单裸词）跳过 icontains，防止跨品牌误匹配
+        if not fragile:
+            match = _collect_icontains_candidates(
+                name, current_qs.only('id','english_name','brand','status','name'),
+                _brand_match, source_tag='current'
+            )
+            if match:
+                return match
 
     # ── 全量匹配（所有状态） ──
     # 策略 1：精确
@@ -498,12 +529,13 @@ def match_cigar(
         return match
 
     # 策略 2：icontains 评分匹配
-    match = _collect_icontains_candidates(
-        name, qs.only('id','english_name','brand','status','name'),
-        _brand_match, source_tag='all'
-    )
-    if match:
-        return match
+    if not fragile:
+        match = _collect_icontains_candidates(
+            name, qs.only('id','english_name','brand','status','name'),
+            _brand_match, source_tag='all'
+        )
+        if match:
+            return match
 
     # 策略 3：单词级
     match = _match_word_level(strip_brand(name), qs, brand_hint)

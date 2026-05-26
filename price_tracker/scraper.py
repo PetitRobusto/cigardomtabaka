@@ -45,7 +45,7 @@ class BaseScraper:
 
 # --- 名字匹配（委托给独立匹配模块） ---
 
-from price_tracker.matcher import match_cigar as _match_cigar
+from price_tracker.matcher import match_cigar as _match_cigar, extract_brand_hint
 from .models import ExchangeRate
 
 
@@ -56,7 +56,10 @@ def match_cigar_by_name(
 ) -> Optional[Cigar]:
     """
     薄封装：转发给 price_tracker.matcher.match_cigar()
-    
+
+    ⚠️ 自动品牌提取：如果 brand_hint 为空，会从 scraped_name 提取品牌前缀。
+    这防止了 "Salomones"（Cuaba/Partagás/Montecristo 共有）跨品牌误匹配。
+
     策略管线（见 matcher.py）：
     1. 归一化精确匹配（Current 优先）
     2. icontains 收集+评分（选最优而非首匹配）
@@ -65,6 +68,10 @@ def match_cigar_by_name(
     5. 中文名精确匹配
     6. 全量匹配（所有状态）
     """
+    # 自动提取品牌提示词（如果调用方没传）
+    if brand_hint is None:
+        brand_hint = extract_brand_hint(scraped_name)
+
     return _match_cigar(
         scraped_name,
         brand_hint=brand_hint,

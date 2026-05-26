@@ -8,11 +8,6 @@
 {% endblock %}
 
 {% block extra_scripts %}
-  {% if debug %}
-    <script type="module" src="http://localhost:5173/@vite/client"></script>
-    <script type="module" src="http://localhost:5173/src/main.jsx"></script>
-  {% else %}
     <script type="module" crossorigin src="{% static 'price-tracker/assets/index-dL-FJR7O.js' %}"></script>
     <link rel="stylesheet" crossorigin href="{% static 'price-tracker/assets/index-CpaGkods.css' %}">
-  {% endif %}
 {% endblock %}

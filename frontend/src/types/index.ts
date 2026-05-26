@@ -32,19 +32,23 @@ export interface HistoryPoint {
   price: number;
   in_stock: boolean;
 }
-
 export interface Variant {
   source_slug: string;
   source_name: string;
+  scraped_name?: string;
   box_size: number | null;
   box_label: string;
   currency: string;
   url?: string;
   points: HistoryPoint[];
   current_price?: number | null;
+  current_price_cny?: number | null;
+  price_per_stick?: number | null;
   min_price?: number | null;
   max_price?: number | null;
   record_count?: number;
+  in_stock?: boolean;
+  scraped_at?: string;
 }
 
 export interface PriceHistoryResponse {
@@ -71,6 +75,29 @@ export interface BrandInfo {
   name: string;
   nameEn?: string;
   logoUrl: string;
+}
+
+export interface CigarListItem {
+  cigar_id: number;
+  cigar_name: string;
+  cigar_name_en: string;
+  cigar_brand: string;
+  cigar_brand_cn: string;
+  cigar_image_url: string;
+  sources: {
+    source_id: number;
+    source_name: string;
+    source_slug: string;
+    price: number;
+    price_cny: number | null;
+    currency: string;
+    box_size: number | null;
+    in_stock: boolean;
+    url: string;
+  }[];
+  in_stock: boolean;
+  min_price_cny: number | null;
+  max_price_cny: number | null;
 }
 
 export interface AlertItem {

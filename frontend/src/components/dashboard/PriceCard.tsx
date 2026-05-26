@@ -1,59 +1,104 @@
 import { motion } from 'framer-motion';
-import { PriceRow } from './PriceRow';
+import { SourceTag } from '../shared/SourceTag';
 import { BRAND_LOGO_LOCAL } from '../../utils/priceData';
-import type { CigarGroup } from '../../types';
+import type { CigarListItem } from '../../types';
 
 interface PriceCardProps {
-  cigar: CigarGroup;
+  cigar: CigarListItem;
   index: number;
   onClick: () => void;
 }
 
 export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
-  const brandLogo = BRAND_LOGO_LOCAL[cigar.brand_en || '']; 
+  const brandLogo = BRAND_LOGO_LOCAL[cigar.cigar_brand] || '';
+  const sourceSlugs = [...new Set(cigar.sources.map(s => s.source_slug))];
 
   return (
     <motion.div
-      className="bg-white rounded-md border border-stone-100 shadow-sm overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-lg hover:border-gold-500 transition-all duration-200"
-      initial={{ opacity: 0, y: 12 }}
+      className="group bg-cream rounded-md border border-stone-200 overflow-hidden cursor-pointer hover:border-gold-400 hover:shadow-lg transition-all duration-300"
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.04, duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+      transition={{ delay: index * 0.03, duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
       onClick={onClick}
       layout
     >
-      <div className="px-4 py-2.5 bg-stone-100 border-b border-stone-100 flex items-center gap-2">
-        {brandLogo && (
+      {/* 雪茄图片区域 */}
+      <div className="relative w-full aspect-[4/3] bg-stone-100 overflow-hidden">
+        {cigar.cigar_image_url ? (
           <img
-            src={brandLogo}
-            alt={cigar.brand}
-            className="w-5 h-5 object-contain rounded-sm"
+            src={cigar.cigar_image_url}
+            alt={cigar.cigar_name}
+            className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-500"
+            loading="lazy"
             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            {brandLogo ? (
+              <img
+                src={brandLogo}
+                alt={cigar.cigar_brand_cn || cigar.cigar_brand}
+                className="w-16 h-16 object-contain opacity-30"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : (
+              <span className="text-stone-300 text-4xl font-serif">雪茄</span>
+            )}
+          </div>
         )}
-        <span className="text-[0.7rem] text-stone-500 uppercase tracking-widest font-semibold">
-          {cigar.brand_cn || cigar.brand}
-        </span>
+
+        {/* 在售徽章 */}
+        {cigar.in_stock && (
+          <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 bg-stone-900/90 backdrop-blur-sm text-white text-[0.65rem] font-semibold px-2 py-1 rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            在售
+          </div>
+        )}
       </div>
-      <div className="p-4">
-        <h3 className="text-base font-semibold text-stone-900 leading-snug mb-1">
-          {cigar.name}
+
+      {/* 信息区域 */}
+      <div className="p-3.5">
+        {/* 品牌行 */}
+        <div className="flex items-center gap-1.5 mb-1.5">
+          {brandLogo && (
+            <img
+              src={brandLogo}
+              alt={cigar.cigar_brand_cn || cigar.cigar_brand}
+              className="w-4 h-4 object-contain rounded-sm"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          )}
+          <span className="text-[0.7rem] text-stone-500 uppercase tracking-wider font-medium">
+            {cigar.cigar_brand_cn || cigar.cigar_brand}
+          </span>
+        </div>
+
+        {/* 品名 */}
+        <h3 className="text-[0.95rem] font-bold text-stone-900 leading-snug mb-0.5 line-clamp-2 min-h-[2.4em]">
+          {cigar.cigar_name}
         </h3>
-        {cigar.name_en && cigar.name_en !== cigar.name && (
-          <p className="text-[0.78rem] text-stone-500 italic mb-2 font-serif">
-            {cigar.name_en}
+        {cigar.cigar_name_en && cigar.cigar_name_en !== cigar.cigar_name && (
+          <p className="text-[0.72rem] text-stone-400 italic mb-2.5 font-serif line-clamp-1">
+            {cigar.cigar_name_en}
           </p>
         )}
-        {cigar.image_url && (
-          <img
-            src={cigar.image_url}
-            alt={cigar.name}
-            className="w-full h-40 object-contain rounded mt-2 opacity-90 hover:opacity-100 transition-opacity bg-stone-50"
-            loading="lazy"
-          />
-        )}
-        <div className="flex flex-col gap-1 mt-3">
-          {cigar.prices.map((snap, i) => (
-            <PriceRow key={i} snap={snap} />
+
+        {/* 最低RMB价 */}
+        <div className="flex items-baseline gap-1 mb-2.5">
+          <span className="text-[0.7rem] text-stone-400">最低</span>
+          {cigar.min_price_cny != null ? (
+            <span className="text-xl font-bold text-gold-500 font-serif tracking-tight">
+              ¥{cigar.min_price_cny.toLocaleString()}
+            </span>
+          ) : (
+            <span className="text-sm font-medium text-stone-400">暂无报价</span>
+          )}
+        </div>
+
+        {/* 来源标签 */}
+        <div className="flex flex-wrap gap-1">
+          {sourceSlugs.map((slug) => (
+            <SourceTag key={slug} slug={slug} />
           ))}
         </div>
       </div>

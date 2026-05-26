@@ -13,6 +13,7 @@ export interface PriceSnapshot {
   cigar_brand: string;
   cigar_brand_cn?: string;
   cigar_image_url?: string;
+  scraped_name?: string;
   source: number;
   source_name: string;
   source_slug: string;
@@ -32,6 +33,7 @@ export interface HistoryPoint {
   price: number;
   in_stock: boolean;
 }
+
 export interface Variant {
   source_slug: string;
   source_name: string;
@@ -100,19 +102,6 @@ export interface CigarListItem {
   max_price_cny: number | null;
 }
 
-export interface AlertItem {
-  id: number;
-  cigar: number;
-  cigar_name: string;
-  source: number;
-  source_name: string;
-  condition: string;
-  condition_label: string;
-  target_price: number;
-  enabled: boolean;
-  last_triggered?: string;
-}
-
 export interface AggregatedSourceEntry {
   source_id: number;
   source_name: string;
@@ -141,4 +130,17 @@ export interface AggregatedCigar {
   best_price_source: string | null;
   change_pct?: number | null;
   change_direction?: string | null;
+}
+
+export interface AlertItem {
+  id: number;
+  cigar: number;
+  cigar_name: string;
+  source: number;
+  source_name: string;
+  condition: string;
+  condition_label: string;
+  target_price: number;
+  enabled: boolean;
+  last_triggered?: string;
 }

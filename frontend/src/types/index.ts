@@ -98,8 +98,7 @@ export interface CigarListItem {
     url: string;
   }[];
   in_stock: boolean;
-  min_price_cny: number | null;
-  max_price_cny: number | null;
+  avg_per_stick_cny: number | null;
 }
 
 export interface AggregatedSourceEntry {

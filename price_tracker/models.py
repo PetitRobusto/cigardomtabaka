@@ -98,5 +98,37 @@ class PriceAlert(models.Model):
         verbose_name = '价格预警'
         verbose_name_plural = '价格预警'
 
+
+class ExchangeRate(models.Model):
+    """每日汇率（兑人民币）"""
+    currency = models.CharField('货币代码', max_length=10)
+    rate = models.FloatField('汇率（1单位兑CNY）')
+    date = models.DateField('日期', auto_now_add=True)
+    fetched_at = models.DateTimeField('获取时间', auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date', 'currency']
+        unique_together = ['currency', 'date']
+        verbose_name = '汇率'
+        verbose_name_plural = '汇率'
+
     def __str__(self):
-        return f'{self.cigar} {self.get_condition_display()} {self.target_price}'
+        return f'1 {self.currency} = {self.rate} CNY ({self.date})'
+
+    @classmethod
+    def get_rate(cls, currency: str, date=None) -> float | None:
+        """获取指定货币的最新汇率"""
+        from django.utils import timezone
+        from datetime import date as date_type
+        if date is None:
+            date = date_type.today()
+        entry = cls.objects.filter(currency=currency.upper(), date__lte=date).order_by('-date').first()
+        return entry.rate if entry else None
+
+    @classmethod
+    def cny_convert(cls, price: float, currency: str) -> float | None:
+        """价格转人民币（保留2位小数）"""
+        rate = cls.get_rate(currency)
+        if rate:
+            return round(price * rate, 2)
+        return None

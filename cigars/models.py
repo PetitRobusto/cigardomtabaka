@@ -183,6 +183,15 @@ class Cigar(models.Model):
     )
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     deleted_at = models.DateTimeField('删除时间', null=True, blank=True)
+    production_method = models.CharField('制作方式', max_length=30, blank=True, default='',
+        choices=[
+            ('', '未标注'),
+            ('machine_rolled', '機捲'),
+            ('hand_rolled', '手捲'),
+            ('machine_rolled_short_filler', '機捲短芯'),
+            ('hand_rolled_long_filler', '手捲長芯'),
+        ],
+        help_text='机制/手捲，小雪茄多为機捲短芯')
 
     class Meta:
         unique_together = ('brand', 'english_name', 'release_type', 'release_name')

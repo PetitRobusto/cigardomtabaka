@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}市场价格监控 — 莫斯科烟草之家{% endblock %}
+
+{% block body %}
+<div id="root"></div>
+{% endblock %}
+
+{% block extra_scripts %}
+    <script type="module" crossorigin src="{% static 'price-tracker/assets/index-dL-FJR7O.js' %}"></script>
+    <link rel="stylesheet" crossorigin href="{% static 'price-tracker/assets/index-CpaGkods.css' %}">
+{% endblock %}

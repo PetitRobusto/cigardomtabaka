@@ -204,9 +204,10 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='list')
     def list_aggregated(self, request):
-        """Dashboard列表页聚合数据 — 每款雪茄一条，带最低RMB价、主图、来源信息"""
+        """Dashboard列表页聚合数据 — 每款雪茄一条，带均价/主图/来源"""
         from django.db.models import Max as DMax
         from cigars.models import Brand
+        from .models import ExchangeRate
 
         # 1. 取每个(cigar, source, box_size)的最新快照
         latest_ids = (
@@ -228,12 +229,21 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         if brand:
             snapshots = snapshots.filter(cigar__brand=brand)
 
+        def _cny_convert(price: float, currency: str) -> float | None:
+            """优先用DB汇率，fallback到保守估值"""
+            result = ExchangeRate.cny_convert(price, currency)
+            if result is not None:
+                return result
+            # 最后兜底：保守估算
+            fallback = {'USD': 7.0, 'CHF': 8.0, 'EUR': 7.8}
+            rate = fallback.get(currency.upper(), 7.0)
+            return round(price * rate, 2)
+
         # 2. 按雪茄聚合
         cigars_map = {}
         for snap in snapshots:
             cid = snap.cigar_id
             if cid not in cigars_map:
-                # 查中文品牌名
                 brand_name = snap.cigar.brand
                 brand_obj = Brand.objects.filter(english_name=brand_name).first()
                 if not brand_obj:
@@ -242,7 +252,6 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                     brand_obj = Brand.objects.filter(english_name__icontains=brand_name).first()
                 brand_cn = brand_obj.name if brand_obj else brand_name
 
-                # 主图
                 img_url = ''
                 img = snap.cigar.primary_image
                 if img and img.image:
@@ -260,12 +269,19 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                     'cigar_image_url': img_url,
                     'sources': [],
                     'in_stock': False,
-                    'min_price_cny': None,
-                    'max_price_cny': None,
+                    'avg_per_stick_cny': None,
                 }
 
             entry = cigars_map[cid]
-            price_cny = snap.price_cny if snap.price_cny is not None else (round(snap.price * 7.25, 2) if snap.price else None)
+            currency = (snap.currency or snap.source.currency or 'USD').strip()
+
+            # CNY 换算：已存的 price_cny > DB 汇率 > 保守估算
+            if snap.price_cny is not None:
+                price_cny = snap.price_cny
+            elif snap.price:
+                price_cny = _cny_convert(snap.price, currency)
+            else:
+                price_cny = None
 
             entry['sources'].append({
                 'source_id': snap.source_id,
@@ -273,23 +289,25 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                 'source_slug': snap.source.slug,
                 'price': snap.price,
                 'price_cny': price_cny,
-                'currency': snap.currency or 'USD',
+                'currency': currency,
                 'box_size': snap.box_size,
                 'in_stock': snap.in_stock,
                 'url': snap.url or snap.source.base_url,
             })
 
-            if price_cny is not None:
-                if entry['min_price_cny'] is None or price_cny < entry['min_price_cny']:
-                    entry['min_price_cny'] = price_cny
-                if entry['max_price_cny'] is None or price_cny > entry['max_price_cny']:
-                    entry['max_price_cny'] = price_cny
-
             if snap.in_stock:
                 entry['in_stock'] = True
 
-        # 3. 排序
+        # 3. 计算平均单支价 + 排序
         result = list(cigars_map.values())
+        for entry in result:
+            per_stick = []
+            for s in entry['sources']:
+                if s['price_cny'] and s['box_size'] and s['box_size'] > 0:
+                    per_stick.append(s['price_cny'] / s['box_size'])
+            if per_stick:
+                entry['avg_per_stick_cny'] = round(sum(per_stick) / len(per_stick), 0)
+
         BRANDS_ORDER = [
             '高希霸', '蒙特', '罗密欧与朱丽叶', '帕特加斯',
             '好友', '乌普曼',

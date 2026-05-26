@@ -87,12 +87,12 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
           </p>
         )}
 
-        {/* 最低RMB价 */}
+        {/* 均价/支 (RMB) */}
         <div className="flex items-baseline gap-1 mb-2.5">
-          <span className="text-[0.7rem] text-stone-400">最低</span>
-          {cigar.min_price_cny != null ? (
+          <span className="text-[0.7rem] text-stone-400">均价/支</span>
+          {cigar.avg_per_stick_cny != null ? (
             <span className="text-xl font-bold text-gold-500 font-serif tracking-tight">
-              ¥{cigar.min_price_cny.toLocaleString()}
+              ¥{cigar.avg_per_stick_cny.toLocaleString()}
             </span>
           ) : (
             <span className="text-sm font-medium text-stone-400">暂无报价</span>

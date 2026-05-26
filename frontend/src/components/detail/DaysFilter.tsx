@@ -12,10 +12,10 @@ export function DaysFilter({ days, onChange }: DaysFilterProps) {
         <button
           key={d}
           onClick={() => onChange(d)}
-          className={`px-4 py-2 rounded-sm text-sm font-medium transition-all duration-200 ${
+          className={`px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${
             days === d
-              ? 'border-2 border-brand-brown bg-brand-tab-active text-brand-brown shadow-sm'
-              : 'bg-white text-stone-700 border border-stone-200 hover:border-brand-brown hover:text-brand-brown'
+              ? 'bg-[#A16207] text-white shadow-sm'
+              : 'bg-white text-[#78716C] border border-[#E8E4DF] hover:border-[#A16207] hover:text-[#A16207]'
           }`}
         >
           {d}天

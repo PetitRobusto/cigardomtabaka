@@ -25,7 +25,7 @@ export default function CigarDetail() {
 
   return (
     <PageTransition>
-      <div>
+      <div className="max-w-7xl mx-auto px-4 py-6">
         <BackButton onClick={() => navigate('/')} />
         <DetailHeader data={data} />
 
@@ -38,8 +38,8 @@ export default function CigarDetail() {
 
         {variants.length > 0 && (
           <>
-            <VariantGrid variants={variants} />
             <DaysFilter days={daysFilter} onChange={setDaysFilter} />
+            <VariantGrid variants={variants} />
             <PriceChart variants={variants} />
           </>
         )}

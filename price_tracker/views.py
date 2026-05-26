@@ -58,12 +58,19 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def latest(self, request):
-        """所有今天的价格快照（含多包装），附 variant 聚合统计"""
-        today = timezone.now().date()
+        """所有最新价格快照 — 每款雪茄每个来源取最新一条"""
+        from django.db.models import Max
+        # 每个(cigar, source, box_size)的最新scraped_at
+        latest_ids = (
+            PriceSnapshot.objects
+            .values('cigar_id', 'source_id', 'box_size')
+            .annotate(max_id=Max('id'))
+            .values_list('max_id', flat=True)
+        )
         snapshots = (
             PriceSnapshot.objects
             .select_related('cigar', 'source')
-            .filter(scraped_at__date=today)
+            .filter(id__in=latest_ids)
             .order_by('cigar__brand', 'cigar__english_name', 'source__name', 'box_size')
         )
 

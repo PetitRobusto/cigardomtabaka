@@ -1,23 +1,55 @@
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Bell, Plus, Trash2, Power, PowerOff, AlertTriangle, TrendingDown, TrendingUp, Activity } from 'lucide-react';
 import { fetchAlerts, createAlert, updateAlert, deleteAlert, fetchSources } from '../api';
+import { LoadingState } from '../components/shared/LoadingState';
+import { EmptyState } from '../components/shared/EmptyState';
+
+interface AlertItem {
+  id: number;
+  cigar_name: string;
+  source_name: string;
+  condition: string;
+  condition_label: string;
+  target_price: number;
+  enabled: boolean;
+  last_triggered?: string;
+}
+
+interface Source {
+  id: number;
+  name: string;
+}
+
+const CONDITION_OPTIONS = [
+  { value: 'below', label: '低于', icon: TrendingDown },
+  { value: 'above', label: '高于', icon: TrendingUp },
+  { value: 'drop_pct', label: '跌幅超(%)', icon: Activity },
+];
 
 export default function Alerts() {
-  const [alerts, setAlerts] = useState([]);
-  const [sources, setSources] = useState([]);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ cigar_id: '', source_id: '', condition: 'below', target_price: '' });
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
+    cigar_id: '',
+    source_id: '',
+    condition: 'below',
+    target_price: '',
+  });
 
   const load = () => {
     Promise.all([fetchAlerts(), fetchSources()]).then(([a, s]) => {
-      setAlerts(a.results || a);
-      setSources(s.results || s);
+      setAlerts(a.results || a || []);
+      setSources(s.results || s || []);
       setLoading(false);
-    });
+    }).catch(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, []);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.cigar_id || !form.source_id || !form.target_price) return;
     await createAlert({
@@ -27,68 +59,217 @@ export default function Alerts() {
       target_price: parseFloat(form.target_price),
     });
     setForm({ cigar_id: '', source_id: '', condition: 'below', target_price: '' });
+    setShowForm(false);
     load();
   };
 
-  const toggleAlert = async (alert) => {
+  const toggleAlert = async (alert: AlertItem) => {
     await updateAlert(alert.id, { enabled: !alert.enabled });
     load();
   };
 
-  const removeAlert = async (id) => {
+  const removeAlert = async (id: number) => {
     await deleteAlert(id);
     load();
   };
 
-  if (loading) return <div className="loading">加载中...</div>;
+  if (loading) return <LoadingState text="加载预警数据…" />;
 
   return (
-    <div className="alerts-page">
-      <h2>价格预警</h2>
+    <div className="max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gold-500/10 flex items-center justify-center">
+            <Bell className="w-5 h-5 text-gold-600" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-stone-900">价格预警</h2>
+            <p className="text-sm text-stone-400">当价格满足条件时自动提醒</p>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-gold-500 text-white rounded-lg font-medium
+            hover:bg-gold-600 active:scale-[0.98] transition-all duration-200 shadow-sm"
+        >
+          <Plus className="w-4 h-4" />
+          <span>新建预警</span>
+        </button>
+      </div>
 
       {/* Create form */}
-      <form className="alert-form" onSubmit={handleSubmit}>
-        <input
-          type="number" placeholder="雪茄 ID" value={form.cigar_id}
-          onChange={e => setForm({ ...form, cigar_id: e.target.value })}
-          required
-        />
-        <select value={form.source_id} onChange={e => setForm({ ...form, source_id: e.target.value })} required>
-          <option value="">选择来源</option>
-          {sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-        <select value={form.condition} onChange={e => setForm({ ...form, condition: e.target.value })}>
-          <option value="below">低于</option>
-          <option value="above">高于</option>
-          <option value="drop_pct">跌幅超(%)</option>
-        </select>
-        <input
-          type="number" step="0.01" placeholder="目标价格" value={form.target_price}
-          onChange={e => setForm({ ...form, target_price: e.target.value })}
-          required
-        />
-        <button type="submit">添加预警</button>
-      </form>
+      <AnimatePresence>
+        {showForm && (
+          <motion.form
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25 }}
+            className="mb-6 overflow-hidden"
+            onSubmit={handleSubmit}
+          >
+            <div className="bg-white rounded-xl border border-stone-200 shadow-sm p-5">
+              <h3 className="text-sm font-semibold text-stone-700 mb-4">新建价格预警</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-stone-500 mb-1">雪茄 ID</label>
+                  <input
+                    type="number"
+                    placeholder="例如: 123"
+                    value={form.cigar_id}
+                    onChange={e => setForm({ ...form, cigar_id: e.target.value })}
+                    required
+                    className="w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm text-stone-900
+                      placeholder:text-stone-300 focus:outline-none focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500
+                      transition-all duration-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-500 mb-1">价格来源</label>
+                  <select
+                    value={form.source_id}
+                    onChange={e => setForm({ ...form, source_id: e.target.value })}
+                    required
+                    className="w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm text-stone-900
+                      focus:outline-none focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500
+                      transition-all duration-200 bg-white"
+                  >
+                    <option value="">选择来源</option>
+                    {sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-500 mb-1">条件</label>
+                  <select
+                    value={form.condition}
+                    onChange={e => setForm({ ...form, condition: e.target.value })}
+                    className="w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm text-stone-900
+                      focus:outline-none focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500
+                      transition-all duration-200 bg-white"
+                  >
+                    {CONDITION_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-500 mb-1">目标价格</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="例如: 100.00"
+                    value={form.target_price}
+                    onChange={e => setForm({ ...form, target_price: e.target.value })}
+                    required
+                    className="w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm text-stone-900
+                      placeholder:text-stone-300 focus:outline-none focus:ring-2 focus:ring-gold-500/30 focus:border-gold-500
+                      transition-all duration-200"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-gold-500 text-white rounded-lg font-medium text-sm
+                    hover:bg-gold-600 active:scale-[0.98] transition-all duration-200"
+                >
+                  添加预警
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="px-5 py-2.5 border border-stone-200 text-stone-600 rounded-lg font-medium text-sm
+                    hover:bg-stone-50 transition-all duration-200"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          </motion.form>
+        )}
+      </AnimatePresence>
 
       {/* Alerts list */}
-      <div className="alerts-list">
-        {alerts.length === 0 && <div className="empty">暂无预警</div>}
-        {alerts.map(a => (
-          <div key={a.id} className={`alert-item ${a.enabled ? '' : 'disabled'}`}>
-            <div className="alert-info">
-              <span className="alert-cigar">{a.cigar_name}</span>
-              <span className="alert-source">@{a.source_name}</span>
-              <span className="alert-cond">{a.condition_label}</span>
-              <span className="alert-price">{a.target_price}</span>
-              {a.last_triggered && <span className="alert-triggered">上次触发: {a.last_triggered}</span>}
-            </div>
-            <div className="alert-actions">
-              <button onClick={() => toggleAlert(a)}>{a.enabled ? '禁用' : '启用'}</button>
-              <button className="danger" onClick={() => removeAlert(a.id)}>删除</button>
-            </div>
-          </div>
-        ))}
-      </div>
+      {alerts.length === 0 ? (
+        <EmptyState
+          title="暂无预警规则"
+          description="点击上方按钮创建第一个价格预警"
+        />
+      ) : (
+        <div className="space-y-3">
+          <AnimatePresence mode="popLayout">
+            {alerts.map((alert) => (
+              <motion.div
+                key={alert.id}
+                layout
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.2 }}
+                className={`group bg-white rounded-xl border shadow-sm overflow-hidden transition-all duration-200 ${
+                  alert.enabled
+                    ? 'border-stone-200 hover:border-gold-300 hover:shadow-md'
+                    : 'border-stone-100 opacity-60'
+                }`}
+              >
+                <div className="flex items-center justify-between px-5 py-4">
+                  <div className="flex items-center gap-4">
+                    {/* Status indicator */}
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${
+                      alert.enabled ? 'bg-emerald-400' : 'bg-stone-300'
+                    }`} />
+
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-stone-900 text-sm">{alert.cigar_name}</span>
+                        <span className="text-xs text-stone-400">@{alert.source_name}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-gold-600 bg-gold-50 px-2 py-0.5 rounded-full border border-gold-100">
+                          {alert.condition === 'below' && <TrendingDown className="w-3 h-3" />}
+                          {alert.condition === 'above' && <TrendingUp className="w-3 h-3" />}
+                          {alert.condition === 'drop_pct' && <Activity className="w-3 h-3" />}
+                          {alert.condition_label}
+                        </span>
+                        <span className="text-sm font-bold text-stone-800">
+                          ¥{alert.target_price}
+                        </span>
+                        {alert.last_triggered && (
+                          <span className="text-xs text-stone-400">
+                            上次触发: {alert.last_triggered}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => toggleAlert(alert)}
+                      title={alert.enabled ? '禁用' : '启用'}
+                      className={`p-2 rounded-lg transition-all duration-200 ${
+                        alert.enabled
+                          ? 'text-emerald-600 hover:bg-emerald-50'
+                          : 'text-stone-400 hover:bg-stone-100'
+                      }`}
+                    >
+                      {alert.enabled ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />}
+                    </button>
+                    <button
+                      onClick={() => removeAlert(alert.id)}
+                      title="删除"
+                      className="p-2 rounded-lg text-stone-400 hover:text-red-500 hover:bg-red-50 transition-all duration-200"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
     </div>
   );
 }

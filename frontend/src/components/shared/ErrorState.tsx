@@ -14,12 +14,15 @@ export function ErrorState({ message = '数据加载失败', onRetry }: ErrorSta
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <AlertTriangle className="w-12 h-12 text-red-600 mb-4" />
-      <p className="text-stone-900 mb-4">{message}</p>
+      <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mb-5">
+        <AlertTriangle className="w-8 h-8 text-red-400" />
+      </div>
+      <p className="text-stone-800 font-medium mb-5">{message}</p>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-gold-500 text-white rounded-sm font-medium hover:bg-gold-600 transition-colors"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-gold-500 text-white rounded-lg font-medium text-sm
+            hover:bg-gold-600 active:scale-[0.98] transition-all duration-200 shadow-sm"
         >
           <RotateCcw className="w-4 h-4" />
           重新加载

@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { ExternalLink, TrendingDown, TrendingUp, Minus } from 'lucide-react';
 import { usePriceFormat } from '../../hooks/usePriceFormat';
 import type { Variant } from '../../types';
 
@@ -31,22 +32,23 @@ export function VariantCard({ variant, index }: VariantCardProps) {
 
   return (
     <motion.div
-      className="bg-white rounded-lg border border-[#E8E4DF] shadow-sm overflow-hidden hover:shadow-lg hover:border-[#A16207] transition-all duration-300"
+      className="bg-white rounded-xl border border-stone-100 shadow-sm overflow-hidden
+        hover:shadow-lg hover:border-gold-300 transition-all duration-300"
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
     >
       {/* Header: source name + stock badge */}
-      <div className="px-5 py-3.5 bg-[#FAF9F7] border-b border-[#EFEBE6] flex items-center justify-between">
+      <div className="px-5 py-3.5 bg-stone-50 border-b border-stone-100 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-[#1C1917] tracking-wide">{variant.source_name}</span>
-          <span className="text-xs text-[#78716C] font-medium">· {variant.box_label}</span>
+          <span className="text-sm font-bold text-stone-900 tracking-wide">{variant.source_name}</span>
+          <span className="text-xs text-stone-400 font-medium">· {variant.box_label}</span>
         </div>
         <span
           className={`text-[11px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
             inStock
-              ? 'bg-[#A16207]/10 text-[#A16207] border border-[#A16207]/20'
-              : 'bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/20'
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : 'bg-red-50 text-red-600 border border-red-200'
           }`}
         >
           {inStock ? '现货' : '缺货'}
@@ -69,30 +71,30 @@ export function VariantCard({ variant, index }: VariantCardProps) {
             <div className="flex items-baseline gap-4">
               {pricePerStick != null && (
                 <div>
-                  <span className="block text-[10px] text-[#A16207] uppercase tracking-widest font-semibold mb-0.5">
+                  <span className="block text-[10px] text-gold-600 uppercase tracking-widest font-semibold mb-0.5">
                     单支
                   </span>
-                  <span className="text-2xl font-bold text-[#A16207] font-serif">
+                  <span className="text-2xl font-bold text-gold-500 font-serif">
                     ¥{pricePerStick.toLocaleString()}
                   </span>
                 </div>
               )}
               {priceCny != null && (
-                <div className={pricePerStick != null ? 'border-l border-[#E8E4DF] pl-4' : ''}>
-                  <span className="block text-[10px] text-[#78716C] uppercase tracking-widest font-semibold mb-0.5">
+                <div className={pricePerStick != null ? 'border-l border-stone-100 pl-4' : ''}>
+                  <span className="block text-[10px] text-stone-400 uppercase tracking-widest font-semibold mb-0.5">
                     整盒
                   </span>
-                  <span className="text-xl font-bold text-[#1C1917] font-serif">
+                  <span className="text-xl font-bold text-stone-900 font-serif">
                     ¥{priceCny.toLocaleString()}
                   </span>
                 </div>
               )}
               {!priceCny && !pricePerStick && (
                 <div>
-                  <span className="block text-[10px] text-[#78716C] uppercase tracking-widest font-semibold mb-0.5">
+                  <span className="block text-[10px] text-stone-400 uppercase tracking-widest font-semibold mb-0.5">
                     当前
                   </span>
-                  <span className="text-2xl font-bold text-[#A16207] font-serif">
+                  <span className="text-2xl font-bold text-gold-500 font-serif">
                     {formatPrice(latest.price, variant.currency)}
                   </span>
                 </div>
@@ -100,18 +102,18 @@ export function VariantCard({ variant, index }: VariantCardProps) {
             </div>
 
             {/* Secondary stats: min/max/records */}
-            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-[#F0EDE8]">
+            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-stone-100">
               <div className="text-center">
-                <span className="block text-[10px] text-[#A8A29E] uppercase tracking-wider">最低</span>
-                <span className="text-sm font-semibold text-[#44403C]">{formatPrice(min, variant.currency)}</span>
+                <span className="block text-[10px] text-stone-400 uppercase tracking-wider">最低</span>
+                <span className="text-sm font-semibold text-stone-700">{formatPrice(min, variant.currency)}</span>
               </div>
-              <div className="text-center border-l border-[#F0EDE8]">
-                <span className="block text-[10px] text-[#A8A29E] uppercase tracking-wider">最高</span>
-                <span className="text-sm font-semibold text-[#44403C]">{formatPrice(max, variant.currency)}</span>
+              <div className="text-center border-l border-stone-100">
+                <span className="block text-[10px] text-stone-400 uppercase tracking-wider">最高</span>
+                <span className="text-sm font-semibold text-stone-700">{formatPrice(max, variant.currency)}</span>
               </div>
-              <div className="text-center border-l border-[#F0EDE8]">
-                <span className="block text-[10px] text-[#A8A29E] uppercase tracking-wider">记录</span>
-                <span className="text-sm font-semibold text-[#44403C]">{recordCount}条</span>
+              <div className="text-center border-l border-stone-100">
+                <span className="block text-[10px] text-stone-400 uppercase tracking-wider">记录</span>
+                <span className="text-sm font-semibold text-stone-700">{recordCount}条</span>
               </div>
             </div>
 
@@ -122,24 +124,22 @@ export function VariantCard({ variant, index }: VariantCardProps) {
                   href={variant.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-[#A16207] hover:text-[#7C4A05] font-medium transition-colors"
+                  className="inline-flex items-center gap-1 text-xs text-gold-600 hover:text-gold-700 font-medium transition-colors"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
+                  <ExternalLink className="w-3.5 h-3.5" />
                   查看来源
                 </a>
               )}
               {variant.scraped_at && (
-                <span className="text-[11px] text-[#A8A29E]">
+                <span className="text-[11px] text-stone-400">
                   更新于 {formatDate(variant.scraped_at)}
                 </span>
               )}
             </div>
           </div>
         ) : (
-          <p className="text-sm text-[#A8A29E] py-4 text-center">暂无价格数据</p>
+          <p className="text-sm text-stone-400 py-4 text-center">暂无价格数据</p>
         )}
       </div>
     </motion.div>

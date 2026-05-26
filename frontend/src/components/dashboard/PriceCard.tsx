@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { SourceTag } from '../shared/SourceTag';
 import { BRAND_LOGO_LOCAL } from '../../utils/priceData';
 import type { CigarListItem } from '../../types';
@@ -15,7 +16,8 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
 
   return (
     <motion.div
-      className="group bg-cream rounded-md border border-stone-200 overflow-hidden cursor-pointer hover:border-gold-400 hover:shadow-lg transition-all duration-300"
+      className="group bg-white rounded-xl border border-stone-100 overflow-hidden cursor-pointer
+        hover:border-gold-300 hover:shadow-lg transition-all duration-300"
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03, duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
@@ -23,7 +25,7 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
       layout
     >
       {/* 雪茄图片区域 */}
-      <div className="relative w-full aspect-[4/3] bg-stone-100 overflow-hidden">
+      <div className="relative w-full aspect-[4/3] bg-stone-50 overflow-hidden">
         {cigar.cigar_image_url ? (
           <img
             src={cigar.cigar_image_url}
@@ -49,7 +51,9 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
 
         {/* 在售徽章 */}
         {cigar.in_stock && (
-          <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 bg-stone-900/90 backdrop-blur-sm text-white text-[0.65rem] font-semibold px-2 py-1 rounded-full">
+          <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5
+            bg-stone-900/90 backdrop-blur-sm text-white text-[0.65rem] font-semibold
+            px-2.5 py-1 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             在售
           </div>
@@ -68,7 +72,7 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
           )}
-          <span className="text-[0.7rem] text-stone-500 uppercase tracking-wider font-medium">
+          <span className="text-[0.7rem] text-stone-400 uppercase tracking-wider font-medium">
             {cigar.cigar_brand_cn || cigar.cigar_brand}
           </span>
         </div>

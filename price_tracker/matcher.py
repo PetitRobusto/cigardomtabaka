@@ -449,6 +449,10 @@ def match_cigar(
     name = scraped_name.strip()
     norm_full = normalize(name)
 
+    # 自动提取品牌提示词（防止跨品牌误匹配，如 "Cuaba Salomones" 直接调 match_cigar 时）
+    if brand_hint is None:
+        brand_hint = extract_brand_hint(name)
+
     # 提取品牌核心词（用于 DB 过滤）
     hint_core = ''
     if brand_hint:

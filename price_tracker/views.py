@@ -168,6 +168,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                     'box_label': box_label,
                     'url': snap.url or snap.source.base_url,
                     'scraped_name': (snap.raw_data or {}).get('title_original') or (snap.raw_data or {}).get('product', '') or '',
+                    'delisted': (snap.raw_data or {}).get('delisted', False),
                     'points': [],
                 }
             variants[key]['points'].append({
@@ -175,6 +176,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                 'price': snap.price,
                 'price_cny': snap.price_cny,
                 'in_stock': snap.in_stock,
+                'delisted': (snap.raw_data or {}).get('delisted', False),
             })
 
         # Compute aggregates per variant
@@ -189,6 +191,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             if latest_point:
                 v['current_price_cny'] = latest_point.get('price_cny')
                 v['in_stock'] = latest_point.get('in_stock', True)
+                v['delisted'] = latest_point.get('delisted', False)
                 v['scraped_at'] = latest_point.get('date')
                 # 每支单价 = 整盒人民币价 / 支数
                 if v['current_price_cny'] and v['box_size']:

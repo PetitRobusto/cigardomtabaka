@@ -94,6 +94,7 @@ NAME_FIXES = {
     'omhros': 'omhpos',                 # 希腊字母差异
     'connosseur': 'connossieur',         # 单S+单N变体
     'conosseur': 'connossieur',
+    'cetros': 'cedros',                 # COH 拼错: Cetros → Cedros (雪松)
 }
 
 # ── 复数/单数修正（归一化后） ──────────────────────────────
@@ -170,6 +171,10 @@ def normalize(s: str) -> str:
     # 2c. 去掉品名末尾的盒装尺寸标注 "(25)" / "(5×20)" / "(10)" 等
     # 这些是爬虫页面上的包装尺寸，不是雪茄品名的一部分
     s = re.sub(r'\s*\(\s*\d+\s*(?:[x×]\s*\d+)?\s*\)\s*$', '', s)
+
+    # 2d. 去掉 A/T（铝管）C/P（纸盒）后缀
+    s = re.sub(r'\s+A/T(\s|$)', ' ', s)
+    s = re.sub(r'\s+C/P(\s|$)', ' ', s)
 
     # 3. NFKD 分解重音字符 → base + combining diacritic
     nfkd = unicodedata.normalize('NFKD', s)

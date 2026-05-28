@@ -46,7 +46,7 @@ export function StatsBar({ snapshotCount, cigarCount, brandCount, sourceCount }:
                 {item.label}
               </span>
             </div>
-            <span className="block text-2xl md:text-[2rem] font-bold text-accent leading-tight font-serif">
+            <span className="block text-2xl md:text-[2rem] font-bold text-accent leading-tight font-display">
               {values[item.key]}
             </span>
           </motion.div>

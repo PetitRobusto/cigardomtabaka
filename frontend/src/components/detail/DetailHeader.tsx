@@ -21,11 +21,11 @@ export function DetailHeader({ data }: DetailHeaderProps) {
           {data.cigar_brand_cn || data.cigar_brand}
         </span>
       )}
-      <h2 className="text-2xl md:text-3xl font-bold text-fg font-serif leading-tight">
+      <h2 className="text-2xl md:text-3xl font-bold text-fg font-display leading-tight">
         {data.cigar_name || `Cigar #${data.cigar_id}`}
       </h2>
       {data.cigar_name_en && data.cigar_name_en !== data.cigar_name && (
-        <p className="text-sm text-muted italic mt-2 font-serif">
+        <p className="text-sm text-muted italic mt-2 font-display">
           {data.cigar_name_en}
         </p>
       )}

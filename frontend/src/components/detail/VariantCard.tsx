@@ -64,8 +64,7 @@ export function VariantCard({ variant, index }: VariantCardProps) {
       {/* Scraped name — 原始爬虫品名 */}
       {variant.scraped_name && (
         <div className="px-5 py-1.5 bg-amber-50/60 border-b border-amber-100 text-xs text-amber-700">
-          <span className="text-amber-400 mr-1">🕷</span>
-          原始品名: <span className="font-mono text-amber-800">{variant.scraped_name}</span>
+         原始品名: <span className="font-mono text-amber-800">{variant.scraped_name}</span>
         </div>
       )}
 
@@ -92,16 +91,6 @@ export function VariantCard({ variant, index }: VariantCardProps) {
                   </span>
                   <span className="text-xl font-bold text-fg font-mono tabular-nums">
                     ¥{priceCny.toLocaleString()}
-                  </span>
-                </div>
-              )}
-              {!priceCny && !pricePerStick && (
-                <div>
-                  <span className="block text-[10px] text-muted uppercase tracking-widest font-semibold mb-0.5">
-                    当前
-                  </span>
-                  <span className="text-2xl font-bold text-accent font-mono tabular-nums">
-                    {formatPrice(latest.price, variant.currency)}
                   </span>
                 </div>
               )}

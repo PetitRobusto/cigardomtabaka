@@ -103,16 +103,26 @@ export function extractSourceSlugs(snapshots: PriceSnapshot[]): string[] {
   return [...slugs];
 }
 
-/** 为价格走势图构建数据：所有 variant 按日期对齐，Y轴统一用 人民币 */
-export function buildChartData(variants: Variant[]) {
+/** 为价格走势图构建数据
+ * @param mode 'original' = 原币种 | 'cny_per_stick' = 单支人民币
+ */
+export function buildChartData(variants: Variant[], mode: 'original' | 'cny_per_stick' = 'cny_per_stick') {
   const dateMap: Record<string, Record<string, number | string>> = {};
   variants.forEach((v) => {
-    const label = `${v.source_short_name || v.source_name} ${v.box_label}`;
+    const currency = v.currency || 'USD';
+    const label = mode === 'original'
+      ? `${v.source_short_name || v.source_name} ${v.box_label} · ${currency}`
+      : `${v.source_short_name || v.source_name} ${v.box_label} · ¥`;
     (v.points || []).forEach((p: HistoryPoint) => {
       const date = p.date?.split('T')[0] || p.date;
       if (!dateMap[date]) dateMap[date] = { date };
-      // 用人民币价格，保证不同币种可对比
-      dateMap[date][label] = p.price_cny ?? p.price;
+      if (mode === 'original') {
+        dateMap[date][label] = p.price;
+      } else {
+        // 单支人民币 = price_cny / box_size
+        const bs = v.box_size || 1;
+        dateMap[date][label] = p.price_cny != null ? +(p.price_cny / bs).toFixed(2) : null;
+      }
     });
   });
   return Object.values(dateMap).sort((a, b) =>
@@ -120,6 +130,8 @@ export function buildChartData(variants: Variant[]) {
   );
 }
 
-export function variantLabel(v: Variant): string {
-  return `${v.source_short_name || v.source_name} ${v.box_label}`;
+export function variantLabel(v: Variant, mode: 'original' | 'cny_per_stick' = 'cny_per_stick'): string {
+  const currency = v.currency || 'USD';
+  const suffix = mode === 'original' ? ` · ${currency}` : ' · ¥';
+  return `${v.source_short_name || v.source_name} ${v.box_label}${suffix}`;
 }

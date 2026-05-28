@@ -160,35 +160,9 @@ body {
 </header>
 
 <!-- ===== PAGE BODY ===== -->
-<main class="flex-1 pb-20 lg:pb-0" style="max-width:1400px;margin:0 auto;width:100%;padding:0 32px;">
+<main class="flex-1 pb-20 lg:pb-0">
 {% block body %}{% endblock %}
 </main>
-
-<!-- ===== DESKTOP SIDEBAR NAV (lg+) ===== -->
-<nav class="hidden lg:flex fixed left-0 top-14 bottom-0 w-16 bg-surface border-r border-[#E8E0D6] flex-col items-center py-4 gap-2 z-40" style="box-shadow:var(--shadow-sm);">
-  <a href="{% url 'brand_list' %}" class="flex flex-col items-center gap-1 py-2 px-1 text-accent no-underline w-full" title="品牌">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon" style="width:1.25rem;height:1.25rem;"><path fill-rule="evenodd" d="M9.293 2.293a1 1 0 011.414 0l7 7A1 1 0 0117 11h-1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-3a1 1 0 00-1-1H9a1 1 0 00-1 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-6H3a1 1 0 01-.707-1.707l7-7z" clip-rule="evenodd"/></svg>
-    <span class="text-xs font-medium">品牌</span>
-  </a>
-  {% if user.is_authenticated and user.is_staff %}
-  <a href="{% url 'inventory' %}" class="flex flex-col items-center gap-1 py-2 px-1 text-muted hover:text-fg no-underline w-full" title="库存">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon" style="width:1.25rem;height:1.25rem;"><path d="M2 3a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 7a1 1 0 011-1h14a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V7zm5 3a1 1 0 000 2h6a1 1 0 100-2H7z"/></svg>
-    <span class="text-xs font-medium">库存</span>
-  </a>
-  <a href="{% url 'price_dashboard' %}" class="flex flex-col items-center gap-1 py-2 px-1 text-muted hover:text-fg no-underline w-full" title="价格">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon" style="width:1.25rem;height:1.25rem;"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
-    <span class="text-xs font-medium">价格</span>
-  </a>
-  <a href="{% url 'privnote_index' %}" class="flex flex-col items-center gap-1 py-2 px-1 text-muted hover:text-fg no-underline w-full" title="链接">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon" style="width:1.25rem;height:1.25rem;"><path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.225a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.606 6.364.75.75 0 101.06-1.06 2.5 2.5 0 01-.378-3.477l3-3zM7.768 15.768a2.5 2.5 0 01-3.536-3.536l1.225-1.225a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 005.656 5.656l3-3a4 4 0 00-.606-6.364.75.75 0 00-1.06 1.06 2.5 2.5 0 01.378 3.477l-3 3z"/></svg>
-    <span class="text-xs font-medium">链接</span>
-  </a>
-  <a href="/admin/" class="flex flex-col items-center gap-1 py-2 px-1 text-muted hover:text-fg no-underline w-full mt-auto" title="管理">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon" style="width:1.25rem;height:1.25rem;"><path fill-rule="evenodd" d="M7.84 1.804A1 1 0 018.82 1h2.36a1 1 0 01.98.804l.331 1.652a6.993 6.993 0 011.929 1.115l1.598-.54a1 1 0 011.186.447l1.18 2.044a1 1 0 01-.205 1.251l-1.267 1.113a7.047 7.047 0 010 2.228l1.267 1.113a1 1 0 01.205 1.251l-1.18 2.045a1 1 0 01-1.186.447l-1.598-.541a6.993 6.993 0 01-1.929 1.115l-.33 1.652A1 1 0 0111.18 19H8.82a1 1 0 01-.98-.804l-.331-1.652a6.992 6.992 0 01-1.929-1.115l-1.598.54a1 1 0 01-1.186-.446l-1.18-2.045a1 1 0 01.205-1.251l1.267-1.113a7.047 7.047 0 010-2.228L1.821 7.773a1 1 0 01-.205-1.25l1.18-2.045A1 1 0 013.982 4.03l1.598.54A6.993 6.993 0 017.51 3.456l.33-1.652zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
-    <span class="text-xs font-medium">管理</span>
-  </a>
-  {% endif %}
-</nav>
 
 <!-- ===== BOTTOM NAV (mobile only) ===== -->
 <div class="mobile-nav">
@@ -224,7 +198,7 @@ body {
 </div>
 
 <!-- ===== SHARED FOOTER ===== -->
-<footer class="hidden lg:flex text-center text-xs text-muted py-6 border-t border-[#E8E0D6] mt-8 justify-center" style="padding-left:4rem;">
+<footer class="hidden lg:flex text-center text-xs text-muted py-6 border-t border-[#E8E0D6] mt-8 justify-center">
   Moscow Cigar · 仅供内部参考
 </footer>
 

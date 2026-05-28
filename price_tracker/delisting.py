@@ -74,7 +74,9 @@ def detect_delistings(source, scraped_combos):
             cigar_id=cigar_id,
             price=last_active.price,
             currency=last_active.currency,
+            price_cny=last_active.price_cny,
             box_size=box_size,
+            box_price=last_active.box_price,
             in_stock=False,
             url=last_active.url,
             raw_data={

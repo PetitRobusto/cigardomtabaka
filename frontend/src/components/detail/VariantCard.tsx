@@ -34,8 +34,9 @@ export function VariantCard({ variant, index }: VariantCardProps) {
 
   return (
     <motion.div
-      className="bg-white rounded-xl border border-border shadow-sm overflow-hidden
-        hover:shadow-lg hover:border-accent transition-all duration-300"
+      className={`bg-white rounded-xl border border-border shadow-sm overflow-hidden
+        hover:shadow-lg hover:border-accent transition-all duration-300
+        ${variant.delisted ? 'opacity-60 grayscale' : ''}`}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
@@ -52,12 +53,14 @@ export function VariantCard({ variant, index }: VariantCardProps) {
         </div>
         <span
           className={`text-[11px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-            inStock
-              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-              : 'bg-red-50 text-red-600 border border-red-200'
+            variant.delisted
+              ? 'bg-red-100 text-red-700 border border-red-300'
+              : !inStock
+                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
           }`}
         >
-          {inStock ? '现货' : '缺货'}
+          {variant.delisted ? '已下架' : inStock ? '现货' : '缺货'}
         </span>
       </div>
 

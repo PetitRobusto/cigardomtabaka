@@ -50,6 +50,7 @@ export interface Variant {
   max_price?: number | null;
   record_count?: number;
   in_stock?: boolean;
+  delisted?: boolean;
   scraped_at?: string;
 }
 

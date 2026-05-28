@@ -5,7 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}Moscow Cigar{% endblock %}</title>
 {% load static %}
-<link rel="stylesheet" href="{% static 'css/output.css' %}?v=8">
+<link rel="stylesheet" href="{% static 'css/output.css' %}?v=9">
+<link rel="stylesheet" href="{% static 'css/mc-luxury-theme.css' %}">
+<!-- Playfair Display — 奢侈品衬线展示字体 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
 <style>
 /* ==============================
    SELECT — DaisyUI v5 缺 .select 组件，手动补上
@@ -59,7 +64,6 @@
   background-color: var(--color-base-200);
   box-shadow: none;
 }
-/* Select dropdown arrow */
 .select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%23888' stroke-width='1.5' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
@@ -68,67 +72,59 @@
 }
 
 /* ==============================
-   THEME — 雪茄奢侈风配色
+   THEME — 勃艮第红奢侈品风
    ============================== */
 
-/* --- LIGHT 主题（品牌目录 / 主页）--- */
+/* --- LIGHT 主题 --- */
 [data-theme="light"] {
-  /* 背景：暖奶油 → 纯白卡片 → 暖棕文字 */
-  --color-base-100:      oklch(98% 0.003 80);   /* 暖灰白底 */
-  --color-base-200:      oklch(94% 0.006 75);   /* 浅灰米 */
-  --color-base-300:      oklch(88% 0.012 75);   /* 边框 */
-  --color-base-content:  oklch(14% 0.010 30);   /* 近黑文字 */
+  --color-base-100:      #FAF8F5;          /* 暖奶油底 */
+  --color-base-200:      #F5EFE8;          /* 暖羊皮纸 */
+  --color-base-300:      #E8E0D6;          /* 边框 */
+  --color-base-content:  #2C2416;          /* 深褐黑文字 */
 
-  /* 金色强调 */
-  --color-accent:        oklch(55% 0.150 70);   /* 深金 */
-  --color-accent-content: oklch(98% 0.002 80);  /* 金底白字 */
+  --color-accent:        #7A1F2E;          /* 勃艮第红 */
+  --color-accent-content: #FFFFFF;
 
-  /* 古巴红 */
-  --color-error:         oklch(42% 0.12 20);
-  --color-error-content: oklch(95% 0.01 20);
+  --color-error:         #7A1F2E;
+  --color-error-content: #FFFFFF;
 
-  /* 辅助色 */
-  --color-success:       oklch(52% 0.10 150);
-  --color-warning:       oklch(75% 0.14 85);
-  --color-info:          oklch(50% 0.08 230);
+  --color-success:       #3D6B4F;
+  --color-warning:       #B87A3A;
+  --color-info:          #8A7E6E;
 
-  /* 半径 */
-  --radius-selector: .375rem;
-  --radius-field:    .375rem;
-  --radius-box:      .5rem;
+  --radius-selector: 4px;
+  --radius-field:    4px;
+  --radius-box:      4px;
 }
 
 /* --- DARK 主题（Privnote）--- */
 [data-theme="dark"] {
-  /* 背景：浓缩咖啡 → 中棕卡片 → 奶油文字 */
-  --color-base-100:      oklch(16% 0.015 55);   /* 浓缩咖啡底 */
-  --color-base-200:      oklch(22% 0.018 55);   /* 中棕卡片 */
-  --color-base-300:      oklch(88% 0.012 75);   /* 边框 */
-  --color-base-content:  oklch(90% 0.015 85);   /* 奶油文字 */
+  --color-base-100:      #1A1510;
+  --color-base-200:      #2C2416;
+  --color-base-300:      #E8E0D6;
+  --color-base-content:  #FAF8F5;
 
-  /* 金色强调 */
-  --color-accent:        oklch(72% 0.145 85);   /* 亮金（暗底稍亮） */
-  --color-accent-content: oklch(16% 0.015 55);  /* 金底深字 */
+  --color-accent:        #A04050;
+  --color-accent-content: #FAF8F5;
 
-  /* 古巴红（暗底调亮） */
-  --color-error:         oklch(55% 0.14 20);
-  --color-error-content: oklch(95% 0.01 20);
+  --color-error:         #A04050;
+  --color-error-content: #FAF8F5;
 
-  /* 辅助色 */
-  --color-success:       oklch(60% 0.12 150);
-  --color-warning:       oklch(78% 0.14 85);
-  --color-info:          oklch(58% 0.10 230);
+  --color-success:       #4D8B5F;
+  --color-warning:       #D4A34A;
+  --color-info:          #9A8E7E;
 
-  --radius-selector: .375rem;
-  --radius-field:    .375rem;
-  --radius-box:      .5rem;
+  --radius-selector: 4px;
+  --radius-field:    4px;
+  --radius-box:      4px;
 }
 
 /* ==============================
    GLOBAL — 全局微调
    ============================== */
 body {
-  font-family: Georgia, "Noto Serif SC", serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  background: #FAF8F5;
 }
 
 /* stat 组件微调 */
@@ -144,78 +140,91 @@ body {
 </head>
 <body class="min-h-screen flex flex-col">
 
-<!-- ===== SHARED NAVBAR ===== -->
-<nav class="navbar bg-base-200 border-b border-base-300 px-4 sm:px-6">
-  <!-- Left: logo + page title -->
-  <div class="navbar-start gap-0">
-    <a href="{% url 'brand_list' %}" class="text-lg font-bold tracking-wider text-accent no-underline shrink-0">
-      Moscow Cigar
-    </a>
-    {% block navbar_title %}{% endblock %}
+<!-- ===== TOPBAR ===== -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo-mark">MC</div>
+    <span>Moscow Cigar</span>
   </div>
-
-  <!-- Desktop buttons (lg+) -->
-  <div class="navbar-end hidden lg:flex items-center gap-2">
+  <div class="topbar-right">
     {% if user.is_authenticated %}
-      <span class="text-sm text-base-content/50">@{{ user }}</span>
-      {% if user.is_staff %}<a href="{% url 'inventory' %}" class="btn btn-outline btn-accent btn-sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M2 3a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 7a1 1 0 011-1h14a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V7zm5 3a1 1 0 000 2h6a1 1 0 100-2H7z"/></svg> 库存</a>{% endif %}
-      {% if user.is_staff %}<a href="{% url 'price_dashboard' %}" class="btn btn-outline btn-accent btn-sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg> 价格</a>{% endif %}
-      {% if user.is_staff %}<a href="{% url 'privnote_index' %}" class="btn btn-outline btn-accent btn-sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.225a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.606 6.364.75.75 0 101.06-1.06 2.5 2.5 0 01-.378-3.477l3-3zM7.768 15.768a2.5 2.5 0 01-3.536-3.536l1.225-1.225a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 005.656 5.656l3-3a4 4 0 00-.606-6.364.75.75 0 00-1.06 1.06 2.5 2.5 0 01.378 3.477l-3 3z"/></svg> 生成链接</a>{% endif %}
-      {% if user.is_staff %}<a href="/admin/" class="btn btn-ghost btn-sm text-base-content/50"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M7.84 1.804A1 1 0 018.82 1h2.36a1 1 0 01.98.804l.331 1.652a6.993 6.993 0 011.929 1.115l1.598-.54a1 1 0 011.186.447l1.18 2.044a1 1 0 01-.205 1.251l-1.267 1.113a7.047 7.047 0 010 2.228l1.267 1.113a1 1 0 01.205 1.251l-1.18 2.045a1 1 0 01-1.186.447l-1.598-.541a6.993 6.993 0 01-1.929 1.115l-.33 1.652A1 1 0 0111.18 19H8.82a1 1 0 01-.98-.804l-.331-1.652a6.992 6.992 0 01-1.929-1.115l-1.598.54a1 1 0 01-1.186-.446l-1.18-2.045a1 1 0 01.205-1.251l1.267-1.113a7.047 7.047 0 010-2.228L1.821 7.773a1 1 0 01-.205-1.25l1.18-2.045A1 1 0 013.982 4.03l1.598.54A6.993 6.993 0 017.51 3.456l.33-1.652zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg> 管理</a>{% endif %}
-      <button onclick="logout()" class="btn btn-ghost btn-sm text-error/70"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M3 4.25A2.25 2.25 0 015.25 2h5.5A2.25 2.25 0 0113 4.25v2a.75.75 0 01-1.5 0v-2a.75.75 0 00-.75-.75h-5.5a.75.75 0 00-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 00.75-.75v-2a.75.75 0 011.5 0v2A2.25 2.25 0 0110.75 18h-5.5A2.25 2.25 0 013 15.75V4.25z" clip-rule="evenodd"/> <path fill-rule="evenodd" d="M6 10a.75.75 0 01.75-.75h9.546l-1.048-.943a.75.75 0 111.004-1.114l2.5 2.25a.75.75 0 010 1.114l-2.5 2.25a.75.75 0 11-1.004-1.114l1.048-.943H6.75A.75.75 0 016 10z" clip-rule="evenodd"/></svg> 退出</button>
+      <a href="#" onclick="logout()">退出</a>
+      <div class="user">
+        <div class="user-avatar">{{ user.username|slice:":1" }}</div>
+        <span>{{ user.username }}</span>
+      </div>
     {% else %}
-      <a href="{% url 'login_page' %}" class="btn btn-outline btn-accent btn-sm">登录</a>
+      <a href="{% url 'login_page' %}" class="btn btn-primary">登录</a>
     {% endif %}
   </div>
-
-</nav>
+</header>
 
 <!-- ===== PAGE BODY ===== -->
-<main class="flex-1 pb-20 lg:pb-0">
+<main class="flex-1 pb-20 lg:pb-0" style="max-width:1400px;margin:0 auto;width:100%;padding:0 32px;">
 {% block body %}{% endblock %}
 </main>
 
-<!-- ===== BOTTOM NAV (mobile only) ===== -->
-<div class="fixed bottom-0 left-0 right-0 lg:hidden z-50 bg-base-200 border-t border-base-300 flex justify-around items-center h-16">
-  <a href="{% url 'brand_list' %}" class="flex flex-col items-center justify-center gap-0.5 text-accent no-underline py-1 px-3 min-w-16">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M9.293 2.293a1 1 0 011.414 0l7 7A1 1 0 0117 11h-1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-3a1 1 0 00-1-1H9a1 1 0 00-1 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-6H3a1 1 0 01-.707-1.707l7-7z" clip-rule="evenodd"/></svg>
+<!-- ===== DESKTOP SIDEBAR NAV (lg+) ===== -->
+<nav class="hidden lg:flex fixed left-0 top-14 bottom-0 w-16 bg-surface border-r border-[#E8E0D6] flex-col items-center py-4 gap-2 z-40" style="box-shadow:var(--shadow-sm);">
+  <a href="{% url 'brand_list' %}" class="flex flex-col items-center gap-1 py-2 px-1 text-accent no-underline w-full" title="品牌">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon" style="width:1.25rem;height:1.25rem;"><path fill-rule="evenodd" d="M9.293 2.293a1 1 0 011.414 0l7 7A1 1 0 0117 11h-1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-3a1 1 0 00-1-1H9a1 1 0 00-1 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-6H3a1 1 0 01-.707-1.707l7-7z" clip-rule="evenodd"/></svg>
     <span class="text-xs font-medium">品牌</span>
   </a>
+  {% if user.is_authenticated and user.is_staff %}
+  <a href="{% url 'inventory' %}" class="flex flex-col items-center gap-1 py-2 px-1 text-muted hover:text-fg no-underline w-full" title="库存">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon" style="width:1.25rem;height:1.25rem;"><path d="M2 3a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 7a1 1 0 011-1h14a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V7zm5 3a1 1 0 000 2h6a1 1 0 100-2H7z"/></svg>
+    <span class="text-xs font-medium">库存</span>
+  </a>
+  <a href="{% url 'price_dashboard' %}" class="flex flex-col items-center gap-1 py-2 px-1 text-muted hover:text-fg no-underline w-full" title="价格">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon" style="width:1.25rem;height:1.25rem;"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+    <span class="text-xs font-medium">价格</span>
+  </a>
+  <a href="{% url 'privnote_index' %}" class="flex flex-col items-center gap-1 py-2 px-1 text-muted hover:text-fg no-underline w-full" title="链接">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon" style="width:1.25rem;height:1.25rem;"><path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.225a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.606 6.364.75.75 0 101.06-1.06 2.5 2.5 0 01-.378-3.477l3-3zM7.768 15.768a2.5 2.5 0 01-3.536-3.536l1.225-1.225a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 005.656 5.656l3-3a4 4 0 00-.606-6.364.75.75 0 00-1.06 1.06 2.5 2.5 0 01.378 3.477l-3 3z"/></svg>
+    <span class="text-xs font-medium">链接</span>
+  </a>
+  <a href="/admin/" class="flex flex-col items-center gap-1 py-2 px-1 text-muted hover:text-fg no-underline w-full mt-auto" title="管理">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon" style="width:1.25rem;height:1.25rem;"><path fill-rule="evenodd" d="M7.84 1.804A1 1 0 018.82 1h2.36a1 1 0 01.98.804l.331 1.652a6.993 6.993 0 011.929 1.115l1.598-.54a1 1 0 011.186.447l1.18 2.044a1 1 0 01-.205 1.251l-1.267 1.113a7.047 7.047 0 010 2.228l1.267 1.113a1 1 0 01.205 1.251l-1.18 2.045a1 1 0 01-1.186.447l-1.598-.541a6.993 6.993 0 01-1.929 1.115l-.33 1.652A1 1 0 0111.18 19H8.82a1 1 0 01-.98-.804l-.331-1.652a6.992 6.992 0 01-1.929-1.115l-1.598.54a1 1 0 01-1.186-.446l-1.18-2.045a1 1 0 01.205-1.251l1.267-1.113a7.047 7.047 0 010-2.228L1.821 7.773a1 1 0 01-.205-1.25l1.18-2.045A1 1 0 013.982 4.03l1.598.54A6.993 6.993 0 017.51 3.456l.33-1.652zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
+    <span class="text-xs font-medium">管理</span>
+  </a>
+  {% endif %}
+</nav>
+
+<!-- ===== BOTTOM NAV (mobile only) ===== -->
+<div class="mobile-nav">
+  <a href="{% url 'brand_list' %}" class="mobile-nav-item active">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mobile-nav-icon"><path fill-rule="evenodd" d="M9.293 2.293a1 1 0 011.414 0l7 7A1 1 0 0117 11h-1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-3a1 1 0 00-1-1H9a1 1 0 00-1 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-6H3a1 1 0 01-.707-1.707l7-7z" clip-rule="evenodd"/></svg>
+    <span>品牌</span>
+  </a>
+  {% if user.is_authenticated and user.is_staff %}
+  <a href="{% url 'inventory' %}" class="mobile-nav-item">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mobile-nav-icon"><path d="M2 3a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 7a1 1 0 011-1h14a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V7zm5 3a1 1 0 000 2h6a1 1 0 100-2H7z"/></svg>
+    <span>库存</span>
+  </a>
+  <a href="{% url 'price_dashboard' %}" class="mobile-nav-item">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mobile-nav-icon"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+    <span>价格</span>
+  </a>
+  <a href="{% url 'privnote_index' %}" class="mobile-nav-item">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mobile-nav-icon"><path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.225a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.606 6.364.75.75 0 101.06-1.06 2.5 2.5 0 01-.378-3.477l3-3zM7.768 15.768a2.5 2.5 0 01-3.536-3.536l1.225-1.225a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 005.656 5.656l3-3a4 4 0 00-.606-6.364.75.75 0 00-1.06 1.06 2.5 2.5 0 01.378 3.477l-3 3z"/></svg>
+    <span>链接</span>
+  </a>
+  {% endif %}
   {% if user.is_authenticated %}
-    {% if user.is_staff %}
-    <a href="{% url 'inventory' %}" class="flex flex-col items-center justify-center gap-0.5 text-base-content/50 hover:text-base-content no-underline py-1 px-3 min-w-16">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M2 3a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 7a1 1 0 011-1h14a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V7zm5 3a1 1 0 000 2h6a1 1 0 100-2H7z"/></svg>
-      <span class="text-xs font-medium">库存</span>
-    </a>
-    <a href="{% url 'price_dashboard' %}" class="flex flex-col items-center justify-center gap-0.5 text-base-content/50 hover:text-base-content no-underline py-1 px-3 min-w-16">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
-      <span class="text-xs font-medium">价格</span>
-    </a>
-    <a href="{% url 'privnote_index' %}" class="flex flex-col items-center justify-center gap-0.5 text-base-content/50 hover:text-base-content no-underline py-1 px-3 min-w-16">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.225a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.606 6.364.75.75 0 101.06-1.06 2.5 2.5 0 01-.378-3.477l3-3zM7.768 15.768a2.5 2.5 0 01-3.536-3.536l1.225-1.225a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 005.656 5.656l3-3a4 4 0 00-.606-6.364.75.75 0 00-1.06 1.06 2.5 2.5 0 01.378 3.477l-3 3z"/></svg>
-      <span class="text-xs font-medium">链接</span>
-    </a>
-    {% endif %}
-    <div class="dropdown dropdown-top dropdown-end">
-      <label tabindex="0" role="button" class="flex flex-col items-center justify-center gap-0.5 text-base-content/50 py-1 px-3 min-w-16 cursor-pointer">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-5.5-2.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM10 12a5.99 5.99 0 00-4.793 2.39A6.483 6.483 0 0010 16.5a6.483 6.483 0 004.793-2.11A5.99 5.99 0 0010 12z" clip-rule="evenodd"/></svg>
-        <span class="text-xs font-medium">我</span>
-      </label>
-      <ul tabindex="0" class="dropdown-content menu p-2 shadow-lg bg-base-100 rounded-box w-40 mb-2 z-50">
-        {% if user.is_staff %}<li><a href="/admin/"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M7.84 1.804A1 1 0 018.82 1h2.36a1 1 0 01.98.804l.331 1.652a6.993 6.993 0 011.929 1.115l1.598-.54a1 1 0 011.186.447l1.18 2.044a1 1 0 01-.205 1.251l-1.267 1.113a7.047 7.047 0 010 2.228l1.267 1.113a1 1 0 01.205 1.251l-1.18 2.045a1 1 0 01-1.186.447l-1.598-.541a6.993 6.993 0 01-1.929 1.115l-.33 1.652A1 1 0 0111.18 19H8.82a1 1 0 01-.98-.804l-.331-1.652a6.992 6.992 0 01-1.929-1.115l-1.598.54a1 1 0 01-1.186-.446l-1.18-2.045a1 1 0 01.205-1.251l1.267-1.113a7.047 7.047 0 010-2.228L1.821 7.773a1 1 0 01-.205-1.25l1.18-2.045A1 1 0 013.982 4.03l1.598.54A6.993 6.993 0 017.51 3.456l.33-1.652zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg> 管理</a></li>{% endif %}
-        <li><button onclick="logout()"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M3 4.25A2.25 2.25 0 015.25 2h5.5A2.25 2.25 0 0113 4.25v2a.75.75 0 01-1.5 0v-2a.75.75 0 00-.75-.75h-5.5a.75.75 0 00-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 00.75-.75v-2a.75.75 0 011.5 0v2A2.25 2.25 0 0110.75 18h-5.5A2.25 2.25 0 013 15.75V4.25z" clip-rule="evenodd"/> <path fill-rule="evenodd" d="M6 10a.75.75 0 01.75-.75h9.546l-1.048-.943a.75.75 0 111.004-1.114l2.5 2.25a.75.75 0 010 1.114l-2.5 2.25a.75.75 0 11-1.004-1.114l1.048-.943H6.75A.75.75 0 016 10z" clip-rule="evenodd"/></svg> 退出</button></li>
-      </ul>
-    </div>
+  <a href="#" onclick="logout()" class="mobile-nav-item">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mobile-nav-icon"><path fill-rule="evenodd" d="M3 4.25A2.25 2.25 0 015.25 2h5.5A2.25 2.25 0 0113 4.25v2a.75.75 0 01-1.5 0v-2a.75.75 0 00-.75-.75h-5.5a.75.75 0 00-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 00.75-.75v-2a.75.75 0 011.5 0v2A2.25 2.25 0 0110.75 18h-5.5A2.25 2.25 0 013 15.75V4.25z" clip-rule="evenodd"/> <path fill-rule="evenodd" d="M6 10a.75.75 0 01.75-.75h9.546l-1.048-.943a.75.75 0 111.004-1.114l2.5 2.25a.75.75 0 010 1.114l-2.5 2.25a.75.75 0 11-1.004-1.114l1.048-.943H6.75A.75.75 0 016 10z" clip-rule="evenodd"/></svg>
+    <span>退出</span>
+  </a>
   {% else %}
-    <a href="{% url 'login_page' %}" class="flex flex-col items-center justify-center gap-0.5 text-base-content/50 hover:text-base-content no-underline py-1 px-3 min-w-16">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M8 7a5 5 0 113.61 4.804l-1.903 1.903A1 1 0 019 14H8v1a1 1 0 01-1 1H6v1a1 1 0 01-1 1H3a1 1 0 01-1-1v-2a1 1 0 01.293-.707L8.196 8.39A5.002 5.002 0 018 7zm5-3a.75.75 0 000 1.5A1.5 1.5 0 0114.5 7 .75.75 0 0016 7a3 3 0 00-3-3z" clip-rule="evenodd"/></svg>
-      <span class="text-xs font-medium">登录</span>
-    </a>
+  <a href="{% url 'login_page' %}" class="mobile-nav-item">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mobile-nav-icon"><path fill-rule="evenodd" d="M8 7a5 5 0 113.61 4.804l-1.903 1.903A1 1 0 019 14H8v1a1 1 0 01-1 1H6v1a1 1 0 01-1 1H3a1 1 0 01-1-1v-2a1 1 0 01.293-.707L8.196 8.39A5.002 5.002 0 018 7zm5-3a.75.75 0 000 1.5A1.5 1.5 0 0114.5 7 .75.75 0 0016 7a3 3 0 00-3-3z" clip-rule="evenodd"/></svg>
+    <span>登录</span>
+  </a>
   {% endif %}
 </div>
 
 <!-- ===== SHARED FOOTER ===== -->
-<footer class="hidden lg:flex text-center text-xs text-base-content/30 py-6 border-t border-base-300 mt-8 justify-center">
+<footer class="hidden lg:flex text-center text-xs text-muted py-6 border-t border-[#E8E0D6] mt-8 justify-center" style="padding-left:4rem;">
   Moscow Cigar · 仅供内部参考
 </footer>
 

@@ -7,51 +7,34 @@ export default {
   theme: {
     extend: {
       colors: {
-        // 极简黑金 — accent: 古铜金 #A16207
-        gold: {
-          50: '#fef7ed',
-          100: '#fcedd5',
-          200: '#f8d7a3',
-          300: '#f4c064',
-          400: '#d4a24e',
-          500: '#a16207',
-          600: '#7c4c05',
-          700: '#5e3904',
+        // 奢侈品设计系统 — 基于 Moscow Cigar 设计 Token
+        cream: '#FAF8F5',          // --bg 暖奶油底
+        surface: '#FFFFFF',        // --surface 卡片白
+        fg: '#2C2416',             // --fg 深褐黑文字
+        muted: '#8A7E6E',          // --muted 次要文字
+        border: '#E8E0D6',         // --border 分割线
+        accent: {
+          DEFAULT: '#7A1F2E',      // --accent 勃艮第红
+          hover: '#5E1824',        // hover 深红
+          light: '#F5EFE8',        // --accent-3 暖羊皮纸
         },
-        // 设计规范配色 — 基于 design-spec.md
-        brand: {
-          brown: '#8B6914',             // 品牌棕：标题、图表线、Tab选中态
-          gold: '#D4AF37',              // 金色：当前价格高亮
-          'tab-active': '#F5F0E6',      // Tab/按钮选中底色
-        },
-        // 暖白底色
-        cream: '#FAFAF9',
-        // 石色 — 取代旧brown色系
-        stone: {
-          50: '#FAFAF9',
-          100: '#F5F5F4',
-          200: '#E7E5E4',
-          300: '#D6D3D1',
-          400: '#A8A29E',
-          500: '#78716C',
-          600: '#57534E',
-          700: '#44403C',
-          800: '#292524',
-          900: '#1C1917',
-        },
+        gold: '#B87A3A',           // --accent-2 干邑金
+        success: '#3D6B4F',        // --success 森林绿
       },
       fontFamily: {
-        serif: ['Georgia', 'Noto Serif SC', 'serif'],
+        display: ['Playfair Display', 'Times New Roman', 'Georgia', 'serif'],
+        body: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'Segoe UI', 'system-ui', 'sans-serif'],
+        mono: ['SF Mono', 'ui-monospace', 'Menlo', 'monospace'],
       },
       borderRadius: {
-        'sm': '8px',
-        'md': '12px',
-        'lg': '16px',
+        'sm': '4px',
+        'md': '4px',
+        'lg': '4px',
       },
       boxShadow: {
-        'sm': '0 1px 3px rgba(12,10,9,0.06)',
-        'md': '0 4px 16px rgba(12,10,9,0.08)',
-        'lg': '0 8px 32px rgba(12,10,9,0.10)',
+        'sm': '0 1px 2px rgba(44, 36, 22, 0.04)',
+        'md': '0 4px 16px rgba(44, 36, 22, 0.06)',
+        'lg': '0 8px 32px rgba(44, 36, 22, 0.08)',
       },
     },
   },

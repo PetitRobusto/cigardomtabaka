@@ -13,12 +13,12 @@ export function PriceRow({ snap }: PriceRowProps) {
     <div className="flex justify-between items-center py-1.5">
       <div className="flex items-center gap-2">
         <SourceTag slug={snap.source_slug} />
-        <span className="text-xs font-semibold text-gold-600 px-2 py-0.5 bg-gold-50 rounded border border-gold-200">
+        <span className="text-xs font-semibold text-accent px-2 py-0.5 bg-accent-light rounded border border-accent">
           {formatBoxSize(snap.box_size)}
         </span>
       </div>
       {snap.in_stock ? (
-        <span className="text-base font-bold text-stone-900 font-serif">
+        <span className="text-base font-bold text-fg font-serif">
           {formatPrice(snap.price, snap.currency)}
         </span>
       ) : (

@@ -21,8 +21,8 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
 
   return (
     <motion.div
-      className="group bg-white rounded-xl border border-stone-100 overflow-hidden cursor-pointer
-        hover:border-gold-300 hover:shadow-lg transition-all duration-300"
+      className="group bg-white rounded-xl border border-border overflow-hidden cursor-pointer
+        hover:border-accent hover:shadow-lg transition-all duration-300"
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03, duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
@@ -30,7 +30,7 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
       layout
     >
       {/* 雪茄图片区域 */}
-      <div className="relative w-full aspect-[4/3] bg-stone-50 overflow-hidden">
+      <div className="relative w-full aspect-[4/3] bg-accent-light overflow-hidden">
         {cigar.cigar_image_url ? (
           <img
             src={cigar.cigar_image_url}
@@ -49,7 +49,7 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
             ) : (
-              <span className="text-stone-300 text-4xl font-serif">雪茄</span>
+              <span className="text-muted text-4xl font-serif">雪茄</span>
             )}
           </div>
         )}
@@ -77,30 +77,30 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
           )}
-          <span className="text-[0.7rem] text-stone-400 uppercase tracking-wider font-medium">
+          <span className="text-[0.7rem] text-muted uppercase tracking-wider font-medium">
             {cigar.cigar_brand_cn || cigar.cigar_brand}
           </span>
         </div>
 
         {/* 品名 */}
-        <h3 className="text-[0.95rem] font-bold text-stone-900 leading-snug mb-0.5 line-clamp-2 min-h-[2.4em]">
+        <h3 className="text-[0.95rem] font-bold text-fg leading-snug mb-0.5 line-clamp-2 min-h-[2.4em]">
           {cigar.cigar_name}
         </h3>
         {cigar.cigar_name_en && cigar.cigar_name_en !== cigar.cigar_name && (
-          <p className="text-[0.72rem] text-stone-400 italic mb-2.5 font-serif line-clamp-1">
+          <p className="text-[0.72rem] text-muted italic mb-2.5 font-serif line-clamp-1">
             {cigar.cigar_name_en}
           </p>
         )}
 
         {/* 均价/支 (RMB) */}
         <div className="flex items-baseline gap-1 mb-2.5">
-          <span className="text-[0.7rem] text-stone-400">均价/支</span>
+          <span className="text-[0.7rem] text-muted">均价/支</span>
           {cigar.avg_per_stick_cny != null ? (
-            <span className="text-xl font-bold text-gold-500 font-serif tracking-tight">
+            <span className="text-xl font-bold text-accent font-serif tracking-tight">
               ¥{cigar.avg_per_stick_cny.toLocaleString()}
             </span>
           ) : (
-            <span className="text-sm font-medium text-stone-400">暂无报价</span>
+            <span className="text-sm font-medium text-muted">暂无报价</span>
           )}
         </div>
 

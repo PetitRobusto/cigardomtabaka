@@ -10,10 +10,10 @@ export function LoadingState({ text = '加载中…' }: { text?: string }) {
       transition={{ duration: 0.3 }}
     >
       <div className="relative w-12 h-12 mb-5">
-        <div className="absolute inset-0 rounded-full border-2 border-stone-200" />
-        <div className="absolute inset-0 rounded-full border-2 border-gold-500 border-t-transparent animate-spin" />
+        <div className="absolute inset-0 rounded-full border-2 border-border" />
+        <div className="absolute inset-0 rounded-full border-2 border-accent border-t-transparent animate-spin" />
       </div>
-      <p className="text-stone-500 text-sm font-medium">{text}</p>
+      <p className="text-muted text-sm font-medium">{text}</p>
     </motion.div>
   );
 }

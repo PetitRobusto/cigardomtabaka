@@ -118,6 +118,9 @@ def run_scrape_sync(source_slug: str) -> dict:
         rate_obj = ExchangeRate.get_rate(source.currency)
         exchange_rate = rate_obj if rate_obj else 7.0
 
+    from django.utils import timezone
+    scraped_combos = set()
+
     for item in items:
         cigar = scraper.match_cigar(item) or match_cigar_by_name(item.name, source.name)
         if not cigar:
@@ -125,95 +128,59 @@ def run_scrape_sync(source_slug: str) -> dict:
             continue
         matched += 1
 
-        from django.utils import timezone
-        today = timezone.now().date()
-        existing = PriceSnapshot.objects.filter(
-            source=source,
-            cigar=cigar,
-            scraped_date=today,
-        ).first()
+        box_size = item.box_size
+        combo = (cigar.id, box_size)
+        scraped_combos.add(combo)
 
-        # 币种：优先 item 自带的 → source 默认
-        item_currency = getattr(item, 'currency', None) or source.currency or 'USD'
-        # CNY 换算：用最新汇率表
-        cny_rate = ExchangeRate.get_rate(item_currency)
-        if cny_rate is None:
-            cny_rate = exchange_rate  # fallback
-        price_cny = round(item.price * cny_rate, 2) if item.price else None
+        # Get latest snapshot for this combo
+        latest = PriceSnapshot.objects.filter(
+            source=source, cigar=cigar, box_size=box_size
+        ).order_by('-scraped_at').first()
 
-        if existing:
-            existing.price = item.price
-            existing.currency = item_currency
-            existing.price_cny = price_cny
-            existing.box_size = item.box_size
-            existing.box_price = item.box_price
-            existing.in_stock = item.in_stock
-            existing.raw_data = item.raw_data
-            existing.save()
-            logger.debug(f'[updated] {cigar}: {item.price}')
-        else:
+        should_create = False
+        raw_data = dict(item.raw_data) if item.raw_data else {}
+
+        if latest is None:
+            # New product → create
+            should_create = True
+        elif not latest.in_stock:
+            # Was delisted/OOS, now back → relisted
+            should_create = True
+            raw_data['relisted'] = True
+            raw_data['relisted_at'] = timezone.now().isoformat()
+        elif latest.price != item.price:
+            # Price changed → create
+            should_create = True
+        # else: price unchanged → skip (dedup!)
+
+        if should_create:
+            # 币种：优先 item 自带的 → source 默认
+            item_currency = getattr(item, 'currency', None) or source.currency or 'USD'
+            # CNY 换算：用最新汇率表
+            cny_rate = ExchangeRate.get_rate(item_currency)
+            if cny_rate is None:
+                cny_rate = exchange_rate  # fallback
+            price_cny = round(item.price * cny_rate, 2) if item.price else None
+
             PriceSnapshot.objects.create(
                 source=source,
                 cigar=cigar,
                 price=item.price,
                 currency=item_currency,
                 price_cny=price_cny,
-                box_size=item.box_size,
+                box_size=box_size,
                 box_price=item.box_price,
                 url=item.url,
                 in_stock=item.in_stock,
-                raw_data=item.raw_data,
+                raw_data=raw_data,
             )
             created += 1
 
-    # --- in_stock 缺货检测：标记本次爬取中未出现的历史商品为缺货 ---
-    from django.utils import timezone
-    today = timezone.now().date()
+    # --- 下架检测 ---
+    from .delisting import detect_delistings
 
-    # 收集本次爬取到的 (cigar_id, box_size) combos
-    scraped_combos = set()
-    fresh_snapshots = PriceSnapshot.objects.filter(
-        source=source, scraped_date=today,
-    ).values_list('cigar_id', 'box_size')
-    for cid, bs in fresh_snapshots:
-        scraped_combos.add((cid, bs))
-
-    # 找以前有货但今天没出现的 combo → 标记缺货
-    # 策略：找到每个 (cigar, box_size) 最新的 in_stock=True 的记录，
-    # 如果它不在 scraped_combos 里，创建一条今日 in_stock=False 快照
-    from django.db.models import Max as DMax
-    subquery = (
-        PriceSnapshot.objects
-        .filter(source=source)
-        .values('cigar_id', 'box_size')
-        .annotate(latest_id=DMax('id'))
-        .values_list('latest_id', flat=True)
-    )
-    latest_snapshots = PriceSnapshot.objects.filter(
-        id__in=subquery, in_stock=True, source=source,
-    )
-    oos_count = 0
-    for snap in latest_snapshots:
-        if (snap.cigar_id, snap.box_size) not in scraped_combos:
-            # 创建缺货快照（当日无爬取记录的才创建）
-            existing_oos = PriceSnapshot.objects.filter(
-                source=source, cigar=snap.cigar,
-                box_size=snap.box_size, scraped_date=today,
-            ).exists()
-            if not existing_oos:
-                PriceSnapshot.objects.create(
-                    source=source,
-                    cigar=snap.cigar,
-                    price=snap.price,
-                    currency=snap.currency,
-                    price_cny=snap.price_cny,
-                    box_size=snap.box_size,
-                    box_price=snap.box_price,
-                    url=snap.url,
-                    in_stock=False,
-                    raw_data={'oos_detected': True, 'last_seen': str(snap.scraped_date)},
-                )
-                oos_count += 1
+    delisting_result = detect_delistings(source, scraped_combos)
+    oos_count = delisting_result['newly_delisted']
 
     source.last_scraped = timezone.now()
     source.save(update_fields=['last_scraped'])

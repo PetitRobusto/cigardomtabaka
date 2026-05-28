@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { SourceTag } from '../shared/SourceTag';
 import { BRAND_LOGO_LOCAL } from '../../utils/priceData';
 import type { CigarListItem } from '../../types';
 
@@ -54,10 +53,19 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
           </div>
         )}
 
+        {/* 特别款标识 */}
+        {cigar.release_type_cn && (
+          <div className="absolute top-2.5 left-2.5
+            bg-amber-100 text-amber-800 border border-amber-300 text-[0.6rem] font-bold
+            px-2 py-0.5 rounded-full uppercase tracking-wide">
+            {cigar.release_type_cn}
+          </div>
+        )}
+
         {/* 在售徽章 */}
         {cigar.in_stock && (
           <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5
-            bg-stone-900/90 backdrop-blur-sm text-white text-[0.65rem] font-semibold
+            bg-emerald-50 text-emerald-700 border border-emerald-200 text-[0.65rem] font-semibold
             px-2.5 py-1 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             在售
@@ -84,7 +92,7 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
 
         {/* 品名 */}
         <h3 className="text-[0.95rem] font-bold text-fg leading-snug mb-0.5 line-clamp-2 min-h-[2.4em]">
-          {cigar.cigar_name}
+          {cigar.cigar_name || `${cigar.cigar_brand_cn || cigar.cigar_brand} #${cigar.cigar_id}`}
         </h3>
         {cigar.cigar_name_en && cigar.cigar_name_en !== cigar.cigar_name && (
           <p className="text-[0.72rem] text-muted italic mb-2.5 font-display line-clamp-1">
@@ -104,11 +112,10 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
           )}
         </div>
 
-        {/* 来源标签 */}
-        <div className="flex flex-wrap gap-1">
-          {sourceSlugs.map((slug) => (
-            <SourceTag key={slug} slug={slug} shortName={slugNameMap[slug]} />
-          ))}
+        {/* 来源计数 */}
+        <div className="flex items-center gap-1.5 text-[0.7rem] text-muted">
+          <span className="font-semibold text-accent">{sourceSlugs.length}</span>
+          <span>个网站有售</span>
         </div>
       </div>
     </motion.div>

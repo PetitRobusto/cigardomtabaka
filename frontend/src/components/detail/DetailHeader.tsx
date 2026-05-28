@@ -14,12 +14,20 @@ export function DetailHeader({ data }: DetailHeaderProps) {
       transition={{ duration: 0.3 }}
     >
       {(data.cigar_brand_cn || data.cigar_brand) && (
-        <span
-          className="inline-block text-[0.7rem] text-accent uppercase tracking-widest font-semibold
-            px-3 py-1 bg-accent-light border border-accent rounded-full mb-3"
-        >
-          {data.cigar_brand_cn || data.cigar_brand}
-        </span>
+        <div className="flex items-center gap-2 mb-3">
+          <span
+            className="inline-block text-[0.7rem] text-accent uppercase tracking-widest font-semibold
+              px-3 py-1 bg-accent-light border border-accent rounded-full"
+          >
+            {data.cigar_brand_cn || data.cigar_brand}
+          </span>
+          {data.release_type_cn && (
+            <span className="inline-block text-[0.65rem] font-bold text-amber-800 bg-amber-100 
+              border border-amber-300 px-2.5 py-0.5 rounded-full uppercase tracking-wide">
+              {data.release_type_cn}
+            </span>
+          )}
+        </div>
       )}
       <h2 className="text-2xl md:text-3xl font-bold text-fg font-display leading-tight">
         {data.cigar_name || `Cigar #${data.cigar_id}`}

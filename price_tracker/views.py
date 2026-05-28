@@ -167,7 +167,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                     'box_size': bs,
                     'box_label': box_label,
                     'url': snap.url or snap.source.base_url,
-                    'scraped_name': (snap.raw_data or {}).get('title_original', '') or '',
+                    'scraped_name': (snap.raw_data or {}).get('title_original') or (snap.raw_data or {}).get('product', '') or '',
                     'points': [],
                 }
             variants[key]['points'].append({
@@ -196,12 +196,15 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                 else:
                     v['price_per_stick'] = None
 
+        release_type_cn = cigar.release_type_cn if cigar else None
+
         return Response({
             'cigar_id': int(cigar_id),
             'cigar_brand': cigar.brand if cigar else None,
             'cigar_brand_cn': brand_cn,
             'cigar_name': (cigar.name or cigar.english_name) if cigar else None,
             'cigar_name_en': cigar.english_name if cigar else None,
+            'release_type_cn': release_type_cn,
             'variants': list(variants.values()),
         })
 
@@ -263,6 +266,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                     except Exception:
                         pass
 
+                rt = snap.cigar.release_type_cn or ''
                 cigars_map[cid] = {
                     'cigar_id': cid,
                     'cigar_name': snap.cigar.name or snap.cigar.english_name or '',
@@ -270,6 +274,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                     'cigar_brand': brand_name,
                     'cigar_brand_cn': brand_cn,
                     'cigar_image_url': img_url,
+                    'release_type_cn': rt,
                     'sources': [],
                     'in_stock': False,
                     'avg_per_stick_cny': None,

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { motion } from 'framer-motion';
 import type { Variant } from '../../types';
@@ -13,16 +14,10 @@ interface PriceChartProps {
   variants: Variant[];
 }
 
-function formatYAxis(value: number): string {
-  return `¥${value.toLocaleString()}`;
-}
-
-function tooltipFormatter(value: number): string {
-  return `¥${value.toLocaleString()}`;
-}
-
 export function PriceChart({ variants }: PriceChartProps) {
-  const chartData = buildChartData(variants);
+  const [mode, setMode] = useState<'original' | 'cny_per_stick'>('original');
+  const isCny = mode === 'cny_per_stick';
+  const chartData = buildChartData(variants, mode);
   if (chartData.length === 0) return null;
 
   return (
@@ -32,9 +27,18 @@ export function PriceChart({ variants }: PriceChartProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.1 }}
     >
-      <h3 className="text-sm font-bold text-fg uppercase tracking-widest mb-4">
-        价格走势（人民币 CNY）
-      </h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-bold text-fg uppercase tracking-widest">
+          价格走势{isCny ? '（单支人民币）' : '（原币种）'}
+        </h3>
+        <button
+          onClick={() => setMode(m => m === 'original' ? 'cny_per_stick' : 'original')}
+          className="text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors
+            bg-accent-light text-accent border-accent hover:bg-accent hover:text-white"
+        >
+          {isCny ? '查看原币种' : '换算单支 ¥'}
+        </button>
+      </div>
       <ResponsiveContainer width="100%" height={380}>
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#F0EDE8" />
@@ -50,7 +54,7 @@ export function PriceChart({ variants }: PriceChartProps) {
             tick={{ fontSize: 12, fill: '#A8A29E' }}
             tickLine={false}
             axisLine={false}
-            tickFormatter={formatYAxis}
+            tickFormatter={(v: number) => isCny ? `¥${v.toLocaleString()}` : v.toLocaleString()}
           />
           <Tooltip
             contentStyle={{
@@ -61,7 +65,7 @@ export function PriceChart({ variants }: PriceChartProps) {
             }}
             labelStyle={{ color: '#1C1917', fontWeight: 700, fontSize: 13 }}
             itemStyle={{ fontSize: 13 }}
-            formatter={(value: number) => [tooltipFormatter(value)]}
+            formatter={(value: number) => [isCny ? `¥${value.toLocaleString()}` : value.toLocaleString()]}
           />
           <Legend
             wrapperStyle={{ fontSize: 12, paddingTop: 12, color: '#78716C' }}
@@ -70,13 +74,13 @@ export function PriceChart({ variants }: PriceChartProps) {
             <Line
               key={`${v.source_slug}__${v.box_size}`}
               type="monotone"
-              dataKey={variantLabel(v)}
+              dataKey={variantLabel(v, mode)}
               stroke={COLORS[i % COLORS.length]}
               strokeWidth={2.5}
               dot={{ r: 3, strokeWidth: 1.5, fill: '#fff' }}
               activeDot={{ r: 5, strokeWidth: 2.5 }}
               connectNulls
-              name={variantLabel(v)}
+              name={variantLabel(v, mode)}
             />
           ))}
         </LineChart>

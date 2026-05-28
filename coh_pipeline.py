@@ -412,6 +412,12 @@ def save_to_db(items: list[dict], source_slug: str = 'coh_china', dry_run: bool 
             existing.price = price_usd
             existing.price_cny = price_cny
             existing.in_stock = True
+            existing.raw_data = {
+                'brand': item.get('brand', ''),
+                'product': item.get('product', ''),
+                'box_info': item.get('box_info', ''),
+                'source': 'coh_china',
+            }
             existing.save()
             stats['updated'] += 1
         else:
@@ -424,6 +430,12 @@ def save_to_db(items: list[dict], source_slug: str = 'coh_china', dry_run: bool 
                 box_size=box_size,
                 url=f'{BASE_URL}/cigars-{BRAND_SLUGS.get(item.get("brand", ""), "")}',
                 in_stock=True,
+                raw_data={
+                    'brand': item.get('brand', ''),
+                    'product': item.get('product', ''),
+                    'box_info': item.get('box_info', ''),
+                    'source': 'coh_china',
+                },
             )
             stats['created'] += 1
 

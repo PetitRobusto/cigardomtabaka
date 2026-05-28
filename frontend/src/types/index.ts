@@ -59,6 +59,7 @@ export interface PriceHistoryResponse {
   cigar_name_en?: string;
   cigar_brand?: string;
   cigar_brand_cn?: string;
+  release_type_cn?: string;
   variants: Variant[];
 }
 
@@ -86,6 +87,7 @@ export interface CigarListItem {
   cigar_brand: string;
   cigar_brand_cn: string;
   cigar_image_url: string;
+  release_type_cn?: string;
   sources: {
     source_id: number;
     source_name: string;

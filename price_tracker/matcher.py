@@ -95,6 +95,7 @@ NAME_FIXES = {
     'connosseur': 'connossieur',         # 单S+单N变体
     'conosseur': 'connossieur',
     'cetros': 'cedros',                 # COH 拼错: Cetros → Cedros (雪松)
+    'supreme': 'supremos',              # COH: Robustos Supreme → Robustos Supremos (2014 EL)
 }
 
 # ── 复数/单数修正（归一化后） ──────────────────────────────
@@ -387,14 +388,25 @@ def _collect_icontains_candidates(
             score = 9999 + len(db_plural)
             reason = f'icontains-plural-exact'
         # ── 子串包含 ──
+        # ⚠️ 长度惩罚：当 scraped name 明显比 DB name 长时（如 "Robustos Supremos" vs "Robustos"），
+        #     说明 scraped 多了区分词（Supremos/限量为），子串匹配不可靠，压低分数。
+        #     这样 Current 优先通道匹配失败 → 掉落全量匹配 → 找到 Exact Match（如 Limited Edition）。
         elif db_norm in stripped:
-            score = 5000 + len(db_norm)
-            reason = f'icontains-db-in-scraped({len(db_norm)}vs{len(stripped)})'
+            base = 5000 + len(db_norm)
+            ratio = len(stripped) / max(len(db_norm), 1)
+            if ratio > 1.5:
+                base = int(base * 0.6)  # 长度差距>50% → 降40%分
+            score = base
+            reason = f'icontains-db-in-scraped({len(db_norm)}vs{len(stripped)},ratio={ratio:.1f})'
         elif stripped in db_norm:
             score = 5000 + len(stripped)
             reason = f'icontains-scraped-in-db({len(stripped)}vs{len(db_norm)})'
         elif db_plural in stripped_plural:
-            score = 4999 + len(db_plural)
+            base = 4999 + len(db_plural)
+            ratio = len(stripped_plural) / max(len(db_plural), 1)
+            if ratio > 1.5:
+                base = int(base * 0.6)
+            score = base
             reason = f'icontains-plural-db-in-scraped'
         elif stripped_plural in db_plural:
             score = 4999 + len(stripped_plural)
@@ -425,6 +437,12 @@ def _collect_icontains_candidates(
             best_reason = reason
 
     if best:
+        # ⚠️ 阈值守卫：低分匹配（长度惩罚后 < 5000）视为不可靠，返回 None
+        # 场景：\"robustos supremos\" 匹配 \"robustos\" 得分 3004（被惩罚），
+        # 应该 fall through 到下轮全量匹配，让 id=160 的 exact match 胜出
+        if best_score < 5000 and best_score > 0 and best_reason != 'icontains-exact' and best_reason != 'icontains-plural-exact':
+            logger.debug(f'[rejected-low-score] {scraped_name} → {best.english_name} score={best_score} < 5000')
+            return None
         logger.debug(f'[{best_reason}] {scraped_name} → {best.english_name} '
                      f'({best.brand}, score={best_score})')
         return best

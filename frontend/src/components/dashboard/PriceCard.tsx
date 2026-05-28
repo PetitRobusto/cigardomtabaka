@@ -96,7 +96,7 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
         <div className="flex items-baseline gap-1 mb-2.5">
           <span className="text-[0.7rem] text-muted">均价/支</span>
           {cigar.avg_per_stick_cny != null ? (
-            <span className="text-xl font-bold text-accent font-serif tracking-tight">
+            <span className="text-xl font-bold text-accent font-mono tracking-tight tabular-nums">
               ¥{cigar.avg_per_stick_cny.toLocaleString()}
             </span>
           ) : (

@@ -136,6 +136,17 @@ html {
   font-size: 14px;
 }
 
+.topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Hide nav on mobile */
+@media (max-width: 768px) {
+  .topbar-nav { display: none; }
+}
+
 .topbar-right {
   display: flex;
   align-items: center;

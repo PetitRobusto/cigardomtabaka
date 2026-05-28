@@ -9,11 +9,11 @@ export function EmptyState({ title = '暂无数据', description = '等待数据
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="w-16 h-16 rounded-2xl bg-stone-100 flex items-center justify-center mb-5">
-        <Inbox className="w-8 h-8 text-stone-300" />
+      <div className="w-16 h-16 rounded-2xl bg-accent-light flex items-center justify-center mb-5">
+        <Inbox className="w-8 h-8 text-muted" />
       </div>
-      <h3 className="text-stone-800 font-semibold text-lg mb-1.5">{title}</h3>
-      <p className="text-stone-400 text-sm max-w-xs">{description}</p>
+      <h3 className="text-fg font-semibold text-lg mb-1.5">{title}</h3>
+      <p className="text-muted text-sm max-w-xs">{description}</p>
     </motion.div>
   );
 }

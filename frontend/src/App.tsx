@@ -33,14 +33,14 @@ export default function App() {
       <div className="app">
         <header className="app-header">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gold-500 flex items-center justify-center shadow-md">
+            <div className="w-9 h-9 rounded-lg bg-accent flex items-center justify-center shadow-md">
               <Flame className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-stone-900 tracking-tight leading-none">
+              <h1 className="text-xl font-bold text-fg tracking-tight leading-none">
                 市场价格监控
               </h1>
-              <p className="text-[0.7rem] text-stone-400 mt-0.5 tracking-wide uppercase">
+              <p className="text-[0.7rem] text-muted mt-0.5 tracking-wide uppercase">
                 Moscow Cigar Price Tracker
               </p>
             </div>
@@ -52,8 +52,8 @@ export default function App() {
               className={({ isActive }) =>
                 `inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
                   isActive
-                    ? 'bg-gold-500 text-white shadow-sm'
-                    : 'text-stone-500 hover:text-gold-600 hover:bg-stone-100'
+                    ? 'bg-accent text-white shadow-sm'
+                    : 'text-muted hover:text-accent hover:bg-accent-light'
                 }`
               }
             >
@@ -65,8 +65,8 @@ export default function App() {
               className={({ isActive }) =>
                 `inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
                   isActive
-                    ? 'bg-gold-500 text-white shadow-sm'
-                    : 'text-stone-500 hover:text-gold-600 hover:bg-stone-100'
+                    ? 'bg-accent text-white shadow-sm'
+                    : 'text-muted hover:text-accent hover:bg-accent-light'
                 }`
               }
             >
@@ -78,8 +78,8 @@ export default function App() {
         <main>
           <AnimatedRoutes />
         </main>
-        <footer className="mt-16 py-6 border-t border-stone-200 text-center">
-          <p className="text-xs text-stone-400">
+        <footer className="mt-16 py-6 border-t border-border text-center">
+          <p className="text-xs text-muted">
             Moscow Cigar · 价格数据仅供参考
           </p>
         </footer>

@@ -4,33 +4,21 @@
 
 @layer base {
   body {
-    font-family: Georgia, 'Noto Serif SC', serif;
-    background-color: #FAFAF9;
-    color: #0C0A09;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+    background-color: #FAF8F5;
+    color: #2C2416;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Custom scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: #D6D3D1;
-    border-radius: 3px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #A8A29E;
-  }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #E8E0D6; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #8A7E6E; }
 
-  /* Selection color */
   ::selection {
-    background: rgba(161, 98, 7, 0.15);
-    color: #1C1917;
+    background: rgba(122, 31, 46, 0.12);
+    color: #2C2416;
   }
 }
 
@@ -38,17 +26,32 @@
   .app {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 1.5rem 1rem 6rem;
+    padding: 1.5rem 2rem 6rem;
   }
 
   .app-header {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: space-between;
     margin-bottom: 2rem;
     padding-bottom: 1.25rem;
-    border-bottom: 1px solid #E7E5E4;
+    border-bottom: 1px solid #E8E0D6;
     gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .app-header h1 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 2rem;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    margin-bottom: 4px;
+  }
+
+  .app-header nav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   @media (max-width: 640px) {
@@ -62,49 +65,35 @@
     }
   }
 
-  .app-header h1 {
-    font-family: Georgia, 'Noto Serif SC', serif;
-  }
-
-  .app-header nav {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  /* Focus ring utility */
-  .focus-ring {
-    @apply focus:outline-none focus:ring-2 focus:ring-gold-500/40 focus:ring-offset-2 focus:ring-offset-cream;
-  }
-
-  /* Card hover lift */
+  /* Card hover lift — 设计稿 4px radius + 极淡阴影 */
   .card-lift {
-    @apply transition-all duration-300 ease-out;
+    @apply transition-all duration-200 ease-out;
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(44, 36, 22, 0.04);
   }
   .card-lift:hover {
-    @apply -translate-y-1 shadow-lg;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(44, 36, 22, 0.06);
   }
 
-  /* Gold underline link */
-  .link-gold {
-    @apply relative text-gold-600 transition-colors duration-200;
+  /* Accent underline link */
+  .link-accent {
+    @apply relative text-accent transition-colors duration-200;
   }
-  .link-gold::after {
+  .link-accent::after {
     content: '';
-    @apply absolute bottom-0 left-0 w-0 h-px bg-gold-500 transition-all duration-300;
+    @apply absolute bottom-0 left-0 w-0 h-px bg-accent transition-all duration-300;
   }
-  .link-gold:hover::after {
+  .link-accent:hover::after {
     @apply w-full;
   }
 }
 
 @layer utilities {
-  /* Text balance for headings */
   .text-balance {
     text-wrap: balance;
   }
 
-  /* Animation utilities */
   .animate-fade-in {
     animation: fadeIn 0.3s ease-out;
   }

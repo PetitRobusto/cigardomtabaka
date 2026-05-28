@@ -27,12 +27,12 @@ export function PriceChart({ variants }: PriceChartProps) {
 
   return (
     <motion.div
-      className="bg-white rounded-xl border border-stone-100 shadow-sm p-5 mb-8"
+      className="bg-white rounded-xl border border-border shadow-sm p-5 mb-8"
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.1 }}
     >
-      <h3 className="text-sm font-bold text-stone-900 uppercase tracking-widest mb-4">
+      <h3 className="text-sm font-bold text-fg uppercase tracking-widest mb-4">
         价格走势（人民币 CNY）
       </h3>
       <ResponsiveContainer width="100%" height={380}>

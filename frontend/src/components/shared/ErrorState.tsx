@@ -17,12 +17,12 @@ export function ErrorState({ message = '数据加载失败', onRetry }: ErrorSta
       <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mb-5">
         <AlertTriangle className="w-8 h-8 text-red-400" />
       </div>
-      <p className="text-stone-800 font-medium mb-5">{message}</p>
+      <p className="text-fg font-medium mb-5">{message}</p>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-gold-500 text-white rounded-lg font-medium text-sm
-            hover:bg-gold-600 active:scale-[0.98] transition-all duration-200 shadow-sm"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-accent text-white rounded-lg font-medium text-sm
+            hover:bg-accent-hover active:scale-[0.98] transition-all duration-200 shadow-sm"
         >
           <RotateCcw className="w-4 h-4" />
           重新加载

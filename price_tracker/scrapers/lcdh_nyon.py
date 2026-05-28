@@ -116,13 +116,15 @@ class LCDHNyonScraper(BaseScraper):
                         const priceEl = card.querySelector('.price');
                         const linkEl = card.querySelector('a[href*="/boutique/"]');
                         const badgeEl = card.querySelector('.out-of-stock, .badge-inner');
-                        if (!titleEl || !priceEl) return;
+                        if (!titleEl) return;
+                        const badgeText = (badgeEl?.textContent || '').trim().toLowerCase();
+                        const isOOS = badgeText.includes('out of stock') || badgeText.includes('rupture de stock');
                         products.push({{
                             title: titleEl.textContent.trim(),
-                            price: priceEl.textContent.trim(),
+                            price: priceEl?.textContent?.trim() || '',
                             url: linkEl?.getAttribute('href') || '',
                             badge: badgeEl?.textContent?.trim() || '',
-                            inStock: !(badgeEl?.textContent || '').toLowerCase().includes('out of stock')
+                            inStock: !isOOS
                         }});
                     }});
                     return JSON.stringify(products);
@@ -141,14 +143,18 @@ class LCDHNyonScraper(BaseScraper):
             return []
     
     def _parse_product(self, raw: dict, brand: str) -> Optional[ScrapedItem]:
-        """解析单个产品"""
+        """解析单个产品（含售罄产品）"""
         title = raw.get('title', '')
         price_str = raw.get('price', '')
         url = raw.get('url', '')
         in_stock = raw.get('inStock', True)
         
-        if not title or not price_str:
+        if not title:
             return None
+        
+        # 无价格 → 强制标记售罄
+        if not price_str:
+            in_stock = False
         
         # 解析标题: "Bolívar Regentes Edición Limitada 2021 (25)"
         # 去掉品牌前缀

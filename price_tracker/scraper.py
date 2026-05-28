@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class ScrapedItem:
     """爬取的原始价格条目"""
     name: str                          # 品名（英文）
-    price: float                       # 售价
+    price: Optional[float] = None       # 售价（售罄时为None）
     box_size: Optional[int] = None     # 盒装支数
     box_price: Optional[float] = None  # 整盒价
     url: str = ''                      # 商品页链接

@@ -1,4 +1,4 @@
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { motion } from 'framer-motion';
 import type { Variant } from '../../types';
 import { buildChartData, variantLabel } from '../../utils/priceData';
@@ -13,105 +13,112 @@ interface PriceChartProps {
   variants: Variant[];
 }
 
-/** 从 chartData 中提取每个 variant 的最新有效价格 */
-function extractLatestPrices(
-  variants: Variant[],
-  chartData: Record<string, unknown>[],
-  mode: 'original' | 'cny_per_stick',
-): { key: string; label: string; price: number; color: string; currency?: string }[] {
-  const result: { key: string; label: string; price: number; color: string; currency?: string }[] = [];
-  variants.forEach((v, i) => {
-    const dk = variantLabel(v, mode);
-    for (let j = chartData.length - 1; j >= 0; j--) {
-      const val = chartData[j][dk];
-      if (val != null && typeof val === 'number') {
-        result.push({
-          key: dk,
-          label: `${v.source_short_name || v.source_name} ${v.box_label}`,
-          price: val,
-          color: COLORS[i % COLORS.length],
-          currency: mode === 'cny_per_stick' ? '¥' : v.currency,
-        });
-        break;
-      }
-    }
+interface BarDatum {
+  name: string;
+  price: number;
+  color: string;
+  tag: string | null;
+}
+
+/** 从 variants 提取当前单支 CNY 价格用于柱状图对比 */
+function buildBarData(variants: Variant[]): BarDatum[] {
+  const raw = variants.map((v, i) => {
+    const points = v.points || [];
+    const latest = points[points.length - 1];
+    const bs = v.box_size || 1;
+    const perStick = latest && latest.price_cny != null
+      ? +(latest.price_cny / bs).toFixed(2)
+      : (v.price_per_stick ?? 0);
+    return {
+      name: `${v.source_short_name || v.source_name} ${v.box_label}`,
+      price: perStick,
+      color: COLORS[i % COLORS.length],
+      tag: null as string | null,
+    };
   });
-  return result;
+
+  if (raw.length === 0) return raw;
+
+  const prices = raw.map((d) => d.price);
+  const max = Math.max(...prices);
+  const min = Math.min(...prices);
+  const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+
+  // 找到最接近平均价的值
+  let closestPrice = prices[0];
+  let closestDelta = Math.abs(prices[0] - avg);
+  for (const p of prices) {
+    const d = Math.abs(p - avg);
+    if (d < closestDelta) {
+      closestDelta = d;
+      closestPrice = p;
+    }
+  }
+
+  // 只在多于 1 根柱子时标注（否则全一样）
+  const unique = new Set(prices);
+  if (unique.size <= 1) return raw;
+
+  // 标注策略：先标最高/最低，再标最接近平均（避免重复）
+  const usedTags = new Set<string>();
+  for (const d of raw) {
+    if (d.price === max && !usedTags.has('最高')) {
+      d.tag = '最高';
+      usedTags.add('最高');
+    } else if (d.price === min && !usedTags.has('最低')) {
+      d.tag = '最低';
+      usedTags.add('最低');
+    }
+  }
+  // 最接近平均 —— 排除已标记的，找最接近的
+  if (unique.size >= 3 && !usedTags.has('均价')) {
+    let bestIdx = -1;
+    let bestDelta = Infinity;
+    for (let i = 0; i < raw.length; i++) {
+      if (raw[i].tag) continue; // 已被标为最高/最低
+      const d = Math.abs(raw[i].price - avg);
+      if (d < bestDelta) { bestDelta = d; bestIdx = i; }
+    }
+    if (bestIdx >= 0) {
+      raw[bestIdx].tag = '均价';
+    }
+  }
+
+  return raw;
 }
 
 export function PriceChart({ variants }: PriceChartProps) {
-  const cnyData = buildChartData(variants, 'cny_per_stick');
+  const barData = buildBarData(variants);
   const originalData = buildChartData(variants, 'original');
 
-  if (originalData.length === 0 && cnyData.length === 0) return null;
-
-  const latestStick = extractLatestPrices(variants, cnyData, 'cny_per_stick');
-  const latestOriginal = extractLatestPrices(variants, originalData, 'original');
-
-  const sharedGrid = <CartesianGrid strokeDasharray="3 3" stroke="#F0EDE8" />;
-  const sharedX = (
-    <XAxis
-      dataKey="date"
-      stroke="#A8A29E"
-      tick={{ fontSize: 12, fill: '#A8A29E' }}
-      tickLine={false}
-      axisLine={{ stroke: '#E8E4DF' }}
-    />
-  );
-  const sharedTooltip = (prefix?: string) => (
-    <Tooltip
-      contentStyle={{
-        background: '#fff',
-        border: '1px solid #E8E4DF',
-        borderRadius: 12,
-        boxShadow: '0 4px 20px rgba(28,25,23,0.08)',
-      }}
-      labelStyle={{ color: '#1C1917', fontWeight: 700, fontSize: 13 }}
-      itemStyle={{ fontSize: 13 }}
-      formatter={(value: number) => [
-        prefix ? `${prefix}${value.toLocaleString()}` : value.toLocaleString(),
-      ]}
-    />
-  );
-  const sharedLegend = (
-    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12, color: '#78716C' }} />
-  );
+  if (originalData.length === 0 && barData.length === 0) return null;
 
   return (
     <>
-      {/* ===== 单支价格走势 · ¥ ===== */}
-      {cnyData.length > 0 && (
+      {/* ===== 单支价格对比 · ¥ — 柱状图 ===== */}
+      {barData.length > 0 && (
         <motion.div
           className="bg-white rounded-xl border border-accent/20 shadow-md p-5 mb-6"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.05 }}
         >
-          <h3 className="text-sm font-bold text-accent uppercase tracking-widest mb-3">
-            单支价格走势 · ¥
+          <h3 className="text-sm font-bold text-accent uppercase tracking-widest mb-4">
+            单支价格对比 · ¥
           </h3>
-
-          {/* Current price summary */}
-          {latestStick.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              {latestStick.map((item) => (
-                <span
-                  key={item.key}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border"
-                  style={{ borderColor: item.color, color: item.color, backgroundColor: `${item.color}10` }}
-                >
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                  {item.label}
-                  <span className="tabular-nums font-bold">¥{item.price.toLocaleString()}</span>
-                </span>
-              ))}
-            </div>
-          )}
-
           <ResponsiveContainer width="100%" height={380}>
-            <LineChart data={cnyData} margin={{ right: 20 }}>
-              {sharedGrid}
-              {sharedX}
+            <BarChart data={barData} margin={{ top: 24, right: 20, bottom: 60, left: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F0EDE8" vertical={false} />
+              <XAxis
+                dataKey="name"
+                stroke="#A8A29E"
+                tick={{ fontSize: 11, fill: '#78716C' }}
+                tickLine={false}
+                axisLine={{ stroke: '#E8E4DF' }}
+                angle={-20}
+                textAnchor="end"
+                interval={0}
+              />
               <YAxis
                 stroke="#A8A29E"
                 tick={{ fontSize: 12, fill: '#A8A29E' }}
@@ -120,27 +127,50 @@ export function PriceChart({ variants }: PriceChartProps) {
                 tickFormatter={(v: number) => `¥${v}`}
                 width={55}
               />
-              {sharedTooltip('¥')}
-              {sharedLegend}
-              {variants.map((v, i) => (
-                <Line
-                  key={`${v.source_slug}__${v.box_size}`}
-                  type="monotone"
-                  dataKey={variantLabel(v, 'cny_per_stick')}
-                  stroke={COLORS[i % COLORS.length]}
-                  strokeWidth={2.5}
-                  dot={{ r: 3, strokeWidth: 1.5, fill: '#fff' }}
-                  activeDot={{ r: 5, strokeWidth: 2.5 }}
-                  connectNulls
-                  name={variantLabel(v, 'cny_per_stick')}
-                />
-              ))}
-            </LineChart>
+              <Tooltip
+                contentStyle={{
+                  background: '#fff',
+                  border: '1px solid #E8E4DF',
+                  borderRadius: 12,
+                  boxShadow: '0 4px 20px rgba(28,25,23,0.08)',
+                }}
+                labelStyle={{ color: '#1C1917', fontWeight: 700, fontSize: 13 }}
+                itemStyle={{ fontSize: 13 }}
+                formatter={(value: number) => [`¥${value.toLocaleString()}`, '单支价格']}
+              />
+              <Bar dataKey="price" radius={[6, 6, 0, 0]} maxBarSize={64}
+                label={({ x, y, width, value, index }) => {
+                  const tag = barData[index]?.tag;
+                  if (!tag) return null as any;
+                  const colors: Record<string, string> = {
+                    '最高': '#dc2626',
+                    '最低': '#16a34a',
+                    '均价': '#78716C',
+                  };
+                  return (
+                    <text
+                      x={x + width / 2}
+                      y={y - 8}
+                      textAnchor="middle"
+                      fill={colors[tag] || '#78716C'}
+                      fontSize={11}
+                      fontWeight={700}
+                    >
+                      {tag} ¥{value.toLocaleString()}
+                    </text>
+                  );
+                }}
+              >
+                {barData.map((entry, idx) => (
+                  <Cell key={idx} fill={entry.color} />
+                ))}
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         </motion.div>
       )}
 
-      {/* ===== 原币种走势 ===== */}
+      {/* ===== 原币种走势 — 线图 ===== */}
       {originalData.length > 0 && (
         <motion.div
           className="bg-white rounded-xl border border-border shadow-sm p-5 mb-8"
@@ -148,32 +178,19 @@ export function PriceChart({ variants }: PriceChartProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.15 }}
         >
-          <h3 className="text-sm font-bold text-fg uppercase tracking-widest mb-3">
+          <h3 className="text-sm font-bold text-fg uppercase tracking-widest mb-4">
             原币种走势
           </h3>
-
-          {/* Current price summary */}
-          {latestOriginal.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              {latestOriginal.map((item) => (
-                <span
-                  key={item.key}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-border bg-white text-muted"
-                >
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                  {item.label.replace(/ · (USD|CHF|EUR|GBP)$/, '')}
-                  <span className="tabular-nums font-bold text-fg">
-                    {item.currency} {item.price.toLocaleString()}
-                  </span>
-                </span>
-              ))}
-            </div>
-          )}
-
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={originalData}>
-              {sharedGrid}
-              {sharedX}
+              <CartesianGrid strokeDasharray="3 3" stroke="#F0EDE8" />
+              <XAxis
+                dataKey="date"
+                stroke="#A8A29E"
+                tick={{ fontSize: 12, fill: '#A8A29E' }}
+                tickLine={false}
+                axisLine={{ stroke: '#E8E4DF' }}
+              />
               <YAxis
                 stroke="#A8A29E"
                 tick={{ fontSize: 12, fill: '#A8A29E' }}
@@ -182,8 +199,17 @@ export function PriceChart({ variants }: PriceChartProps) {
                 tickFormatter={(v: number) => v.toLocaleString()}
                 width={55}
               />
-              {sharedTooltip()}
-              {sharedLegend}
+              <Tooltip
+                contentStyle={{
+                  background: '#fff',
+                  border: '1px solid #E8E4DF',
+                  borderRadius: 12,
+                  boxShadow: '0 4px 20px rgba(28,25,23,0.08)',
+                }}
+                labelStyle={{ color: '#1C1917', fontWeight: 700, fontSize: 13 }}
+                itemStyle={{ fontSize: 13 }}
+              />
+              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12, color: '#78716C' }} />
               {variants.map((v, i) => (
                 <Line
                   key={`${v.source_slug}__${v.box_size}`}

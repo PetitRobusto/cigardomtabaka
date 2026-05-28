@@ -158,12 +158,19 @@ class LCDHNyonScraper(BaseScraper):
                 name = name[len(prefix):].strip()
                 break
         
-        # 提取盒装支数
+        # 提取盒装支数: (25) or (5×20) or (5 x 20)
         box_size = None
-        m = re.search(r'\((\d+)\)', name)
+        # 先试 (5×20) / (5 x 20) 格式
+        m = re.search(r'\((\d+)\s*[×xX]\s*(\d+)\)', name)
         if m:
-            box_size = int(m.group(1))
-            name = re.sub(r'\s*\(\d+\)', '', name).strip()
+            box_size = int(m.group(1)) * int(m.group(2))
+            name = re.sub(r'\s*\(\d+\s*[×xX]\s*\d+\)', '', name).strip()
+        else:
+            # 单数字格式 (25)
+            m = re.search(r'\((\d+)\)', name)
+            if m:
+                box_size = int(m.group(1))
+                name = re.sub(r'\s*\(\d+\)', '', name).strip()
         
         # 解析价格: "Swiss franc 1,350.00"
         price_chf = None

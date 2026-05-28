@@ -20,8 +20,9 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
 
   return (
     <motion.div
-      className="group bg-white rounded-xl border border-border overflow-hidden cursor-pointer
-        hover:border-accent hover:shadow-lg transition-all duration-300"
+      className={`group bg-white rounded-xl border border-border overflow-hidden cursor-pointer
+        hover:border-accent hover:shadow-lg transition-all duration-300
+        ${!cigar.in_stock ? 'opacity-60' : ''}`}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03, duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
@@ -62,13 +63,19 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
           </div>
         )}
 
-        {/* 在售徽章 */}
-        {cigar.in_stock && (
+        {/* 库存状态徽章 */}
+        {cigar.in_stock ? (
           <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5
             bg-emerald-50 text-emerald-700 border border-emerald-200 text-[0.65rem] font-semibold
             px-2.5 py-1 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             在售
+          </div>
+        ) : (
+          <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5
+            bg-red-50 text-red-600 border border-red-200 text-[0.65rem] font-semibold
+            px-2.5 py-1 rounded-full">
+            缺货
           </div>
         )}
       </div>
@@ -104,7 +111,8 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
         <div className="flex items-baseline gap-1 mb-2.5">
           <span className="text-[0.7rem] text-muted">均价/支</span>
           {cigar.avg_per_stick_cny != null ? (
-            <span className="text-xl font-bold text-accent font-mono tracking-tight tabular-nums">
+            <span className={`text-xl font-bold font-mono tracking-tight tabular-nums
+              ${cigar.in_stock ? 'text-accent' : 'text-muted line-through'}`}>
               ¥{cigar.avg_per_stick_cny.toLocaleString()}
             </span>
           ) : (

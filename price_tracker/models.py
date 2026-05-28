@@ -58,12 +58,7 @@ class PriceSnapshot(models.Model):
             Index(fields=['cigar', 'source', '-scraped_at']),
             Index(fields=['source', '-scraped_at']),
         ]
-        constraints = [
-            models.UniqueConstraint(
-                fields=['cigar', 'source', 'box_size', 'scraped_date'],
-                name='uq_snapshot_per_day',
-            ),
-        ]
+        # uq_snapshot_per_day constraint removed — dedup now handled in application logic
         get_latest_by = 'scraped_at'
         verbose_name = '价格快照'
         verbose_name_plural = '价格快照'

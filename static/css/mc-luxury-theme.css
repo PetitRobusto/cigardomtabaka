@@ -71,7 +71,9 @@
 .badge-outline.badge-error {
   background: transparent;
   color: var(--accent);
-  border-color: var(--accent);
+  border-color: var(--accent) !important;
+  border-style: solid;
+  border-width: 1px;
 }
 .badge-outline.badge-ghost {
   background: transparent;

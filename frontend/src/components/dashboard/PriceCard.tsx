@@ -49,7 +49,7 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
             ) : (
-              <span className="text-muted text-4xl font-serif">雪茄</span>
+              <span className="text-muted text-4xl font-display">雪茄</span>
             )}
           </div>
         )}
@@ -87,7 +87,7 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
           {cigar.cigar_name}
         </h3>
         {cigar.cigar_name_en && cigar.cigar_name_en !== cigar.cigar_name && (
-          <p className="text-[0.72rem] text-muted italic mb-2.5 font-serif line-clamp-1">
+          <p className="text-[0.72rem] text-muted italic mb-2.5 font-display line-clamp-1">
             {cigar.cigar_name_en}
           </p>
         )}

@@ -45,7 +45,7 @@ export function VariantCard({ variant, index }: VariantCardProps) {
         <div className="flex items-center gap-3">
           <span className="text-sm font-bold text-fg tracking-wide">{sourceLabel}</span>
           {boxSize != null && (
-            <span className="text-lg font-extrabold text-accent font-serif tracking-tight">
+            <span className="text-lg font-extrabold text-accent font-mono tabular-nums tracking-tight">
               {boxSize}<span className="text-xs text-muted font-normal ml-0.5">支/盒</span>
             </span>
           )}
@@ -80,7 +80,7 @@ export function VariantCard({ variant, index }: VariantCardProps) {
                   <span className="block text-[10px] text-accent uppercase tracking-widest font-semibold mb-0.5">
                     单支
                   </span>
-                  <span className="text-2xl font-bold text-accent font-serif">
+                  <span className="text-2xl font-bold text-accent font-mono tabular-nums">
                     ¥{pricePerStick.toLocaleString()}
                   </span>
                 </div>
@@ -90,7 +90,7 @@ export function VariantCard({ variant, index }: VariantCardProps) {
                   <span className="block text-[10px] text-muted uppercase tracking-widest font-semibold mb-0.5">
                     整盒 CNY
                   </span>
-                  <span className="text-xl font-bold text-fg font-serif">
+                  <span className="text-xl font-bold text-fg font-mono tabular-nums">
                     ¥{priceCny.toLocaleString()}
                   </span>
                 </div>
@@ -100,7 +100,7 @@ export function VariantCard({ variant, index }: VariantCardProps) {
                   <span className="block text-[10px] text-muted uppercase tracking-widest font-semibold mb-0.5">
                     当前
                   </span>
-                  <span className="text-2xl font-bold text-accent font-serif">
+                  <span className="text-2xl font-bold text-accent font-mono tabular-nums">
                     {formatPrice(latest.price, variant.currency)}
                   </span>
                 </div>

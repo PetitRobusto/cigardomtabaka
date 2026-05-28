@@ -18,7 +18,7 @@ export function PriceRow({ snap }: PriceRowProps) {
         </span>
       </div>
       {snap.in_stock ? (
-        <span className="text-base font-bold text-fg font-serif">
+        <span className="text-base font-bold text-fg font-mono tabular-nums">
           {formatPrice(snap.price, snap.currency)}
         </span>
       ) : (

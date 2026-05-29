@@ -11,6 +11,10 @@ URL 模式：
 - 价格：文本中包含如 "4'588.00 EUR"（瑞士千分位格式，用单引号）
 - 库存：button 文字为 "Add to Cart"（有货）或 "Out of Stock"（售罄）
 - 盒装规格：文本中有 "Box of 20"、"Box of 10"、"Cabinet of 25" 等
+
+特殊规则：
+- 无包装规格（box_size）的产品跳过（小雪茄/Club/Mini/Short 等）
+- Special Bundle 产品跳过（商业捆绑包装，非标准产品）
 """
 import re
 import json
@@ -156,6 +160,11 @@ class VipCigarsScraper(BaseScraper):
         # 没有包装规格 → 跳过（小雪茄/Club/Mini 等无包装信息的产品）
         if box_size is None:
             logger.debug(f'Skip {title}: no box size found')
+            return None
+
+        # Special Bundle → 跳过（商业捆绑包装，非标准产品）
+        if 'special bundle' in title.lower():
+            logger.debug(f'Skip {title}: special bundle')
             return None
 
         # 提取价格：格式如 4'588.00 EUR

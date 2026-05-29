@@ -1,4 +1,4 @@
-"""Django settings for moscow_cigar_backend."""
+"""Django settings for cigardomtabaka_backend."""
 import os
 from pathlib import Path
 
@@ -41,7 +41,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'moscow_cigar_backend.urls'
+ROOT_URLCONF = 'cigardomtabaka_backend.urls'
 
 TEMPLATES = [
     {
@@ -59,7 +59,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'moscow_cigar_backend.wsgi.application'
+WSGI_APPLICATION = 'cigardomtabaka_backend.wsgi.application'
 
 DATABASES = {
     'default': {

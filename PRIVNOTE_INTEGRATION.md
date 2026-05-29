@@ -1,4 +1,4 @@
-# Moscow Cigar — Privnote 整合规范
+# CigarDomTabaka — Privnote 整合规范
 
 > 最后更新：2026-04-27 · Tailwind + DaisyUI v2 · 盒装报价单
 
@@ -152,7 +152,7 @@ privnote/templates/privnote/
 Tailwind CSS v4 + DaisyUI v5
 ├── 品牌页：data-theme="light"（暖奶油底 + 白卡片）
 ├── Privnote：data-theme="dark"（浓缩咖啡底 + 金棕卡片）
-└── 共享导航：base.html navbar（Moscow Cigar + 页面副标题 + Privnote 入口）
+└── 共享导航：base.html navbar（CigarDomTabaka + 页面副标题 + Privnote 入口）
 ```
 
 ### 构建命令

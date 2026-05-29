@@ -1,8 +1,8 @@
 """Process all raw cigar Chinese name data from MCP browser batches and update DB."""
 import json, os, re, sys
 
-sys.path.insert(0, os.path.expanduser('~/moscow_cigar'))
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'moscow_cigar_backend.settings')
+sys.path.insert(0, os.path.expanduser('~/cigardomtabaka'))
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cigardomtabaka_backend.settings')
 import django; django.setup()
 from cigars.models import Cigar
 
@@ -151,7 +151,7 @@ def process_batch_file(filepath):
 
 
 if __name__ == '__main__':
-    base_dir = os.path.expanduser('~/moscow_cigar')
+    base_dir = os.path.expanduser('~/cigardomtabaka')
     batch_files = [
         f for f in os.listdir(base_dir) 
         if f.startswith('cigar_cn_batch') and f.endswith('.json')

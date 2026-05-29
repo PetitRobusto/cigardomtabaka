@@ -1,4 +1,4 @@
-# Moscow Cigar 价格跟踪系统 — 前端重写设计 Plan v3
+# CigarDomTabaka 价格跟踪系统 — 前端重写设计 Plan v3
 
 > 版本：v3（现代 React 生态重构版）
 > 日期：2026-05-25

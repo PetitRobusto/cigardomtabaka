@@ -1,4 +1,4 @@
-# Moscow Cigar — Design System
+# CigarDomTabaka — Design System
 
 > Tailwind CSS v4 + DaisyUI v5 · 零构建配置 · Light/Dark 双主题  
 > 最后更新：2026-04-27
@@ -87,7 +87,7 @@ DaisyUI `btn-accent` `badge-accent` 等组件自动使用此色。
 ## 五、文件结构
 
 ```
-moscow_cigar/
+cigardomtabaka/
 ├── package.json              ← npm scripts
 ├── tailwind.config.js        ← DaisyUI 主题配置
 ├── static/css/

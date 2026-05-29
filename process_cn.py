@@ -2,8 +2,8 @@
 """Process raw cigar Chinese name data from MCP browser batches."""
 import json, os, re, sys
 
-sys.path.insert(0, os.path.expanduser('~/moscow_cigar'))
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'moscow_cigar_backend.settings')
+sys.path.insert(0, os.path.expanduser('~/cigardomtabaka'))
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cigardomtabaka_backend.settings')
 import django; django.setup()
 from cigars.models import Cigar
 

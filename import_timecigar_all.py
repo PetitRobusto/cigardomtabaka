@@ -6,9 +6,9 @@ TimeCigar 小雪茄导入脚本 — 将爬取的5品牌78款小雪茄导入 ciga
 """
 import os, sys, json, django
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'moscow_cigar_backend.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cigardomtabaka_backend.settings')
 os.environ.setdefault('DJANGO_DEBUG', 'True')
-sys.path.insert(0, '/home/jason/moscow_cigar')
+sys.path.insert(0, '/home/jason/cigardomtabaka')
 django.setup()
 
 from cigars.models import Cigar
@@ -229,7 +229,7 @@ def import_products(data_file):
 
 if __name__ == '__main__':
     # 数据文件路径
-    data_file = '/home/jason/moscow_cigar/timecigar_minis_full.json'
+    data_file = '/home/jason/cigardomtabaka/timecigar_minis_full.json'
     if not os.path.exists(data_file):
         print(f'❌ 数据文件不存在: {data_file}')
         print('请先运行 scrape_timecigar_details.py 爬取详情')

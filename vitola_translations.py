@@ -287,7 +287,7 @@ COMMON_NAME_TRANSLATIONS = {
 # 验证无遗漏
 if __name__ == "__main__":
     import sqlite3
-    conn = sqlite3.connect('/home/jason/moscow_cigar/cigars.db')
+    conn = sqlite3.connect('/home/jason/cigardomtabaka/cigars.db')
     conn.row_factory = sqlite3.Row
     db_vitolas = set(r['vitola'] for r in conn.execute(
         "SELECT DISTINCT vitola FROM cigars_cigar WHERE vitola IS NOT NULL AND vitola != ''"))

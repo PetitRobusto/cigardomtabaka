@@ -6,8 +6,8 @@ import re
 import sys
 
 # Django setup
-sys.path.insert(0, os.path.expanduser('~/moscow_cigar'))
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'moscow_cigar_backend.settings')
+sys.path.insert(0, os.path.expanduser('~/cigardomtabaka'))
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cigardomtabaka_backend.settings')
 import django
 django.setup()
 
@@ -121,7 +121,7 @@ async def crawl_brand(page, brand_slug):
 async def main():
     import sys
     sys.stdout.reconfigure(line_buffering=True)  # force line buffering
-    output_file = os.path.expanduser('~/moscow_cigar/cigar_chinese_names_full.json')
+    output_file = os.path.expanduser('~/cigardomtabaka/cigar_chinese_names_full.json')
     
     # 加载已有数据
     existing = {}

@@ -1,12 +1,12 @@
 """Final fix: fill remaining empty Chinese names with best-effort matching"""
 import json, os, re, sys, unicodedata
 
-sys.path.insert(0, os.path.expanduser('~/moscow_cigar'))
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'moscow_cigar_backend.settings')
+sys.path.insert(0, os.path.expanduser('~/cigardomtabaka'))
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cigardomtabaka_backend.settings')
 import django; django.setup()
 from cigars.models import Cigar
 
-base = os.path.expanduser('~/moscow_cigar')
+base = os.path.expanduser('~/cigardomtabaka')
 
 # Load all raw data from batch files
 raw = {}

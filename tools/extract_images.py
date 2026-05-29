@@ -9,7 +9,7 @@ import websockets
 
 BASE = "https://www.cubancigarwebsite.com"
 OUT = os.path.expanduser("~/.hermes/cigar_inventory")
-MANIFEST = os.path.expanduser("~/moscow_cigar/image_manifest.json")
+MANIFEST = os.path.expanduser("~/cigardomtabaka/image_manifest.json")
 
 BRAND_MAP = {
     'bolivar': 'Bolívar', 'cohiba': 'Cohiba', 'cuaba': 'Cuaba',

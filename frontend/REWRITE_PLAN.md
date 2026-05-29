@@ -1,10 +1,10 @@
-# Moscow Cigar 价格跟踪系统 — 前端重写需求文档
+# CigarDomTabaka 价格跟踪系统 — 前端重写需求文档
 
 ## 项目背景
 - 后端：Django + DRF，price_tracker app
 - 前端：React + Vite + Recharts，构建后静态文件放入 Django `static/`
 - 当前分支：`feature/price-tracker`
-- 工作目录：`/home/jason/moscow_cigar/frontend/`
+- 工作目录：`/home/jason/cigardomtabaka/frontend/`
 
 ## 现有文件结构
 ```

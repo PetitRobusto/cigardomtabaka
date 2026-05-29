@@ -90,7 +90,7 @@ def extract_chinese_name(text, brand_slug, brand_en_name):
 
 
 async def main():
-    output_file = os.path.expanduser('~/moscow_cigar/cigar_cn_full.json')
+    output_file = os.path.expanduser('~/cigardomtabaka/cigar_cn_full.json')
     
     async with async_playwright() as p:
         # Use stealth + headless
@@ -161,9 +161,9 @@ async def main():
 
 def update_db_from_json(json_path):
     """同步更新数据库（不能在async里调Django ORM）"""
-    sys.path.insert(0, os.path.expanduser('~/moscow_cigar'))
+    sys.path.insert(0, os.path.expanduser('~/cigardomtabaka'))
     import django
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'moscow_cigar_backend.settings')
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cigardomtabaka_backend.settings')
     django.setup()
     from cigars.models import Cigar
     import json

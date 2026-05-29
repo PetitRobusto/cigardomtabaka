@@ -4,16 +4,16 @@
 """
 import os, sys, json, django, hashlib, urllib.request, shutil
 
-os.environ['DJANGO_SETTINGS_MODULE'] = 'moscow_cigar_backend.settings'
+os.environ['DJANGO_SETTINGS_MODULE'] = 'cigardomtabaka_backend.settings'
 os.environ['DJANGO_DEBUG'] = 'True'
-sys.path.insert(0, '/home/jason/moscow_cigar')
+sys.path.insert(0, '/home/jason/cigardomtabaka')
 django.setup()
 
 from django.core.files import File
 from cigars.models import Cigar, CigarImage
 
-MEDIA_ROOT = '/home/jason/moscow_cigar/media'
-DATA_FILE = '/home/jason/moscow_cigar/timecigar_minis_full.json'
+MEDIA_ROOT = '/home/jason/cigardomtabaka/media'
+DATA_FILE = '/home/jason/cigardomtabaka/timecigar_minis_full.json'
 
 def slugify(text):
     """简单slug"""

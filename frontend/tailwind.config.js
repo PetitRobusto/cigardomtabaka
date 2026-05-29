@@ -7,7 +7,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        // 奢侈品设计系统 — 基于 Moscow Cigar 设计 Token
+        // 奢侈品设计系统 — 基于 CigarDomTabaka 设计 Token
         cream: '#FAF8F5',          // --bg 暖奶油底
         surface: '#FFFFFF',        // --surface 卡片白
         fg: '#2C2416',             // --fg 深褐黑文字

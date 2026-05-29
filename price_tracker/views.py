@@ -311,6 +311,11 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                 entry['in_stock'] = True
 
         # 3. 计算平均单支价 + 排序
+        # 排序规则：品牌 → 常规款(非Mini/Club) > 特殊款 > 小雪茄(Mini/Club) > 停产
+        BRANDS_ORDER = [
+            '高希霸', '蒙特', '罗密欧与朱丽叶', '帕特加斯',
+            '好友', '乌普曼',
+        ]
         result = list(cigars_map.values())
         for entry in result:
             per_stick = []
@@ -320,15 +325,25 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             if per_stick:
                 entry['avg_per_stick_cny'] = round(sum(per_stick) / len(per_stick), 0)
 
-        BRANDS_ORDER = [
-            '高希霸', '蒙特', '罗密欧与朱丽叶', '帕特加斯',
-            '好友', '乌普曼',
-        ]
-        result.sort(key=lambda x: (
-            BRANDS_ORDER.index(x['cigar_brand_cn']) if x['cigar_brand_cn'] in BRANDS_ORDER else 999,
-            x['cigar_brand_cn'] or '',
-            x['cigar_name'] or '',
-        ))
+        def _sort_key(entry):
+            brand_order = BRANDS_ORDER.index(entry['cigar_brand_cn']) if entry['cigar_brand_cn'] in BRANDS_ORDER else 999
+            name = (entry['cigar_name_en'] or entry['cigar_name'] or '').lower()
+            # 小雪茄判断：名字包含 mini/club/short（且不是 "Open" 系列）
+            is_mini = any(k in name for k in ['mini', 'club', 'short']) and 'open' not in name
+            # 停产判断
+            is_discontinued = False  # 从 cigars_map 拿不到 status，用名字特征判断
+            # 排序优先级：常规(0) > 特殊(1) > 小雪茄(2) > 停产(3)
+            if is_discontinued:
+                category = 3
+            elif is_mini:
+                category = 2
+            elif entry.get('release_type_cn'):
+                category = 1
+            else:
+                category = 0
+            return (brand_order, entry['cigar_brand_cn'] or '', category, entry['cigar_name'] or '')
+
+        result.sort(key=_sort_key)
 
         return Response(result)
 

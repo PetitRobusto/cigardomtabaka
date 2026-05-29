@@ -22,6 +22,14 @@ export default function CigarDetail() {
   if (!data) return <EmptyState title="暂无数据" description="该雪茄暂无价格记录" />;
 
   const variants = data.variants || [];
+  
+  // 排序：在售的放前面，下架/售罄的放最后
+  const sortedVariants = [...variants].sort((a, b) => {
+    const aInStock = a.in_stock !== false && !a.delisted;
+    const bInStock = b.in_stock !== false && !b.delisted;
+    if (aInStock === bInStock) return 0;
+    return aInStock ? -1 : 1;
+  });
 
   return (
     <PageTransition>
@@ -39,8 +47,8 @@ export default function CigarDetail() {
         {variants.length > 0 && (
           <>
             <DaysFilter days={daysFilter} onChange={setDaysFilter} />
-            <VariantGrid variants={variants} />
-            <PriceChart variants={variants} />
+            <VariantGrid variants={sortedVariants} />
+            <PriceChart variants={sortedVariants} />
           </>
         )}
       </div>

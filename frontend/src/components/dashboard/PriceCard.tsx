@@ -120,9 +120,9 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
           )}
         </div>
 
-        {/* 来源计数 */}
+        {/* 来源计数 — 只计算在售的网站 */}
         <div className="flex items-center gap-1.5 text-[0.7rem] text-muted">
-          <span className="font-semibold text-accent">{sourceSlugs.length}</span>
+          <span className="font-semibold text-accent">{cigar.sources.filter(s => s.in_stock).length}</span>
           <span>个网站有售</span>
         </div>
       </div>

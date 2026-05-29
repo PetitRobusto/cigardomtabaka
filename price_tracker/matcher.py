@@ -385,7 +385,9 @@ def _collect_icontains_candidates(
     best = None
     best_score = 0
     best_reason = ''
-
+    
+    # 先收集所有匹配的候选，过滤掉被其他候选包含的子串
+    matched_candidates = []
     for cigar in candidates:
         if not cigar.english_name:
             continue
@@ -398,6 +400,40 @@ def _collect_icontains_candidates(
         # Guard: DB 名归一化后太短（如 "C" → "c"）
         if len(db_norm) <= 2 and len(db_plural) <= 2:
             continue
+        
+        # 检查是否匹配
+        is_match = (db_norm == stripped or 
+                    db_plural == stripped_plural or
+                    db_norm in stripped or
+                    stripped in db_norm or
+                    db_plural in stripped_plural or
+                    stripped_plural in db_plural)
+        
+        if is_match:
+            matched_candidates.append((cigar, db_norm))
+    
+    # 过滤子串：如果一个 db_norm 是另一个 db_norm 的子串，且不是开头匹配，移除短的
+    # 例如 "edmundo" 是 "double edmundo" 的子串，移除 "edmundo"
+    filtered = []
+    for i, (cigar_a, db_norm_a) in enumerate(matched_candidates):
+        is_substring = False
+        for j, (cigar_b, db_norm_b) in enumerate(matched_candidates):
+            if i == j:
+                continue
+            # db_norm_a 是 db_norm_b 的真子串，且 db_norm_b 也匹配 stripped
+            if db_norm_a != db_norm_b and db_norm_a in db_norm_b and db_norm_b in stripped:
+                # 检查 db_norm_a 是否是 db_norm_b 的开头
+                # 例如 "petit" 是 "petit coronas" 的开头，保留
+                # 但 "edmundo" 不是 "double edmundo" 的开头，移除
+                if not db_norm_b.startswith(db_norm_a):
+                    is_substring = True
+                    break
+        if not is_substring:
+            filtered.append((cigar_a, db_norm_a))
+    
+    # 对过滤后的候选评分
+    for cigar, db_norm in filtered:
+        db_plural = normalize_plural(cigar.english_name)
 
         score = 0
         reason = ''
@@ -413,30 +449,52 @@ def _collect_icontains_candidates(
         # ⚠️ 长度惩罚：当 scraped name 明显比 DB name 长时（如 "Robustos Supremos" vs "Robustos"），
         #     说明 scraped 多了区分词（Supremos/限量为），子串匹配不可靠，压低分数。
         #     这样 Current 优先通道匹配失败 → 掉落全量匹配 → 找到 Exact Match（如 Limited Edition）。
+        # 
+        # 🔑 关键改进：更长的 db_norm 应该优先（如 "Double Edmundo" 比 "Edmundo" 更精确）
+        # 基础分 = 5000 + len(db_norm) * 10，让长匹配天然得分更高
         elif db_norm in stripped:
-            base = 5000 + len(db_norm)
-            ratio = len(stripped) / max(len(db_norm), 1)
-            # 短品名（<6字符）天然容易被后缀拉长，放宽惩罚
-            # 例如 Duke(4) + - 2018 - Mexico(16) = ratio 5.0，但 Duke 确实是正确匹配
-            if len(db_norm) < 6:
-                # 短品名：ratio > 4 才惩罚，且只降30%
-                if ratio > 4.0:
-                    base = int(base * 0.7)
-                elif ratio > 2.5:
-                    base = int(base * 0.9)
-            else:
-                # 正常品名：ratio > 2.5 惩罚
-                if ratio > 2.5:
-                    base = int(base * 0.5)
-                elif ratio > 1.8:
-                    base = int(base * 0.8)
+            base = 5000 + len(db_norm) * 10  # 长度权重从 1 提升到 10
+            
+            # 检查是否是"整词开头匹配"：db_norm 应该出现在 stripped 的开头
+            # 或者是独立单词（前面有空格，后面有空格或结尾）
+            # 例如 "double edmundo" 在 "double edmundo - 2018" 中是开头匹配 ✓
+            # 而 "edmundo" 在 "double edmundo" 中不是开头匹配，虽然它是整词 ✗
+            # （因为它是 "double edmundo" 的一部分，不是独立产品名）
+            is_prefix = stripped.startswith(db_norm)
+            is_standalone = re.search(rf'\b{re.escape(db_norm)}\b', stripped) is not None
+            # 必须同时满足：是开头匹配 或 (是独立单词 且 前面没有其他产品词)
+            is_whole_word = is_prefix or (is_standalone and stripped.startswith(db_norm))
+            
+            # 计算"额外后缀长度"比例：后缀越长，说明匹配越不精确
+            extra_len = len(stripped) - len(db_norm)
+            extra_ratio = extra_len / max(len(db_norm), 1)
+            
+            # 🔑 关键改进：如果是开头精确匹配（stripped 以 db_norm 开头），不施加长度惩罚
+            # 例如 "fabulosos no2" 是 "fabulosos no2 coleccion habanos xvi - 2016" 的开头
+            # 这是合理的匹配，不应该因为后缀长而被惩罚
+            if not is_prefix:
+                # 短品名（<10字符）或重复词天然容易被后缀拉长，放宽惩罚
+                is_short = len(db_norm) < 10
+                is_repeated_word = len(db_norm.split()) == 2 and db_norm.split()[0] == db_norm.split()[1]
+                if is_short or is_repeated_word:
+                    # 短品名/重复词：extra_ratio > 3 才惩罚
+                    if extra_ratio > 3.0:
+                        base = int(base * 0.7)
+                    elif extra_ratio > 1.5:
+                        base = int(base * 0.9)
+                else:
+                    # 正常品名：extra_ratio > 1.5 惩罚
+                    if extra_ratio > 1.5:
+                        base = int(base * 0.5)
+                    elif extra_ratio > 0.8:
+                        base = int(base * 0.8)
             score = base
-            reason = f'icontains-db-in-scraped({len(db_norm)}vs{len(stripped)},ratio={ratio:.1f})'
+            reason = f'icontains-db-in-scraped({len(db_norm)}vs{len(stripped)},extra={extra_ratio:.1f},whole={is_whole_word})'
         elif stripped in db_norm:
-            score = 5000 + len(stripped)
+            score = 5000 + len(stripped) * 10
             reason = f'icontains-scraped-in-db({len(stripped)}vs{len(db_norm)})'
         elif db_plural in stripped_plural:
-            base = 4999 + len(db_plural)
+            base = 4999 + len(db_plural) * 10
             ratio = len(stripped_plural) / max(len(db_plural), 1)
             if len(db_plural) < 6:
                 if ratio > 4.0:
@@ -451,7 +509,7 @@ def _collect_icontains_candidates(
             score = base
             reason = f'icontains-plural-db-in-scraped'
         elif stripped_plural in db_plural:
-            score = 4999 + len(stripped_plural)
+            score = 4999 + len(stripped_plural) * 10
             reason = f'icontains-plural-scraped-in-db'
         # ── Fallback: DB名去掉"no"前缀再试 ──
         # 场景：COH "Connoisseur 2" (无No.), DB "Connossieur No.2"→"connossieur no2"
@@ -477,6 +535,13 @@ def _collect_icontains_candidates(
             best = cigar
             best_score = score
             best_reason = reason
+        # 🔑 关键改进：同分时优先选择更长的 db_norm（更精确匹配）
+        # 例如 "Double Edmundo"(14) 和 "Edmundo"(7) 都匹配时，优先选 "Double Edmundo"
+        elif score == best_score and score > 0:
+            if best and len(db_norm) > len(normalize(best.english_name)):
+                best = cigar
+                best_score = score
+                best_reason = reason
 
     if best:
         # ⚠️ 阈值守卫：低分匹配视为不可靠，返回 None
@@ -590,7 +655,15 @@ def match_cigar(
                 _brand_match, source_tag='current'
             )
             if match:
-                return match
+                # 🔑 关键改进：如果 Current 通道匹配的是子串（非精确匹配），
+                # 继续到全量通道，让 Special Releases 有机会找到更精确的匹配
+                # 例如 "Petit Unicos" 是 Special Releases，不应该被 "Unicos"(Current) 抢占
+                matched_norm = normalize(match.english_name)
+                stripped_norm = normalize(strip_brand(name))
+                if matched_norm == stripped_norm or matched_norm == normalize(name):
+                    # 精确匹配，直接返回
+                    return match
+                # 否则继续到全量匹配
 
     # ── 全量匹配（所有状态） ──
     # 策略 1：精确

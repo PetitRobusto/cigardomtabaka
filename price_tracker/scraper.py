@@ -36,11 +36,45 @@ class BaseScraper:
         raise NotImplementedError
 
     def match_cigar(self, item: ScrapedItem) -> Optional[Cigar]:
-        """把爬到的名字匹配到 Cigar 模型"""
-        return match_cigar_by_name(
+        """把爬到的名字匹配到 Cigar 模型（多维度验证）"""
+        # 从 raw_data 提取品牌提示
+        brand_hint = item.raw_data.get('brand') if item.raw_data else None
+        
+        # 名字匹配
+        cigar = match_cigar_by_name(
             item.name,
             source_name=self.source.name,
+            brand_hint=brand_hint,
         )
+        
+        if not cigar:
+            return None
+        
+        # 多维度验证
+        # 1. 品牌验证（如果爬虫提供了品牌）
+        if brand_hint and cigar.brand:
+            from price_tracker.matcher import _basic_normalize
+            scraped_brand = _basic_normalize(brand_hint)
+            db_brand = _basic_normalize(str(cigar.brand))
+            if scraped_brand not in db_brand and db_brand not in scraped_brand:
+                logger.warning(f'[brand-mismatch] {item.name} → {cigar.english_name} '
+                              f'(scraped_brand={brand_hint}, db_brand={cigar.brand})')
+                return None
+        
+        # 2. Box size 验证（如果双方都有）
+        if item.box_size and cigar.packagings:
+            import json
+            try:
+                pack = json.loads(cigar.packagings) if isinstance(cigar.packagings, str) else cigar.packagings
+                db_box_sizes = pack.get('box_sizes', []) if isinstance(pack, dict) else []
+                if db_box_sizes and item.box_size not in db_box_sizes:
+                    # box_size 不匹配，但可能是不同包装，记录日志但不拒绝
+                    logger.debug(f'[boxsize-mismatch] {item.name} → {cigar.english_name} '
+                                f'(scraped={item.box_size}, db={db_box_sizes})')
+            except (json.JSONDecodeError, AttributeError):
+                pass
+        
+        return cigar
 
 
 # --- 名字匹配（委托给独立匹配模块） ---
@@ -122,7 +156,7 @@ def run_scrape_sync(source_slug: str) -> dict:
     scraped_combos = set()
 
     for item in items:
-        cigar = scraper.match_cigar(item) or match_cigar_by_name(item.name, source.name)
+        cigar = scraper.match_cigar(item)
         if not cigar:
             skipped += 1
             continue

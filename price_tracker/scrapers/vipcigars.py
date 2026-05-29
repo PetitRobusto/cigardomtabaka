@@ -146,16 +146,17 @@ class VipCigarsScraper(BaseScraper):
         btn_text = button.get_text(strip=True).lower() if button else ''
         in_stock = 'add to cart' in btn_text
 
-        # 提取盒装规格：Box of 20, Box of 10, Cabinet of 25 等
+        # 提取盒装规格：Box of 20, Box of 10, Cabinet of 25, Pack of 5, Tin of 20 等
         box_size = None
         article_text = article.get_text(separator=' ', strip=True)
-        size_match = re.search(r'(?:BOX|Cabinet)\s+OF\s+(\d+)', article_text, re.IGNORECASE)
+        size_match = re.search(r'(?:BOX|Cabinet|Pack|Tin)\s+OF\s+(\d+)', article_text, re.IGNORECASE)
         if size_match:
             box_size = int(size_match.group(1))
-        else:
-            #  fallback: 单独找 "Box" 但没有数字的情况
-            if re.search(r'\bBox\b', article_text, re.IGNORECASE):
-                box_size = None  # 未知数量
+        
+        # 没有包装规格 → 跳过（小雪茄/Club/Mini 等无包装信息的产品）
+        if box_size is None:
+            logger.debug(f'Skip {title}: no box size found')
+            return None
 
         # 提取价格：格式如 4'588.00 EUR
         price_eur = None

@@ -31,6 +31,19 @@ class PriceSource(models.Model):
         return f'{self.name} ({self.currency})'
 
 
+class SafeDeleteQuerySet(models.QuerySet):
+    """防手滑 QuerySet — 拦截无过滤条件的批量删除"""
+
+    def delete(self, force=False):
+        """无过滤条件 + 非 force → 抛异常"""
+        if not force and not self.query.where:
+            raise ValueError(
+                'PriceSnapshot 不允许无过滤条件删除！'
+                ' 用 .filter(...).delete() 或传 force=True'
+            )
+        return super().delete()
+
+
 class PriceSnapshot(models.Model):
     """价格快照 — 每次抓取的价格记录"""
     source = models.ForeignKey(
@@ -51,6 +64,8 @@ class PriceSnapshot(models.Model):
     raw_data = models.JSONField('原始数据', default=dict, blank=True)
     scraped_at = models.DateTimeField('抓取时间', auto_now_add=True)
     scraped_date = models.DateField('抓取日期', auto_now_add=True)
+
+    objects = SafeDeleteQuerySet.as_manager()
 
     class Meta:
         ordering = ['cigar', '-scraped_at']

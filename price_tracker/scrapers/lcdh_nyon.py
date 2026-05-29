@@ -115,15 +115,24 @@ class LCDHNyonScraper(BaseScraper):
                         const titleEl = card.querySelector('.product-title a, .woocommerce-loop-product__title');
                         const priceEl = card.querySelector('.price');
                         const linkEl = card.querySelector('a[href*="/boutique/"]');
-                        const badgeEl = card.querySelector('.out-of-stock, .badge-inner');
+                        // 多种方式检测售罄：
+                        // 1. 卡片自身 class 含 out-of-stock / outofstock
+                        // 2. 子元素 .out-of-stock-label（法文: Rupture de stock）
+                        // 3. Add to cart 按钮文字不是 "Add to cart"（如 Lire la suite）
+                        const cardClass = (card.className || '').toLowerCase();
+                        const oosLabel = card.querySelector('.out-of-stock-label');
+                        const oosBadgeText = (oosLabel?.textContent || '').trim().toLowerCase();
+                        const addToCartEl = card.querySelector('.add_to_cart_button, .add-to-cart-button');
+                        const cartText = (addToCartEl?.textContent || '').trim().toLowerCase();
+                        const isOOS = cardClass.includes('out-of-stock') || cardClass.includes('outofstock')
+                            || oosBadgeText.includes('rupture') || oosBadgeText.includes('out of stock')
+                            || (cartText && !cartText.includes('add to cart') && !cartText.includes('select option'));
                         if (!titleEl) return;
-                        const badgeText = (badgeEl?.textContent || '').trim().toLowerCase();
-                        const isOOS = badgeText.includes('out of stock') || badgeText.includes('rupture de stock');
                         products.push({{
                             title: titleEl.textContent.trim(),
                             price: priceEl?.textContent?.trim() || '',
                             url: linkEl?.getAttribute('href') || '',
-                            badge: badgeEl?.textContent?.trim() || '',
+                            badge: oosLabel?.textContent?.trim() || (isOOS ? 'Out of stock' : ''),
                             inStock: !isOOS
                         }});
                     }});

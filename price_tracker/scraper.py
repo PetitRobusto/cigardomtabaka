@@ -143,13 +143,17 @@ def run_scrape_sync(source_slug: str) -> dict:
         if latest is None:
             # New product → create
             should_create = True
-        elif not latest.in_stock:
-            # Was delisted/OOS, now back → relisted
+        elif latest.in_stock != item.in_stock:
+            # Stock status changed → create
             should_create = True
-            raw_data['relisted'] = True
-            raw_data['relisted_at'] = timezone.now().isoformat()
-        elif latest.price != item.price:
-            # Price changed → create
+            if not item.in_stock:
+                raw_data['went_oos'] = True
+                raw_data['went_oos_at'] = timezone.now().isoformat()
+            else:
+                raw_data['relisted'] = True
+                raw_data['relisted_at'] = timezone.now().isoformat()
+        elif item.price is not None and latest.price != item.price:
+            # Price changed → create (skip if OOS with no price to avoid dupes)
             should_create = True
         # else: price unchanged → skip (dedup!)
 

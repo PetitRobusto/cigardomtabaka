@@ -173,9 +173,16 @@ def normalize(s: str) -> str:
     # 这些是爬虫页面上的包装尺寸，不是雪茄品名的一部分
     s = re.sub(r'\s*\(\s*\d+\s*(?:[x×]\s*\d+)?\s*\)\s*$', '', s)
 
-    # 2d. 去掉 A/T（铝管）C/P（纸盒）后缀
+    # 2d. 去掉 A/T（铝管）C/P（纸盒）SLB/SBN（滑动盖盒）Tubos（铝管装）后缀
     s = re.sub(r'\s+A/T(\s|$)', ' ', s)
     s = re.sub(r'\s+C/P(\s|$)', ' ', s)
+    s = re.sub(r'\s+SLB(\s|$)', ' ', s)
+    s = re.sub(r'\s+SBN(\s|$)', ' ', s)
+    s = re.sub(r'\s+Tubos(\s|$)', ' ', s)
+
+    # 2e. Siglo 数字 → 罗马数字转换（Siglo 6 → Siglo VI）
+    ROMAN_MAP = {'1': 'I', '2': 'II', '3': 'III', '4': 'IV', '5': 'V', '6': 'VI'}
+    s = re.sub(r'\bSiglo\s+(\d)\b', lambda m: f'Siglo {ROMAN_MAP.get(m.group(1), m.group(1))}', s, flags=re.IGNORECASE)
 
     # 3. NFKD 分解重音字符 → base + combining diacritic
     nfkd = unicodedata.normalize('NFKD', s)

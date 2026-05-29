@@ -12,7 +12,7 @@ from PIL import Image
 # Django setup (sync)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'moscow_cigar_backend.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cigardomtabaka_backend.settings')
 import django
 django.setup()
 from cigars.models import Cigar, CigarImage

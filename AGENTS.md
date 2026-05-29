@@ -1,4 +1,4 @@
-# AGENTS.md — Moscow Cigar 项目 AI Agent 行为规范
+# AGENTS.md — CigarDomTabaka 项目 AI Agent 行为规范
 
 ## 核心铁律：Superpowers 流程强制执行
 
@@ -69,12 +69,12 @@ master → git checkout -b feature/xxx → 开发 → commit → merge 回 maste
 ## 项目索引
 
 ```
-moscow_cigar/                     # Django 项目根目录
+cigardomtabaka/                     # Django 项目根目录
 ├── manage.py                     # Django 入口
 ├── requirements.txt              # Python 依赖
 ├── .env                          # 环境变量（DEBUG/SECRET_KEY/DB等）
 │
-├── moscow_cigar_backend/         # Django 项目配置
+├── cigardomtabaka_backend/         # Django 项目配置
 │   ├── settings.py               # 全局配置、数据库路由、INSTALLED_APPS
 │   ├── urls.py                   # 根 URL 路由
 │   └── wsgi.py                   # WSGI 入口

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 将「暖奶油+勃艮第红+干邑金」奢侈品设计语言完整应用到 Moscow Cigar 项目（React 前端 + Django 模板），替换现有的金色主题，统一为同一套设计系统。
+**Goal:** 将「暖奶油+勃艮第红+干邑金」奢侈品设计语言完整应用到 CigarDomTabaka 项目（React 前端 + Django 模板），替换现有的金色主题，统一为同一套设计系统。
 
 **Architecture:** 设计 Token（CSS 变量）为唯一真相源，放在 Django 模板层。React 端通过 Tailwind v3 config 引用映射色值，Django 模板通过 CSS 变量直接引用。Playfair Display 字体由 base.html 统一加载。
 
@@ -18,7 +18,7 @@
 ## File Structure
 
 ```
-moscow_cigar/
+cigardomtabaka/
 ├── static/css/
 │   └── mc-luxury-theme.css          ← NEW: 设计 Token 定义（CSS 变量 + base reset）
 ├── templates/
@@ -45,7 +45,7 @@ moscow_cigar/
 
 ```css
 /**
- * Moscow Cigar — Luxury Theme Design Tokens
+ * CigarDomTabaka — Luxury Theme Design Tokens
  * 暖奶油 + 勃艮第红 + 干邑金 设计系统
  * 这是全站唯一真相源——改一个变量全站联动
  */
@@ -158,7 +158,7 @@ Expected: ~110 lines
 - [ ] **Step 3: Commit**
 
 ```bash
-cd ~/moscow_cigar
+cd ~/cigardomtabaka
 git add static/css/mc-luxury-theme.css
 git commit -m "feat: add luxury theme design tokens (CSS variables)"
 ```
@@ -251,7 +251,7 @@ git commit -m "feat: add luxury theme design tokens (CSS variables)"
 <header class="topbar">
   <div class="topbar-left">
     <div class="logo-mark">MC</div>
-    <span>Moscow Cigar</span>
+    <span>CigarDomTabaka</span>
   </div>
   <div class="topbar-right">
     {% if user.is_authenticated %}
@@ -572,7 +572,7 @@ git commit -m "feat: rewrite globals.css with luxury theme tokens"
 对每个 `.tsx` 文件执行 find & replace：
 
 ```bash
-cd ~/moscow_cigar/frontend/src
+cd ~/cigardomtabaka/frontend/src
 # 文字颜色
 find . -name '*.tsx' -exec sed -i 's/text-stone-900\|text-stone-800/text-fg/g' {} +
 find . -name '*.tsx' -exec sed -i 's/text-stone-500\|text-stone-400/text-muted/g' {} +
@@ -610,7 +610,7 @@ find . -name '*.tsx' -exec sed -i 's/selection:bg-gold-500\/15/selection:bg-acce
 - [ ] **Step 5: Build 验证**
 
 ```bash
-cd ~/moscow_cigar/frontend && npm run build 2>&1 | tail -10
+cd ~/cigardomtabaka/frontend && npm run build 2>&1 | tail -10
 ```
 
 Expected: Build success with no errors.
@@ -629,8 +629,8 @@ git commit -m "feat: migrate React components to luxury theme tokens"
 - [ ] **Step 1: 构建前端 + 收集静态文件**
 
 ```bash
-cd ~/moscow_cigar/frontend && npm run build 2>&1 | tail -5
-cd ~/moscow_cigar && python manage.py collectstatic --noinput 2>&1 | tail -3
+cd ~/cigardomtabaka/frontend && npm run build 2>&1 | tail -5
+cd ~/cigardomtabaka && python manage.py collectstatic --noinput 2>&1 | tail -3
 ```
 
 - [ ] **Step 2: 启动 Django 开发服务器，肉眼验证**

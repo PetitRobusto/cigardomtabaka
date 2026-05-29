@@ -107,7 +107,7 @@ class TestDetectDelistings:
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-cd /home/jason/moscow_cigar && python3 -m pytest price_tracker/tests/test_delisting.py -v
+cd /home/jason/cigardomtabaka && python3 -m pytest price_tracker/tests/test_delisting.py -v
 ```
 
 Expected: FAIL — `ModuleNotFoundError: No module named 'price_tracker.delisting'`
@@ -210,7 +210,7 @@ def detect_delistings(
 - [ ] **Step 4: Run tests to verify they pass**
 
 ```bash
-cd /home/jason/moscow_cigar && python3 -m pytest price_tracker/tests/test_delisting.py -v
+cd /home/jason/cigardomtabaka && python3 -m pytest price_tracker/tests/test_delisting.py -v
 ```
 
 Expected: 4 passed
@@ -218,7 +218,7 @@ Expected: 4 passed
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/jason/moscow_cigar
+cd /home/jason/cigardomtabaka
 git add price_tracker/delisting.py price_tracker/tests/test_delisting.py
 git commit -m "feat: add delisting detection module"
 ```
@@ -332,7 +332,7 @@ class TestSnapshotDedup:
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-cd /home/jason/moscow_cigar && python3 -m pytest price_tracker/tests/test_snapshot_dedup.py -v
+cd /home/jason/cigardomtabaka && python3 -m pytest price_tracker/tests/test_snapshot_dedup.py -v
 ```
 
 Expected: FAIL — tests fail because old logic still creates/updates daily
@@ -440,7 +440,7 @@ Expected: FAIL — tests fail because old logic still creates/updates daily
 - [ ] **Step 4: Run tests to verify they pass**
 
 ```bash
-cd /home/jason/moscow_cigar && python3 -m pytest price_tracker/tests/test_snapshot_dedup.py price_tracker/tests/test_delisting.py -v
+cd /home/jason/cigardomtabaka && python3 -m pytest price_tracker/tests/test_snapshot_dedup.py price_tracker/tests/test_delisting.py -v
 ```
 
 Expected: ALL pass
@@ -448,7 +448,7 @@ Expected: ALL pass
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/jason/moscow_cigar
+cd /home/jason/cigardomtabaka
 git add price_tracker/scraper.py price_tracker/tests/test_snapshot_dedup.py
 git commit -m "refactor: snapshot dedup — only record on price change or relist"
 ```
@@ -463,7 +463,7 @@ git commit -m "refactor: snapshot dedup — only record on price change or relis
 - [ ] **Step 1: 创建 migration 移除约束**
 
 ```bash
-cd /home/jason/moscow_cigar && python3 manage.py makemigrations price_tracker --empty --name remove_daily_unique
+cd /home/jason/cigardomtabaka && python3 manage.py makemigrations price_tracker --empty --name remove_daily_unique
 ```
 
 - [ ] **Step 2: 编辑 migration 文件**
@@ -501,7 +501,7 @@ class Migration(migrations.Migration):
 - [ ] **Step 4: 应用 migration**
 
 ```bash
-cd /home/jason/moscow_cigar && python3 manage.py migrate price_tracker
+cd /home/jason/cigardomtabaka && python3 manage.py migrate price_tracker
 ```
 
 Expected: `Applying price_tracker.0002_remove_daily_unique... OK`
@@ -509,7 +509,7 @@ Expected: `Applying price_tracker.0002_remove_daily_unique... OK`
 - [ ] **Step 5: 验证约束已移除**
 
 ```bash
-cd /home/jason/moscow_cigar && python3 manage.py shell -c "
+cd /home/jason/cigardomtabaka && python3 manage.py shell -c "
 import sqlite3
 conn = sqlite3.connect('cigars_dev.db')
 # SQLite 无法直接列约束，改成验证可以插入同日同 combo 两条记录
@@ -520,7 +520,7 @@ print('Migration applied successfully')
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /home/jason/moscow_cigar
+cd /home/jason/cigardomtabaka
 git add price_tracker/models.py price_tracker/migrations/0002_remove_daily_unique.py
 git commit -m "migration: remove uq_snapshot_per_day constraint"
 ```
@@ -580,13 +580,13 @@ git commit -m "migration: remove uq_snapshot_per_day constraint"
 - [ ] **Step 2: Build & verify**
 
 ```bash
-cd /home/jason/moscow_cigar/frontend && npm run build
+cd /home/jason/cigardomtabaka/frontend && npm run build
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /home/jason/moscow_cigar
+cd /home/jason/cigardomtabaka
 git add frontend/src/components/dashboard/PriceCard.tsx
 git commit -m "feat: grey out out-of-stock PriceCards"
 ```
@@ -669,13 +669,13 @@ variants[key] = {
 - [ ] **Step 4: Build & verify**
 
 ```bash
-cd /home/jason/moscow_cigar/frontend && npm run build
+cd /home/jason/cigardomtabaka/frontend && npm run build
 ```
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/jason/moscow_cigar
+cd /home/jason/cigardomtabaka
 git add frontend/src/components/detail/VariantCard.tsx frontend/src/types/index.ts price_tracker/views.py
 git commit -m "feat: distinguish delisted vs out-of-stock in VariantCard"
 ```
@@ -687,7 +687,7 @@ git commit -m "feat: distinguish delisted vs out-of-stock in VariantCard"
 - [ ] **Step 1: 跑 COH 爬虫验证**
 
 ```bash
-cd /home/jason/moscow_cigar && python3 manage.py scrape_prices --source coh_china
+cd /home/jason/cigardomtabaka && python3 manage.py scrape_prices --source coh_china
 ```
 
 Expected: 
@@ -697,7 +697,7 @@ Expected:
 - [ ] **Step 2: 跑 LCDH Nyon 验证下架检测**
 
 ```bash
-cd /home/jason/moscow_cigar && python3 manage.py scrape_prices --source lcdh_nyon
+cd /home/jason/cigardomtabaka && python3 manage.py scrape_prices --source lcdh_nyon
 ```
 
 Expected:
@@ -716,7 +716,7 @@ Expected: variants 中有 `"delisted": true` 字段
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /home/jason/moscow_cigar
+cd /home/jason/cigardomtabaka
 git add -A
 git commit -m "test: end-to-end verification of delisting pipeline"
 ```

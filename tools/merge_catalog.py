@@ -3,7 +3,7 @@
 import json, os, re
 
 SRC_DIR = os.path.expanduser("~/.hermes/cigar_inventory")
-OLD_CATALOG = os.path.expanduser("~/moscow_cigar/cigars_catalog.json")
+OLD_CATALOG = os.path.expanduser("~/cigardomtabaka/cigars_catalog.json")
 OUT = OLD_CATALOG  # overwrite
 
 # New brands we crawled (slugs that exist as JSON files, excluding old brands)

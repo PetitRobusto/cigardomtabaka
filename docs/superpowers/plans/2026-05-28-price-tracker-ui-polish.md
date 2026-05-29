@@ -38,8 +38,8 @@ return Response({
 - [ ] **Step 2: 验证**
 
 ```bash
-cd /home/jason/moscow_cigar && python3 -c "
-import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','moscow_cigar_backend.settings')
+cd /home/jason/cigardomtabaka && python3 -c "
+import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','cigardomtabaka_backend.settings')
 import django; django.setup()
 from price_tracker.models import PriceSnapshot
 # 找个有 release_type 的 cigar
@@ -296,14 +296,14 @@ export function PriceChart({ variants }: PriceChartProps) {
 - [ ] **Step 1: 构建前端**
 
 ```bash
-cd /home/jason/moscow_cigar/frontend && npm run build
+cd /home/jason/cigardomtabaka/frontend && npm run build
 ```
 
 - [ ] **Step 2: 重启 Django**
 
 ```bash
 kill $(pgrep -f "manage.py runserver") 2>/dev/null
-cd /home/jason/moscow_cigar && python3 manage.py runserver 0.0.0.0:8000 --noreload &
+cd /home/jason/cigardomtabaka && python3 manage.py runserver 0.0.0.0:8000 --noreload &
 sleep 2
 ```
 

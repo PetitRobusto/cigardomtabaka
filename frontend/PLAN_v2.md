@@ -1,4 +1,4 @@
-# Moscow Cigar 价格跟踪系统 — 前端重写设计 Plan v2
+# CigarDomTabaka 价格跟踪系统 — 前端重写设计 Plan v2
 
 > 版本：v2  
 > 日期：2026-05-25  
@@ -613,7 +613,7 @@ frontend/
 ### 11.1 开发流程
 
 ```bash
-cd /home/jason/moscow_cigar/frontend/
+cd /home/jason/cigardomtabaka/frontend/
 npm run dev          # Vite dev server，代理 /api → Django
 ```
 

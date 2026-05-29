@@ -1,4 +1,4 @@
-# Moscow Cigar — 奢侈品主题设计系统落地
+# CigarDomTabaka — 奢侈品主题设计系统落地
 
 **Date:** 2026-05-28  
 **Status:** Approved  
@@ -8,7 +8,7 @@
 
 ## 目标
 
-将用户用设计软件产出的 Dashboard 设计稿（暖奶油 + 勃艮第红 + 干邑金 奢侈品主题）完整应用到 Moscow Cigar 项目，覆盖 **React 前端（Vite/Tailwind/DaisyUI）** 和 **Django 模板** 两个层面，统一为一套设计语言。
+将用户用设计软件产出的 Dashboard 设计稿（暖奶油 + 勃艮第红 + 干邑金 奢侈品主题）完整应用到 CigarDomTabaka 项目，覆盖 **React 前端（Vite/Tailwind/DaisyUI）** 和 **Django 模板** 两个层面，统一为一套设计语言。
 
 ---
 
@@ -84,7 +84,7 @@ static/css/mc-luxury-theme.css       ← 设计 Token 唯一真相源（CSS 变�
 | 文件 | 操作 | 内容 |
 |------|------|------|
 | `static/css/mc-luxury-theme.css` | **新建** | 完整设计 tokens（CSS 变量）+ base reset + scrollbar + empty state |
-| `templates/base.html` | **更新** | 1) head 引入 Playfair Display 字体 2) `<link>` 引入 `mc-luxury-theme.css` 3) 导航栏重做：topbar-left (logo-mark MC + Moscow Cigar) + topbar-right (退出 + 用户头像) 4) ⚠️ 手机端底部导航同步更新 |
+| `templates/base.html` | **更新** | 1) head 引入 Playfair Display 字体 2) `<link>` 引入 `mc-luxury-theme.css` 3) 导航栏重做：topbar-left (logo-mark MC + CigarDomTabaka) + topbar-right (退出 + 用户头像) 4) ⚠️ 手机端底部导航同步更新 |
 | `frontend/src/index.css` | **重写** | Tailwind v4 `@import "tailwindcss"` + `@theme` 映射 CSS 变量 + DaisyUI plugin 自定义 theme |
 | `tailwind.config.js` | **确认** | DaisyUI plugin 配置 `themes` 指向自定义 theme |
 

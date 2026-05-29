@@ -5,7 +5,7 @@ from playwright.async_api import async_playwright
 from playwright_stealth import stealth_async
 
 BASE = "https://www.cubancigarwebsite.com"
-OUTPUT = Path.home() / "moscow_cigar" / "cigars_catalog.json"
+OUTPUT = Path.home() / "cigardomtabaka" / "cigars_catalog.json"
 
 CURRENT_BRANDS = [
     ("Global", ["cohiba", "h-upmann", "hoyo-de-monterrey", "montecristo", "partagas", "romeo-y-julieta"]),

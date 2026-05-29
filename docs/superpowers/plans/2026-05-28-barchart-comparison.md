@@ -108,7 +108,7 @@ function buildBarData(variants: Variant[]) {
 - [ ] **Step 5: 构建验证**
 
 ```bash
-cd /home/jason/moscow_cigar/frontend && npm run build
+cd /home/jason/cigardomtabaka/frontend && npm run build
 ```
 
 确认无 TS 错误，构建成功。

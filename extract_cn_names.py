@@ -8,8 +8,8 @@ import sys
 import time
 
 # Add Django project
-sys.path.insert(0, os.path.expanduser('~/moscow_cigar'))
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'moscow_cigar_backend.settings')
+sys.path.insert(0, os.path.expanduser('~/cigardomtabaka'))
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cigardomtabaka_backend.settings')
 import django
 django.setup()
 
@@ -133,7 +133,7 @@ def extract_chinese_name(raw_text, brand_slug):
 
 # ── Main Execution ──
 if __name__ == '__main__':
-    data_file = os.path.expanduser('~/moscow_cigar/cigar_chinese_names_full.json')
+    data_file = os.path.expanduser('~/cigardomtabaka/cigar_chinese_names_full.json')
     
     if os.path.exists(data_file):
         print(f'📄 Loading existing data from {data_file}')

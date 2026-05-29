@@ -7,8 +7,8 @@ TimeCigar 小雪茄批量爬虫 — 爬取非Cohiba品牌的详情页规格
 import json, time, sys, os
 from playwright.sync_api import sync_playwright
 
-PRODUCT_LIST_FILE = '/home/jason/moscow_cigar/timecigar_minis_products.json'
-OUTPUT_FILE = '/home/jason/moscow_cigar/timecigar_minis_full.json'
+PRODUCT_LIST_FILE = '/home/jason/cigardomtabaka/timecigar_minis_products.json'
+OUTPUT_FILE = '/home/jason/cigardomtabaka/timecigar_minis_full.json'
 
 def extract_specs(page, product_id):
     """爬取单个产品的详情页规格"""

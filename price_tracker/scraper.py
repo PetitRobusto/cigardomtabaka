@@ -166,6 +166,11 @@ def run_scrape_sync(source_slug: str) -> dict:
                 cny_rate = exchange_rate  # fallback
             price_cny = round(item.price * cny_rate, 2) if item.price else None
 
+            # Skip if price is None (OOS with no price) — avoid NOT NULL constraint
+            if item.price is None:
+                skipped += 1
+                continue
+
             PriceSnapshot.objects.create(
                 source=source,
                 cigar=cigar,

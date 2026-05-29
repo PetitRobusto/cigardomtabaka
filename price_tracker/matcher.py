@@ -222,13 +222,57 @@ def normalize_plural(s: str) -> str:
 
 def strip_brand(name: str) -> str:
     """
-    从爬虫品名中剥离品牌前缀。
+    从爬虫品名中剥离品牌前缀（支持循环剥离，处理品牌名重复的情况）。
     "Romeo y Julieta Churchills" → "Churchills"
     "Cohiba Behike BHK 52" → "Behike BHK 52"
     "H. Upmann Connoisseur No.2" → "Connoisseur No.2"
+    "H. Upmann H.Upmann Connossieur" → "Connossieur"（循环剥离）
     """
     stripped, _ = _strip_brand_with_hint(name)
     return stripped
+
+
+def _strip_brand_with_hint(name: str):
+    """剥离品牌前缀，返回 (剥离后品名, 匹配到的品牌原名 或 None)"""
+    _ensure_brand_map()
+    original_name = name
+    hint = None
+    
+    # 循环剥离：处理品牌名重复的情况
+    max_iterations = 3  # 防止无限循环
+    for _ in range(max_iterations):
+        name_norm = _basic_normalize(name)
+        found = False
+        
+        # 按品牌长度降序排列（优先匹配长品牌名）
+        for brand_norm, brand_original in sorted(
+            BRAND_NORM_MAP.items(), key=lambda x: -len(x[0])
+        ):
+            if name_norm.startswith(brand_norm):
+                # 用归一化计算切点
+                cut = len(brand_norm)
+                pos = 0
+                acc = 0
+                while pos < len(name) and acc < cut:
+                    ch = name[pos]
+                    nch = _basic_normalize(ch)
+                    if nch:
+                        acc += 1
+                    pos += 1
+                stripped = name[pos:].strip()
+                stripped = re.sub(r'^[\s\-]+', '', stripped)
+                if stripped:
+                    name = stripped
+                    hint = hint or brand_original
+                    found = True
+                    break
+                else:
+                    return original_name, brand_original
+        
+        if not found:
+            break
+    
+    return name, hint
 
 
 def extract_brand_hint(name: str):
@@ -243,35 +287,6 @@ def extract_brand_hint(name: str):
     """
     _, hint = _strip_brand_with_hint(name)
     return hint
-
-
-def _strip_brand_with_hint(name: str):
-    """剥离品牌前缀，返回 (剥离后品名, 匹配到的品牌原名 或 None)"""
-    _ensure_brand_map()
-    name_norm = _basic_normalize(name)
-
-    # 按品牌长度降序排列（优先匹配长品牌名，如 "El Rey del Mundo" 先于 "El Rey"）
-    for brand_norm, brand_original in sorted(
-        BRAND_NORM_MAP.items(), key=lambda x: -len(x[0])
-    ):
-        if name_norm.startswith(brand_norm):
-            # 用归一化计算切点（避免 Partagás ≠ Partagas 偏移问题）
-            cut = len(brand_norm)
-            pos = 0
-            acc = 0
-            while pos < len(name) and acc < cut:
-                ch = name[pos]
-                nch = _basic_normalize(ch)
-                if nch:
-                    acc += 1
-                pos += 1
-            stripped = name[pos:].strip()
-            stripped = re.sub(r'^[\s\-]+', '', stripped)
-            if stripped:
-                return stripped, brand_original
-            return name, brand_original
-
-    return name, None
 
 # ═══════════════════════════════════════════════════════════
 #  策略：单词级匹配
@@ -401,8 +416,20 @@ def _collect_icontains_candidates(
         elif db_norm in stripped:
             base = 5000 + len(db_norm)
             ratio = len(stripped) / max(len(db_norm), 1)
-            if ratio > 1.5:
-                base = int(base * 0.6)  # 长度差距>50% → 降40%分
+            # 短品名（<6字符）天然容易被后缀拉长，放宽惩罚
+            # 例如 Duke(4) + - 2018 - Mexico(16) = ratio 5.0，但 Duke 确实是正确匹配
+            if len(db_norm) < 6:
+                # 短品名：ratio > 4 才惩罚，且只降30%
+                if ratio > 4.0:
+                    base = int(base * 0.7)
+                elif ratio > 2.5:
+                    base = int(base * 0.9)
+            else:
+                # 正常品名：ratio > 2.5 惩罚
+                if ratio > 2.5:
+                    base = int(base * 0.5)
+                elif ratio > 1.8:
+                    base = int(base * 0.8)
             score = base
             reason = f'icontains-db-in-scraped({len(db_norm)}vs{len(stripped)},ratio={ratio:.1f})'
         elif stripped in db_norm:
@@ -411,8 +438,16 @@ def _collect_icontains_candidates(
         elif db_plural in stripped_plural:
             base = 4999 + len(db_plural)
             ratio = len(stripped_plural) / max(len(db_plural), 1)
-            if ratio > 1.5:
-                base = int(base * 0.6)
+            if len(db_plural) < 6:
+                if ratio > 4.0:
+                    base = int(base * 0.7)
+                elif ratio > 2.5:
+                    base = int(base * 0.9)
+            else:
+                if ratio > 2.5:
+                    base = int(base * 0.5)
+                elif ratio > 1.8:
+                    base = int(base * 0.8)
             score = base
             reason = f'icontains-plural-db-in-scraped'
         elif stripped_plural in db_plural:
@@ -444,11 +479,12 @@ def _collect_icontains_candidates(
             best_reason = reason
 
     if best:
-        # ⚠️ 阈值守卫：低分匹配（长度惩罚后 < 5000）视为不可靠，返回 None
-        # 场景：\"robustos supremos\" 匹配 \"robustos\" 得分 3004（被惩罚），
-        # 应该 fall through 到下轮全量匹配，让 id=160 的 exact match 胜出
-        if best_score < 5000 and best_score > 0 and best_reason != 'icontains-exact' and best_reason != 'icontains-plural-exact':
-            logger.debug(f'[rejected-low-score] {scraped_name} → {best.english_name} score={best_score} < 5000')
+        # ⚠️ 阈值守卫：低分匹配视为不可靠，返回 None
+        # 场景：\"robustos supremos\" 匹配 \"robustos\" 得分被惩罚后过低，
+        # 应该 fall through 到下轮全量匹配，让 exact match 胜出
+        # 阈值从 5000 降到 3500，允许更多合理后缀通过
+        if best_score < 3500 and best_score > 0 and best_reason != 'icontains-exact' and best_reason != 'icontains-plural-exact':
+            logger.debug(f'[rejected-low-score] {scraped_name} → {best.english_name} score={best_score} < 3500')
             return None
         logger.debug(f'[{best_reason}] {scraped_name} → {best.english_name} '
                      f'({best.brand}, score={best_score})')

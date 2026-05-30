@@ -270,6 +270,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                         pass
 
                 rt = snap.cigar.release_type_cn or ''
+                vitola = snap.cigar.vitola or ''
                 cigars_map[cid] = {
                     'cigar_id': cid,
                     'cigar_name': snap.cigar.name or snap.cigar.english_name or '',
@@ -278,6 +279,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                     'cigar_brand_cn': brand_cn,
                     'cigar_image_url': img_url,
                     'release_type_cn': rt,
+                    'vitola': vitola,
                     'sources': [],
                     'in_stock': False,
                     'avg_per_stick_cny': None,
@@ -327,18 +329,15 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
 
         def _sort_key(entry):
             brand_order = BRANDS_ORDER.index(entry['cigar_brand_cn']) if entry['cigar_brand_cn'] in BRANDS_ORDER else 999
-            name = (entry['cigar_name_en'] or entry['cigar_name'] or '').lower()
-            # 小雪茄判断：名字包含 mini/club/short（且不是 "Open" 系列）
-            is_mini = any(k in name for k in ['mini', 'club', 'short']) and 'open' not in name
-            # 停产判断
-            is_discontinued = False  # 从 cigars_map 拿不到 status，用名字特征判断
-            # 排序优先级：常规(0) > 特殊(1) > 小雪茄(2) > 停产(3)
-            if is_discontinued:
-                category = 3
+            # 小雪茄判断：vitola 为 Mini/Club/Short/Purito 等小雪茄品型
+            vitola = (entry.get('vitola') or '').lower()
+            is_mini = vitola in ('mini', 'club', 'short', 'purito')
+            # 排序优先级：常规(0) > 特殊(1) > 小雪茄(2)
+            # 注意：特殊款优先于小雪茄（如 Short Bolivar 是地区限量，不是小雪茄）
+            if entry.get('release_type_cn'):
+                category = 1
             elif is_mini:
                 category = 2
-            elif entry.get('release_type_cn'):
-                category = 1
             else:
                 category = 0
             return (brand_order, entry['cigar_brand_cn'] or '', category, entry['cigar_name'] or '')

@@ -167,15 +167,39 @@ class VipCigarsScraper(BaseScraper):
             logger.debug(f'Skip {title}: special bundle')
             return None
 
-        # 提取价格：格式如 4'588.00 EUR
+        # 提取价格：支持折扣价（line-through=原价, text-teal-500=售价）
         price_eur = None
-        price_match = re.search(r"(\d[\d',.]+)\s*EUR", article_text)
-        if price_match:
-            price_str = price_match.group(1).replace("'", '').replace(',', '')
-            try:
-                price_eur = float(price_str)
-            except ValueError:
-                pass
+        original_price_eur = None
+        text_right_div = article.select_one('.text-right')
+        if text_right_div:
+            price_divs = text_right_div.find_all('div', recursive=False)
+            for div in price_divs:
+                text = div.get_text(strip=True)
+                m = re.search(r"([\d',.]+)\s*EUR", text)
+                if not m:
+                    continue
+                price_str = m.group(1).replace("'", '').replace(',', '')
+                try:
+                    val = float(price_str)
+                except ValueError:
+                    continue
+                classes = div.get('class', [])
+                if 'line-through' in classes:
+                    original_price_eur = val
+                elif 'text-teal-500' in classes:
+                    price_eur = val
+                elif price_eur is None:
+                    price_eur = val  # 第一个普通价格 → 售价
+
+        # 回退：如果上面没提取到价格，用全文扫描
+        if price_eur is None:
+            price_match = re.search(r"(\d[\d',.]+)\s*EUR", article_text)
+            if price_match:
+                price_str = price_match.group(1).replace("'", '').replace(',', '')
+                try:
+                    price_eur = float(price_str)
+                except ValueError:
+                    pass
 
         # 无价格 → 强制标记售罄
         if price_eur is None:
@@ -193,6 +217,7 @@ class VipCigarsScraper(BaseScraper):
         return ScrapedItem(
             name=full_name,
             price=price_eur,
+            original_price=original_price_eur,
             currency='EUR',
             url=url,
             box_size=box_size,

@@ -99,13 +99,26 @@ export function VariantCard({ variant, index }: VariantCardProps) {
               )}
             </div>
 
-            {/* Original currency price row */}
+            {/* Original currency price row — 支持折扣价 */}
             {latest.price != null && (
-              <div className="text-xs text-muted flex items-center gap-1">
-                <span>原价</span>
-                <span className="font-mono font-semibold text-muted">
-                  {formatPrice(latest.price, variant.currency)}
-                </span>
+              <div className="text-xs flex items-center gap-2">
+                {latest.original_price != null ? (
+                  <>
+                    <span className="line-through text-muted/40">
+                      {formatPrice(latest.original_price, variant.currency)}
+                    </span>
+                    <span className="font-mono font-bold text-amber-600">
+                      {formatPrice(latest.price, variant.currency)}
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-bold">
+                      折
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-muted font-mono font-semibold">
+                    {formatPrice(latest.price, variant.currency)}
+                  </span>
+                )}
               </div>
             )}
 

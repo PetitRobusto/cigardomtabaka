@@ -673,10 +673,15 @@ def match_cigar(
     # Python 端品牌过滤（SQLite icontains 无法处理重音差异）
     # 必须用 _basic_normalize（去空格+去标点），因为 normalize 保留空格
     # 会导致 "H.Upmann"→"hupmann" vs "H. Upmann"→"h upmann" 不匹配！
+    # 用品牌全名比较，不用 hint_core。因为 "H. Upmann" 的 hint_core="H"
+    # 会匹配到 "Punch"（"h" in "punch"），造成跨品牌误匹配！
     def _brand_match(cigar) -> bool:
-        if not hint_core:
+        if not brand_hint:
             return True
-        return _basic_normalize(hint_core) in _basic_normalize(str(cigar.brand))
+        brand_norm = _basic_normalize(brand_hint)
+        cigar_brand_norm = _basic_normalize(str(cigar.brand))
+        # brand_hint 包含在 cigar.brand 中，或 cigar.brand 包含在 brand_hint 中
+        return brand_norm in cigar_brand_norm or cigar_brand_norm in brand_norm
 
     # ── 辅助：精确匹配扫描（策略 1） ──
     def _exact_scan(candidates, tag=''):

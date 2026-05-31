@@ -54,7 +54,8 @@ class PriceSnapshot(models.Model):
         'cigars.Cigar', on_delete=models.PROTECT,
         related_name='price_snapshots', verbose_name='雪茄'
     )
-    price = models.FloatField('售价')
+    price = models.FloatField('售价')  # 实际成交价（折后价如有折扣）
+    original_price = models.FloatField('原价', null=True, blank=True)  # 划线价/原价
     currency = models.CharField('货币', max_length=10, default='USD')
     price_cny = models.FloatField('人民币等值', null=True, blank=True)
     box_size = models.IntegerField('盒装支数', null=True, blank=True)

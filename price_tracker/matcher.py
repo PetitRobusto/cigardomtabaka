@@ -193,6 +193,9 @@ def normalize(s: str) -> str:
     ROMAN_MAP = {'1': 'I', '2': 'II', '3': 'III', '4': 'IV', '5': 'V', '6': 'VI'}
     s = re.sub(r'\bSiglo\s+(\d)\b', lambda m: f'Siglo {ROMAN_MAP.get(m.group(1), m.group(1))}', s, flags=re.IGNORECASE)
 
+    # 2f. "N°" → "No." (必须在 NFKD 之前，因为 ° 会被分解)
+    s = s.replace('N°', 'No.')
+
     # 3. NFKD 分解重音字符 → base + combining diacritic
     nfkd = unicodedata.normalize('NFKD', s)
     ascii_only = nfkd.encode('ascii', 'ignore').decode('ascii')
@@ -201,6 +204,8 @@ def normalize(s: str) -> str:
     ascii_only = re.sub(r'\s+', ' ', ascii_only)
     ascii_only = re.sub(r'No\.\s+', 'No.', ascii_only)
     ascii_only = re.sub(r'No\s+(\d)', r'No.\1', ascii_only)
+    ascii_only = re.sub(r'\bN\s+(\d)\b', r'No.\1', ascii_only)  # "N 2" → "No.2"
+    ascii_only = re.sub(r'N°', 'No.', ascii_only)                 # "N°2" → "No.2"
     ascii_only = ascii_only.replace('.', '')
 
     result = ascii_only.strip().lower()

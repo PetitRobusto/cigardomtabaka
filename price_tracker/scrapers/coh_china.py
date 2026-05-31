@@ -155,14 +155,14 @@ def _parse_structured(soup, brand_name: str) -> list[ScrapedItem]:
             continue
 
         detail_text = detail_tr.get_text('\n')
-        length_val, ring_val, box_info, price_str, box_size, price = \
+        length_val, ring_val, box_info, price_str, box_size, price, orig_price = \
             _extract_product_details(detail_text)
 
         if full_name and price is not None:
             items.append(ScrapedItem(
                 name=full_name,
                 price=price,
-                original_price=None,
+                original_price=orig_price if orig_price and orig_price != price else None,
                 box_size=box_size,
                 box_price=price,
                 url=f'{BASE_URL}/cigars-{BRAND_SLUGS.get(brand_name, brand_name.lower().replace(" ", "-"))}',
@@ -220,6 +220,7 @@ def _parse_text_lines(lines: list[str], brand_name: str) -> list[ScrapedItem]:
             ring_val = ''
             box_info = ''
             price_str = ''
+            orig_price_str = ''
 
             i += 1
             while i < len(lines):
@@ -235,21 +236,31 @@ def _parse_text_lines(lines: list[str], brand_name: str) -> list[ScrapedItem]:
                 elif re.search(r'(\d+)\s*(Box|Pack|Bundle|Single)', nl, re.I):
                     box_info = nl
                     prices = re.findall(r'\$\s*([\d,]+\.?\d*)', nl)
-                    if prices:
+                    if len(prices) >= 2:
+                        price_str, orig_price_str = prices[-1], prices[0]
+                    elif prices:
                         price_str = prices[-1]
                 elif re.search(r'\$\s*[\d,]+', nl):
                     prices = re.findall(r'\$\s*([\d,]+\.?\d*)', nl)
-                    if prices:
+                    if len(prices) >= 2:
+                        price_str, orig_price_str = prices[-1], prices[0]
+                    elif prices:
                         price_str = prices[-1]
                 i += 1
 
             box_size, price = _parse_size_price(box_info, price_str)
+            orig_price = None
+            if orig_price_str:
+                try:
+                    orig_price = float(orig_price_str.replace(',', ''))
+                except ValueError:
+                    pass
 
             if full_name and price is not None:
                 items.append(ScrapedItem(
                     name=full_name,
                     price=price,
-                    original_price=None,
+                    original_price=orig_price if orig_price and orig_price != price else None,
                     box_size=box_size,
                     box_price=price,
                     url=f'{BASE_URL}/cigars-{BRAND_SLUGS.get(brand_name, brand_name.lower().replace(" ", "-"))}',
@@ -271,13 +282,22 @@ def _parse_text_lines(lines: list[str], brand_name: str) -> list[ScrapedItem]:
 
 
 def _extract_product_details(text: str) -> tuple:
-    """从产品区文本提取详细信息"""
+    """从产品区文本提取详细信息 (返回 8-tuple，含 orig_price)"""
     length_val = ''
     ring_val = ''
     box_info = ''
     price_str = ''
+    orig_price_str = ''
     box_size = None
     price = None
+    orig_price = None
+
+    def _capture_prices(prices: list, pstr: str, opstr: str) -> tuple:
+        if len(prices) >= 2:
+            return prices[-1], prices[0]  # 最后一个=售价, 第一个=原价
+        elif prices:
+            return prices[-1], ''
+        return pstr, opstr
 
     for line in text.split('\n'):
         line = line.strip()
@@ -288,20 +308,24 @@ def _extract_product_details(text: str) -> tuple:
         elif re.search(r'(\d+)\s*(Box|Pack|Bundle|Single)', line, re.I):
             box_info = line
             prices = re.findall(r'\$\s*([\d,]+\.?\d*)', line)
-            if prices:
-                price_str = prices[-1]
+            price_str, orig_price_str = _capture_prices(prices, price_str, orig_price_str)
 
     # 如果没从 box_info 行找到价格，尝试找带 $ 的行
     if not price_str:
         for line in text.split('\n'):
             if re.search(r'\$\s*[\d,]+', line):
                 prices = re.findall(r'\$\s*([\d,]+\.?\d*)', line)
-                if prices:
-                    price_str = prices[-1]
+                price_str, orig_price_str = _capture_prices(prices, price_str, orig_price_str)
+                if price_str:
                     break
 
     box_size, price = _parse_size_price(box_info, price_str)
-    return length_val, ring_val, box_info, price_str, box_size, price
+    if orig_price_str:
+        try:
+            orig_price = float(orig_price_str.replace(',', ''))
+        except ValueError:
+            pass
+    return length_val, ring_val, box_info, price_str, box_size, price, orig_price
 
 
 def _parse_size_price(box_info: str, price_str: str) -> tuple:

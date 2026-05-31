@@ -128,9 +128,16 @@ class LCDHNyonScraper(BaseScraper):
                             || oosBadgeText.includes('rupture') || oosBadgeText.includes('out of stock')
                             || (cartText && !cartText.includes('add to cart') && !cartText.includes('select option'));
                         if (!titleEl) return;
+                        // 折扣价检测：WooCommerce 常见结构 <del><span class="amount">原价</span></del> <ins><span class="amount">现价</span></ins>
+                        const delAmount = priceEl?.querySelector('del .woocommerce-Price-amount, del .amount');
+                        const insAmount = priceEl?.querySelector('ins .woocommerce-Price-amount, ins .amount');
+                        const normalAmount = priceEl?.querySelector('.woocommerce-Price-amount, .amount');
+                        const priceText = (delAmount && insAmount) ? insAmount.textContent.trim() : (normalAmount?.textContent?.trim() || priceEl?.textContent?.trim() || '');
+                        const origPriceText = delAmount ? delAmount.textContent.trim() : '';
                         products.push({{
                             title: titleEl.textContent.trim(),
-                            price: priceEl?.textContent?.trim() || '',
+                            price: priceText,
+                            originalPrice: origPriceText,
                             url: linkEl?.getAttribute('href') || '',
                             badge: oosLabel?.textContent?.trim() || (isOOS ? 'Out of stock' : ''),
                             inStock: !isOOS
@@ -192,6 +199,14 @@ class LCDHNyonScraper(BaseScraper):
         m = re.search(r'[\d,]+\.?\d*', price_str.replace("'", ''))
         if m:
             price_chf = float(m.group().replace(',', ''))
+
+        # 解析原价（WooCommerce 折扣时的划线价，从 del/ins 提取）
+        orig_price_chf = None
+        orig_price_str = raw.get('originalPrice', '')
+        if orig_price_str:
+            m = re.search(r'[\d,]+\.?\d*', orig_price_str.replace("'", ''))
+            if m:
+                orig_price_chf = float(m.group().replace(',', ''))
         
         # 完整原始品名（用于匹配）
         full_name = f'{brand} {name}'
@@ -199,6 +214,7 @@ class LCDHNyonScraper(BaseScraper):
         return ScrapedItem(
             name=full_name,
             price=price_chf,
+            original_price=orig_price_chf,
             currency='CHF',
             url=url,
             box_size=box_size,

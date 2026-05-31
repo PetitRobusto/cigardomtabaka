@@ -21,6 +21,11 @@ import re
 import unicodedata
 import logging
 from typing import Optional
+try:
+    from rapidfuzz import fuzz
+    HAS_RAPIDFUZZ = True
+except ImportError:
+    HAS_RAPIDFUZZ = False
 from django.db.models import QuerySet
 
 logger = logging.getLogger(__name__)
@@ -638,6 +643,42 @@ def _strip_known_suffixes(name: str) -> tuple:
     return stripped, list(set(release_types))
 
 
+def _token_fuzzy_match(stripped: str, qs, brand_filter) -> Optional:
+    """
+    策略6：RapidFuzz token_set_ratio 模糊匹配
+
+    使用 RapidFuzz 的 token_set_ratio 算法：
+    1. 分词 → 取交集 vs 并集
+    2. Levenshtein 比较交集+剩余词
+    3. 天然处理后缀噪声（SLB、EL 12、年份等会被归入剩余词）
+
+    阈值: 85（比默认保守，因为品牌锁已过滤候选集）
+    """
+    if not HAS_RAPIDFUZZ or not stripped:
+        return None
+
+    best = None
+    best_score = 0
+    for cigar in qs.only('id', 'english_name', 'brand', 'status', 'name'):
+        if not cigar.english_name or not brand_filter(cigar):
+            continue
+        db_norm = normalize(cigar.english_name)
+        db_base = normalize(strip_brand(cigar.english_name))
+        # 两个方向都比，取高的
+        score = max(
+            fuzz.token_set_ratio(stripped, db_base),
+            fuzz.token_set_ratio(stripped, db_norm),
+        )
+        if score > best_score and score >= 85:
+            best_score = score
+            best = cigar
+
+    if best:
+        logger.debug(f'[rpf-fuzzy] {stripped[:40]} → {best.english_name} '
+                     f'(score={best_score})')
+    return best
+
+
 def match_cigar(
     scraped_name: str,
     brand_hint: Optional[str] = None,
@@ -819,6 +860,11 @@ def match_cigar(
             best, best_score = sfx_candidates[0]
             logger.debug(f'[suffix-strip] {name} → {best.english_name} (score={best_score}, types={release_types})')
             return best
+
+    # 策略 6：RapidFuzz token_set_ratio 模糊匹配
+    match = _token_fuzzy_match(stripped_norm, qs, _brand_match)
+    if match:
+        return match
 
     logger.warning(f'[no-match] {name} ({source_name})')
     return None

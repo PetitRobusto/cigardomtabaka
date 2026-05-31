@@ -638,61 +638,6 @@ def _strip_known_suffixes(name: str) -> tuple:
     return stripped, list(set(release_types))
 
 
-def _token_fuzzy_match(stripped: str, qs, brand_filter, hint: str = '') -> Optional:
-    """
-    策略6：词级模糊匹配（Jaccard + 前缀奖励）
-
-    当 icontains/精确匹配全失败时的兜底策略。
-    用词级 Jaccard 相似度，要求 >=50% 重叠 + 品牌通过。
-    额外奖励：前缀包含（如 sport⊂sports, omhpos⊂omiros）
-    """
-    STOP_FUZZY = {'de', 'del', 'la', 'el', 'los', 'las', 'the', 'of', 'no', 'serie',
-                  'box', 'slb', 'cabinet', 'pack', 'tin', 'tubos', 'tube', 'edicion',
-                  'edition', 'limitada', 'limited', 'regional', 'release'}
-    scraper_words = [w for w in stripped.split() if w not in STOP_FUZZY and len(w) > 1]
-    if not scraper_words:
-        return None
-    scraper_set = set(scraper_words)
-
-    best = None
-    best_score = 0.0
-    for cigar in qs.only('id', 'english_name', 'brand', 'status', 'name'):
-        if not cigar.english_name or not brand_filter(cigar):
-            continue
-        db_norm = normalize(cigar.english_name)
-        db_base = normalize(strip_brand(cigar.english_name))
-        # 选较短的名字做匹配
-        db_for_match = db_base if len(db_base) < len(db_norm) else db_norm
-        db_words = [w for w in db_for_match.split() if w not in STOP_FUZZY and len(w) > 1]
-        if not db_words:
-            continue
-        db_set = set(db_words)
-
-        # Jaccard
-        intersection = scraper_set & db_set
-        union = scraper_set | db_set
-        jaccard = len(intersection) / len(union) if union else 0
-
-        # 前缀奖励（sport⊂sports, largos⊂largo 等）
-        prefix_bonus = 0.0
-        for sw in scraper_set - intersection:
-            for dw in db_set - intersection:
-                if len(sw) >= 3 and len(dw) >= 3:
-                    if sw.startswith(dw) or dw.startswith(sw):
-                        prefix_bonus += 0.3
-                        break
-
-        score = jaccard + prefix_bonus
-        if score > best_score and score >= 0.5:
-            best_score = score
-            best = cigar
-
-    if best and best_score >= 0.5:
-        logger.debug(f'[token-fuzzy] {stripped[:40]} → {best.english_name} '
-                     f'(score={best_score:.2f})')
-    return best
-
-
 def match_cigar(
     scraped_name: str,
     brand_hint: Optional[str] = None,
@@ -874,11 +819,6 @@ def match_cigar(
             best, best_score = sfx_candidates[0]
             logger.debug(f'[suffix-strip] {name} → {best.english_name} (score={best_score}, types={release_types})')
             return best
-
-    # 策略 6：词级模糊匹配（Jaccard + 前缀奖励）
-    match = _token_fuzzy_match(stripped_norm, qs, _brand_match, brand_hint or '')
-    if match:
-        return match
 
     logger.warning(f'[no-match] {name} ({source_name})')
     return None

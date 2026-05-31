@@ -761,6 +761,45 @@ def match_cigar(
         logger.debug(f'[cn-exact] {name} → {match.english_name}')
         return match
 
+    # 策略 5：后缀剥离回退匹配
+    # 识别 EL/RE/LE/地区等关键词后缀，剥离后重试 icontains 匹配
+    stripped_sfx, release_types = _strip_known_suffixes(stripped_norm)
+    if stripped_sfx and stripped_sfx != stripped_norm:
+        sfx_qs = Cigar.objects.all()
+        if hint_core:
+            sfx_qs = sfx_qs.filter(brand__icontains=hint_core)
+        
+        sfx_candidates = []
+        for cigar in sfx_qs.only('id','english_name','brand','status','name','release_type'):
+            if not cigar.english_name:
+                continue
+            db_norm = normalize(cigar.english_name)
+            db_base = normalize(strip_brand(cigar.english_name))
+            if db_norm in stripped_sfx or stripped_sfx in db_norm or db_base == stripped_sfx:
+                score = 5000
+                # release_type 匹配加权
+                if release_types and cigar.release_type:
+                    matched_rt = any(
+                        rt.lower() in (cigar.release_type or '').lower()
+                        for rt in release_types
+                    )
+                    if matched_rt:
+                        score += 2000
+                    else:
+                        score -= 1000
+                # 长度惩罚（保留）
+                ratio = max(len(stripped_sfx), len(db_norm)) / max(min(len(stripped_sfx), len(db_norm)), 1)
+                if ratio > 2.5:
+                    score -= int(500 * (ratio - 2.5))
+                if score >= 3500:
+                    sfx_candidates.append((cigar, score))
+        
+        if sfx_candidates:
+            sfx_candidates.sort(key=lambda x: -x[1])
+            best, best_score = sfx_candidates[0]
+            logger.debug(f'[suffix-strip] {name} → {best.english_name} (score={best_score}, types={release_types})')
+            return best
+
     logger.warning(f'[no-match] {name} ({source_name})')
     return None
 

@@ -55,7 +55,7 @@ class PriceSnapshotSerializer(serializers.ModelSerializer):
             'id', 'source', 'source_name', 'source_slug', 'source_currency',
             'cigar', 'cigar_name', 'cigar_english_name', 'cigar_brand', 'cigar_brand_cn',
             'scraped_name',
-            'price', 'currency', 'price_cny',
+            'price', 'original_price', 'currency', 'price_cny',
             'box_size', 'box_price', 'url', 'in_stock',
             'scraped_at',
             'min_price', 'max_price', 'record_count',
@@ -115,6 +115,7 @@ class AggregatedSourceEntry(serializers.Serializer):
     source_name = serializers.CharField()
     source_slug = serializers.CharField()
     price = serializers.FloatField(allow_null=True)
+    original_price = serializers.FloatField(allow_null=True)
     currency = serializers.CharField()
     price_cny = serializers.FloatField(allow_null=True)
     box_size = serializers.IntegerField(allow_null=True)

@@ -174,6 +174,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             variants[key]['points'].append({
                 'date': snap.scraped_at.isoformat(),
                 'price': snap.price,
+                'original_price': snap.original_price,
                 'price_cny': snap.price_cny,
                 'in_stock': snap.in_stock,
                 'delisted': (snap.raw_data or {}).get('delisted', False),
@@ -301,6 +302,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                 'source_short_name': snap.source.short_name or snap.source.name,
                 'source_slug': snap.source.slug,
                 'price': snap.price,
+                'original_price': snap.original_price,
                 'price_cny': price_cny,
                 'currency': currency,
                 'box_size': snap.box_size,

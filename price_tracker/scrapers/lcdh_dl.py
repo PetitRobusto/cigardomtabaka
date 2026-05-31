@@ -143,7 +143,7 @@ class LCDHDLScraper(BaseScraper):
         aged_match = re.search(r'Aged\s+(\d{4})', t, re.IGNORECASE)
         
         return ScrapedItem(
-            name=name, price=price, currency="CHF", url=fu,
+            name=name, price=price, original_price=None, currency="CHF", url=fu,
             box_size=bs, in_stock=raw.get("in_stock",True),
             raw_data={
                 'brand':b,

@@ -622,6 +622,10 @@ SUFFIX_PATTERNS = [
     (r'\bGift\s+Box\b', None, 1),
     (r'\bJar\b', None, 1),
     (r'\bCaja\b', None, 1),
+    # 陈年标记（装饰）
+    (r'\bAGED\s*\d{4}\b', None, 1),
+    # 年份残留（RE/EL/LE 被剥离后留下的裸年份）
+    (r'\b\d{4}\b', None, 1),
 ]
 
 
@@ -644,6 +648,27 @@ def _extract_hints(name: str) -> list[str]:
         if rel_type and re.search(pattern, name, re.IGNORECASE):
             release_types.append(rel_type)
     return list(set(release_types))
+
+
+def _strip_known_suffixes(name: str) -> str:
+    """剥离所有已知后缀（装饰性 + 类型标记），保留核心品名用于模糊匹配。
+    
+    类型标记（EL/RE/LE/LCDH等）虽然被剥离，但通过 _extract_hints() 
+    识别的 release_type 会在后续加权打分（+15）中体现。
+    
+    例如:
+        'Petit Robusto /25 AGED 2014' → 'Petit Robusto /25'
+        'Superiores /10 LCDH AGED 2017' → 'Superiores /10'
+        'Super Corona /25 Limited Edition 2014' → 'Super Corona /25'
+        '898 /10 Regional Edition Asia Pacifico 2018' → '898 /10'
+    """
+    result = name
+    for pattern, _rel_type, _priority in SUFFIX_PATTERNS:
+        result = re.sub(pattern, '', result, flags=re.IGNORECASE)
+    # 清理多余空格和尾部标点
+    result = re.sub(r'\s+', ' ', result).strip()
+    result = re.sub(r'\s*/\s*$', '', result)
+    return result
 
 
 def _token_fuzzy_match(stripped: str, qs, brand_filter) -> Optional:
@@ -724,6 +749,9 @@ def match_cigar(
     # 剥离品牌前缀
     stripped_norm = normalize(strip_brand(name))
 
+    # 剥离装饰后缀（AGED、Estuche 等纯噪音），用于 RapidFuzz
+    clean_norm = normalize(_strip_known_suffixes(strip_brand(name)))
+
     # 脆弱名单词检测
     fragile = (
         brand_hint is None
@@ -774,17 +802,17 @@ def match_cigar(
         return match
 
     # ── 策略 2: RapidFuzz 主力模糊匹配 ──
-    if HAS_RAPIDFUZZ and stripped_norm and not fragile:
+    if HAS_RAPIDFUZZ and clean_norm and not fragile:
         candidates = []
         for cigar in qs.only('id','english_name','brand','status','name','release_type'):
             if not cigar.english_name or not _brand_match(cigar):
                 continue
             db_norm = normalize(cigar.english_name)
             db_base = normalize(strip_brand(cigar.english_name))
-            # 双向取最高分
+            # 双向取最高分（用 clean_norm 替代 stripped_norm）
             rpf_score = max(
-                fuzz.token_set_ratio(stripped_norm, db_base),
-                fuzz.token_set_ratio(stripped_norm, db_norm),
+                fuzz.token_set_ratio(clean_norm, db_base),
+                fuzz.token_set_ratio(clean_norm, db_norm),
             )
             if rpf_score < 80:
                 continue
@@ -799,14 +827,14 @@ def match_cigar(
                         break
 
             # 精确包含加分（icontains）
-            if db_norm in stripped_norm or stripped_norm in db_norm:
+            if db_norm in clean_norm or clean_norm in db_norm:
                 score += 5
 
-            # 长度惩罚（保留）
-            ratio = max(len(stripped_norm), len(db_norm)) / max(min(len(stripped_norm), len(db_norm)), 1)
+            # 长度惩罚（用 clean_norm 的长度）
+            ratio = max(len(clean_norm), len(db_norm)) / max(min(len(clean_norm), len(db_norm)), 1)
             if ratio > 2.5:
                 score -= int(5 * (ratio - 2.5))
-            if len(stripped_norm) < 10:
+            if len(clean_norm) < 10:
                 score += 5
 
             # 状态加权
@@ -819,7 +847,7 @@ def match_cigar(
         if candidates:
             candidates.sort(key=lambda x: -x[1])
             best, best_score = candidates[0]
-            logger.debug(f'[rpf-main] {stripped_norm[:30]} → {best.english_name} '
+            logger.debug(f'[rpf-main] {clean_norm[:30]} → {best.english_name} '
                          f'(score={best_score}, hints={release_hints})')
             return best
 

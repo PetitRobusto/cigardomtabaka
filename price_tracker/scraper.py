@@ -164,6 +164,31 @@ def run_scrape_sync(source_slug: str) -> dict:
         matched += 1
 
         box_size = item.box_size
+        
+        # 无盒装数 → 从历史数据推断唯一包装规格
+        if box_size is None:
+            from django.db.models import Count
+            known_sizes = (
+                PriceSnapshot.objects
+                .filter(cigar=cigar, box_size__isnull=False)
+                .values('box_size')
+                .annotate(cnt=Count('id'))
+                .order_by('-cnt')
+            )
+            unique_sizes = [s['box_size'] for s in known_sizes]
+            if len(unique_sizes) == 1:
+                box_size = unique_sizes[0]
+                logger.info(f'[boxsize-infer] {item.name} → {cigar.english_name} '
+                           f'box_size={box_size} (inferred from DB)')
+            elif len(unique_sizes) == 0:
+                logger.debug(f'[boxsize-skip] {item.name}: no known box_size in DB, skip')
+                skipped += 1
+                continue
+            else:
+                logger.debug(f'[boxsize-skip] {item.name}: multiple box_size {unique_sizes}, skip')
+                skipped += 1
+                continue
+        
         combo = (cigar.id, box_size)
         scraped_combos.add(combo)
 

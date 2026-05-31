@@ -166,17 +166,8 @@ class LcdhBrusselsScraper(BaseScraper):
         # 提取盒装数
         box_size = self._extract_box_size(title, variant_title, tags)
 
-        # 没有包装规格 → 跳过
-        # 例外：Gran Reserva / Limited Edition / Regional Edition 等特殊版本可放宽
-        # （这些产品盒装信息通常在详情页，不在 collection listing 标题里）
-        TITLE_UP = title.upper()
-        is_special = any(kw in TITLE_UP for kw in (
-            'GRAN RESERVA', 'LIMITED EDITION', 'REGIONAL EDITION',
-            'RESERVA COSECHA', 'LCDH', 'HUMIDOR',
-        ))
-        if box_size is None and not is_special:
-            logger.debug(f'Skip {title}: no box size found')
-            return None
+        # 没有包装规格 → 不在此跳过，由 save_items 全局推断逻辑处理
+        # （查历史数据：唯一规格自动补，多规格跳过）
 
         # 使用原始标题作为品名（matcher 会处理品牌前缀和备款剥离）
         name = title

@@ -148,18 +148,18 @@ def brand_detail(request, slug):
         .order_by('english_name')\
         .prefetch_related('images')
 
-    current = []         # 所有 Current（不含机制茄）
-    orphan_special = {}  # 无 parent 的 Special Releases（不含机制茄）
-    discontinued = []    # Discontinued（不含子款，不含机制茄）
-    machine_rolled = []  # 机制茄 (machine_rolled_short_filler)
+    current = []         # 所有 Current（不含机制茄/小雪茄）
+    orphan_special = {}  # 无 parent 的 Special Releases（不含机制茄/小雪茄）
+    discontinued = []    # Discontinued（不含子款，不含机制茄/小雪茄）
+    small_cigars = []    # 小雪茄 (vitola: Mini/Short/Club)
 
     for c in all_cigars:
         if c.parent_id:
             continue  # 子雪茄 → 不独立展示
         
-        # 机制茄单独分组
-        if c.production_method == 'machine_rolled_short_filler':
-            machine_rolled.append(c)
+        # 小雪茄单独分组（放最后）
+        if c.vitola in ('Mini', 'Short', 'Club'):
+            small_cigars.append(c)
             continue
         
         status = c.status or ''
@@ -172,7 +172,7 @@ def brand_detail(request, slug):
             current.append(c)
 
     # 为所有父款统计子款数量
-    all_parents = current + discontinued + machine_rolled
+    all_parents = current + discontinued + small_cigars
     for v in orphan_special.values():
         all_parents.extend(v)
     for c in all_parents:
@@ -219,13 +219,13 @@ def brand_detail(request, slug):
             label += f' · {child_count} 款含子款'
         sections.append({'label': label, 'cigars': discontinued})
 
-    # ⚙️ 机制茄 (machine_rolled_short_filler)
-    if machine_rolled:
-        child_count = sum(1 for c in machine_rolled if c.children)
-        label = f'⚙️ 机制茄 ({len(machine_rolled)})'
+    # ⚙️ 小雪茄 (Mini/Short/Club)
+    if small_cigars:
+        child_count = sum(1 for c in small_cigars if c.children)
+        label = f'🪶 小雪茄 ({len(small_cigars)})'
         if child_count:
             label += f' · {child_count} 款含子款'
-        sections.append({'label': label, 'cigars': machine_rolled})
+        sections.append({'label': label, 'cigars': small_cigars})
 
     return render(request, 'cigars/brand_detail.html', {
         'brand': brand,

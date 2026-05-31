@@ -1,2 +1,44 @@
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+.venv/
+venv/
+ENV/
+
+# Django
 *.db
+*.sqlite3
+db.sqlite3
+staticfiles/
+media/*
+!media/cigars/
+!media/brand_logos/
+
+# 前端构建产物
+static/price-tracker/assets/
+static/price-tracker/.vite/
+frontend/dist/
+
+# Node
+node_modules/
+
+# IDE / 工具 / 备份
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.bak
+*.backup
+
+# AI 工具
+.superpowers/
+.pytest_cache/
+
+# 业务文档
+*.xlsx
+*.xls

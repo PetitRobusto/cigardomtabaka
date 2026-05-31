@@ -235,18 +235,19 @@ def _parse_text_lines(lines: list[str], brand_name: str) -> list[ScrapedItem]:
                     ring_val = nl
                 elif re.search(r'(\d+)\s*(Box|Pack|Bundle|Single)', nl, re.I):
                     box_info = nl
-                    prices = re.findall(r'\$\s*([\d,]+\.?\d*)', nl)
-                    if len(prices) >= 2:
-                        price_str, orig_price_str = prices[-1], prices[0]
-                    elif prices:
-                        price_str = prices[-1]
                 elif re.search(r'\$\s*[\d,]+', nl):
-                    prices = re.findall(r'\$\s*([\d,]+\.?\d*)', nl)
-                    if len(prices) >= 2:
-                        price_str, orig_price_str = prices[-1], prices[0]
-                    elif prices:
-                        price_str = prices[-1]
+                    continue  # 价格行，后面统一收集
                 i += 1
+            
+            # 收集所有价格行中的全部价格
+            all_price_matches = []
+            for check_line in lines:
+                if re.search(r'\$\s*[\d,]+', check_line):
+                    all_price_matches.extend(re.findall(r'\$\s*([\d,]+\.?\d*)', check_line))
+            if len(all_price_matches) >= 2:
+                price_str, orig_price_str = all_price_matches[-1], all_price_matches[0]
+            elif all_price_matches:
+                price_str = all_price_matches[-1]
 
             box_size, price = _parse_size_price(box_info, price_str)
             orig_price = None
@@ -310,14 +311,13 @@ def _extract_product_details(text: str) -> tuple:
             prices = re.findall(r'\$\s*([\d,]+\.?\d*)', line)
             price_str, orig_price_str = _capture_prices(prices, price_str, orig_price_str)
 
-    # 如果没从 box_info 行找到价格，尝试找带 $ 的行
+    # 如果没从 box_info 行找到价格，收集所有 $ 行中的价格
     if not price_str:
+        all_price_matches = []
         for line in text.split('\n'):
             if re.search(r'\$\s*[\d,]+', line):
-                prices = re.findall(r'\$\s*([\d,]+\.?\d*)', line)
-                price_str, orig_price_str = _capture_prices(prices, price_str, orig_price_str)
-                if price_str:
-                    break
+                all_price_matches.extend(re.findall(r'\$\s*([\d,]+\.?\d*)', line))
+        price_str, orig_price_str = _capture_prices(all_price_matches, price_str, orig_price_str)
 
     box_size, price = _parse_size_price(box_info, price_str)
     if orig_price_str:

@@ -166,6 +166,11 @@ class LcdhBrusselsScraper(BaseScraper):
         # 提取盒装数
         box_size = self._extract_box_size(title, variant_title, tags)
 
+        # 没有包装规格 → 跳过（小雪茄/Club/Mini/单支等无盒装信息的产品）
+        if box_size is None:
+            logger.debug(f'Skip {title}: no box size found')
+            return None
+
         # 构建产品名（品牌 + 核心品名）
         name = self._build_name(title, brand)
 
@@ -215,14 +220,17 @@ class LcdhBrusselsScraper(BaseScraper):
 
     def _extract_box_size(self, title: str, variant_title: str, tags: list[str]) -> Optional[int]:
         """提取盒装支数"""
-        # 从标题提取 /25, /10, x25 等
+        # 从标题提取 /25, /10, x25, Box of 12 等
         patterns = [
-            r'/(\d+)\b',           # /25
-            r'\bx(\d+)\b',         # x25
-            r'(\d+)\s*只',         # 25只
-            r'(\d+)\s*支',         # 25支
-            r'\b(\d+)\s*PACK\b',   # 3 PACK
-            r'PACK\s*OF\s*(\d+)',  # PACK OF 3
+            r'/(\d+)\b',               # /25
+            r'\bx(\d+)\b',             # x25
+            r'BOX\s+OF\s+(\d+)',       # BOX OF 12
+            r'(\d+)\s*BOX\b',          # 25 BOX
+            r'CABINET\s+OF\s+(\d+)',   # CABINET OF 25
+            r'(\d+)\s*只',             # 25只
+            r'(\d+)\s*支',             # 25支
+            r'\b(\d+)\s*PACK\b',       # 3 PACK
+            r'PACK\s*OF\s*(\d+)',      # PACK OF 3
         ]
         for pat in patterns:
             m = re.search(pat, title, re.IGNORECASE)
@@ -231,14 +239,14 @@ class LcdhBrusselsScraper(BaseScraper):
                 if 1 <= size <= 100:
                     return size
 
-        # 从 variant title 提取（如 "PERLAS / 102 / 40" — 这个不是盒装数）
-        # variant title 通常是 vitola / length / ring_gauge
-
-        # 常见盒装数
+        # 从 tags 提取可靠盒装信息
         for tag in tags:
-            tag_lower = tag.lower().strip()
-            if tag_lower in ('box of 10', 'box of 25', 'box of 50'):
-                return None  # tag 不可靠
+            tag_lower = tag.strip().lower()
+            m = re.search(r'(\d+)\s*(box|cabinet|pack)', tag_lower)
+            if m:
+                size = int(m.group(1))
+                if 1 <= size <= 100:
+                    return size
 
         return None
 

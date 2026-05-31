@@ -13,10 +13,10 @@ ENV/
 *.db
 *.sqlite3
 db.sqlite3
+*.db-shm
+*.db-wal
 staticfiles/
-media/*
-!media/cigars/
-!media/brand_logos/
+media/
 
 # 前端构建产物
 static/price-tracker/assets/

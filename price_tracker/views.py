@@ -270,7 +270,6 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                         pass
 
                 rt = snap.cigar.release_type_cn or ''
-                vitola = snap.cigar.vitola or ''
                 cigars_map[cid] = {
                     'cigar_id': cid,
                     'cigar_name': snap.cigar.name or snap.cigar.english_name or '',
@@ -279,7 +278,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                     'cigar_brand_cn': brand_cn,
                     'cigar_image_url': img_url,
                     'release_type_cn': rt,
-                    'vitola': vitola,
+                    'production_method': snap.cigar.production_method or '',
                     'sources': [],
                     'in_stock': False,
                     'avg_per_stick_cny': None,
@@ -313,7 +312,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                 entry['in_stock'] = True
 
         # 3. 计算平均单支价 + 排序
-        # 排序规则：品牌 → 常规款(非Mini/Club) > 特殊款 > 小雪茄(Mini/Club) > 停产
+        # 排序规则：品牌 → 常规款 > 非常规款（机制小雪茄/特别款）
         BRANDS_ORDER = [
             '高希霸', '蒙特', '罗密欧与朱丽叶', '帕特加斯',
             '好友', '乌普曼',
@@ -326,20 +325,14 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                     per_stick.append(s['price_cny'] / s['box_size'])
             if per_stick:
                 entry['avg_per_stick_cny'] = round(sum(per_stick) / len(per_stick), 0)
-
         def _sort_key(entry):
             brand_order = BRANDS_ORDER.index(entry['cigar_brand_cn']) if entry['cigar_brand_cn'] in BRANDS_ORDER else 999
-            # 小雪茄判断：vitola 为 Mini/Club/Short/Purito 等小雪茄品型
-            vitola = (entry.get('vitola') or '').lower()
-            is_mini = vitola in ('mini', 'club', 'short', 'purito')
-            # 排序优先级：常规(0) > 特殊(1) > 小雪茄(2)
-            # 注意：特殊款优先于小雪茄（如 Short Bolivar 是地区限量，不是小雪茄）
-            if entry.get('release_type_cn'):
-                category = 1
-            elif is_mini:
-                category = 2
-            else:
-                category = 0
+            # 非常规款判断：机制雪茄 或 有特别款类型
+            prod_method = (entry.get('production_method') or '').lower()
+            is_machine_made = 'machine' in prod_method
+            has_special = bool(entry.get('release_type_cn'))
+            is_non_regular = is_machine_made or has_special
+            category = 1 if is_non_regular else 0
             return (brand_order, entry['cigar_brand_cn'] or '', category, entry['cigar_name'] or '')
 
         result.sort(key=_sort_key)

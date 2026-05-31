@@ -124,6 +124,11 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
         <div className="flex items-center gap-1.5 text-[0.7rem] text-muted">
           <span className="font-semibold text-accent">{new Set(cigar.sources.filter(s => s.in_stock).map(s => s.source_slug)).size}</span>
           <span>个网站有售</span>
+          {cigar.sources.some(s => s.original_price) && (
+            <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold text-[0.6rem] border border-amber-300">
+              折
+            </span>
+          )}
         </div>
       </div>
     </motion.div>

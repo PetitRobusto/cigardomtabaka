@@ -33,6 +33,7 @@ export interface PriceSnapshot {
 export interface HistoryPoint {
   date: string;
   price: number;
+  original_price: number | null;
   price_cny: number | null;
   in_stock: boolean;
 }
@@ -96,6 +97,7 @@ export interface CigarListItem {
     source_short_name?: string;
     source_slug: string;
     price: number;
+    original_price: number | null;
     price_cny: number | null;
     currency: string;
     box_size: number | null;
@@ -111,6 +113,7 @@ export interface AggregatedSourceEntry {
   source_name: string;
   source_slug: string;
   price: number | null;
+  original_price: number | null;
   currency: string;
   price_cny: number | null;
   box_size: number | null;

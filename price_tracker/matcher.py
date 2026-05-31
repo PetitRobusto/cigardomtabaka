@@ -615,32 +615,25 @@ SUFFIX_PATTERNS = [
 ]
 
 
-def _strip_known_suffixes(name: str) -> tuple:
+def _extract_hints(name: str) -> list[str]:
     """
-    识别并剥离已知关键词后缀。
+    识别品名中的类型提示词（EL/RE/LE/Anejados/LCDH 等），
+    返回匹配到的 release_type 列表（用于后续加权打分）。
 
-    返回: (剥离后的名称, 匹配到的 release_type 列表)
+    与旧版 _strip_known_suffixes 的区别：
+    - 不剥离，只识别
+    - RapidFuzz 天然处理后缀噪声，不需要手动剥离
 
     例:
-        '520 EL 12' → ('520', ['Limited Edition Series'])
-        '88 Asia Pacifico RE 16' → ('88', ['Regional Edition Series'])
+        '520 EL 12' → ['Limited Edition Series']
+        '88 Asia Pacifico RE 16' → ['Regional Edition Series']
     """
-    stripped = name
     release_types = []
-
-    # 按优先级排序（高优先级的先识别）
     sorted_patterns = sorted(SUFFIX_PATTERNS, key=lambda x: -x[2])
-
     for pattern, rel_type, _priority in sorted_patterns:
-        m = re.search(pattern, stripped, re.IGNORECASE)
-        if m:
-            if rel_type:
-                release_types.append(rel_type)
-            # 剥离匹配到的部分
-            stripped = stripped[:m.start()] + ' ' + stripped[m.end():]
-            stripped = re.sub(r'\s+', ' ', stripped).strip()
-
-    return stripped, list(set(release_types))
+        if rel_type and re.search(pattern, name, re.IGNORECASE):
+            release_types.append(rel_type)
+    return list(set(release_types))
 
 
 def _token_fuzzy_match(stripped: str, qs, brand_filter) -> Optional:
@@ -688,132 +681,145 @@ def match_cigar(
     """
     主入口：将爬虫抓到的品名匹配到 Cigar 模型。
 
-    参数:
-      scraped_name:  爬虫抓到的原始品名（如 "Romeo y Julieta Churchills"）
-      brand_hint:    已知品牌名（如 "Romeo y Julieta"），可缩小搜索范围
-      source_name:   爬虫来源名（仅用于日志）
-      prefer_current: 优先匹配 Current 生产款（True）还是全量匹配
+    新架构（信息分层）：
+      1. 预处理：提取品牌 + 类型提示 + 归一化
+      2. 精确匹配（fast path）
+      3. RapidFuzz 主力模糊匹配
+      4. Hint 加权打分 → 选最优
+      5. 兜底：单词级 + 中文名
 
-    返回:
-      Cigar 实例 或 None
+    参数:
+      scraped_name:  爬虫抓到的原始品名
+      brand_hint:    已知品牌名
+      source_name:   爬虫来源名（日志用）
+      prefer_current: 优先匹配 Current 生产款
     """
     from cigars.models import Cigar
 
     name = scraped_name.strip()
     norm_full = normalize(name)
 
-    # 自动提取品牌提示词（防止跨品牌误匹配，如 "Cuaba Salomones" 直接调 match_cigar 时）
+    # ── 信息提取 ──
     if brand_hint is None:
         brand_hint = extract_brand_hint(name)
 
-    # 提取品牌核心词（用于 DB 过滤）
     hint_core = ''
     if brand_hint:
         hint_words = brand_hint.strip().split(None, 1)
         hint_core = hint_words[0].rstrip(',.;')
 
-    # 构建候选集（不做 DB 品牌过滤，在 Python 中归一化后比对）
-    qs = Cigar.objects.all()
+    # 提取类型提示（EL/RE/LE/Anejados/LCDH 等 → 对应 release_type）
+    release_hints = _extract_hints(name)
 
-    # ── 脆弱名单词检测 ──
-    # 当 brand_hint 为空且剥离品牌后只剩1个短词（如 "Salomones"），
-    # icontains 会跨品牌误匹配（Partagás/Cuaba/Montecristo 都有 Salomones）。
-    # → 跳过 icontains，仅保留精确匹配 + 单词级匹配作为防线。
+    # 剥离品牌前缀
     stripped_norm = normalize(strip_brand(name))
+
+    # 脆弱名单词检测
     fragile = (
-        brand_hint is None 
-        and len(stripped_norm) <= 15 
+        brand_hint is None
+        and len(stripped_norm) <= 15
         and len([w for w in stripped_norm.split() if w not in STOP_WORDS]) == 1
     )
 
-    # Python 端品牌过滤（SQLite icontains 无法处理重音差异）
-    # 必须用 _basic_normalize（去空格+去标点），因为 normalize 保留空格
-    # 会导致 "H.Upmann"→"hupmann" vs "H. Upmann"→"h upmann" 不匹配！
-    # 用品牌全名比较，不用 hint_core。因为 "H. Upmann" 的 hint_core="H"
-    # 会匹配到 "Punch"（"h" in "punch"），造成跨品牌误匹配！
+    # 品牌过滤
     def _brand_match(cigar) -> bool:
         if not brand_hint:
             return True
         brand_norm = _basic_normalize(brand_hint)
         cigar_brand_norm = _basic_normalize(str(cigar.brand))
-        # brand_hint 包含在 cigar.brand 中，或 cigar.brand 包含在 brand_hint 中
         return brand_norm in cigar_brand_norm or cigar_brand_norm in brand_norm
 
-    # ── 辅助：精确匹配扫描（策略 1） ──
+    # 状态优先级
+    STATUS_RANK = {'Current': 3, 'Special Releases': 2, 'Discontinued': 1}
+
+    # ── 策略 1: 精确匹配（fast path） ──
     def _exact_scan(candidates, tag=''):
         best = None
-        best_status = 0
-        status_rank = {'Current': 3, 'Special Releases': 2, 'Discontinued': 1}
+        best_rank = 0
         for cigar in candidates:
             if not cigar.english_name or not _brand_match(cigar):
                 continue
-            match = False
-            if normalize(cigar.english_name) == norm_full:
-                match = True
-            elif normalize(cigar.english_name) == normalize(strip_brand(name)):
-                match = True
-            elif normalize_plural(cigar.english_name) == normalize_plural(name):
-                match = True
-            elif normalize_plural(cigar.english_name) == normalize_plural(strip_brand(name)):
-                match = True
-            if match:
-                rank = status_rank.get(getattr(cigar, 'status', ''), 0)
-                if rank > best_status:
+            if (normalize(cigar.english_name) == norm_full
+                or normalize(cigar.english_name) == stripped_norm
+                or normalize_plural(cigar.english_name) == normalize_plural(name)
+                or normalize_plural(cigar.english_name) == normalize_plural(strip_brand(name))):
+                rank = STATUS_RANK.get(getattr(cigar, 'status', ''), 0)
+                if rank > best_rank:
                     best = cigar
-                    best_status = rank
+                    best_rank = rank
         if best:
-            logger.debug(f'[exact-norm{tag}] {name} → {best.english_name} ({best.status})')
-            return best
-        return None
+            logger.debug(f'[exact{tag}] {name} → {best.english_name} ({best.status})')
+        return best
+
+    qs = Cigar.objects.all()
 
     if prefer_current:
         current_qs = qs.filter(status='Current')
-
-        # 策略 1：精确匹配
         match = _exact_scan(current_qs.only('id','english_name','brand','status','name'))
         if match:
             return match
 
-        # 策略 2：icontains 评分匹配（收集全部候选→选最优）
-        # 脆弱名单词（无品牌+单裸词）跳过 icontains，防止跨品牌误匹配
-        if not fragile:
-            match = _collect_icontains_candidates(
-                name, current_qs.only('id','english_name','brand','status','name'),
-                _brand_match, source_tag='current'
-            )
-            if match:
-                # 🔑 关键改进：如果 Current 通道匹配的是子串（非精确匹配），
-                # 继续到全量通道，让 Special Releases 有机会找到更精确的匹配
-                # 例如 "Petit Unicos" 是 Special Releases，不应该被 "Unicos"(Current) 抢占
-                matched_norm = normalize(match.english_name)
-                stripped_norm = normalize(strip_brand(name))
-                if matched_norm == stripped_norm or matched_norm == normalize(name):
-                    # 精确匹配，直接返回
-                    return match
-                # 否则继续到全量匹配
-
-    # ── 全量匹配（所有状态） ──
-    # 策略 1：精确
     match = _exact_scan(qs.only('id','english_name','brand','status','name'), tag='-all')
     if match:
         return match
 
-    # 策略 2：icontains 评分匹配
-    if not fragile:
-        match = _collect_icontains_candidates(
-            name, qs.only('id','english_name','brand','status','name'),
-            _brand_match, source_tag='all'
-        )
-        if match:
-            return match
+    # ── 策略 2: RapidFuzz 主力模糊匹配 ──
+    if HAS_RAPIDFUZZ and stripped_norm and not fragile:
+        candidates = []
+        for cigar in qs.only('id','english_name','brand','status','name','release_type'):
+            if not cigar.english_name or not _brand_match(cigar):
+                continue
+            db_norm = normalize(cigar.english_name)
+            db_base = normalize(strip_brand(cigar.english_name))
+            # 双向取最高分
+            rpf_score = max(
+                fuzz.token_set_ratio(stripped_norm, db_base),
+                fuzz.token_set_ratio(stripped_norm, db_norm),
+            )
+            if rpf_score < 80:
+                continue
 
-    # 策略 3：单词级
+            score = rpf_score
+
+            # Hint 加权：类型提示匹配
+            if release_hints and cigar.release_type:
+                for hint_type in release_hints:
+                    if hint_type.lower() in (cigar.release_type or '').lower():
+                        score += 15
+                        break
+
+            # 精确包含加分（icontains）
+            if db_norm in stripped_norm or stripped_norm in db_norm:
+                score += 5
+
+            # 长度惩罚（保留）
+            ratio = max(len(stripped_norm), len(db_norm)) / max(min(len(stripped_norm), len(db_norm)), 1)
+            if ratio > 2.5:
+                score -= int(5 * (ratio - 2.5))
+            if len(stripped_norm) < 10:
+                score += 5
+
+            # 状态加权
+            status_bonus = {'Current': 5, 'Special Releases': 3, 'Discontinued': 0}
+            score += status_bonus.get(getattr(cigar, 'status', ''), 0)
+
+            if score >= 80:
+                candidates.append((cigar, score))
+
+        if candidates:
+            candidates.sort(key=lambda x: -x[1])
+            best, best_score = candidates[0]
+            logger.debug(f'[rpf-main] {stripped_norm[:30]} → {best.english_name} '
+                         f'(score={best_score}, hints={release_hints})')
+            return best
+
+    # ── 策略 3: 单词级匹配（兜底） ──
     match = _match_word_level(strip_brand(name), qs, brand_hint)
     if match:
-        logger.debug(f'[word-match-all] {name} → {match.english_name}')
+        logger.debug(f'[word] {name} → {match.english_name}')
         return match
 
-    # 策略 4：中文名精确匹配
+    # ── 策略 4: 中文名精确匹配 ──
     qs_cn = Cigar.objects.filter(name=name)
     if brand_hint:
         qs_cn = qs_cn.filter(brand__icontains=hint_core)
@@ -822,49 +828,11 @@ def match_cigar(
         logger.debug(f'[cn-exact] {name} → {match.english_name}')
         return match
 
-    # 策略 5：后缀剥离回退匹配
-    # 识别 EL/RE/LE/地区等关键词后缀，剥离后重试 icontains 匹配
-    stripped_sfx, release_types = _strip_known_suffixes(stripped_norm)
-    if stripped_sfx and stripped_sfx != stripped_norm:
-        sfx_qs = Cigar.objects.all()
-        if hint_core:
-            sfx_qs = sfx_qs.filter(brand__icontains=hint_core)
-        
-        sfx_candidates = []
-        for cigar in sfx_qs.only('id','english_name','brand','status','name','release_type'):
-            if not cigar.english_name:
-                continue
-            db_norm = normalize(cigar.english_name)
-            db_base = normalize(strip_brand(cigar.english_name))
-            if db_norm in stripped_sfx or stripped_sfx in db_norm or db_base == stripped_sfx:
-                score = 5000
-                # release_type 匹配加权
-                if release_types and cigar.release_type:
-                    matched_rt = any(
-                        rt.lower() in (cigar.release_type or '').lower()
-                        for rt in release_types
-                    )
-                    if matched_rt:
-                        score += 2000
-                    else:
-                        score -= 1000
-                # 长度惩罚（保留）
-                ratio = max(len(stripped_sfx), len(db_norm)) / max(min(len(stripped_sfx), len(db_norm)), 1)
-                if ratio > 2.5:
-                    score -= int(500 * (ratio - 2.5))
-                if score >= 3500:
-                    sfx_candidates.append((cigar, score))
-        
-        if sfx_candidates:
-            sfx_candidates.sort(key=lambda x: -x[1])
-            best, best_score = sfx_candidates[0]
-            logger.debug(f'[suffix-strip] {name} → {best.english_name} (score={best_score}, types={release_types})')
-            return best
-
-    # 策略 6：RapidFuzz token_set_ratio 模糊匹配
-    match = _token_fuzzy_match(stripped_norm, qs, _brand_match)
-    if match:
-        return match
+    # ── 策略 5: RapidFuzz 兜底（更低阈值，无品牌过滤） ──
+    if HAS_RAPIDFUZZ and stripped_norm and brand_hint is not None:
+        match = _token_fuzzy_match(stripped_norm, qs, _brand_match)
+        if match:
+            return match
 
     logger.warning(f'[no-match] {name} ({source_name})')
     return None

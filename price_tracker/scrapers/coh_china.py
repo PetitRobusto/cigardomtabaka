@@ -162,6 +162,7 @@ def _parse_structured(soup, brand_name: str) -> list[ScrapedItem]:
             items.append(ScrapedItem(
                 name=full_name,
                 price=price,
+                original_price=None,
                 box_size=box_size,
                 box_price=price,
                 url=f'{BASE_URL}/cigars-{BRAND_SLUGS.get(brand_name, brand_name.lower().replace(" ", "-"))}',
@@ -248,6 +249,7 @@ def _parse_text_lines(lines: list[str], brand_name: str) -> list[ScrapedItem]:
                 items.append(ScrapedItem(
                     name=full_name,
                     price=price,
+                    original_price=None,
                     box_size=box_size,
                     box_price=price,
                     url=f'{BASE_URL}/cigars-{BRAND_SLUGS.get(brand_name, brand_name.lower().replace(" ", "-"))}',

@@ -557,6 +557,72 @@ def _collect_icontains_candidates(
     return None
 
 
+# ═══════════════════════════════════════════════════════════
+#  关键词后缀识别表 — 识别 EL/RE/LE/地区等后缀
+# ═══════════════════════════════════════════════════════════
+
+# (正则模式, 对应的DB release_type, 优先级)
+# release_type=None 表示纯装饰后缀（包装标记）
+SUFFIX_PATTERNS = [
+    # 年限/限量 (EL/LE + 年份)
+    (r'\bEL\s*\d{2,4}\b', 'Limited Edition Series', 10),
+    (r'\bLE\s*\d{2,4}\b', 'Limited Edition Series', 10),
+    (r'\bEdición\s+Limitada\b', 'Limited Edition Series', 10),
+    (r'\bLimited\s+Edition\b', 'Limited Edition Series', 10),
+    # 地限 (RE + 年份/地区关键词)
+    (r'\bRE\s*\d{2,4}\b', 'Regional Edition Series', 10),
+    (r'\bEdición\s+Regional\b', 'Regional Edition Series', 10),
+    (r'\bRegional\s+Edition\b', 'Regional Edition Series', 10),
+    # 地区关键词（地限后缀）
+    (r'\bAsia\s+Pacifico?\b', 'Regional Edition Series', 5),
+    (r'\bAsia\s+Pacific\b', 'Regional Edition Series', 5),
+    (r'\bGran\s+Bretaña\b', 'Regional Edition Series', 5),
+    (r'\bGreat\s+Britain\b', 'Regional Edition Series', 5),
+    (r'\bEmiratos\s+Árabes\b', 'Regional Edition Series', 5),
+    # LCDH
+    (r'\bLCDH\b', 'La Casa del Habano Exclusivo', 8),
+    (r'\bLa\s+Casa\s+del\s+Habano\b', 'La Casa del Habano Exclusivo', 8),
+    # Colección Habanos
+    (r'\bColección\s+Habanos?\b', 'Colección Habanos', 8),
+    # 陈年
+    (r'\bAnejados?\b', 'Anejados', 6),
+    # 包装标记（纯装饰, release_type=None）
+    (r'\bEstuche\b', None, 1),
+    (r'\bTravel\s+Humidor\b', None, 1),
+    (r'\bGift\s+Box\b', None, 1),
+    (r'\bJar\b', None, 1),
+    (r'\bCaja\b', None, 1),
+]
+
+
+def _strip_known_suffixes(name: str) -> tuple:
+    """
+    识别并剥离已知关键词后缀。
+
+    返回: (剥离后的名称, 匹配到的 release_type 列表)
+
+    例:
+        '520 EL 12' → ('520', ['Limited Edition Series'])
+        '88 Asia Pacifico RE 16' → ('88', ['Regional Edition Series'])
+    """
+    stripped = name
+    release_types = []
+
+    # 按优先级排序（高优先级的先识别）
+    sorted_patterns = sorted(SUFFIX_PATTERNS, key=lambda x: -x[2])
+
+    for pattern, rel_type, _priority in sorted_patterns:
+        m = re.search(pattern, stripped, re.IGNORECASE)
+        if m:
+            if rel_type:
+                release_types.append(rel_type)
+            # 剥离匹配到的部分
+            stripped = stripped[:m.start()] + ' ' + stripped[m.end():]
+            stripped = re.sub(r'\s+', ' ', stripped).strip()
+
+    return stripped, list(set(release_types))
+
+
 def match_cigar(
     scraped_name: str,
     brand_hint: Optional[str] = None,

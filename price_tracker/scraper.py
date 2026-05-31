@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 class ScrapedItem:
     """爬取的原始价格条目"""
     name: str                          # 品名（英文）
-    price: Optional[float] = None       # 售价（售罄时为None）
+    price: Optional[float] = None       # 实际成交价（折后价/售价）
+    original_price: Optional[float] = None  # 原价（划线价，无折扣则为None）
     box_size: Optional[int] = None     # 盒装支数
     box_price: Optional[float] = None  # 整盒价
     url: str = ''                      # 商品页链接
@@ -209,6 +210,7 @@ def run_scrape_sync(source_slug: str) -> dict:
                 source=source,
                 cigar=cigar,
                 price=item.price,
+                original_price=item.original_price,
                 currency=item_currency,
                 price_cny=price_cny,
                 box_size=box_size,

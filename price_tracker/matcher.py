@@ -96,6 +96,7 @@ NAME_FIXES = {
     'conosseur': 'connossieur',
     'cetros': 'cedros',                 # COH 拼错: Cetros → Cedros (雪松)
     'supreme': 'supremos',              # COH: Robustos Supreme → Robustos Supremos (2014 EL)
+    'omiros': 'omhpos',                 # 现代希腊语拼写 vs 古典希腊语转写: Omiros→ΟΜΗΡΟΣ→OMHPOS
 }
 
 # ── 复数/单数修正（归一化后） ──────────────────────────────
@@ -114,6 +115,9 @@ PLURAL_SINGULAR = {
     'petit churchills': 'petit churchills',
     'petit robusto': 'petit robustos',
     'petit robustos': 'petit robustos',
+    # VIP Cigars: 单复数差异（Sport → Sports, Largos→Largo 等）
+    'sport': 'sports',
+    'sports': 'sports',
 }
 # 也就是：如果两个归一化后的名字只差一个末尾's'，忽略差异
 
@@ -268,9 +272,20 @@ def _strip_brand_with_hint(name: str):
                     break
                 else:
                     return original_name, brand_original
+            elif name_norm == brand_norm:
+                return original_name, brand_original
         
         if not found:
             break
+    
+    # 回退保护：如果多次剥离后只剩包装关键词（SLB/Tubos/Cabinet等），返回原名
+    if len(name.strip()) <= 10:
+        # 检查是否为纯包装关键词
+        packaging_keywords = {'slb', 'tubos', 'tube', 'cabinet', 'box', 'pack', 'tin',
+                              'bundle', 'jar', 'travel', 'humidor', 'gift'}
+        remaining_words = set(name.strip().lower().split())
+        if remaining_words.issubset(packaging_keywords):
+            return original_name, hint
     
     return name, hint
 

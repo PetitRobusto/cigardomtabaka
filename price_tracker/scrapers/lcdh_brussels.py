@@ -178,8 +178,8 @@ class LcdhBrusselsScraper(BaseScraper):
             logger.debug(f'Skip {title}: no box size found')
             return None
 
-        # 构建产品名（品牌 + 核心品名）
-        name = self._build_name(title, brand)
+        # 使用原始标题作为品名（matcher 会处理品牌前缀和备款剥离）
+        name = title
 
         # URL
         handle = prod.get('handle', '')

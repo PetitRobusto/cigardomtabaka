@@ -611,6 +611,11 @@ SUFFIX_PATTERNS = [
     (r'\bColección\s+Habanos?\b', 'Colección Habanos', 8),
     # 陈年
     (r'\bAnejados?\b', 'Anejados', 6),
+    # GR / Gran Reserva / Reserva Cosecha / Grand Reserve
+    (r'\bGran\s+Reserva\b', 'Grand Reserve Series', 10),
+    (r'\bGrand\s+Reserve\b', 'Grand Reserve Series', 10),
+    (r'\bReserva\s+Cosecha\b', 'Grand Reserve Series', 10),
+    (r'\bReserva\b', 'Reserve Series', 8),
     # 包装标记（纯装饰, release_type=None）
     (r'\bEstuche\b', None, 1),
     (r'\bTravel\s+Humidor\b', None, 1),

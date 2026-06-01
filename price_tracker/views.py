@@ -1,8 +1,6 @@
 """价格跟踪系统 — DRF Views"""
 from django.db.models import OuterRef, Subquery, Max
 from django.utils import timezone
-from django.shortcuts import render
-from django.contrib.auth.decorators import login_required
 from datetime import timedelta
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
@@ -18,14 +16,6 @@ from .serializers import (
 )
 
 from django.db.models import Max, OuterRef, Subquery
-
-
-# --- Template View ---
-
-@login_required
-def price_dashboard(request, path=None):
-    """价格仪表盘页面（React SPA 挂载）"""
-    return render(request, 'price_tracker/dashboard.html')
 
 
 # --- DRF ViewSets ---

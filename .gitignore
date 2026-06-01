@@ -29,6 +29,7 @@ node_modules/
 # IDE / 工具 / 备份
 .vscode/
 .idea/
+.superpowers/
 *.swp
 *.swo
 *~

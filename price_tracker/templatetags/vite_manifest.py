@@ -24,7 +24,7 @@ def _load_manifest():
     global MANIFEST_CACHE, MANIFEST_MTIME
 
     manifest_path = os.path.join(
-        settings.BASE_DIR, 'static', 'price-tracker', '.vite', 'manifest.json'
+        settings.BASE_DIR, 'static', 'frontend', '.vite', 'manifest.json'
     )
     try:
         mtime = os.path.getmtime(manifest_path)
@@ -53,9 +53,9 @@ def vite_asset(entry: str):
 
     out = ''
     if js_file:
-        out += f'<script type="module" crossorigin src="{static("price-tracker/" + js_file)}"></script>'
+        out += f'<script type="module" crossorigin src="{static("frontend/" + js_file)}"></script>'
     for css_file in css_files:
-        out += f'\n<link rel="stylesheet" crossorigin href="{static("price-tracker/" + css_file)}">'
+        out += f'\n<link rel="stylesheet" crossorigin href="{static("frontend/" + css_file)}">'
     return mark_safe(out)
 
 
@@ -70,5 +70,5 @@ def vite_css(entry: str):
     chunk = manifest.get(entry, {})
     css_files = chunk.get('css', [])
     if css_files:
-        return static(f'price-tracker/{css_files[0]}')
+        return static(f'frontend/{css_files[0]}')
     return ''

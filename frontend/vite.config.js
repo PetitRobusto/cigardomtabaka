@@ -1,12 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Build output → Django static/price-tracker/
+// Build output → Django static/frontend/
 export default defineConfig({
   plugins: [react()],
-  base: '/static/price-tracker/',
+  base: '/static/frontend/',
   build: {
-    outDir: '../static/price-tracker',
+    outDir: '../static/frontend',
     emptyOutDir: true,
     manifest: true,
     rollupOptions: {
@@ -20,6 +20,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': 'http://127.0.0.1:8000',
+      '/media': 'http://127.0.0.1:8000',
     },
   },
 })

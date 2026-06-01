@@ -1,0 +1,116 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]: MC
+      - generic [ref=e5]: CigarDomTabaka
+      - generic [ref=e6]: · Bolívar
+    - link "登录" [ref=e8] [cursor=pointer]:
+      - /url: /login/
+  - main [ref=e9]:
+    - generic [ref=e10]:
+      - link "所有品牌" [ref=e11] [cursor=pointer]:
+        - /url: /
+      - text: /
+      - link "玻利瓦" [ref=e12] [cursor=pointer]:
+        - /url: /brand/bolivar/
+      - text: / BBF
+    - main [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15] [cursor=pointer]:
+          - generic [ref=e16]: 古巴
+          - img "BBF" [ref=e17]
+        - generic [ref=e18]:
+          - heading "BBF" [level=1] [ref=e19]
+          - generic [ref=e20]: Belicosos Finos
+          - generic [ref=e21]:
+            - generic [ref=e22]: 古巴
+            - generic [ref=e23]: 常规生产
+          - generic [ref=e24]:
+            - generic [ref=e25]:
+              - generic [ref=e26]: 尺寸
+              - generic [ref=e27]: 140mm × ⌀52
+            - generic [ref=e28]:
+              - generic [ref=e29]: 型号
+              - generic [ref=e30]: 钟铃
+              - generic [ref=e31]: Campanas
+            - generic [ref=e32]:
+              - generic [ref=e33]: 规格
+              - generic [ref=e34]: BBF
+              - generic [ref=e35]: Pyramid
+      - generic [ref=e36]:
+        - generic [ref=e38]: 规格详情
+        - generic [ref=e39]:
+          - generic [ref=e40]:
+            - generic [ref=e41]: 长度
+            - generic [ref=e42]: 140 mm
+          - generic [ref=e43]:
+            - generic [ref=e44]: 环径
+            - generic [ref=e45]: ⌀ 52
+          - generic [ref=e46]:
+            - generic [ref=e47]: 常见名称
+            - generic [ref=e48]: BBF
+            - generic [ref=e49]: Pyramid
+          - generic [ref=e50]:
+            - generic [ref=e51]: 工厂型号
+            - generic [ref=e52]: 钟铃
+            - generic [ref=e53]: Campanas
+      - generic [ref=e54]:
+        - generic [ref=e56]: 包装规格
+        - list [ref=e58]:
+          - listitem [ref=e59]: 木盒，25 支
+          - listitem [ref=e60]: 滑盖木盒，25 支
+      - generic [ref=e61]:
+        - generic [ref=e63]: 图片 (1 张)
+        - generic [ref=e64]:
+          - heading "产品图 (1)" [level=3] [ref=e65]
+          - generic [ref=e67] [cursor=pointer]:
+            - generic [ref=e68]: 主图
+            - generic [ref=e69]:
+              - img "Belicosos Finos"
+            - generic [ref=e71]: 产品图
+      - separator [ref=e72]
+      - generic [ref=e73]:
+        - generic [ref=e75]: 同品牌更多雪茄
+        - generic [ref=e76]:
+          - link "皇家公爵 未知" [ref=e77] [cursor=pointer]:
+            - /url: /cigar/35/
+            - generic [ref=e79]:
+              - generic [ref=e80]: 皇家公爵
+              - generic [ref=e81]: 未知
+          - link "帕尔马蒂斯 未知" [ref=e82] [cursor=pointer]:
+            - /url: /cigar/33/
+            - generic [ref=e84]:
+              - generic [ref=e85]: 帕尔马蒂斯
+              - generic [ref=e86]: 未知
+          - link "小子 奇科" [ref=e87] [cursor=pointer]:
+            - /url: /cigar/16/
+            - generic [ref=e89]:
+              - generic [ref=e90]: 小子
+              - generic [ref=e91]: 奇科
+          - link "查尔斯王子 罗布图" [ref=e92] [cursor=pointer]:
+            - /url: /cigar/26/
+            - generic [ref=e94]:
+              - generic [ref=e95]: 查尔斯王子
+              - generic [ref=e96]: 罗布图
+          - link "特级 2 号 德国地区限量版" [ref=e97] [cursor=pointer]:
+            - /url: /cigar/57/
+            - generic [ref=e99]:
+              - generic [ref=e100]: 特级 2 号
+              - generic [ref=e101]: 德国地区限量版
+          - link "比布鲁斯 黎巴嫩地区限量版" [ref=e102] [cursor=pointer]:
+            - /url: /cigar/77/
+            - generic [ref=e104]:
+              - generic [ref=e105]: 比布鲁斯
+              - generic [ref=e106]: 黎巴嫩地区限量版
+          - link "希腊语 希腊及塞浦路斯地区限量版" [ref=e107] [cursor=pointer]:
+            - /url: /cigar/59/
+            - generic [ref=e109]:
+              - generic [ref=e110]: 希腊语
+              - generic [ref=e111]: 希腊及塞浦路斯地区限量版
+          - link "总统 瑞士地区限量版" [ref=e112] [cursor=pointer]:
+            - /url: /cigar/71/
+            - generic [ref=e114]:
+              - generic [ref=e115]: 总统
+              - generic [ref=e116]: 瑞士地区限量版
+    - generic:
+      - button "✕"

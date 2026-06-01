@@ -1,0 +1,135 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]: MC
+      - generic [ref=e5]: CigarDomTabaka
+      - generic [ref=e6]: · Bolívar
+    - navigation [ref=e7]:
+      - link "品牌" [ref=e8] [cursor=pointer]:
+        - /url: /
+        - img [ref=e9]
+        - text: 品牌
+    - link "登录" [ref=e12] [cursor=pointer]:
+      - /url: /login/
+  - main [ref=e13]:
+    - generic [ref=e14]:
+      - link "所有品牌" [ref=e15] [cursor=pointer]:
+        - /url: /
+      - text: /
+      - link "玻利瓦" [ref=e16] [cursor=pointer]:
+        - /url: /brand/bolivar/
+      - text: / BBF
+    - main [ref=e17]:
+      - generic [ref=e18]:
+        - heading "BBF" [level=1] [ref=e19]
+        - generic [ref=e20]: Belicosos Finos
+        - generic [ref=e21]:
+          - generic [ref=e22]: 古巴
+          - generic [ref=e23]: 常规生产
+      - img "BBF" [ref=e26]
+      - generic [ref=e27]:
+        - generic [ref=e28]:
+          - generic [ref=e29]: 品牌
+          - link "玻利瓦" [ref=e31] [cursor=pointer]:
+            - /url: /brand/bolivar/
+        - generic [ref=e33]:
+          - generic [ref=e34]: 产地
+          - generic [ref=e35]: 古巴
+        - generic [ref=e37]:
+          - generic [ref=e38]: 长度
+          - generic [ref=e39]: 140 mm
+        - generic [ref=e41]:
+          - generic [ref=e42]: 环径
+          - generic [ref=e43]: "52"
+      - generic [ref=e44]:
+        - generic [ref=e45]:
+          - generic [ref=e46]:
+            - generic [ref=e47]: 规格详情
+            - generic [ref=e48]:
+              - generic [ref=e49]:
+                - generic [ref=e50]: 长度
+                - generic [ref=e51]: 140 mm
+              - generic [ref=e52]:
+                - generic [ref=e53]: 环径
+                - generic [ref=e54]: "52"
+              - generic [ref=e55]:
+                - generic [ref=e56]: 常见名称
+                - generic [ref=e57]: BBF
+                - generic [ref=e58]: Pyramid
+              - generic [ref=e59]:
+                - generic [ref=e60]: 工厂型号
+                - generic [ref=e61]: 钟铃
+                - generic [ref=e62]: Campanas
+          - generic [ref=e63]:
+            - generic [ref=e64]: 包装规格
+            - list [ref=e66]:
+              - listitem [ref=e67]: 木盒，25 支
+              - listitem [ref=e68]: 滑盖木盒，25 支
+          - generic [ref=e69]:
+            - generic [ref=e70]: 图片 (1 张)
+            - generic [ref=e71]:
+              - heading "产品图 (1)" [level=3] [ref=e72]
+              - generic [ref=e74] [cursor=pointer]:
+                - generic [ref=e75]: 主图
+                - img "Belicosos Finos" [ref=e77]
+                - generic [ref=e78]: 产品图
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - generic [ref=e81]: 关于品牌
+            - generic [ref=e82]:
+              - link "玻利瓦 玻利瓦 Bolívar" [ref=e83] [cursor=pointer]:
+                - /url: /brand/bolivar/
+                - img "玻利瓦" [ref=e85]
+                - generic [ref=e86]:
+                  - generic [ref=e87]: 玻利瓦
+                  - generic [ref=e88]: Bolívar
+              - paragraph [ref=e89]: 玻利瓦是古巴雪茄品牌。
+              - link "查看全部雪茄" [ref=e90] [cursor=pointer]:
+                - /url: /brand/bolivar/
+          - generic [ref=e91]:
+            - generic [ref=e92]: 同品牌更多雪茄
+            - generic [ref=e93]:
+              - link "解放者 法国地区限量版" [ref=e94] [cursor=pointer]:
+                - /url: /cigar/48/
+                - generic [ref=e96]:
+                  - generic [ref=e97]: 解放者
+                  - generic [ref=e98]: 法国地区限量版
+              - link "比布鲁斯 黎巴嫩地区限量版" [ref=e99] [cursor=pointer]:
+                - /url: /cigar/77/
+                - generic [ref=e101]:
+                  - generic [ref=e102]: 比布鲁斯
+                  - generic [ref=e103]: 黎巴嫩地区限量版
+              - link "宝藏 第五大道地区限量版" [ref=e104] [cursor=pointer]:
+                - /url: /cigar/76/
+                - generic [ref=e106]:
+                  - generic [ref=e107]: 宝藏
+                  - generic [ref=e108]: 第五大道地区限量版
+              - link "查尔斯王子 罗布图" [ref=e109] [cursor=pointer]:
+                - /url: /cigar/26/
+                - generic [ref=e111]:
+                  - generic [ref=e112]: 查尔斯王子
+                  - generic [ref=e113]: 罗布图
+              - link "金奖 塞万提斯" [ref=e114] [cursor=pointer]:
+                - /url: /cigar/12/
+                - generic [ref=e116]:
+                  - generic [ref=e117]: 金奖
+                  - generic [ref=e118]: 塞万提斯
+              - link "奥伦达 巴尔干地区限量版" [ref=e119] [cursor=pointer]:
+                - /url: /cigar/87/
+                - generic [ref=e121]:
+                  - generic [ref=e122]: 奥伦达
+                  - generic [ref=e123]: 巴尔干地区限量版
+              - link "寓言 比荷卢地区限量版" [ref=e124] [cursor=pointer]:
+                - /url: /cigar/58/
+                - generic [ref=e126]:
+                  - generic [ref=e127]: 寓言
+                  - generic [ref=e128]: 比荷卢地区限量版
+              - link "皇家冠冕 纪念发行" [ref=e129] [cursor=pointer]:
+                - /url: /cigar/43/
+                - img [ref=e131]
+                - generic [ref=e134]:
+                  - generic [ref=e135]: 皇家冠冕
+                  - generic [ref=e136]: 纪念发行
+    - generic:
+      - button "x"
+  - contentinfo [ref=e137]: CigarDomTabaka · 仅供内部参考

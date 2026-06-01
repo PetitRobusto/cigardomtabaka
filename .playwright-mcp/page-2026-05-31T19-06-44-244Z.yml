@@ -1,0 +1,120 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]: MC
+      - generic [ref=e5]: CigarDomTabaka
+      - generic [ref=e6]: · Bolívar
+    - navigation [ref=e7]:
+      - link "品牌" [ref=e8] [cursor=pointer]:
+        - /url: /
+        - img [ref=e9]
+        - text: 品牌
+    - link "登录" [ref=e12] [cursor=pointer]:
+      - /url: /login/
+  - main [ref=e13]:
+    - generic [ref=e14]:
+      - link "所有品牌" [ref=e15] [cursor=pointer]:
+        - /url: /
+      - text: /
+      - link "玻利瓦" [ref=e16] [cursor=pointer]:
+        - /url: /brand/bolivar/
+      - text: / 铝管精选
+    - main [ref=e17]:
+      - generic [ref=e18]:
+        - heading "铝管精选" [level=1] [ref=e19]
+        - generic [ref=e20]: Tubos Selección
+        - generic [ref=e21]:
+          - generic [ref=e22]: 古巴
+          - generic [ref=e23]: Other Special Release
+          - generic [ref=e24]: 特别发行
+      - img [ref=e27]:
+        - generic [ref=e42]: B
+      - generic [ref=e48]:
+        - generic [ref=e49]:
+          - generic [ref=e50]: 品牌
+          - link "玻利瓦" [ref=e52] [cursor=pointer]:
+            - /url: /brand/bolivar/
+        - generic [ref=e54]:
+          - generic [ref=e55]: 产地
+          - generic [ref=e56]: 古巴
+      - generic [ref=e57]:
+        - generic [ref=e59]:
+          - generic [ref=e60]: 包含款式 (3)
+          - generic [ref=e61]:
+            - link "玻利瓦 铝管 1 号 Bolívar Tubos No.1 其他特别发行 · 皇冠 · 142 × 42" [ref=e62] [cursor=pointer]:
+              - /url: /cigar/39/
+              - generic [ref=e64]:
+                - generic [ref=e65]: 玻利瓦 铝管 1 号
+                - generic [ref=e66]: Bolívar Tubos No.1
+                - generic [ref=e67]: 其他特别发行 · 皇冠 · 142 × 42
+            - link "玻利瓦 铝管 2 号 Bolívar Tubos No.2 其他特别发行 · 马雷瓦 · 129 × 42" [ref=e68] [cursor=pointer]:
+              - /url: /cigar/40/
+              - generic [ref=e70]:
+                - generic [ref=e71]: 玻利瓦 铝管 2 号
+                - generic [ref=e72]: Bolívar Tubos No.2
+                - generic [ref=e73]: 其他特别发行 · 马雷瓦 · 129 × 42
+            - link "玻利瓦 铝管 3 号 Bolívar Tubos No.3 其他特别发行 · 广场 · 125 × 34" [ref=e74] [cursor=pointer]:
+              - /url: /cigar/41/
+              - generic [ref=e76]:
+                - generic [ref=e77]: 玻利瓦 铝管 3 号
+                - generic [ref=e78]: Bolívar Tubos No.3
+                - generic [ref=e79]: 其他特别发行 · 广场 · 125 × 34
+        - generic [ref=e80]:
+          - generic [ref=e81]:
+            - generic [ref=e82]: 关于品牌
+            - generic [ref=e83]:
+              - link "玻利瓦 玻利瓦 Bolívar" [ref=e84] [cursor=pointer]:
+                - /url: /brand/bolivar/
+                - img "玻利瓦" [ref=e86]
+                - generic [ref=e87]:
+                  - generic [ref=e88]: 玻利瓦
+                  - generic [ref=e89]: Bolívar
+              - paragraph [ref=e90]: 玻利瓦是古巴雪茄品牌。
+              - link "查看全部雪茄" [ref=e91] [cursor=pointer]:
+                - /url: /brand/bolivar/
+          - generic [ref=e92]:
+            - generic [ref=e93]: 同品牌更多雪茄
+            - generic [ref=e94]:
+              - link "681 保加利亚地区限量版" [ref=e95] [cursor=pointer]:
+                - /url: /cigar/64/
+                - generic [ref=e97]:
+                  - generic [ref=e98]: "681"
+                  - generic [ref=e99]: 保加利亚地区限量版
+              - link "强大 比卢地区限量版" [ref=e100] [cursor=pointer]:
+                - /url: /cigar/69/
+                - generic [ref=e102]:
+                  - generic [ref=e103]: 强大
+                  - generic [ref=e104]: 比卢地区限量版
+              - link "B-2 加拿大地区限量版" [ref=e105] [cursor=pointer]:
+                - /url: /cigar/61/
+                - generic [ref=e107]:
+                  - generic [ref=e108]: B-2
+                  - generic [ref=e109]: 加拿大地区限量版
+              - link "上流社会 英国地区限量版" [ref=e110] [cursor=pointer]:
+                - /url: /cigar/75/
+                - generic [ref=e112]:
+                  - generic [ref=e113]: 上流社会
+                  - generic [ref=e114]: 英国地区限量版
+              - link "皇冠 皇冠" [ref=e115] [cursor=pointer]:
+                - /url: /cigar/15/
+                - generic [ref=e117]:
+                  - generic [ref=e118]: 皇冠
+                  - generic [ref=e119]: 皇冠
+              - link "玻利瓦 铝管 3 号 其他特别发行" [ref=e120] [cursor=pointer]:
+                - /url: /cigar/41/
+                - generic [ref=e122]:
+                  - generic [ref=e123]: 玻利瓦 铝管 3 号
+                  - generic [ref=e124]: 其他特别发行
+              - link "庞大 德国地区限量版" [ref=e125] [cursor=pointer]:
+                - /url: /cigar/47/
+                - generic [ref=e127]:
+                  - generic [ref=e128]: 庞大
+                  - generic [ref=e129]: 德国地区限量版
+              - link "皇家公爵 未知" [ref=e130] [cursor=pointer]:
+                - /url: /cigar/35/
+                - generic [ref=e132]:
+                  - generic [ref=e133]: 皇家公爵
+                  - generic [ref=e134]: 未知
+    - generic:
+      - button "x"
+  - contentinfo [ref=e135]: CigarDomTabaka · 仅供内部参考

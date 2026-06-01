@@ -64,9 +64,10 @@ for entry in entries:
         target = cigars[0]
         if len(cigars) > 1 and img_type == 'cigar':
             fname = Path(img_data['path']).stem.lower().replace('-', ' ')
+            fname_norm = slugify(fname.replace(' ', '-'))
             for i, sn in enumerate(sub_names):
-                sn_slug = sn.lower().replace(' ', '-')
-                if sn_slug in fname or sn.lower() in fname:
+                sn_norm = slugify(sn)
+                if sn_norm in fname or sn_norm in fname_norm:
                     if i < len(cigars):
                         target = cigars[i]
                     break
@@ -258,6 +259,9 @@ async def main_async():
     print(f"DONE!")
     for k, v in stats.items():
         print(f"  {k}: {v}")
+
+    # Also ensure DB records for files that already existed on disk
+    await asyncio.get_event_loop().run_in_executor(None, ensure_db_records, all_jobs)
 
 
 start_time = time.time()

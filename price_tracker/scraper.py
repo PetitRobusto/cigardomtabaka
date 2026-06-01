@@ -156,8 +156,34 @@ def run_scrape_sync(source_slug: str) -> dict:
     from django.utils import timezone
     scraped_combos = set()
 
+    # --- URL 匹配缓存：已见过的商品不重复匹配 ---
+    # 从历史快照建 {url: cigar_id} 映射，O(1) 查找避免全库 FTS
+    url_cache = {}
+    for snap in PriceSnapshot.objects.filter(source=source, url__gt='').values('url', 'cigar_id').distinct():
+        url_cache[snap['url']] = snap['cigar_id']
+    logger.info(f'[url-cache] loaded {len(url_cache)} cached URL→cigar mappings for {source.slug}')
+
+    cache_hits = 0
+    cache_misses = 0
+
     for item in items:
-        cigar = scraper.match_cigar(item)
+        # 优先走 URL 缓存
+        cigar = None
+        if item.url and item.url in url_cache:
+            cigar_id = url_cache[item.url]
+            try:
+                cigar = Cigar.objects.get(id=cigar_id)
+                cache_hits += 1
+            except Cigar.DoesNotExist:
+                # 缓存指向的雪茄被删了 → 退回到匹配器
+                del url_cache[item.url]
+                logger.debug(f'[url-cache] stale cache (cigar {cigar_id} deleted) for {item.url}')
+
+        if not cigar:
+            cigar = scraper.match_cigar(item)
+            if cigar:
+                cache_misses += 1
+
         if not cigar:
             skipped += 1
             continue
@@ -255,6 +281,9 @@ def run_scrape_sync(source_slug: str) -> dict:
     source.last_scraped = timezone.now()
     source.save(update_fields=['last_scraped'])
 
+    logger.info(f'[url-cache] {source_slug}: {cache_hits} hits / {cache_misses} misses '
+                f'(cache={len(url_cache)}, items={len(items)})')
+
     return {
         'source': source_slug,
         'total_items': len(items),
@@ -262,4 +291,6 @@ def run_scrape_sync(source_slug: str) -> dict:
         'created': created,
         'skipped': skipped,
         'marked_oos': oos_count,
+        'cache_hits': cache_hits,
+        'cache_misses': cache_misses,
     }

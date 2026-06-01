@@ -20,7 +20,8 @@ class Privnote(models.Model):
         related_name='privnotes'
     )
 
-    html = models.TextField('预渲染HTML')
+    html = models.TextField('预渲染HTML', blank=True)
+    data_json = models.JSONField('结构化数据', default=dict, blank=True)
 
     # 安全配置
     has_password = models.BooleanField('密码保护', default=False)

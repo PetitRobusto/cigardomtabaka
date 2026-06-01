@@ -1,0 +1,707 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>市场价格监控 — Moscow Cigar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #FAF8F5;
+      --surface:   #FFFFFF;
+      --fg:        #2C2416;
+      --muted:     #8A7E6E;
+      --border:    #E8E0D6;
+      --accent:    #7A1F2E;
+      --accent-2:  #B87A3A;
+      --accent-3:  #F5EFE8;
+      --success:   #3D6B4F;
+      --shadow-sm: 0 1px 2px rgba(44,36,22,0.04);
+      --shadow-md: 0 4px 16px rgba(44,36,22,0.06);
+      --radius:    4px;
+      --font-display: 'Playfair Display', 'Times New Roman', Georgia, serif;
+      --font-body:  -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+      --font-mono:  'SF Mono', ui-monospace, Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+    }
+
+    /* ========== Top Bar ========== */
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .logo-mark {
+      width: 28px; height: 28px;
+      background: var(--accent);
+      border-radius: var(--radius);
+      display: grid; place-items: center;
+      color: #fff;
+      font-size: 14px;
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .topbar-right a {
+      color: var(--muted);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 0.15s;
+    }
+    .topbar-right a:hover { color: var(--fg); }
+    .user {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+      color: var(--fg);
+    }
+    .user-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--accent-3);
+      display: grid; place-items: center;
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* ========== Page Header ========== */
+    .page-header {
+      padding: 48px 32px 32px;
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .page-title h1 {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      margin-bottom: 4px;
+    }
+    .page-title .subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .page-actions {
+      display: flex;
+      gap: 12px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 1px solid transparent;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover {
+      background: #5E1824;
+      border-color: #5E1824;
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--fg);
+      border-color: var(--border);
+    }
+    .btn-ghost:hover {
+      background: var(--accent-3);
+    }
+
+    /* ========== Stats Bar ========== */
+    .stats-bar {
+      padding: 0 32px 32px;
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      transition: box-shadow 0.15s;
+    }
+    .stat-card:hover { box-shadow: var(--shadow-md); }
+    .stat-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-family: var(--font-display);
+      font-size: 32px;
+      font-weight: 600;
+      color: var(--fg);
+      letter-spacing: -0.5px;
+    }
+    .stat-value .unit {
+      font-size: 16px;
+      font-weight: 400;
+      color: var(--muted);
+      margin-left: 2px;
+    }
+    .stat-change {
+      font-size: 12px;
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .stat-change.up { color: var(--success); }
+    .stat-change.down { color: var(--accent); }
+
+    /* ========== Search & Filters ========== */
+    .toolbar {
+      padding: 0 32px 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .search-box {
+      flex: 1;
+      min-width: 240px;
+      max-width: 400px;
+      position: relative;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 10px 16px 10px 40px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-box input:focus {
+      border-color: var(--accent);
+    }
+    .search-box::before {
+      content: "⌕";
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 16px;
+      color: var(--muted);
+    }
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .filter-label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .filter-pills {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .pill {
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--fg);
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .pill:hover { border-color: var(--accent); color: var(--accent); }
+    .pill.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    /* ========== Product Grid ========== */
+    .product-section {
+      padding: 0 32px 48px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .result-count {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+    }
+    .product-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+    }
+    .product-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    .product-image {
+      width: 100%;
+      aspect-ratio: 1;
+      background: var(--accent-3);
+      display: grid;
+      place-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .product-image img {
+      width: 70%;
+      height: auto;
+      object-fit: contain;
+      transition: transform 0.3s ease;
+    }
+    .product-card:hover .product-image img {
+      transform: scale(1.05);
+    }
+    .product-badge {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 2px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .product-info {
+      padding: 14px;
+    }
+    .product-name {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 2px;
+      line-height: 1.35;
+    }
+    .product-name-en {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: var(--font-display);
+      font-style: italic;
+      margin-bottom: 8px;
+    }
+    .product-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .product-size {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .product-price {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+    }
+    .product-price .currency {
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+      margin-right: 1px;
+    }
+    .product-price .label {
+      font-size: 9px;
+      color: var(--muted);
+      font-weight: 400;
+      font-family: var(--font-body);
+      margin-right: 4px;
+    }
+
+    /* ========== Mobile Bottom Nav ========== */
+    .mobile-nav {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 8px 0 24px;
+      z-index: 100;
+      justify-content: space-around;
+    }
+    .mobile-nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      color: var(--muted);
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .mobile-nav-item.active { color: var(--accent); }
+    .mobile-nav-icon {
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    /* ========== Responsive ========== */
+    @media (max-width: 1200px) {
+      .product-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+    @media (max-width: 992px) {
+      .product-grid { grid-template-columns: repeat(3, 1fr); }
+      .stats-bar { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .topbar { padding: 0 16px; }
+      .page-header { padding: 32px 16px 24px; }
+      .page-header { flex-direction: column; align-items: flex-start; }
+      .stats-bar { padding: 0 16px 24px; }
+      .toolbar { padding: 0 16px 20px; }
+      .product-section { padding: 0 16px 100px; }
+      .product-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+      .page-title h1 { font-size: 26px; }
+      .mobile-nav { display: flex; }
+      .topbar-right { display: none; }
+    }
+    @media (max-width: 480px) {
+      .product-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .stat-card { padding: 16px; }
+      .stat-value { font-size: 26px; }
+    }
+
+    /* ========== Empty State ========== */
+    .empty-state {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--muted);
+    }
+    .empty-state p {
+      font-size: 14px;
+    }
+
+    /* ========== Scrollbar ========== */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="logo-mark">MC</div>
+      <span>Moscow Cigar</span>
+    </div>
+    <div class="topbar-right">
+      <a href="#">⎋ 退出</a>
+      <div class="user">
+        <div class="user-avatar">管</div>
+        <span>管理员</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="page-title">
+      <h1>市场价格监控</h1>
+      <div class="subtitle">Market Price Monitor</div>
+    </div>
+    <div class="page-actions">
+      <a href="#" class="btn btn-primary">仪表盘</a>
+      <a href="#" class="btn btn-ghost">预警管理</a>
+    </div>
+  </div>
+
+  <!-- Stats Bar -->
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-label">产品数量</div>
+      <div class="stat-value" id="stat-count">23<span class="unit">款</span></div>
+      <div class="stat-change up">↑ 2 较上周</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">平均价格</div>
+      <div class="stat-value" id="stat-avg">111<span class="unit">$</span></div>
+      <div class="stat-change down">↓ 3.2% 较上周</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">最低价格</div>
+      <div class="stat-value" id="stat-min">65<span class="unit">$</span></div>
+      <div class="stat-change up">→ 持平</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">最高价格</div>
+      <div class="stat-value" id="stat-max">155<span class="unit">$</span></div>
+      <div class="stat-change up">↑ 5 较上周</div>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="搜索雪茄名称、品牌...">
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">品牌</span>
+      <div class="filter-pills" id="brandFilters">
+        <button class="pill active" data-brand="all">全部</button>
+        <button class="pill" data-brand="Cohiba">Cohiba</button>
+        <button class="pill" data-brand="H. Upmann">H. Upmann</button>
+        <button class="pill" data-brand="Partagas">Partagas</button>
+        <button class="pill" data-brand="Romeo y Julieta">Romeo y Julieta</button>
+        <button class="pill" data-brand="Montecristo">Montecristo</button>
+        <button class="pill" data-brand="Hoyo de Monterrey">Hoyo de Monterrey</button>
+        <button class="pill" data-brand="Bolivar">Bolivar</button>
+        <button class="pill" data-brand="Trinidad">Trinidad</button>
+        <button class="pill" data-brand="Punch">Punch</button>
+        <button class="pill" data-brand="Vegas Robaina">Vegas Robaina</button>
+        <button class="pill" data-brand="San Cristobal">San Cristobal</button>
+        <button class="pill" data-brand="Jose L. Piedra">Jose L. Piedra</button>
+        <button class="pill" data-brand="El Rey del Mundo">El Rey del Mundo</button>
+        <button class="pill" data-brand="Ramon Allones">Ramon Allones</button>
+        <button class="pill" data-brand="Cuaba">Cuaba</button>
+        <button class="pill" data-brand="Diplomaticos">Diplomaticos</button>
+        <button class="pill" data-brand="La Gloria Cubana">La Gloria Cubana</button>
+        <button class="pill" data-brand="Por Larranaga">Por Larranaga</button>
+        <button class="pill" data-brand="Quai d'Orsay">Quai d'Orsay</button>
+        <button class="pill" data-brand="Quintero">Quintero</button>
+        <button class="pill" data-brand="Sancho Panza">Sancho Panza</button>
+        <button class="pill" data-brand="Fonseca">Fonseca</button>
+        <button class="pill" data-brand="Rafael Gonzalez">Rafael Gonzalez</button>
+        <button class="pill" data-brand="Saint Luis Rey">Saint Luis Rey</button>
+        <button class="pill" data-brand="Vegueros">Vegueros</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Product Grid -->
+  <div class="product-section">
+    <div class="section-header">
+      <h2 class="section-title">产品列表</h2>
+      <span class="result-count" id="resultCount">共 23 款产品</span>
+    </div>
+    <div class="product-grid" id="productGrid"></div>
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <p>未找到匹配的雪茄产品</p>
+    </div>
+  </div>
+
+  <!-- Mobile Bottom Nav -->
+  <nav class="mobile-nav">
+    <a href="#" class="mobile-nav-item active">
+      <span class="mobile-nav-icon">⊞</span>
+      <span>品牌</span>
+    </a>
+    <a href="#" class="mobile-nav-item">
+      <span class="mobile-nav-icon">◫</span>
+      <span>库存</span>
+    </a>
+    <a href="#" class="mobile-nav-item">
+      <span class="mobile-nav-icon">◈</span>
+      <span>价格</span>
+    </a>
+    <a href="#" class="mobile-nav-item">
+      <span class="mobile-nav-icon">⧉</span>
+      <span>链接</span>
+    </a>
+    <a href="#" class="mobile-nav-item">
+      <span class="mobile-nav-icon">◉</span>
+      <span>我</span>
+    </a>
+  </nav>
+
+  <script>
+    // Product data from the screenshot
+    const products = [
+      { name: "高希霸贝伊可54", nameEn: "Cohiba Behike BHK 54", brand: "Cohiba", size: "52 × 144mm", price: 125.00, badge: "HOT" },
+      { name: "高希霸世纪二号", nameEn: "Cohiba Siglo II", brand: "Cohiba", size: "42 × 129mm", price: 102.00, badge: "" },
+      { name: "高希霸世纪六号", nameEn: "Cohiba Siglo VI", brand: "Cohiba", size: "52 × 150mm", price: 125.00, badge: "" },
+      { name: "高希霸导师", nameEn: "Cohiba Espléndidos", brand: "Cohiba", size: "47 × 178mm", price: 118.00, badge: "" },
+      { name: "高希霸马杜罗5号", nameEn: "Cohiba Maduro 5", brand: "Cohiba", size: "49 × 130mm", price: 132.00, badge: "NEW" },
+      { name: "高希霸半世纪", nameEn: "Cohiba Medio Siglo", brand: "Cohiba", size: "52 × 102mm", price: 98.00, badge: "" },
+      { name: "高希霸奥秘", nameEn: "Cohiba Secretos", brand: "Cohiba", size: "40 × 110mm", price: 85.00, badge: "" },
+      { name: "高希霸罗布图", nameEn: "Cohiba Robustos", brand: "Cohiba", size: "50 × 124mm", price: 95.00, badge: "" },
+      { name: "高希霸世纪四号", nameEn: "Cohiba Siglo IV", brand: "Cohiba", size: "46 × 143mm", price: 112.00, badge: "" },
+      { name: "高希霸世纪三号", nameEn: "Cohiba Siglo III", brand: "Cohiba", size: "42 × 155mm", price: 108.00, badge: "" },
+      { name: "高希霸世纪一号", nameEn: "Cohiba Siglo I", brand: "Cohiba", size: "40 × 102mm", price: 88.00, badge: "" },
+      { name: "高希霸世纪五号", nameEn: "Cohiba Siglo V", brand: "Cohiba", size: "43 × 170mm", price: 120.00, badge: "" },
+      { name: "高希霸长矛", nameEn: "Cohiba Lanceros", brand: "Cohiba", size: "38 × 192mm", price: 90.00, badge: "" },
+      { name: "高希霸吉士图", nameEn: "Cohiba Exquisitos", brand: "Cohiba", size: "36 × 125mm", price: 78.00, badge: "" },
+      { name: "高希霸宾丽", nameEn: "Cohiba Panetelas", brand: "Cohiba", size: "36 × 115mm", price: 65.00, badge: "" },
+      { name: "高希霸天才", nameEn: "Cohiba Genios", brand: "Cohiba", size: "52 × 140mm", price: 128.00, badge: "" },
+      { name: "高希霸魔术师", nameEn: "Cohiba Magicos", brand: "Cohiba", size: "52 × 115mm", price: 135.00, badge: "HOT" },
+      { name: "高希霸马杜罗奥秘", nameEn: "Cohiba Maduro Secretos", brand: "Cohiba", size: "40 × 110mm", price: 140.00, badge: "" },
+      { name: "高希霸1966", nameEn: "Cohiba 1966", brand: "Cohiba", size: "52 × 166mm", price: 155.00, badge: "LIM" },
+      { name: "高希霸世纪二号铝管", nameEn: "Cohiba Siglo II Tubos", brand: "Cohiba", size: "42 × 129mm", price: 108.00, badge: "" },
+      { name: "高希霸罗布图铝管", nameEn: "Cohiba Robustos Tubos", brand: "Cohiba", size: "50 × 124mm", price: 102.00, badge: "" },
+      { name: "高希霸导师铝管", nameEn: "Cohiba Espléndidos Tubos", brand: "Cohiba", size: "47 × 178mm", price: 125.00, badge: "" },
+      { name: "高希霸世纪六号铝管", nameEn: "Cohiba Siglo VI Tubos", brand: "Cohiba", size: "52 × 150mm", price: 132.00, badge: "" }
+    ];
+
+    let activeBrand = 'all';
+    let searchQuery = '';
+
+    function renderProducts() {
+      const grid = document.getElementById('productGrid');
+      const empty = document.getElementById('emptyState');
+      const count = document.getElementById('resultCount');
+
+      const filtered = products.filter(p => {
+        const matchBrand = activeBrand === 'all' || p.brand === activeBrand;
+        const q = searchQuery.toLowerCase();
+        const matchSearch = !q || p.name.toLowerCase().includes(q) || p.nameEn.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q);
+        return matchBrand && matchSearch;
+      });
+
+      count.textContent = `共 ${filtered.length} 款产品`;
+
+      if (filtered.length === 0) {
+        grid.style.display = 'none';
+        empty.style.display = 'block';
+        return;
+      }
+
+      grid.style.display = 'grid';
+      empty.style.display = 'none';
+
+      grid.innerHTML = filtered.map(p => `
+        <div class="product-card">
+          <div class="product-image">
+            <svg viewBox="0 0 120 180" width="70%" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="30" y="20" width="60" height="140" rx="4" fill="#C9A87C" opacity="0.6"/>
+              <rect x="35" y="15" width="50" height="10" rx="2" fill="#8B6914" opacity="0.5"/>
+              <rect x="32" y="30" width="56" height="2" fill="#8B6914" opacity="0.3"/>
+              <rect x="32" y="38" width="56" height="2" fill="#8B6914" opacity="0.3"/>
+              <rect x="32" y="46" width="56" height="2" fill="#8B6914" opacity="0.3"/>
+              <rect x="32" y="54" width="56" height="2" fill="#8B6914" opacity="0.3"/>
+              <rect x="32" y="62" width="56" height="2" fill="#8B6914" opacity="0.3"/>
+              <rect x="32" y="70" width="56" height="2" fill="#8B6914" opacity="0.3"/>
+              <rect x="32" y="78" width="56" height="2" fill="#8B6914" opacity="0.3"/>
+              <rect x="32" y="86" width="56" height="2" fill="#8B6914" opacity="0.3"/>
+              <rect x="32" y="94" width="56" height="2" fill="#8B6914" opacity="0.3"/>
+              <rect x="32" y="102" width="56" height="2" fill="#8B6914" opacity="0.3"/>
+              <rect x="32" y="110" width="56" height="2" fill="#8B6914" opacity="0.3"/>
+              <rect x="32" y="118" width="56" height="2" fill="#8B6914" opacity="0.3"/>
+              <rect x="32" y="126" width="56" height="2" fill="#8B6914" opacity="0.3"/>
+              <rect x="32" y="134" width="56" height="2" fill="#8B6914" opacity="0.3"/>
+              <rect x="32" y="142" width="56" height="2" fill="#8B6914" opacity="0.3"/>
+            </svg>
+            ${p.badge ? `<span class="product-badge">${p.badge}</span>` : ''}
+          </div>
+          <div class="product-info">
+            <div class="product-name">${p.name}</div>
+            <div class="product-name-en">${p.nameEn}</div>
+            <div class="product-meta">
+              <span class="product-size">${p.size}</span>
+              <span class="product-price"><span class="label">参考价</span><span class="currency">$</span>${p.price.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Brand filter
+    document.getElementById('brandFilters').addEventListener('click', e => {
+      if (!e.target.classList.contains('pill')) return;
+      document.querySelectorAll('#brandFilters .pill').forEach(p => p.classList.remove('active'));
+      e.target.classList.add('active');
+      activeBrand = e.target.dataset.brand;
+      renderProducts();
+    });
+
+    // Search
+    document.getElementById('searchInput').addEventListener('input', e => {
+      searchQuery = e.target.value;
+      renderProducts();
+    });
+
+    // Initial render
+    renderProducts();
+  </script>
+</body>
+</html>

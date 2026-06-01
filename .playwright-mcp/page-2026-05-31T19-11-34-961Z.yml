@@ -1,0 +1,399 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]: MC
+      - generic [ref=e5]: Moscow Cigar
+      - generic [ref=e6]: · 品牌目录
+    - navigation [ref=e7]:
+      - link "品牌" [ref=e8] [cursor=pointer]:
+        - /url: /
+      - link "登录" [ref=e9] [cursor=pointer]:
+        - /url: /login/
+  - main [ref=e10]:
+    - generic [ref=e11]:
+      - generic [ref=e12]:
+        - heading "古巴雪茄目录" [level=1] [ref=e13]
+        - generic [ref=e14]: 52 个品牌 · 完整收录
+      - textbox "搜索品牌名称..." [ref=e17]
+    - main [ref=e18]:
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - heading "全球品牌" [level=2] [ref=e21]
+          - generic [ref=e22]: 6 个品牌
+        - generic [ref=e23]:
+          - link "高希霸 高希霸 89 款雪茄 古巴 全球" [ref=e24] [cursor=pointer]:
+            - /url: /brand/cohiba/
+            - img "高希霸" [ref=e26]
+            - generic [ref=e27]: 高希霸
+            - generic [ref=e28]: 89 款雪茄
+            - generic [ref=e29]:
+              - generic [ref=e30]: 古巴
+              - generic [ref=e31]: 全球
+          - link "乌普曼 乌普曼 70 款雪茄 古巴 全球" [ref=e32] [cursor=pointer]:
+            - /url: /brand/h-upmann/
+            - img "乌普曼" [ref=e34]
+            - generic [ref=e35]: 乌普曼
+            - generic [ref=e36]: 70 款雪茄
+            - generic [ref=e37]:
+              - generic [ref=e38]: 古巴
+              - generic [ref=e39]: 全球
+          - link "好友 好友 69 款雪茄 古巴 全球" [ref=e40] [cursor=pointer]:
+            - /url: /brand/hoyo-de-monterrey/
+            - img "好友" [ref=e42]
+            - generic [ref=e43]: 好友
+            - generic [ref=e44]: 69 款雪茄
+            - generic [ref=e45]:
+              - generic [ref=e46]: 古巴
+              - generic [ref=e47]: 全球
+          - link "蒙特 蒙特 80 款雪茄 古巴 全球" [ref=e48] [cursor=pointer]:
+            - /url: /brand/montecristo/
+            - img "蒙特" [ref=e50]
+            - generic [ref=e51]: 蒙特
+            - generic [ref=e52]: 80 款雪茄
+            - generic [ref=e53]:
+              - generic [ref=e54]: 古巴
+              - generic [ref=e55]: 全球
+          - link "帕特加斯 帕特加斯 123 款雪茄 古巴 全球" [ref=e56] [cursor=pointer]:
+            - /url: /brand/partagas/
+            - img "帕特加斯" [ref=e58]
+            - generic [ref=e59]: 帕特加斯
+            - generic [ref=e60]: 123 款雪茄
+            - generic [ref=e61]:
+              - generic [ref=e62]: 古巴
+              - generic [ref=e63]: 全球
+          - link "罗密欧与朱丽叶 罗密欧与朱丽叶 100 款雪茄 古巴 全球" [ref=e64] [cursor=pointer]:
+            - /url: /brand/romeo-y-julieta/
+            - img "罗密欧与朱丽叶" [ref=e66]
+            - generic [ref=e67]: 罗密欧与朱丽叶
+            - generic [ref=e68]: 100 款雪茄
+            - generic [ref=e69]:
+              - generic [ref=e70]: 古巴
+              - generic [ref=e71]: 全球
+      - separator [ref=e72]
+      - generic [ref=e73]:
+        - generic [ref=e74]:
+          - heading "价值品牌" [level=2] [ref=e75]
+          - generic [ref=e76]: 5 个品牌
+        - generic [ref=e77]:
+          - link "玻利瓦 玻利瓦 83 款雪茄 古巴 价值" [ref=e78] [cursor=pointer]:
+            - /url: /brand/bolivar/
+            - img "玻利瓦" [ref=e80]
+            - generic [ref=e81]: 玻利瓦
+            - generic [ref=e82]: 83 款雪茄
+            - generic [ref=e83]:
+              - generic [ref=e84]: 古巴
+              - generic [ref=e85]: 价值
+          - link "潘趣 潘趣 74 款雪茄 古巴 价值" [ref=e86] [cursor=pointer]:
+            - /url: /brand/punch/
+            - img "潘趣" [ref=e88]
+            - generic [ref=e89]: 潘趣
+            - generic [ref=e90]: 74 款雪茄
+            - generic [ref=e91]:
+              - generic [ref=e92]: 古巴
+              - generic [ref=e93]: 价值
+          - link "希多尔赛 希多尔赛 21 款雪茄 古巴 价值" [ref=e94] [cursor=pointer]:
+            - /url: /brand/quai-dorsay/
+            - img "希多尔赛" [ref=e96]
+            - generic [ref=e97]: 希多尔赛
+            - generic [ref=e98]: 21 款雪茄
+            - generic [ref=e99]:
+              - generic [ref=e100]: 古巴
+              - generic [ref=e101]: 价值
+          - link "雷蒙阿隆尼 雷蒙阿隆尼 80 款雪茄 古巴 价值" [ref=e102] [cursor=pointer]:
+            - /url: /brand/ramon-allones/
+            - img "雷蒙阿隆尼" [ref=e104]
+            - generic [ref=e105]: 雷蒙阿隆尼
+            - generic [ref=e106]: 80 款雪茄
+            - generic [ref=e107]:
+              - generic [ref=e108]: 古巴
+              - generic [ref=e109]: 价值
+          - link "千里达 千里达 30 款雪茄 古巴 价值" [ref=e110] [cursor=pointer]:
+            - /url: /brand/trinidad/
+            - img "千里达" [ref=e112]
+            - generic [ref=e113]: 千里达
+            - generic [ref=e114]: 30 款雪茄
+            - generic [ref=e115]:
+              - generic [ref=e116]: 古巴
+              - generic [ref=e117]: 价值
+      - separator [ref=e118]
+      - generic [ref=e119]:
+        - generic [ref=e120]:
+          - heading "走量品牌" [level=2] [ref=e121]
+          - generic [ref=e122]: 3 个品牌
+        - generic [ref=e123]:
+          - link "荷西比雅达 荷西比雅达 11 款雪茄 古巴" [ref=e124] [cursor=pointer]:
+            - /url: /brand/jose-l-piedra/
+            - img "荷西比雅达" [ref=e126]
+            - generic [ref=e127]: 荷西比雅达
+            - generic [ref=e128]: 11 款雪茄
+            - generic [ref=e130]: 古巴
+          - link "金特罗 金特罗 16 款雪茄 古巴" [ref=e131] [cursor=pointer]:
+            - /url: /brand/quintero/
+            - img "金特罗" [ref=e133]
+            - generic [ref=e134]: 金特罗
+            - generic [ref=e135]: 16 款雪茄
+            - generic [ref=e137]: 古巴
+          - link "威古洛 威古洛 11 款雪茄 古巴" [ref=e138] [cursor=pointer]:
+            - /url: /brand/vegueros/
+            - img "威古洛" [ref=e140]
+            - generic [ref=e141]: 威古洛
+            - generic [ref=e142]: 11 款雪茄
+            - generic [ref=e144]: 古巴
+      - separator [ref=e145]
+      - generic [ref=e146]:
+        - generic [ref=e147]:
+          - heading "其他品牌" [level=2] [ref=e148]
+          - generic [ref=e149]: 13 个品牌
+        - generic [ref=e150]:
+          - link "库阿巴 库阿巴 17 款雪茄 古巴" [ref=e151] [cursor=pointer]:
+            - /url: /brand/cuaba/
+            - img "库阿巴" [ref=e153]
+            - generic [ref=e154]: 库阿巴
+            - generic [ref=e155]: 17 款雪茄
+            - generic [ref=e157]: 古巴
+          - link "外交官 外交官 25 款雪茄 古巴" [ref=e158] [cursor=pointer]:
+            - /url: /brand/diplomaticos/
+            - img "外交官" [ref=e160]
+            - generic [ref=e161]: 外交官
+            - generic [ref=e162]: 25 款雪茄
+            - generic [ref=e164]: 古巴
+          - link "世界之王 世界之王 42 款雪茄 古巴" [ref=e165] [cursor=pointer]:
+            - /url: /brand/el-rey-del-mundo/
+            - img "世界之王" [ref=e167]
+            - generic [ref=e168]: 世界之王
+            - generic [ref=e169]: 42 款雪茄
+            - generic [ref=e171]: 古巴
+          - link "科塞卡 科塞卡 9 款雪茄 古巴" [ref=e172] [cursor=pointer]:
+            - /url: /brand/fonseca/
+            - img "科塞卡" [ref=e174]
+            - generic [ref=e175]: 科塞卡
+            - generic [ref=e176]: 9 款雪茄
+            - generic [ref=e178]: 古巴
+          - link "胡安佩洛斯 胡安佩洛斯 42 款雪茄 古巴" [ref=e179] [cursor=pointer]:
+            - /url: /brand/juan-lopez/
+            - img "胡安佩洛斯" [ref=e181]
+            - generic [ref=e182]: 胡安佩洛斯
+            - generic [ref=e183]: 42 款雪茄
+            - generic [ref=e185]: 古巴
+          - link "卡诺之花 卡诺之花 20 款雪茄 古巴" [ref=e186] [cursor=pointer]:
+            - /url: /brand/la-flor-de-cano/
+            - img "卡诺之花" [ref=e188]
+            - generic [ref=e189]: 卡诺之花
+            - generic [ref=e190]: 20 款雪茄
+            - generic [ref=e192]: 古巴
+          - link "古巴荣耀 古巴荣耀 36 款雪茄 古巴" [ref=e193] [cursor=pointer]:
+            - /url: /brand/la-gloria-cubana/
+            - img "古巴荣耀" [ref=e195]
+            - generic [ref=e196]: 古巴荣耀
+            - generic [ref=e197]: 36 款雪茄
+            - generic [ref=e199]: 古巴
+          - link "波尔拉腊尼加 波尔拉腊尼加 48 款雪茄 古巴" [ref=e200] [cursor=pointer]:
+            - /url: /brand/por-larranaga/
+            - img "波尔拉腊尼加" [ref=e202]
+            - generic [ref=e203]: 波尔拉腊尼加
+            - generic [ref=e204]: 48 款雪茄
+            - generic [ref=e206]: 古巴
+          - link "拉斐尔 拉斐尔 18 款雪茄 古巴" [ref=e207] [cursor=pointer]:
+            - /url: /brand/rafael-gonzalez/
+            - img "拉斐尔" [ref=e209]
+            - generic [ref=e210]: 拉斐尔
+            - generic [ref=e211]: 18 款雪茄
+            - generic [ref=e213]: 古巴
+          - link "圣路易斯雷伊 圣路易斯雷伊 23 款雪茄 古巴" [ref=e214] [cursor=pointer]:
+            - /url: /brand/saint-luis-rey/
+            - img "圣路易斯雷伊" [ref=e216]
+            - generic [ref=e217]: 圣路易斯雷伊
+            - generic [ref=e218]: 23 款雪茄
+            - generic [ref=e220]: 古巴
+          - link "圣克里斯多 圣克里斯多 古巴" [ref=e221] [cursor=pointer]:
+            - /url: /brand/san-cristobal-de-la-habana/
+            - img "圣克里斯多" [ref=e223]
+            - generic [ref=e224]: 圣克里斯多
+            - generic [ref=e226]: 古巴
+          - link "桑丘潘萨 桑丘潘萨 22 款雪茄 古巴" [ref=e227] [cursor=pointer]:
+            - /url: /brand/sancho-panza/
+            - img "桑丘潘萨" [ref=e229]
+            - generic [ref=e230]: 桑丘潘萨
+            - generic [ref=e231]: 22 款雪茄
+            - generic [ref=e233]: 古巴
+          - link "瓦格斯陆班纳 瓦格斯陆班纳 17 款雪茄 古巴" [ref=e234] [cursor=pointer]:
+            - /url: /brand/vegas-robaina/
+            - img "瓦格斯陆班纳" [ref=e236]
+            - generic [ref=e237]: 瓦格斯陆班纳
+            - generic [ref=e238]: 17 款雪茄
+            - generic [ref=e240]: 古巴
+      - separator [ref=e241]
+      - generic [ref=e242]:
+        - generic [ref=e243]:
+          - heading "ICT 机制" [level=2] [ref=e244]
+          - generic [ref=e245]: 4 个品牌
+        - generic [ref=e246]:
+          - link "贝琳达 贝琳达 古巴" [ref=e247] [cursor=pointer]:
+            - /url: /brand/belinda/
+            - img "贝琳达" [ref=e249]
+            - generic [ref=e250]: 贝琳达
+            - generic [ref=e252]: 古巴
+          - link "关达拉美拉 关达拉美拉 10 款雪茄 古巴" [ref=e253] [cursor=pointer]:
+            - /url: /brand/guantanamera/
+            - img "关达拉美拉" [ref=e255]
+            - generic [ref=e256]: 关达拉美拉
+            - generic [ref=e257]: 10 款雪茄
+            - generic [ref=e259]: 古巴
+          - link "小雪茄 小雪茄 古巴" [ref=e260] [cursor=pointer]:
+            - /url: /brand/small-cigars/
+            - img "小雪茄" [ref=e262]
+            - generic [ref=e263]: 小雪茄
+            - generic [ref=e265]: 古巴
+          - link "特洛伊 特洛伊 古巴" [ref=e266] [cursor=pointer]:
+            - /url: /brand/troya/
+            - img "特洛伊" [ref=e268]
+            - generic [ref=e269]: 特洛伊
+            - generic [ref=e271]: 古巴
+      - separator [ref=e272]
+      - generic [ref=e273]:
+        - generic [ref=e274]:
+          - heading "特殊品牌" [level=2] [ref=e275]
+          - generic [ref=e276]: 4 个品牌
+        - generic [ref=e277]:
+          - link "古巴雪茄 古巴雪茄 古巴" [ref=e278] [cursor=pointer]:
+            - /url: /brand/cubatabaco/
+            - img "古巴雪茄" [ref=e280]
+            - generic [ref=e281]: 古巴雪茄
+            - generic [ref=e283]: 古巴
+          - link "艾蒙度但丁 艾蒙度但丁 古巴" [ref=e284] [cursor=pointer]:
+            - /url: /brand/edmundo-dantes/
+            - img "艾蒙度但丁" [ref=e286]
+            - generic [ref=e287]: 艾蒙度但丁
+            - generic [ref=e289]: 古巴
+          - link "哈伯纳斯 哈伯纳斯 古巴" [ref=e290] [cursor=pointer]:
+            - /url: /brand/habanos/
+            - img "哈伯纳斯" [ref=e292]
+            - generic [ref=e293]: 哈伯纳斯
+            - generic [ref=e295]: 古巴
+          - link "精选品牌系列 精选品牌系列 古巴" [ref=e296] [cursor=pointer]:
+            - /url: /brand/multi-brand-releases/
+            - img "精选品牌系列" [ref=e298]
+            - generic [ref=e299]: 精选品牌系列
+            - generic [ref=e301]: 古巴
+      - separator [ref=e302]
+      - generic [ref=e303]:
+        - generic [ref=e304]:
+          - heading "已停产品牌" [level=2] [ref=e305]
+          - generic [ref=e306]: 17 个品牌
+        - generic [ref=e307]:
+          - link "卡班纳 卡班纳 古巴 停产" [ref=e308] [cursor=pointer]:
+            - /url: /brand/cabanas/
+            - img "卡班纳" [ref=e310]
+            - generic [ref=e311]: 卡班纳
+            - generic [ref=e312]:
+              - generic [ref=e313]: 古巴
+              - generic [ref=e314]: 停产
+          - link "凯尼 凯尼 古巴 停产" [ref=e315] [cursor=pointer]:
+            - /url: /brand/caney/
+            - img "凯尼" [ref=e317]
+            - generic [ref=e318]: 凯尼
+            - generic [ref=e319]:
+              - generic [ref=e320]: 古巴
+              - generic [ref=e321]: 停产
+          - link "西福恩特斯 西福恩特斯 古巴 停产" [ref=e322] [cursor=pointer]:
+            - /url: /brand/cifuentes/
+            - img "西福恩特斯" [ref=e324]
+            - generic [ref=e325]: 西福恩特斯
+            - generic [ref=e326]:
+              - generic [ref=e327]: 古巴
+              - generic [ref=e328]: 停产
+          - link "大卫杜夫 大卫杜夫 停产" [ref=e329] [cursor=pointer]:
+            - /url: /brand/davidoff/
+            - img "大卫杜夫" [ref=e331]
+            - generic [ref=e332]: 大卫杜夫
+            - generic [ref=e334]: 停产
+          - link "唐、阿尔佛 唐、阿尔佛 古巴 停产" [ref=e335] [cursor=pointer]:
+            - /url: /brand/don-alfredo/
+            - img "唐、阿尔佛" [ref=e337]
+            - generic [ref=e338]: 唐、阿尔佛
+            - generic [ref=e339]:
+              - generic [ref=e340]: 古巴
+              - generic [ref=e341]: 停产
+          - link "唐、坎迪多 唐、坎迪多 古巴 停产" [ref=e342] [cursor=pointer]:
+            - /url: /brand/don-candido/
+            - img "唐、坎迪多" [ref=e344]
+            - generic [ref=e345]: 唐、坎迪多
+            - generic [ref=e346]:
+              - generic [ref=e347]: 古巴
+              - generic [ref=e348]: 停产
+          - link "登喜路 登喜路 停产" [ref=e349] [cursor=pointer]:
+            - /url: /brand/dunhill/
+            - img "登喜路" [ref=e351]
+            - generic [ref=e352]: 登喜路
+            - generic [ref=e354]: 停产
+          - link "繁花 繁花 古巴 停产" [ref=e355] [cursor=pointer]:
+            - /url: /brand/flor-del-punto/
+            - img "繁花" [ref=e357]
+            - generic [ref=e358]: 繁花
+            - generic [ref=e359]:
+              - generic [ref=e360]: 古巴
+              - generic [ref=e361]: 停产
+          - link "基斯伯 基斯伯 古巴 停产" [ref=e362] [cursor=pointer]:
+            - /url: /brand/gispert/
+            - img "基斯伯" [ref=e364]
+            - generic [ref=e365]: 基斯伯
+            - generic [ref=e366]:
+              - generic [ref=e367]: 古巴
+              - generic [ref=e368]: 停产
+          - link "J.J·福克斯 专享 J.J·福克斯 专享 古巴 停产" [ref=e369] [cursor=pointer]:
+            - /url: /brand/j-j-fox-exclusives/
+            - img "J.J·福克斯 专享" [ref=e371]
+            - generic [ref=e372]: J.J·福克斯 专享
+            - generic [ref=e373]:
+              - generic [ref=e374]: 古巴
+              - generic [ref=e375]: 停产
+          - link "皇冠雪茄 皇冠雪茄 古巴 停产" [ref=e376] [cursor=pointer]:
+            - /url: /brand/la-corona/
+            - img "皇冠雪茄" [ref=e378]
+            - generic [ref=e379]: 皇冠雪茄
+            - generic [ref=e380]:
+              - generic [ref=e381]: 古巴
+              - generic [ref=e382]: 停产
+          - link "拉雅仕帕西安 拉雅仕帕西安 古巴 停产" [ref=e383] [cursor=pointer]:
+            - /url: /brand/la-escepcion/
+            - img "拉雅仕帕西安" [ref=e385]
+            - generic [ref=e386]: 拉雅仕帕西安
+            - generic [ref=e387]:
+              - generic [ref=e388]: 古巴
+              - generic [ref=e389]: 停产
+          - link "拉弗洛德卡妮 拉弗洛德卡妮 古巴 停产" [ref=e390] [cursor=pointer]:
+            - /url: /brand/la-flor-del-caney/
+            - img "拉弗洛德卡妮" [ref=e392]
+            - generic [ref=e393]: 拉弗洛德卡妮
+            - generic [ref=e394]:
+              - generic [ref=e395]: 古巴
+              - generic [ref=e396]: 停产
+          - link "劳斯登徒 劳斯登徒 古巴 停产" [ref=e397] [cursor=pointer]:
+            - /url: /brand/los-statos-de-luxe/
+            - img "劳斯登徒" [ref=e399]
+            - generic [ref=e400]: 劳斯登徒
+            - generic [ref=e401]:
+              - generic [ref=e402]: 古巴
+              - generic [ref=e403]: 停产
+          - link "玛丽亚 格雷多 玛丽亚 格雷多 古巴 停产" [ref=e404] [cursor=pointer]:
+            - /url: /brand/maria-guerrero/
+            - img "玛丽亚 格雷多" [ref=e406]
+            - generic [ref=e407]: 玛丽亚 格雷多
+            - generic [ref=e408]:
+              - generic [ref=e409]: 古巴
+              - generic [ref=e410]: 停产
+          - link "新路易斯雷伊 新路易斯雷伊 古巴 停产" [ref=e411] [cursor=pointer]:
+            - /url: /brand/san-luis-rey/
+            - img "新路易斯雷伊" [ref=e413]
+            - generic [ref=e414]: 新路易斯雷伊
+            - generic [ref=e415]:
+              - generic [ref=e416]: 古巴
+              - generic [ref=e417]: 停产
+          - link "西波妮 西波妮 古巴 停产" [ref=e418] [cursor=pointer]:
+            - /url: /brand/siboney/
+            - img "西波妮" [ref=e420]
+            - generic [ref=e421]: 西波妮
+            - generic [ref=e422]:
+              - generic [ref=e423]: 古巴
+              - generic [ref=e424]: 停产
+  - contentinfo [ref=e425]: CigarDomTabaka · 仅供内部参考

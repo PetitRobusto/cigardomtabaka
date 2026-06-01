@@ -64,7 +64,7 @@ export default function Dashboard() {
           sourceCount={[...new Set(cigars.flatMap(c => c.sources.map(s => s.source_slug)))].length}
         />
         <BrandTabs brands={brands} activeBrand={activeBrand} onSelect={setActiveBrand} />
-        <PriceCardGrid cigars={filtered} onCardClick={(id) => navigate(`/cigar/${id}`)} />
+        <PriceCardGrid cigars={filtered} onCardClick={(id) => navigate(`/prices/cigar/${id}`)} />
       </div>
     </PageTransition>
   );

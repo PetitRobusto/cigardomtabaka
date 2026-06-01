@@ -1,0 +1,1001 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]: MC
+      - generic [ref=e5]: Moscow Cigar
+      - generic [ref=e6]: · 帕特加斯
+    - navigation [ref=e7]:
+      - link "品牌" [ref=e8] [cursor=pointer]:
+        - /url: /
+      - link "登录" [ref=e9] [cursor=pointer]:
+        - /url: /login/
+  - main [ref=e10]:
+    - generic [ref=e11]:
+      - link "所有品牌" [ref=e12] [cursor=pointer]:
+        - /url: /
+      - text: / 帕特加斯
+    - main [ref=e13]:
+      - generic [ref=e14]:
+        - img "帕特加斯" [ref=e16]
+        - generic [ref=e17]:
+          - heading "帕特加斯" [level=1] [ref=e18]
+          - generic [ref=e19]: Partagás
+          - generic [ref=e20]:
+            - generic [ref=e21]:
+              - strong [ref=e22]: 古巴
+              - text: · 哈瓦那
+            - strong [ref=e24]: 全球品牌
+        - generic [ref=e26]:
+          - generic [ref=e27]: "138"
+          - text: 款雪茄
+      - generic [ref=e28]:
+        - textbox "搜索雪茄名称..." [ref=e30]
+        - generic [ref=e31]:
+          - generic [ref=e32]: 筛选
+          - generic [ref=e33]:
+            - button "全部" [ref=e34] [cursor=pointer]
+            - button "常规" [ref=e35] [cursor=pointer]
+            - button "限量" [ref=e36] [cursor=pointer]
+            - button "地区限定" [ref=e37] [cursor=pointer]
+      - generic [ref=e38]:
+        - heading "常规款 (25)" [level=3] [ref=e39]
+        - generic [ref=e40]:
+          - link "盟国 Aliados 167mm · 45环径 · 德里里奥" [ref=e41] [cursor=pointer]:
+            - /url: /cigar/617/
+            - generic [ref=e43]:
+              - generic [ref=e44]: 盟国
+              - generic [ref=e45]: Aliados
+            - generic [ref=e48]: 167mm · 45环径 · 德里里奥
+          - link "贵族 Aristocrats 129mm · 40环径 · 小权杖" [ref=e49] [cursor=pointer]:
+            - /url: /cigar/594/
+            - generic [ref=e51]:
+              - generic [ref=e52]: 贵族
+              - generic [ref=e53]: Aristocrats
+            - generic [ref=e56]: 129mm · 40环径 · 小权杖
+          - link "奇科 Chicos 帕特加斯奇科 106mm · 29环径 · Chicos" [ref=e57] [cursor=pointer]:
+            - /url: /cigar/1274/
+            - generic [ref=e59]:
+              - generic [ref=e60]: 奇科
+              - generic [ref=e61]: Chicos 帕特加斯奇科
+            - img [ref=e63]:
+              - generic [ref=e76]: 帕
+            - generic [ref=e83]: 106mm · 29环径 · Chicos
+          - link "青年皇冠 Coronas Junior 117mm · 40环径 · 小皇冠" [ref=e84] [cursor=pointer]:
+            - /url: /cigar/595/
+            - generic [ref=e86]:
+              - generic [ref=e87]: 青年皇冠
+              - generic [ref=e88]: Coronas Junior
+            - generic [ref=e91]: 117mm · 40环径 · 小皇冠
+          - link "高级皇冠 Coronas Senior 132mm · 42环径 · 杰出" [ref=e92] [cursor=pointer]:
+            - /url: /cigar/596/
+            - generic [ref=e94]:
+              - generic [ref=e95]: 高级皇冠
+              - generic [ref=e96]: Coronas Senior
+            - generic [ref=e99]: 132mm · 42环径 · 杰出
+          - link "哈瓦那人 Habaneros 125mm · 39环径 · 贝尔维德" [ref=e100] [cursor=pointer]:
+            - /url: /cigar/597/
+            - generic [ref=e102]:
+              - generic [ref=e103]: 哈瓦那人
+              - generic [ref=e104]: Habaneros
+            - generic [ref=e107]: 125mm · 39环径 · 贝尔维德
+          - link "卢西塔尼亚 Lusitanias 194mm · 49环径 · 卓越" [ref=e108] [cursor=pointer]:
+            - /url: /cigar/598/
+            - generic [ref=e110]:
+              - generic [ref=e111]: 卢西塔尼亚
+              - generic [ref=e112]: Lusitanias
+            - generic [ref=e115]: 194mm · 49环径 · 卓越
+          - link "马杜罗 1 号 Maduro No. 1 130mm · 52环径 · 迪斯克雷托" [ref=e116] [cursor=pointer]:
+            - /url: /cigar/613/
+            - generic [ref=e118]:
+              - generic [ref=e119]: 马杜罗 1 号
+              - generic [ref=e120]: Maduro No. 1
+            - generic [ref=e123]: 130mm · 52环径 · 迪斯克雷托
+          - link "马杜罗 2 号 Maduro No. 2 120mm · 55环径 · 短金字塔" [ref=e124] [cursor=pointer]:
+            - /url: /cigar/615/
+            - generic [ref=e126]:
+              - generic [ref=e127]: 马杜罗 2 号
+              - generic [ref=e128]: Maduro No. 2
+            - generic [ref=e131]: 120mm · 55环径 · 短金字塔
+          - link "马杜罗 3 号 Maduro No. 3 145mm · 50环径 · 马杜罗 3号" [ref=e132] [cursor=pointer]:
+            - /url: /cigar/616/
+            - generic [ref=e134]:
+              - generic [ref=e135]: 马杜罗 3 号
+              - generic [ref=e136]: Maduro No. 3
+            - generic [ref=e139]: 145mm · 50环径 · 马杜罗 3号
+          - link "大师 Maestro 132mm · 56环径 · 德莱特" [ref=e140] [cursor=pointer]:
+            - /url: /cigar/618/
+            - generic [ref=e142]:
+              - generic [ref=e143]: 大师
+              - generic [ref=e144]: Maestro
+            - generic [ref=e147]: 132mm · 56环径 · 德莱特
+          - link "妙麗 Mille Fleurs 129mm · 42环径 · 小皇冠" [ref=e148] [cursor=pointer]:
+            - /url: /cigar/599/
+            - generic [ref=e150]:
+              - generic [ref=e151]: 妙麗
+              - generic [ref=e152]: Mille Fleurs
+            - generic [ref=e155]: 129mm · 42环径 · 小皇冠
+          - link "起源 Origen 154mm · 46环径 · 邦达多索" [ref=e156] [cursor=pointer]:
+            - /url: /cigar/619/
+            - generic [ref=e158]:
+              - generic [ref=e159]: 起源
+              - generic [ref=e160]: Origen
+            - generic [ref=e163]: 154mm · 46环径 · 邦达多索
+          - link "奢华 帕特加斯 Partagás de Luxe 140mm · 40环径 · 克里马" [ref=e164] [cursor=pointer]:
+            - /url: /cigar/600/
+            - generic [ref=e166]:
+              - generic [ref=e167]: 奢华 帕特加斯
+              - generic [ref=e168]: Partagás de Luxe
+            - generic [ref=e171]: 140mm · 40环径 · 克里马
+          - link "特别小皇冠 Petit Coronas Especiales 132mm · 42环径 · 杰出" [ref=e172] [cursor=pointer]:
+            - /url: /cigar/601/
+            - generic [ref=e174]:
+              - generic [ref=e175]: 特别小皇冠
+              - generic [ref=e176]: Petit Coronas Especiales
+            - generic [ref=e179]: 132mm · 42环径 · 杰出
+          - link "总统 Presidentes 158mm · 47环径 · 塔科" [ref=e180] [cursor=pointer]:
+            - /url: /cigar/602/
+            - generic [ref=e182]:
+              - generic [ref=e183]: 总统
+              - generic [ref=e184]: Presidentes
+            - generic [ref=e187]: 158mm · 47环径 · 塔科
+          - link "仪式 Rito 168mm · 52环径 · 古斯托索" [ref=e188] [cursor=pointer]:
+            - /url: /cigar/620/
+            - generic [ref=e190]:
+              - generic [ref=e191]: 仪式
+              - generic [ref=e192]: Rito
+            - generic [ref=e195]: 168mm · 52环径 · 古斯托索
+          - link "所罗门 Salomones 184mm · 57环径 · 所罗门" [ref=e196] [cursor=pointer]:
+            - /url: /cigar/609/
+            - generic [ref=e198]:
+              - generic [ref=e199]: 所罗门
+              - generic [ref=e200]: Salomones
+            - generic [ref=e203]: 184mm · 57环径 · 所罗门
+          - link "D系列 4号 Serie D No.4 124mm · 50环径 · 罗布图" [ref=e204] [cursor=pointer]:
+            - /url: /cigar/606/
+            - generic [ref=e206]:
+              - generic [ref=e207]: D系列 4号
+              - generic [ref=e208]: Serie D No.4
+            - generic [ref=e211]: 124mm · 50环径 · 罗布图
+          - link "D系列 5号 Serie D No.5 110mm · 50环径 · D 5号" [ref=e212] [cursor=pointer]:
+            - /url: /cigar/610/
+            - generic [ref=e214]:
+              - generic [ref=e215]: D系列 5号
+              - generic [ref=e216]: Serie D No.5
+            - generic [ref=e219]: 110mm · 50环径 · D 5号
+          - link "D系列 6号 Serie D No.6 90mm · 50环径 · D 6号" [ref=e220] [cursor=pointer]:
+            - /url: /cigar/612/
+            - generic [ref=e222]:
+              - generic [ref=e223]: D系列 6号
+              - generic [ref=e224]: Serie D No.6
+            - generic [ref=e227]: 90mm · 50环径 · D 6号
+          - link "E系列 2号 Serie E No.2 140mm · 54环径 · 公爵" [ref=e228] [cursor=pointer]:
+            - /url: /cigar/611/
+            - generic [ref=e230]:
+              - generic [ref=e231]: E系列 2号
+              - generic [ref=e232]: Serie E No.2
+            - generic [ref=e235]: 140mm · 54环径 · 公爵
+          - link "P系列 2号 Serie P No.2 156mm · 52环径 · 金字塔" [ref=e236] [cursor=pointer]:
+            - /url: /cigar/607/
+            - generic [ref=e238]:
+              - generic [ref=e239]: P系列 2号
+              - generic [ref=e240]: Serie P No.2
+            - generic [ref=e243]: 156mm · 52环径 · 金字塔
+          - link "短号 Shorts 110mm · 42环径 · 分钟" [ref=e244] [cursor=pointer]:
+            - /url: /cigar/603/
+            - generic [ref=e246]:
+              - generic [ref=e247]: 短号
+              - generic [ref=e248]: Shorts
+            - generic [ref=e251]: 110mm · 42环径 · 分钟
+          - link "超级帕特加斯 Super Partagás 140mm · 40环径 · 克里马" [ref=e252] [cursor=pointer]:
+            - /url: /cigar/604/
+            - generic [ref=e254]:
+              - generic [ref=e255]: 超级帕特加斯
+              - generic [ref=e256]: Super Partagás
+            - generic [ref=e259]: 140mm · 40环径 · 克里马
+        - heading "独立特别发行 (29)" [level=3] [ref=e260]
+        - heading "限量版 (10)" [level=3] [ref=e261]
+        - generic [ref=e262]:
+          - link "遗产 Legados 限量 157mm · 48环径 · 俊美 2号 限量版" [ref=e263] [cursor=pointer]:
+            - /url: /cigar/708/
+            - generic [ref=e264]:
+              - generic [ref=e265]:
+                - generic [ref=e266]: 遗产
+                - generic [ref=e267]: Legados
+              - generic [ref=e268]: 限量
+            - generic [ref=e270]:
+              - generic [ref=e271]: 157mm · 48环径 · 俊美 2号
+              - generic [ref=e272]: 限量版
+          - link "金字塔 Pirámides 限量 156mm · 52环径 · 金字塔 限量版" [ref=e273] [cursor=pointer]:
+            - /url: /cigar/686/
+            - generic [ref=e274]:
+              - generic [ref=e275]:
+                - generic [ref=e276]: 金字塔
+                - generic [ref=e277]: Pirámides
+              - generic [ref=e278]: 限量
+            - generic [ref=e280]:
+              - generic [ref=e281]: 156mm · 52环径 · 金字塔
+              - generic [ref=e282]: 限量版
+          - link "私人选择 Selección Privada 限量 160mm · 50环径 · 玛瑙 50 限量版" [ref=e283] [cursor=pointer]:
+            - /url: /cigar/703/
+            - generic [ref=e284]:
+              - generic [ref=e285]:
+                - generic [ref=e286]: 私人选择
+                - generic [ref=e287]: Selección Privada
+              - generic [ref=e288]: 限量
+            - generic [ref=e290]:
+              - generic [ref=e291]: 160mm · 50环径 · 玛瑙 50
+              - generic [ref=e292]: 限量版
+          - link "C系列 3号 Serie C No.3 限量 140mm · 48环径 · 俊美 3号 限量版" [ref=e293] [cursor=pointer]:
+            - /url: /cigar/700/
+            - generic [ref=e294]:
+              - generic [ref=e295]:
+                - generic [ref=e296]: C系列 3号
+                - generic [ref=e297]: Serie C No.3
+              - generic [ref=e298]: 限量
+            - generic [ref=e300]:
+              - generic [ref=e301]: 140mm · 48环径 · 俊美 3号
+              - generic [ref=e302]: 限量版
+          - link "系列 Serie D Especial 限量 141mm · 50环径 · 小胖 限量版" [ref=e303] [cursor=pointer]:
+            - /url: /cigar/699/
+            - generic [ref=e304]:
+              - generic [ref=e305]:
+                - generic [ref=e306]: 系列
+                - generic [ref=e307]: Serie D Especial
+              - generic [ref=e308]: 限量
+            - generic [ref=e310]:
+              - generic [ref=e311]: 141mm · 50环径 · 小胖
+              - generic [ref=e312]: 限量版
+          - link "D系列 1号 Serie D No.1 限量 170mm · 50环径 · 帕特加斯 16 限量版" [ref=e313] [cursor=pointer]:
+            - /url: /cigar/690/
+            - generic [ref=e314]:
+              - generic [ref=e315]:
+                - generic [ref=e316]: D系列 1号
+                - generic [ref=e317]: Serie D No.1
+              - generic [ref=e318]: 限量
+            - generic [ref=e320]:
+              - generic [ref=e321]: 170mm · 50环径 · 帕特加斯 16
+              - generic [ref=e322]: 限量版
+          - link "D系列 2号 Serie D No.2 限量 156mm · 50环径 · 罗布图 2号 限量版" [ref=e323] [cursor=pointer]:
+            - /url: /cigar/689/
+            - generic [ref=e324]:
+              - generic [ref=e325]:
+                - generic [ref=e326]: D系列 2号
+                - generic [ref=e327]: Serie D No.2
+              - generic [ref=e328]: 限量
+            - generic [ref=e330]:
+              - generic [ref=e331]: 156mm · 50环径 · 罗布图 2号
+              - generic [ref=e332]: 限量版
+          - link "D系列 3号 Serie D No.3 限量 143mm · 46环径 · 粗皇冠 限量版" [ref=e333] [cursor=pointer]:
+            - /url: /cigar/687/
+            - generic [ref=e334]:
+              - generic [ref=e335]:
+                - generic [ref=e336]: D系列 3号
+                - generic [ref=e337]: Serie D No.3
+              - generic [ref=e338]: 限量
+            - generic [ref=e340]:
+              - generic [ref=e341]: 143mm · 46环径 · 粗皇冠
+              - generic [ref=e342]: 限量版
+          - link "D系列 5号 Serie D No.5 限量 110mm · 50环径 · D 5号 限量版" [ref=e343] [cursor=pointer]:
+            - /url: /cigar/695/
+            - generic [ref=e344]:
+              - generic [ref=e345]:
+                - generic [ref=e346]: D系列 5号
+                - generic [ref=e347]: Serie D No.5
+              - generic [ref=e348]: 限量
+            - generic [ref=e350]:
+              - generic [ref=e351]: 110mm · 50环径 · D 5号
+              - generic [ref=e352]: 限量版
+          - link "系列 1号 Series No.1 限量 138mm · 52环径 · 贵族 限量版" [ref=e353] [cursor=pointer]:
+            - /url: /cigar/707/
+            - generic [ref=e354]:
+              - generic [ref=e355]:
+                - generic [ref=e356]: 系列 1号
+                - generic [ref=e357]: Series No.1
+              - generic [ref=e358]: 限量
+            - generic [ref=e360]:
+              - generic [ref=e361]: 138mm · 52环径 · 贵族
+              - generic [ref=e362]: 限量版
+        - heading "纪念版 (2)" [level=3] [ref=e363]
+        - generic [ref=e364]:
+          - link "西班牙 所罗门 Salomones Espanola 特别 184mm · 57环径 · 所罗门 纪念发行" [ref=e365] [cursor=pointer]:
+            - /url: /cigar/681/
+            - generic [ref=e366]:
+              - generic [ref=e367]:
+                - generic [ref=e368]: 西班牙 所罗门
+                - generic [ref=e369]: Salomones Espanola
+              - generic [ref=e370]: 特别
+            - img [ref=e372]:
+              - generic [ref=e385]: 帕
+            - generic [ref=e391]:
+              - generic [ref=e392]: 184mm · 57环径 · 所罗门
+              - generic [ref=e393]: 纪念发行
+          - link "热带 Tropicales 特别 175mm · 54环径 · 热带 纪念发行" [ref=e394] [cursor=pointer]:
+            - /url: /cigar/709/
+            - generic [ref=e395]:
+              - generic [ref=e396]:
+                - generic [ref=e397]: 热带
+                - generic [ref=e398]: Tropicales
+              - generic [ref=e399]: 特别
+            - generic [ref=e401]:
+              - generic [ref=e402]: 175mm · 54环径 · 热带
+              - generic [ref=e403]: 纪念发行
+        - heading "哈瓦那收藏系列 (2)" [level=3] [ref=e404]
+        - generic [ref=e405]:
+          - link "C系列 1号 Serie C No.1 特别 170mm · 48环径 · 特级罗布图 哈伯纳斯收藏系列" [ref=e406] [cursor=pointer]:
+            - /url: /cigar/688/
+            - generic [ref=e407]:
+              - generic [ref=e408]:
+                - generic [ref=e409]: C系列 1号
+                - generic [ref=e410]: Serie C No.1
+              - generic [ref=e411]: 特别
+            - generic [ref=e413]:
+              - generic [ref=e414]: 170mm · 48环径 · 特级罗布图
+              - generic [ref=e415]: 哈伯纳斯收藏系列
+          - link "E系列 1号 Serie E No.1 特别 170mm · 54环径 · 公爵 1号 哈伯纳斯收藏系列" [ref=e416] [cursor=pointer]:
+            - /url: /cigar/701/
+            - generic [ref=e417]:
+              - generic [ref=e418]:
+                - generic [ref=e419]: E系列 1号
+                - generic [ref=e420]: Serie E No.1
+              - generic [ref=e421]: 特别
+            - generic [ref=e423]:
+              - generic [ref=e424]: 170mm · 54环径 · 公爵 1号
+              - generic [ref=e425]: 哈伯纳斯收藏系列
+        - heading "珍藏系列 (1)" [level=3] [ref=e426]
+        - link "D系列 4号 Serie D No.4 特别 124mm · 50环径 · 罗布图 珍藏系列" [ref=e428] [cursor=pointer]:
+          - /url: /cigar/693/
+          - generic [ref=e429]:
+            - generic [ref=e430]:
+              - generic [ref=e431]: D系列 4号
+              - generic [ref=e432]: Serie D No.4
+            - generic [ref=e433]: 特别
+          - generic [ref=e435]:
+            - generic [ref=e436]: 124mm · 50环径 · 罗布图
+            - generic [ref=e437]: 珍藏系列
+        - heading "特级珍藏系列 (2)" [level=3] [ref=e438]
+        - generic [ref=e439]:
+          - link "卢西塔尼亚 Lusitanias 特别 194mm · 49环径 · 卓越 特级珍藏" [ref=e440] [cursor=pointer]:
+            - /url: /cigar/702/
+            - generic [ref=e441]:
+              - generic [ref=e442]:
+                - generic [ref=e443]: 卢西塔尼亚
+                - generic [ref=e444]: Lusitanias
+              - generic [ref=e445]: 特别
+            - generic [ref=e447]:
+              - generic [ref=e448]: 194mm · 49环径 · 卓越
+              - generic [ref=e449]: 特级珍藏
+          - link "E系列 2号 Serie E No.2 特别 140mm · 54环径 · 公爵 特级珍藏" [ref=e450] [cursor=pointer]:
+            - /url: /cigar/710/
+            - generic [ref=e451]:
+              - generic [ref=e452]:
+                - generic [ref=e453]: E系列 2号
+                - generic [ref=e454]: Serie E No.2
+              - generic [ref=e455]: 特别
+            - generic [ref=e457]:
+              - generic [ref=e458]: 140mm · 54环径 · 公爵
+              - generic [ref=e459]: 特级珍藏
+        - heading "陈年哈瓦那系列 (1)" [level=3] [ref=e460]
+        - link "大皇冠 Coronas Gordas 特别 143mm · 46环径 · 粗皇冠 陈年系列" [ref=e462] [cursor=pointer]:
+          - /url: /cigar/705/
+          - generic [ref=e463]:
+            - generic [ref=e464]:
+              - generic [ref=e465]: 大皇冠
+              - generic [ref=e466]: Coronas Gordas
+            - generic [ref=e467]: 特别
+          - generic [ref=e469]:
+            - generic [ref=e470]: 143mm · 46环径 · 粗皇冠
+            - generic [ref=e471]: 陈年系列
+        - heading "免税及旅行零售系列 (3)" [level=3] [ref=e472]
+        - generic [ref=e473]:
+          - link "皇室 Royales 特别 150mm · 48环径 · 迪乔索 免税及旅行零售系列" [ref=e474] [cursor=pointer]:
+            - /url: /cigar/712/
+            - generic [ref=e475]:
+              - generic [ref=e476]:
+                - generic [ref=e477]: 皇室
+                - generic [ref=e478]: Royales
+              - generic [ref=e479]: 特别
+            - generic [ref=e481]:
+              - generic [ref=e482]: 150mm · 48环径 · 迪乔索
+              - generic [ref=e483]: 免税及旅行零售系列
+          - link "E系列 2号 Serie E No.2 特别 140mm · 54环径 · 公爵 免税及旅行零售系列" [ref=e484] [cursor=pointer]:
+            - /url: /cigar/706/
+            - generic [ref=e485]:
+              - generic [ref=e486]:
+                - generic [ref=e487]: E系列 2号
+                - generic [ref=e488]: Serie E No.2
+              - generic [ref=e489]: 特别
+            - generic [ref=e491]:
+              - generic [ref=e492]: 140mm · 54环径 · 公爵
+              - generic [ref=e493]: 免税及旅行零售系列
+          - link "P系列 1号 Serie P No.1 特别 127mm · 50环径 · 小金字塔 免税及旅行零售系列" [ref=e494] [cursor=pointer]:
+            - /url: /cigar/696/
+            - generic [ref=e495]:
+              - generic [ref=e496]:
+                - generic [ref=e497]: P系列 1号
+                - generic [ref=e498]: Serie P No.1
+              - generic [ref=e499]: 特别
+            - generic [ref=e501]:
+              - generic [ref=e502]: 127mm · 50环径 · 小金字塔
+              - generic [ref=e503]: 免税及旅行零售系列
+        - heading "中国年份系列 (1)" [level=3] [ref=e504]
+        - link "雪松 Cedros 特别 135mm · 50环径 · 迪格诺 中国生肖系列" [ref=e506] [cursor=pointer]:
+          - /url: /cigar/711/
+          - generic [ref=e507]:
+            - generic [ref=e508]:
+              - generic [ref=e509]: 雪松
+              - generic [ref=e510]: Cedros
+            - generic [ref=e511]: 特别
+          - generic [ref=e513]:
+            - generic [ref=e514]: 135mm · 50环径 · 迪格诺
+            - generic [ref=e515]: 中国生肖系列
+        - heading "复刻古董保湿盒系列 (2)" [level=3] [ref=e516]
+        - generic [ref=e517]:
+          - link "帕特加斯 170 Partagás 170 特别 170mm · 56环径 · 帕特加斯 170 复刻古董保湿盒" [ref=e518] [cursor=pointer]:
+            - /url: /cigar/704/
+            - generic [ref=e519]:
+              - generic [ref=e520]:
+                - generic [ref=e521]: 帕特加斯 170
+                - generic [ref=e522]: Partagás 170
+              - generic [ref=e523]: 特别
+            - generic [ref=e525]:
+              - generic [ref=e526]: 170mm · 56环径 · 帕特加斯 170
+              - generic [ref=e527]: 复刻古董保湿盒
+          - link "优秀 Sobresalientes 特别 153mm · 53环径 · 优秀 复刻古董保湿盒" [ref=e528] [cursor=pointer]:
+            - /url: /cigar/694/
+            - generic [ref=e529]:
+              - generic [ref=e530]:
+                - generic [ref=e531]: 优秀
+                - generic [ref=e532]: Sobresalientes
+              - generic [ref=e533]: 特别
+            - generic [ref=e535]:
+              - generic [ref=e536]: 153mm · 53环径 · 优秀
+              - generic [ref=e537]: 复刻古董保湿盒
+        - heading "其他特别版 (5)" [level=3] [ref=e538]
+        - generic [ref=e539]:
+          - link "150周年保湿盒 150 Aniversario Humidor 特别 Other Special Release" [ref=e540] [cursor=pointer]:
+            - /url: /cigar/1226/
+            - generic [ref=e541]:
+              - generic [ref=e542]:
+                - generic [ref=e543]: 150周年保湿盒
+                - generic [ref=e544]: 150 Aniversario Humidor
+              - generic [ref=e545]: 特别
+            - img [ref=e547]:
+              - generic [ref=e560]: 帕
+            - generic [ref=e567]: Other Special Release
+          - link "155周年保湿盒 155 Aniversario Humidor 特别 Other Special Release" [ref=e568] [cursor=pointer]:
+            - /url: /cigar/1227/
+            - generic [ref=e569]:
+              - generic [ref=e570]:
+                - generic [ref=e571]: 155周年保湿盒
+                - generic [ref=e572]: 155 Aniversario Humidor
+              - generic [ref=e573]: 特别
+            - img [ref=e575]:
+              - generic [ref=e588]: 帕
+            - generic [ref=e595]: Other Special Release
+          - link "160周年保湿盒 160 Aniversario Humidor 特别 Other Special Release" [ref=e596] [cursor=pointer]:
+            - /url: /cigar/1228/
+            - generic [ref=e597]:
+              - generic [ref=e598]:
+                - generic [ref=e599]: 160周年保湿盒
+                - generic [ref=e600]: 160 Aniversario Humidor
+              - generic [ref=e601]: 特别
+            - img [ref=e603]:
+              - generic [ref=e616]: 帕
+            - generic [ref=e623]: Other Special Release
+          - link "165周年保湿盒 165 Aniversario Humidor 特别 Other Special Release" [ref=e624] [cursor=pointer]:
+            - /url: /cigar/1229/
+            - generic [ref=e625]:
+              - generic [ref=e626]:
+                - generic [ref=e627]: 165周年保湿盒
+                - generic [ref=e628]: 165 Aniversario Humidor
+              - generic [ref=e629]: 特别
+            - img [ref=e631]:
+              - generic [ref=e644]: 帕
+            - generic [ref=e651]: Other Special Release
+          - link "什锦保湿盒 Assorted Humidor 特别 Other Special Release" [ref=e652] [cursor=pointer]:
+            - /url: /cigar/1225/
+            - generic [ref=e653]:
+              - generic [ref=e654]:
+                - generic [ref=e655]: 什锦保湿盒
+                - generic [ref=e656]: Assorted Humidor
+              - generic [ref=e657]: 特别
+            - img [ref=e659]:
+              - generic [ref=e672]: 帕
+            - generic [ref=e679]: Other Special Release
+        - heading "停产款 (56)" [level=3] [ref=e680]
+        - generic [ref=e681]:
+          - link "8-9-8 8-9-8 155mm · 42环径 · 大皇冠" [ref=e682] [cursor=pointer]:
+            - /url: /cigar/605/
+            - generic [ref=e684]:
+              - generic [ref=e685]: 8-9-8
+              - generic [ref=e686]: 8-9-8
+            - generic [ref=e689]: 155mm · 42环径 · 大皇冠
+          - link "海军上将 Almirantes 156mm · 37环径 · 未知" [ref=e690] [cursor=pointer]:
+            - /url: /cigar/662/
+            - generic [ref=e692]:
+              - generic [ref=e693]: 海军上将
+              - generic [ref=e694]: Almirantes
+            - generic [ref=e697]: 156mm · 37环径 · 未知
+          - link "阿斯托里亚 Astorias 135mm · 42环径 · 哥萨克" [ref=e698] [cursor=pointer]:
+            - /url: /cigar/631/
+            - generic [ref=e700]:
+              - generic [ref=e701]: 阿斯托里亚
+              - generic [ref=e702]: Astorias
+            - generic [ref=e705]: 135mm · 42环径 · 哥萨克
+          - link "贝伟达 Belvederes 125mm · 39环径 · 贝尔维德" [ref=e706] [cursor=pointer]:
+            - /url: /cigar/632/
+            - generic [ref=e708]:
+              - generic [ref=e709]: 贝伟达
+              - generic [ref=e710]: Belvederes
+            - generic [ref=e713]: 125mm · 39环径 · 贝尔维德
+          - link "接吻 Besadoras 127mm · 29环径 · 未知" [ref=e714] [cursor=pointer]:
+            - /url: /cigar/663/
+            - generic [ref=e716]:
+              - generic [ref=e717]: 接吻
+              - generic [ref=e718]: Besadoras
+            - generic [ref=e721]: 127mm · 29环径 · 未知
+          - link "特醇 美丽 Bonitos Extra Mild 106mm · 29环径 · 奇科" [ref=e722] [cursor=pointer]:
+            - /url: /cigar/648/
+            - generic [ref=e724]:
+              - generic [ref=e725]: 特醇 美丽
+              - generic [ref=e726]: Bonitos Extra Mild
+            - img [ref=e728]:
+              - generic [ref=e741]: 帕
+            - generic [ref=e748]: 106mm · 29环径 · 奇科
+          - link "国会 Capitols 129mm · 40环径 · 小权杖" [ref=e749] [cursor=pointer]:
+            - /url: /cigar/614/
+            - generic [ref=e751]:
+              - generic [ref=e752]: 国会
+              - generic [ref=e753]: Capitols
+            - generic [ref=e756]: 129mm · 40环径 · 小权杖
+          - link "夏洛特 Charlottes 143mm · 35环径 · 卡洛塔" [ref=e757] [cursor=pointer]:
+            - /url: /cigar/633/
+            - generic [ref=e759]:
+              - generic [ref=e760]: 夏洛特
+              - generic [ref=e761]: Charlottes
+            - generic [ref=e764]: 143mm · 35环径 · 卡洛塔
+          - link "小子 Chicos 106mm · 29环径 · 奇科" [ref=e765] [cursor=pointer]:
+            - /url: /cigar/628/
+            - generic [ref=e767]:
+              - generic [ref=e768]: 小子
+              - generic [ref=e769]: Chicos
+            - generic [ref=e772]: 106mm · 29环径 · 奇科
+          - link "奢华 丘吉尔 Churchill de Luxe 178mm · 47环径 · 朱丽叶 2号" [ref=e773] [cursor=pointer]:
+            - /url: /cigar/625/
+            - generic [ref=e775]:
+              - generic [ref=e776]: 奢华 丘吉尔
+              - generic [ref=e777]: Churchill de Luxe
+            - generic [ref=e780]: 178mm · 47环径 · 朱丽叶 2号
+          - link "皇冠 Coronas 142mm · 42环径 · 皇冠" [ref=e781] [cursor=pointer]:
+            - /url: /cigar/626/
+            - generic [ref=e783]:
+              - generic [ref=e784]: 皇冠
+              - generic [ref=e785]: Coronas
+            - generic [ref=e788]: 142mm · 42环径 · 皇冠
+          - link "进步的 皇冠 Coronas A Mejorado 142mm · 42环径 · 皇冠" [ref=e789] [cursor=pointer]:
+            - /url: /cigar/649/
+            - generic [ref=e791]:
+              - generic [ref=e792]: 进步的 皇冠
+              - generic [ref=e793]: Coronas A Mejorado
+            - img [ref=e795]:
+              - generic [ref=e808]: 帕
+            - generic [ref=e815]: 142mm · 42环径 · 皇冠
+          - link "大皇冠 Coronas Grandes 155mm · 42环径 · 大皇冠" [ref=e816] [cursor=pointer]:
+            - /url: /cigar/634/
+            - generic [ref=e818]:
+              - generic [ref=e819]: 大皇冠
+              - generic [ref=e820]: Coronas Grandes
+            - generic [ref=e823]: 155mm · 42环径 · 大皇冠
+          - link "水晶筒 Cristal Tubos 145mm · 44环径 · 康塞瓦 (旧)" [ref=e824] [cursor=pointer]:
+            - /url: /cigar/664/
+            - generic [ref=e826]:
+              - generic [ref=e827]: 水晶筒
+              - generic [ref=e828]: Cristal Tubos
+            - img [ref=e830]:
+              - generic [ref=e843]: 帕
+            - generic [ref=e850]: 145mm · 44环径 · 康塞瓦 (旧)
+          - link "古巴人 Cubanos 125mm · 34环径 · 广场" [ref=e851] [cursor=pointer]:
+            - /url: /cigar/650/
+            - generic [ref=e853]:
+              - generic [ref=e854]: 古巴人
+              - generic [ref=e855]: Cubanos
+            - generic [ref=e858]: 125mm · 34环径 · 广场
+          - link "古巴 Cubans 159mm · 35环径 · 美味 (旧)" [ref=e859] [cursor=pointer]:
+            - /url: /cigar/665/
+            - generic [ref=e861]:
+              - generic [ref=e862]: 古巴
+              - generic [ref=e863]: Cubans
+            - generic [ref=e866]: 159mm · 35环径 · 美味 (旧)
+          - link "盘蛇 Culebras 146mm · 39环径 · 库莱布拉" [ref=e867] [cursor=pointer]:
+            - /url: /cigar/608/
+            - generic [ref=e869]:
+              - generic [ref=e870]: 盘蛇
+              - generic [ref=e871]: Culebras
+            - generic [ref=e874]: 146mm · 39环径 · 库莱布拉
+          - link "小烟咀 Demi Tip 126mm · 29环径 · 德米蒂普" [ref=e875] [cursor=pointer]:
+            - /url: /cigar/651/
+            - generic [ref=e877]:
+              - generic [ref=e878]: 小烟咀
+              - generic [ref=e879]: Demi Tip
+            - generic [ref=e882]: 126mm · 29环径 · 德米蒂普
+          - link "卓越 Eminentes 132mm · 44环径 · 杰出 (旧)" [ref=e883] [cursor=pointer]:
+            - /url: /cigar/652/
+            - generic [ref=e885]:
+              - generic [ref=e886]: 卓越
+              - generic [ref=e887]: Eminentes
+            - generic [ref=e890]: 132mm · 44环径 · 杰出 (旧)
+          - link "寓言 Fabulosos 237mm · 50环径 · 帕特加斯大长皇冠" [ref=e891] [cursor=pointer]:
+            - /url: /cigar/666/
+            - generic [ref=e893]:
+              - generic [ref=e894]: 寓言
+              - generic [ref=e895]: Fabulosos
+            - generic [ref=e898]: 237mm · 50环径 · 帕特加斯大长皇冠
+          - link "烟云传奇 Fancy Tales of Smoke 171mm · 39环径 · 未知" [ref=e899] [cursor=pointer]:
+            - /url: /cigar/667/
+            - generic [ref=e901]:
+              - generic [ref=e902]: 烟云传奇
+              - generic [ref=e903]: Fancy Tales of Smoke
+            - generic [ref=e906]: 171mm · 39环径 · 未知
+          - link "菲力比 Filipos 125mm · 34环径 · 广场" [ref=e907] [cursor=pointer]:
+            - /url: /cigar/653/
+            - generic [ref=e909]:
+              - generic [ref=e910]: 菲力比
+              - generic [ref=e911]: Filipos
+            - generic [ref=e914]: 125mm · 34环径 · 广场
+          - link "半皇冠 Half Coronas 110mm · 42环径 · 分钟" [ref=e915] [cursor=pointer]:
+            - /url: /cigar/654/
+            - generic [ref=e917]:
+              - generic [ref=e918]: 半皇冠
+              - generic [ref=e919]: Half Coronas
+            - generic [ref=e922]: 110mm · 42环径 · 分钟
+          - link "半个皇冠 Half a Corona 90mm · 42环径 · 未知" [ref=e923] [cursor=pointer]:
+            - /url: /cigar/668/
+            - generic [ref=e925]:
+              - generic [ref=e926]: 半个皇冠
+              - generic [ref=e927]: Half a Corona
+            - generic [ref=e930]: 90mm · 42环径 · 未知
+          - link "伦敦特长 Londres Extra 129mm · 40环径 · 小权杖" [ref=e931] [cursor=pointer]:
+            - /url: /cigar/636/
+            - generic [ref=e933]:
+              - generic [ref=e934]: 伦敦特长
+              - generic [ref=e935]: Londres Extra
+            - img [ref=e937]:
+              - generic [ref=e950]: 帕
+            - generic [ref=e957]: 129mm · 40环径 · 小权杖
+          - link "小伦敦 Londres Finos 129mm · 40环径 · 小权杖" [ref=e958] [cursor=pointer]:
+            - /url: /cigar/637/
+            - generic [ref=e960]:
+              - generic [ref=e961]: 小伦敦
+              - generic [ref=e962]: Londres Finos
+            - generic [ref=e965]: 129mm · 40环径 · 小权杖
+          - link "伦敦雪松 Londres en Cedro 129mm · 40环径 · 小权杖" [ref=e966] [cursor=pointer]:
+            - /url: /cigar/635/
+            - generic [ref=e968]:
+              - generic [ref=e969]: 伦敦雪松
+              - generic [ref=e970]: Londres en Cedro
+            - img [ref=e972]:
+              - generic [ref=e985]: 帕
+            - generic [ref=e992]: 129mm · 40环径 · 小权杖
+          - link "俊朗 Lonsdales 165mm · 42环径 · 塞万提斯" [ref=e993] [cursor=pointer]:
+            - /url: /cigar/629/
+            - generic [ref=e995]:
+              - generic [ref=e996]: 俊朗
+              - generic [ref=e997]: Lonsdales
+            - generic [ref=e1000]: 165mm · 42环径 · 塞万提斯
+          - link "巨棕榈 Palmas Grandes 178mm · 33环径 · 仙女" [ref=e1001] [cursor=pointer]:
+            - /url: /cigar/647/
+            - generic [ref=e1003]:
+              - generic [ref=e1004]: 巨棕榈
+              - generic [ref=e1005]: Palmas Grandes
+            - generic [ref=e1008]: 178mm · 33环径 · 仙女
+          - link "皇家棕榈 Palmas Reales 160mm · 39环径 · 托珀斯" [ref=e1009] [cursor=pointer]:
+            - /url: /cigar/669/
+            - generic [ref=e1011]:
+              - generic [ref=e1012]: 皇家棕榈
+              - generic [ref=e1013]: Palmas Reales
+            - generic [ref=e1016]: 160mm · 39环径 · 托珀斯
+          - link "宾丽 Panetelas 127mm · 35环径 · 小康查斯" [ref=e1017] [cursor=pointer]:
+            - /url: /cigar/638/
+            - generic [ref=e1019]:
+              - generic [ref=e1020]: 宾丽
+              - generic [ref=e1021]: Panetelas
+            - img [ref=e1023]:
+              - generic [ref=e1036]: 帕
+            - generic [ref=e1043]: 127mm · 35环径 · 小康查斯
+          - link "巴黎人 Parisianos 129mm · 40环径 · 小权杖" [ref=e1044] [cursor=pointer]:
+            - /url: /cigar/639/
+            - generic [ref=e1046]:
+              - generic [ref=e1047]: 巴黎人
+              - generic [ref=e1048]: Parisianos
+            - generic [ref=e1051]: 129mm · 40环径 · 小权杖
+          - link "帕特加斯 荣耀 Partagas Pride 110mm · 42环径 · 分钟" [ref=e1052] [cursor=pointer]:
+            - /url: /cigar/655/
+            - generic [ref=e1054]:
+              - generic [ref=e1055]: 帕特加斯 荣耀
+              - generic [ref=e1056]: Partagas Pride
+            - generic [ref=e1059]: 110mm · 42环径 · 分钟
+          - link "帕特加斯 1号 Partagás de Partagás No.1 170mm · 43环径 · 大丽花" [ref=e1060] [cursor=pointer]:
+            - /url: /cigar/627/
+            - generic [ref=e1062]:
+              - generic [ref=e1063]: 帕特加斯 1号
+              - generic [ref=e1064]: Partagás de Partagás No.1
+            - generic [ref=e1067]: 170mm · 43环径 · 大丽花
+          - link "完美 Perfectos 127mm · 44环径 · 完美" [ref=e1068] [cursor=pointer]:
+            - /url: /cigar/640/
+            - generic [ref=e1070]:
+              - generic [ref=e1071]: 完美
+              - generic [ref=e1072]: Perfectos
+            - generic [ref=e1075]: 127mm · 44环径 · 完美
+          - link "个人 Personales 129mm · 40环径 · 小权杖" [ref=e1076] [cursor=pointer]:
+            - /url: /cigar/656/
+            - generic [ref=e1078]:
+              - generic [ref=e1079]: 个人
+              - generic [ref=e1080]: Personales
+            - img [ref=e1082]:
+              - generic [ref=e1095]: 帕
+            - generic [ref=e1102]: 129mm · 40环径 · 小权杖
+          - link "水花束 Petit Bouquets 98mm · 37环径 · 因凡特" [ref=e1103] [cursor=pointer]:
+            - /url: /cigar/630/
+            - generic [ref=e1105]:
+              - generic [ref=e1106]: 水花束
+              - generic [ref=e1107]: Petit Bouquets
+            - generic [ref=e1110]: 98mm · 37环径 · 因凡特
+          - link "小皇冠 Petit Coronas 129mm · 42环径 · 马雷瓦" [ref=e1111] [cursor=pointer]:
+            - /url: /cigar/641/
+            - generic [ref=e1113]:
+              - generic [ref=e1114]: 小皇冠
+              - generic [ref=e1115]: Petit Coronas
+            - generic [ref=e1118]: 129mm · 42环径 · 马雷瓦
+          - link "小皇冠铝管 Petit Coronas Tubulares 132mm · 42环径 · 杰出" [ref=e1119] [cursor=pointer]:
+            - /url: /cigar/642/
+            - generic [ref=e1121]:
+              - generic [ref=e1122]: 小皇冠铝管
+              - generic [ref=e1123]: Petit Coronas Tubulares
+            - generic [ref=e1126]: 132mm · 42环径 · 杰出
+          - link "小帕特加斯 Petit Partagas 129mm · 40环径 · 小权杖" [ref=e1127] [cursor=pointer]:
+            - /url: /cigar/643/
+            - generic [ref=e1129]:
+              - generic [ref=e1130]: 小帕特加斯
+              - generic [ref=e1131]: Petit Partagas
+            - img [ref=e1133]:
+              - generic [ref=e1146]: 帕
+            - generic [ref=e1153]: 129mm · 40环径 · 小权杖
+          - link "小小私有 Petit Privados 129mm · 42环径 · 马雷瓦" [ref=e1154] [cursor=pointer]:
+            - /url: /cigar/657/
+            - generic [ref=e1156]:
+              - generic [ref=e1157]: 小小私有
+              - generic [ref=e1158]: Petit Privados
+            - generic [ref=e1161]: 129mm · 42环径 · 马雷瓦
+          - link "公主 Princess 127mm · 35环径 · 小康查斯" [ref=e1162] [cursor=pointer]:
+            - /url: /cigar/624/
+            - generic [ref=e1164]:
+              - generic [ref=e1165]: 公主
+              - generic [ref=e1166]: Princess
+            - generic [ref=e1169]: 127mm · 35环径 · 小康查斯
+          - link "私人的 Privados 142mm · 42环径 · 皇冠" [ref=e1170] [cursor=pointer]:
+            - /url: /cigar/658/
+            - generic [ref=e1172]:
+              - generic [ref=e1173]: 私人的
+              - generic [ref=e1174]: Privados
+            - generic [ref=e1177]: 142mm · 42环径 · 皇冠
+          - link "雷蒙尼塔斯 Ramonitas 121mm · 26环径 · 卡罗莱纳" [ref=e1178] [cursor=pointer]:
+            - /url: /cigar/659/
+            - generic [ref=e1180]:
+              - generic [ref=e1181]: 雷蒙尼塔斯
+              - generic [ref=e1182]: Ramonitas
+            - generic [ref=e1185]: 121mm · 26环径 · 卡罗莱纳
+          - link "女王特许 Regalias de la Reina Bueno 117mm · 40环径 · 小皇冠" [ref=e1186] [cursor=pointer]:
+            - /url: /cigar/660/
+            - generic [ref=e1188]:
+              - generic [ref=e1189]: 女王特许
+              - generic [ref=e1190]: Regalias de la Reina Bueno
+            - img [ref=e1192]:
+              - generic [ref=e1205]: 帕
+            - generic [ref=e1212]: 117mm · 40环径 · 小皇冠
+          - link "皇室 Royales 126mm · 40环径 · 伦敦" [ref=e1213] [cursor=pointer]:
+            - /url: /cigar/661/
+            - generic [ref=e1215]:
+              - generic [ref=e1216]: 皇室
+              - generic [ref=e1217]: Royales
+            - generic [ref=e1220]: 126mm · 40环径 · 伦敦
+          - link "私人精选 1 号 Seleccion Privada No.1 170mm · 43环径 · 大丽花" [ref=e1221] [cursor=pointer]:
+            - /url: /cigar/644/
+            - generic [ref=e1223]:
+              - generic [ref=e1224]: 私人精选 1 号
+              - generic [ref=e1225]: Seleccion Privada No.1
+            - generic [ref=e1228]: 170mm · 43环径 · 大丽花
+          - link "女士 Senoritas 109mm · 20环径 · 未知" [ref=e1229] [cursor=pointer]:
+            - /url: /cigar/670/
+            - generic [ref=e1231]:
+              - generic [ref=e1232]: 女士
+              - generic [ref=e1233]: Senoritas
+            - generic [ref=e1236]: 109mm · 20环径 · 未知
+          - link "鉴赏家系列 1 号 Serie du Connaisseur No.1 192mm · 38环径 · 精致" [ref=e1237] [cursor=pointer]:
+            - /url: /cigar/621/
+            - generic [ref=e1239]:
+              - generic [ref=e1240]: 鉴赏家系列 1 号
+              - generic [ref=e1241]: Serie du Connaisseur No.1
+            - generic [ref=e1244]: 192mm · 38环径 · 精致
+          - link "鉴赏家系列 2 号 Serie du Connaisseur No.2 166mm · 38环径 · 帕雷霍" [ref=e1245] [cursor=pointer]:
+            - /url: /cigar/622/
+            - generic [ref=e1247]:
+              - generic [ref=e1248]: 鉴赏家系列 2 号
+              - generic [ref=e1249]: Serie du Connaisseur No.2
+            - generic [ref=e1252]: 166mm · 38环径 · 帕雷霍
+          - link "鉴赏家系列 3 号 Serie du Connaisseur No.3 143mm · 35环径 · 卡洛塔" [ref=e1253] [cursor=pointer]:
+            - /url: /cigar/623/
+            - generic [ref=e1255]:
+              - generic [ref=e1256]: 鉴赏家系列 3 号
+              - generic [ref=e1257]: Serie du Connaisseur No.3
+            - generic [ref=e1260]: 143mm · 35环径 · 卡洛塔
+          - link "塞维利亚 Sevilla Humijar 138mm · 42环径 · 未知" [ref=e1261] [cursor=pointer]:
+            - /url: /cigar/671/
+            - generic [ref=e1263]:
+              - generic [ref=e1264]: 塞维利亚
+              - generic [ref=e1265]: Sevilla Humijar
+            - generic [ref=e1268]: 138mm · 42环径 · 未知
+          - link "排行 Toppers 160mm · 39环径 · 托珀斯" [ref=e1269] [cursor=pointer]:
+            - /url: /cigar/645/
+            - generic [ref=e1271]:
+              - generic [ref=e1272]: 排行
+              - generic [ref=e1273]: Toppers
+            - generic [ref=e1276]: 160mm · 39环径 · 托珀斯
+          - link "三支 小皇冠 Trés Petit Coronas 116mm · 40环径 · 方济各" [ref=e1277] [cursor=pointer]:
+            - /url: /cigar/646/
+            - generic [ref=e1279]:
+              - generic [ref=e1280]: 三支 小皇冠
+              - generic [ref=e1281]: Trés Petit Coronas
+            - generic [ref=e1284]: 116mm · 40环径 · 方济各
+          - link "巨显 Visible Inmenso 495mm · 53环径 · 巨显" [ref=e1285] [cursor=pointer]:
+            - /url: /cigar/672/
+            - generic [ref=e1287]:
+              - generic [ref=e1288]: 巨显
+              - generic [ref=e1289]: Visible Inmenso
+            - generic [ref=e1292]: 495mm · 53环径 · 巨显
+          - link "透明 Visibles 178mm · 48环径 · 未知" [ref=e1293] [cursor=pointer]:
+            - /url: /cigar/673/
+            - generic [ref=e1295]:
+              - generic [ref=e1296]: 透明
+              - generic [ref=e1297]: Visibles
+            - img [ref=e1299]:
+              - generic [ref=e1312]: 帕
+            - generic [ref=e1319]: 178mm · 48环径 · 未知
+        - heading "小雪茄 (13)" [level=3] [ref=e1320]
+        - generic [ref=e1321]:
+          - link "俱乐部 2022年版 Club 2022 Edition 帕特加斯俱樂部 2022年版 限量 97mm · 22环径 · Club Limited Edition Series" [ref=e1322] [cursor=pointer]:
+            - /url: /cigar/1282/
+            - generic [ref=e1323]:
+              - generic [ref=e1324]:
+                - generic [ref=e1325]: 俱乐部 2022年版
+                - generic [ref=e1326]: Club 2022 Edition 帕特加斯俱樂部 2022年版
+              - generic [ref=e1327]: 限量
+            - img [ref=e1329]:
+              - generic [ref=e1342]: 帕
+            - generic [ref=e1348]:
+              - generic [ref=e1349]: 97mm · 22环径 · Club
+              - generic [ref=e1350]: Limited Edition Series
+          - link "俱乐部 2023年版 Club 2023 Edition 帕特加斯俱樂部 2023年版 限量 97mm · 22环径 · Club Limited Edition Series" [ref=e1351] [cursor=pointer]:
+            - /url: /cigar/1283/
+            - generic [ref=e1352]:
+              - generic [ref=e1353]:
+                - generic [ref=e1354]: 俱乐部 2023年版
+                - generic [ref=e1355]: Club 2023 Edition 帕特加斯俱樂部 2023年版
+              - generic [ref=e1356]: 限量
+            - img [ref=e1358]:
+              - generic [ref=e1371]: 帕
+            - generic [ref=e1377]:
+              - generic [ref=e1378]: 97mm · 22环径 · Club
+              - generic [ref=e1379]: Limited Edition Series
+          - link "俱乐部 2024年版 Club 2024 Edition 帕特加斯俱樂部 2024年版 限量 97mm · 22环径 · Club Limited Edition Series" [ref=e1380] [cursor=pointer]:
+            - /url: /cigar/1284/
+            - generic [ref=e1381]:
+              - generic [ref=e1382]:
+                - generic [ref=e1383]: 俱乐部 2024年版
+                - generic [ref=e1384]: Club 2024 Edition 帕特加斯俱樂部 2024年版
+              - generic [ref=e1385]: 限量
+            - img [ref=e1387]:
+              - generic [ref=e1400]: 帕
+            - generic [ref=e1406]:
+              - generic [ref=e1407]: 97mm · 22环径 · Club
+              - generic [ref=e1408]: Limited Edition Series
+          - link "俱乐部 2025年版 Club 2025LE 帕特加斯俱樂部 2025年版 限量 97mm · 22环径 · Club Limited Edition Series" [ref=e1409] [cursor=pointer]:
+            - /url: /cigar/1276/
+            - generic [ref=e1410]:
+              - generic [ref=e1411]:
+                - generic [ref=e1412]: 俱乐部 2025年版
+                - generic [ref=e1413]: Club 2025LE 帕特加斯俱樂部 2025年版
+              - generic [ref=e1414]: 限量
+            - img [ref=e1416]:
+              - generic [ref=e1429]: 帕
+            - generic [ref=e1435]:
+              - generic [ref=e1436]: 97mm · 22环径 · Club
+              - generic [ref=e1437]: Limited Edition Series
+          - link "俱乐部 Club 帕特加斯俱樂部 97mm · 22环径 · Club" [ref=e1438] [cursor=pointer]:
+            - /url: /cigar/1273/
+            - generic [ref=e1440]:
+              - generic [ref=e1441]: 俱乐部
+              - generic [ref=e1442]: Club 帕特加斯俱樂部
+            - img [ref=e1444]:
+              - generic [ref=e1457]: 帕
+            - generic [ref=e1464]: 97mm · 22环径 · Club
+          - link "迷你 2022年版 Mini 2022 Edition 帕特加斯迷你 2022年版 限量 82mm · 20环径 · Mini Limited Edition Series" [ref=e1465] [cursor=pointer]:
+            - /url: /cigar/1279/
+            - generic [ref=e1466]:
+              - generic [ref=e1467]:
+                - generic [ref=e1468]: 迷你 2022年版
+                - generic [ref=e1469]: Mini 2022 Edition 帕特加斯迷你 2022年版
+              - generic [ref=e1470]: 限量
+            - img [ref=e1472]:
+              - generic [ref=e1485]: 帕
+            - generic [ref=e1491]:
+              - generic [ref=e1492]: 82mm · 20环径 · Mini
+              - generic [ref=e1493]: Limited Edition Series
+          - link "迷你 2023年版 Mini 2023 Edition 帕特加斯迷你 2023年版 限量 82mm · 20环径 · Mini Limited Edition Series" [ref=e1494] [cursor=pointer]:
+            - /url: /cigar/1280/
+            - generic [ref=e1495]:
+              - generic [ref=e1496]:
+                - generic [ref=e1497]: 迷你 2023年版
+                - generic [ref=e1498]: Mini 2023 Edition 帕特加斯迷你 2023年版
+              - generic [ref=e1499]: 限量
+            - img [ref=e1501]:
+              - generic [ref=e1514]: 帕
+            - generic [ref=e1520]:
+              - generic [ref=e1521]: 82mm · 20环径 · Mini
+              - generic [ref=e1522]: Limited Edition Series
+          - link "迷你 2024年版 Mini 2024 Edition 帕特加斯迷你 2024年版 限量 82mm · 20环径 · Mini Limited Edition Series" [ref=e1523] [cursor=pointer]:
+            - /url: /cigar/1281/
+            - generic [ref=e1524]:
+              - generic [ref=e1525]:
+                - generic [ref=e1526]: 迷你 2024年版
+                - generic [ref=e1527]: Mini 2024 Edition 帕特加斯迷你 2024年版
+              - generic [ref=e1528]: 限量
+            - img [ref=e1530]:
+              - generic [ref=e1543]: 帕
+            - generic [ref=e1549]:
+              - generic [ref=e1550]: 82mm · 20环径 · Mini
+              - generic [ref=e1551]: Limited Edition Series
+          - link "迷你 2025年版 Mini 2025LE 帕特加斯迷你 2025年版 限量 82mm · 20环径 · Mini Limited Edition Series" [ref=e1552] [cursor=pointer]:
+            - /url: /cigar/1275/
+            - generic [ref=e1553]:
+              - generic [ref=e1554]:
+                - generic [ref=e1555]: 迷你 2025年版
+                - generic [ref=e1556]: Mini 2025LE 帕特加斯迷你 2025年版
+              - generic [ref=e1557]: 限量
+            - img [ref=e1559]:
+              - generic [ref=e1572]: 帕
+            - generic [ref=e1578]:
+              - generic [ref=e1579]: 82mm · 20环径 · Mini
+              - generic [ref=e1580]: Limited Edition Series
+          - link "迷你 Mini 帕特加斯迷你 82mm · 20环径 · Mini" [ref=e1581] [cursor=pointer]:
+            - /url: /cigar/1271/
+            - generic [ref=e1583]:
+              - generic [ref=e1584]: 迷你
+              - generic [ref=e1585]: Mini 帕特加斯迷你
+            - img [ref=e1587]:
+              - generic [ref=e1600]: 帕
+            - generic [ref=e1607]: 82mm · 20环径 · Mini
+          - link "俱乐部 Serie Club 帕特加斯系列俱樂部 97mm · 22环径 · Club" [ref=e1608] [cursor=pointer]:
+            - /url: /cigar/1277/
+            - generic [ref=e1610]:
+              - generic [ref=e1611]: 俱乐部
+              - generic [ref=e1612]: Serie Club 帕特加斯系列俱樂部
+            - img [ref=e1614]:
+              - generic [ref=e1627]: 帕
+            - generic [ref=e1634]: 97mm · 22环径 · Club
+          - link "迷你 Serie Mini 帕特加斯系列迷你 82mm · 20环径 · Mini" [ref=e1635] [cursor=pointer]:
+            - /url: /cigar/1272/
+            - generic [ref=e1637]:
+              - generic [ref=e1638]: 迷你
+              - generic [ref=e1639]: Serie Mini 帕特加斯系列迷你
+            - img [ref=e1641]:
+              - generic [ref=e1654]: 帕
+            - generic [ref=e1661]: 82mm · 20环径 · Mini
+          - link "普列图 Serie Puritos 帕特加斯系列普列圖 82mm · 20环径 · Mini" [ref=e1662] [cursor=pointer]:
+            - /url: /cigar/1278/
+            - generic [ref=e1664]:
+              - generic [ref=e1665]: 普列图
+              - generic [ref=e1666]: Serie Puritos 帕特加斯系列普列圖
+            - img [ref=e1668]:
+              - generic [ref=e1681]: 帕
+            - generic [ref=e1688]: 82mm · 20环径 · Mini
+  - contentinfo [ref=e1689]: CigarDomTabaka · 仅供内部参考

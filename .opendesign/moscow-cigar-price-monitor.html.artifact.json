@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "Moscow Cigar 市场价格监控主页",
+  "entry": "moscow-cigar-price-monitor.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-05-27T10:45:19.731Z",
+  "updatedAt": "2026-05-27T10:45:19.738Z",
+  "metadata": {
+    "identifier": "moscow-cigar-price-monitor",
+    "artifactType": "text/html",
+    "inferred": false
+  }
+}

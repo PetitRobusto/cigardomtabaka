@@ -66,6 +66,21 @@ master → git checkout -b feature/xxx → 开发 → commit → merge 回 maste
 
 ---
 
+## 图片下载
+
+- CDP 浏览器需运行在 9222 端口：`google-chrome --remote-debugging-port=9222`
+- CCW 有 Cloudflare 保护，必须通过 CDP 浏览器 `fetch()` 下载
+- 图片下载前必须先导航到源网站（CORS 限制），不能停在别的页面
+
+---
+
+## Django 陷阱
+
+- Django 5.x async 上下文中不能直接调用 ORM，用 `run_in_executor` 包装
+- `media/`、`staticfiles/`、`.db`、`.env` 不进 Git
+
+---
+
 ## 项目索引
 
 ```

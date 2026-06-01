@@ -1,0 +1,1981 @@
+/**
+ * Moscow Cigar — Luxury Theme CSS
+ * ----------------------------------------------------------
+ * A warm-cream + burgundy + cognac-gold design system for
+ * premium cigar / luxury internal tools.
+ *
+ * Usage: <link rel="stylesheet" href="css/mc-luxury-theme.css">
+ * Then add the component classes listed in the README below.
+ *
+ * Fonts required:
+ *   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+ */
+
+/* =========================================================
+   1. Design Tokens
+   ========================================================= */
+:root {
+  /* Surfaces */
+  --bg:        #FAF8F5;
+  --surface:   #FFFFFF;
+  --fg:        #2C2416;
+  --muted:     #8A7E6E;
+  --border:    #E8E0D6;
+
+  /* Accents */
+  --accent:    #7A1F2E;   /* Burgundy — primary action */
+  --accent-2:  #B87A3A;   /* Cognac gold — secondary */
+  --accent-3:  #F5EFE8;   /* Warm parchment — subtle fill */
+  --success:   #3D6B4F;   /* Forest green */
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(44, 36, 22, 0.04);
+  --shadow-md: 0 4px 16px rgba(44, 36, 22, 0.06);
+
+  /* Radius */
+  --radius:    4px;
+
+  /* Typography */
+  --font-display: 'Playfair Display', 'Times New Roman', Georgia, serif;
+  --font-body:    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono:    'SF Mono', ui-monospace, Menlo, monospace;
+}
+
+/* =========================================================
+   2. Base Reset
+   ========================================================= */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* =========================================================
+   3. Layout Helpers
+   ========================================================= */
+.container {
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 32px;
+  padding-right: 32px;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.flex-end {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+/* =========================================================
+   4. Top Bar
+   ========================================================= */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.logo-mark {
+  width: 28px;
+  height: 28px;
+  background: var(--accent);
+  border-radius: var(--radius);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 14px;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.topbar-right a {
+  color: var(--muted);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s;
+}
+
+.topbar-right a:hover {
+  color: var(--fg);
+}
+
+.user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-3);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* =========================================================
+   5. Page Header
+   ========================================================= */
+.page-header {
+  padding: 48px 32px 32px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.page-title h1 {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  margin-bottom: 4px;
+}
+
+.page-title .subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* =========================================================
+   6. Buttons
+   ========================================================= */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  text-decoration: none;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.btn-primary:hover {
+  background: #5E1824;
+  border-color: #5E1824;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+.btn-ghost:hover {
+  background: var(--accent-3);
+}
+
+/* =========================================================
+   7. Stat Cards
+   ========================================================= */
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  transition: box-shadow 0.15s;
+}
+
+.stat-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.5px;
+}
+
+.stat-value .unit {
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 2px;
+}
+
+.stat-change {
+  font-size: 12px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-change.up   { color: var(--success); }
+.stat-change.down { color: var(--accent); }
+
+/* =========================================================
+   8. Search Box
+   ========================================================= */
+.search-box {
+  flex: 1;
+  min-width: 240px;
+  max-width: 400px;
+  position: relative;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 10px 16px 10px 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.search-box input:focus {
+  border-color: var(--accent);
+}
+
+.search-box::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238A7E6E' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat center/contain;
+}
+
+/* =========================================================
+   9. Filter Pills
+   ========================================================= */
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-label {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.filter-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.pill:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pill.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* =========================================================
+   10. Product Card
+   ========================================================= */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+
+.product-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+.product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.product-image {
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--accent-3);
+  display: grid;
+  place-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.product-image img {
+  width: 70%;
+  height: auto;
+  object-fit: contain;
+  transition: transform 0.3s ease;
+}
+
+.product-card:hover .product-image img {
+  transform: scale(1.05);
+}
+
+.product-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 2px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.product-info {
+  padding: 14px;
+}
+
+.product-name {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 2px;
+  line-height: 1.35;
+}
+
+.product-name-en {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-style: italic;
+  margin-bottom: 8px;
+}
+
+.product-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.product-size {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.product-price {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.product-price .currency {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-right: 1px;
+}
+
+.product-price .label {
+  font-size: 9px;
+  color: var(--muted);
+  font-weight: 400;
+  font-family: var(--font-body);
+  margin-right: 4px;
+}
+
+/* =========================================================
+   11. Section Header
+   ========================================================= */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.result-count {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* =========================================================
+   12. Mobile Bottom Nav
+   ========================================================= */
+.mobile-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 8px 0 24px;
+  z-index: 100;
+  justify-content: space-around;
+}
+
+.mobile-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  cursor: pointer;
+  padding: 6px 12px;
+}
+
+.mobile-nav-item.active {
+  color: var(--accent);
+}
+
+/* =========================================================
+   13. Empty State
+   ========================================================= */
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--muted);
+}
+
+.empty-state p {
+  font-size: 14px;
+}
+
+/* =========================================================
+   14. Scrollbar
+   ========================================================= */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* =========================================================
+   15. Breadcrumb
+   ========================================================= */
+.breadcrumb {
+  padding: 20px 32px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.breadcrumb a {
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.breadcrumb a:hover {
+  color: var(--accent);
+}
+
+.breadcrumb .sep {
+  margin: 0 8px;
+  color: var(--border);
+}
+
+.breadcrumb .current {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+/* =========================================================
+   16. Brand Card
+   ========================================================= */
+.brand-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+
+.brand-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px 16px 20px;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+.brand-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.brand-logo {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 16px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.brand-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.brand-name {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.brand-count {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.brand-tags {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.tag {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.tag-gold {
+  background: var(--accent-3);
+  color: var(--accent-2);
+  border-color: #E8DDD0;
+}
+
+.tag-accent {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* =========================================================
+   17. Category Section
+   ========================================================= */
+.category-section {
+  margin-bottom: 48px;
+}
+
+.category-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.category-icon {
+  width: 20px;
+  height: 2px;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.category-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.category-count {
+  font-size: 13px;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+/* =========================================================
+   18. Brand Detail Hero
+   ========================================================= */
+.brand-hero {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+  display: flex;
+  gap: 32px;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.brand-hero-logo {
+  width: 120px;
+  height: 120px;
+  border-radius: var(--radius);
+  background: var(--accent-3);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.brand-hero-logo img {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+}
+
+.brand-hero-info {
+  flex: 1;
+}
+
+.brand-hero-info h1 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.brand-hero-info .brand-hero-en {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 16px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.brand-hero-meta {
+  display: flex;
+  gap: 24px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.brand-hero-meta span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.brand-hero-meta strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.brand-hero-stats {
+  display: flex;
+  gap: 32px;
+  text-align: center;
+}
+
+.brand-hero-stat .num {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  display: block;
+}
+
+.brand-hero-stat .lbl {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* =========================================================
+   19. Cigar List Row
+   ========================================================= */
+.cigar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cigar-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  transition: box-shadow 0.15s;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+.cigar-row:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.cigar-row-img {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius);
+  background: var(--accent-3);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.cigar-row-img img {
+  width: 80%;
+  height: auto;
+  object-fit: contain;
+}
+
+.cigar-row-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.cigar-row-name {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.cigar-row-name-en {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.cigar-row-spec {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.cigar-row-price {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.cigar-row-price .currency {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.cigar-row-price .label {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 400;
+  font-family: var(--font-body);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.cigar-row-badge {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.cigar-row-badge.hot {
+  background: var(--accent);
+  color: #fff;
+}
+
+.cigar-row-badge.limited {
+  background: var(--accent-2);
+  color: #fff;
+}
+
+/* =========================================================
+   20. Cigar Detail Layout
+   ========================================================= */
+.detail-hero {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 40px;
+  margin-bottom: 40px;
+}
+
+.detail-image-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.detail-image-wrap img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.detail-image-wrap .main-badge {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 2px;
+  letter-spacing: 0.05em;
+}
+
+.detail-info h1 {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.detail-info .detail-en {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 18px;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.detail-tags {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.detail-spec-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.detail-spec-item .spec-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+
+.detail-spec-item .spec-value {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* =========================================================
+   21. Spec Card
+   ========================================================= */
+.spec-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.spec-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.spec-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.spec-grid-item .sg-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.spec-grid-item .sg-value {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.spec-grid-item .sg-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* =========================================================
+   22. Package List
+   ========================================================= */
+.package-list {
+  list-style: none;
+  padding: 0;
+}
+
+.package-list li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.package-list li::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  flex-shrink: 0;
+}
+
+.package-list li:last-child {
+  border-bottom: none;
+}
+
+.package-list .pkg-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: auto;
+}
+
+/* =========================================================
+   23. Image Gallery
+   ========================================================= */
+.gallery-section {
+  margin-bottom: 32px;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.gallery-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+
+.gallery-item:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.gallery-item img {
+  max-width: 100%;
+  height: 140px;
+  object-fit: contain;
+  margin-bottom: 8px;
+}
+
+.gallery-item .gallery-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.gallery-item .gallery-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+
+.gallery-item {
+  position: relative;
+}
+
+/* =========================================================
+   24. Related Items
+   ========================================================= */
+.related-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.related-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow 0.15s;
+}
+
+.related-item:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.related-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius);
+  background: var(--accent-3);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.related-thumb img {
+  width: 80%;
+  height: auto;
+  object-fit: contain;
+}
+
+.related-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.related-name {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.related-tag {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+/* =========================================================
+   25. Divider
+   ========================================================= */
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 32px 0;
+}
+
+/* =========================================================
+   26. Content Block
+   ========================================================= */
+.content-block {
+  margin-bottom: 32px;
+}
+
+.content-block-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* =========================================================
+   27. Responsive
+   ========================================================= */
+@media (max-width: 1200px) {
+  .product-grid { grid-template-columns: repeat(4, 1fr); }
+  .brand-grid   { grid-template-columns: repeat(4, 1fr); }
+  .gallery-grid { grid-template-columns: repeat(3, 1fr); }
+  .related-grid { grid-template-columns: repeat(3, 1fr); }
+  .spec-grid    { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 992px) {
+  .product-grid { grid-template-columns: repeat(3, 1fr); }
+  .brand-grid   { grid-template-columns: repeat(3, 1fr); }
+  .stats-bar    { grid-template-columns: repeat(2, 1fr); }
+  .detail-hero  { grid-template-columns: 300px 1fr; gap: 24px; }
+  .gallery-grid { grid-template-columns: repeat(2, 1fr); }
+  .related-grid { grid-template-columns: repeat(2, 1fr); }
+  .brand-hero   { flex-direction: column; text-align: center; }
+  .brand-hero-stats { width: 100%; justify-content: center; }
+}
+
+@media (max-width: 768px) {
+  .container,
+  .topbar,
+  .page-header,
+  .breadcrumb,
+  .stats-bar,
+  .toolbar,
+  .product-section {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding-top: 32px;
+    padding-bottom: 24px;
+  }
+
+  .product-grid   { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .brand-grid     { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .product-section { padding-bottom: 100px; }
+  .page-title h1  { font-size: 26px; }
+  .mobile-nav     { display: flex; }
+  .topbar-right   { display: none; }
+
+  .detail-hero    { grid-template-columns: 1fr; }
+  .detail-image-wrap { aspect-ratio: 4/3; }
+  .spec-grid      { grid-template-columns: repeat(2, 1fr); }
+  .gallery-grid   { grid-template-columns: repeat(2, 1fr); }
+  .related-grid   { grid-template-columns: repeat(2, 1fr); }
+  .cigar-row      { flex-wrap: wrap; }
+  .cigar-row-price { width: 100%; text-align: left; margin-top: 8px; }
+  .brand-hero     { padding: 24px; }
+}
+
+@media (max-width: 480px) {
+  .product-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .brand-grid   { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .stat-card    { padding: 16px; }
+  .stat-value   { font-size: 26px; }
+  .gallery-grid { grid-template-columns: 1fr; }
+  .related-grid { grid-template-columns: 1fr; }
+  .spec-grid    { grid-template-columns: 1fr; }
+  .detail-info h1 { font-size: 24px; }
+}
+
+/* =========================================================
+   28. Cigar Detail — Title Section
+   ========================================================= */
+.cigar-title-section {
+  padding: 32px 0 24px;
+}
+
+.cigar-title-section h1 {
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  margin-bottom: 6px;
+}
+
+.cigar-subtitle {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 18px;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.cigar-tags {
+  display: flex;
+  gap: 8px;
+}
+
+/* =========================================================
+   29. Cigar Detail — Hero Image
+   ========================================================= */
+.cigar-hero-image {
+  margin-bottom: 32px;
+}
+
+.hero-image-frame {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 48px 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 280px;
+  max-height: 360px;
+}
+
+.hero-cigar-svg {
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  max-height: 180px;
+}
+
+/* =========================================================
+   30. Cigar Detail — Quick Specs
+   ========================================================= */
+.cigar-quick-specs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px 32px;
+  margin-bottom: 32px;
+  overflow-x: auto;
+}
+
+.quick-spec-item {
+  text-align: center;
+  padding: 0 32px;
+  flex-shrink: 0;
+}
+
+.qs-item-sep {
+  width: 1px;
+  height: 32px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.qs-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+
+.qs-value {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.qs-value a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.qs-value a:hover {
+  text-decoration: underline;
+}
+
+.qs-value.accent {
+  color: var(--accent);
+}
+
+/* =========================================================
+   31. Cigar Detail — Two Column Layout
+   ========================================================= */
+.detail-two-col {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 32px;
+  align-items: start;
+}
+
+.detail-col-main {
+  min-width: 0;
+}
+
+.detail-col-side {
+  min-width: 0;
+  position: sticky;
+  top: 72px;
+}
+
+/* =========================================================
+   32. Cigar Detail — Spec Detail Card
+   ========================================================= */
+.spec-detail-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.spec-detail-header {
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.spec-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.spec-detail-item .sd-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.spec-detail-item .sd-value {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.spec-detail-item .sd-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* =========================================================
+   33. Cigar Detail — Special Release Panel
+   ========================================================= */
+.release-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.release-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.release-header h2 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.release-total {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.release-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 32px;
+}
+
+.release-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.release-item:nth-last-child(-n+2) {
+  border-bottom: none;
+}
+
+.release-name {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--fg);
+}
+
+.release-en {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+  font-family: var(--font-display);
+}
+
+.release-count {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--fg);
+  flex-shrink: 0;
+  margin-left: 12px;
+  line-height: 1.2;
+}
+
+.release-count.top {
+  color: var(--accent);
+}
+
+/* =========================================================
+   34. Cigar Detail — Package Section
+   ========================================================= */
+.package-section {
+  margin-bottom: 32px;
+}
+
+/* =========================================================
+   35. Cigar Detail — Side Cards
+   ========================================================= */
+.side-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.side-card-title {
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.side-card-body {
+  padding: 20px;
+}
+
+.side-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+  margin-bottom: 16px;
+}
+
+.side-brand-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  background: var(--accent-3);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.side-brand-text {
+  min-width: 0;
+}
+
+.side-brand-name {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.side-brand-en {
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-style: italic;
+}
+
+.side-brand-desc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.side-link {
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.side-link:hover {
+  text-decoration: underline;
+}
+
+/* =========================================================
+   36. Cigar Detail — Side Related List
+   ========================================================= */
+.side-related-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.side-related-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s;
+}
+
+.side-related-item:last-child {
+  border-bottom: none;
+}
+
+.side-related-item:hover {
+  background: var(--accent-3);
+  margin: 0 -20px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+.side-related-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  background: var(--accent-3);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.side-related-thumb img,
+.side-related-thumb svg {
+  width: 80%;
+  height: auto;
+  object-fit: contain;
+}
+
+.side-related-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.side-related-name {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 1px;
+}
+
+.side-related-tag {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-style: italic;
+}
+
+/* =========================================================
+   37. Cigar Detail — Responsive
+   ========================================================= */
+@media (max-width: 1200px) {
+  .detail-two-col {
+    grid-template-columns: 1fr 300px;
+    gap: 24px;
+  }
+  .spec-detail-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .quick-spec-item {
+    padding: 0 24px;
+  }
+}
+
+@media (max-width: 992px) {
+  .detail-two-col {
+    grid-template-columns: 1fr;
+  }
+  .detail-col-side {
+    position: static;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .side-card {
+    margin-bottom: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .cigar-title-section {
+    padding: 24px 0 20px;
+  }
+  .cigar-title-section h1 {
+    font-size: 28px;
+  }
+  .hero-image-frame {
+    padding: 32px 20px;
+    min-height: 200px;
+  }
+  .hero-cigar-svg {
+    max-height: 140px;
+  }
+  .cigar-quick-specs {
+    padding: 16px 20px;
+    justify-content: flex-start;
+    gap: 0;
+  }
+  .quick-spec-item {
+    padding: 0 16px;
+  }
+  .qs-value {
+    font-size: 16px;
+  }
+  .qs-item-sep {
+    height: 24px;
+  }
+  .release-list {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .release-item:nth-last-child(-n+2) {
+    border-bottom: 1px solid var(--border);
+  }
+  .release-item:last-child {
+    border-bottom: none;
+  }
+  .spec-detail-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  .detail-col-side {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .cigar-title-section h1 {
+    font-size: 24px;
+  }
+  .cigar-subtitle {
+    font-size: 16px;
+  }
+  .hero-image-frame {
+    padding: 24px 16px;
+    min-height: 160px;
+  }
+  .hero-cigar-svg {
+    max-height: 110px;
+  }
+  .cigar-quick-specs {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px 0;
+    padding: 16px;
+  }
+  .quick-spec-item {
+    padding: 0 12px;
+    min-width: 80px;
+  }
+  .qs-item-sep {
+    display: none;
+  }
+  .qs-value {
+    font-size: 15px;
+  }
+  .spec-detail-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .spec-detail-item .sd-value {
+    font-size: 16px;
+  }
+  .release-header h2 {
+    font-size: 18px;
+  }
+  .release-count {
+    font-size: 18px;
+  }
+}
+
+/* =========================================================
+   38. Cigar Card Grid (Brand Detail — vertical cards)
+   ========================================================= */
+.cigar-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.cigar-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: box-shadow 0.2s, transform 0.2s;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  border-left: 3px solid transparent;
+}
+
+.cigar-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+/* Special release border variants */
+.cigar-card.regional     { border-left-color: var(--accent); }
+.cigar-card.limited      { border-left-color: var(--accent-2); }
+.cigar-card.commemorative{ border-left-color: var(--fg); }
+.cigar-card.other-special{ border-left-color: var(--muted); }
+
+.cigar-card-header {
+  padding: 16px 16px 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cigar-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.cigar-card-name-en {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.cigar-card-image {
+  width: 100%;
+  aspect-ratio: 16/7;
+  background: var(--accent-3);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  margin: 12px 0;
+}
+
+.cigar-card-image svg {
+  width: 80%;
+  height: auto;
+  max-height: 100%;
+}
+
+.cigar-card-footer {
+  padding: 0 16px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cigar-card-spec {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.cigar-card-price {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.cigar-card-price .currency {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.cigar-card-badge {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 2px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.cigar-card-badge.regional     { background: var(--accent);     color: #fff; }
+.cigar-card-badge.limited      { background: var(--accent-2);   color: #fff; }
+.cigar-card-badge.commemorative{ background: var(--fg);         color: #fff; }
+.cigar-card-badge.other-special{ background: var(--muted);      color: #fff; }
+.cigar-card-badge.regular      { background: var(--accent-3);   color: var(--muted); border: 1px solid var(--border); }
+
+/* =========================================================
+   39. Side Related Badge (Cigar Detail — special release)
+   ========================================================= */
+.side-related-badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.side-related-badge.regional     { background: var(--accent);   color: #fff; }
+.side-related-badge.limited      { background: var(--accent-2); color: #fff; }
+.side-related-badge.other-special{ background: var(--muted);    color: #fff; }
+
+/* =========================================================
+   40. Cigar Card Grid Responsive
+   ========================================================= */
+@media (max-width: 1200px) {
+  .cigar-card-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 992px) {
+  .cigar-card-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 480px) {
+  .cigar-card-grid { grid-template-columns: 1fr; }
+  .cigar-card-image { aspect-ratio: 16/6; }
+}

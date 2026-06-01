@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>雪茄品牌目录 — Moscow Cigar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/mc-luxury-theme.css">
+</head>
+<body>
+  <!-- Top Bar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="logo-mark">MC</div>
+      <span>Moscow Cigar</span>
+      <span style="color:var(--muted);font-size:13px;font-family:var(--font-body);font-weight:400;">· 品牌目录</span>
+    </div>
+    <nav class="topbar-right">
+      <a href="brands.html">品牌</a>
+      <a href="#">库存</a>
+      <a href="index.html">价格</a>
+      <a href="#">链接</a>
+      <a href="#">管理</a>
+      <div class="user">
+        <div class="user-avatar">J</div>
+        <span>jason</span>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Breadcrumb -->
+  <div class="breadcrumb container">
+    <a href="index.html">首页</a>
+    <span class="sep">/</span>
+    <span class="current">品牌目录</span>
+  </div>
+
+  <!-- Page Header -->
+  <div class="page-header container">
+    <div class="page-title">
+      <h1>古巴雪茄目录</h1>
+      <div class="subtitle">52 个品牌 · 完整收录</div>
+    </div>
+    <div class="page-actions">
+      <div class="search-box">
+        <input type="text" id="brandSearch" placeholder="搜索品牌名称...">
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="container" style="padding-bottom:80px;">
+
+    <!-- 全球品牌 -->
+    <section class="category-section" data-category="global">
+      <div class="category-header">
+          <h2 class="category-title">全球品牌</h2>
+        <span class="category-count">6 个品牌</span>
+      </div>
+      <div class="brand-grid" id="globalBrands">
+        <a href="brand-detail.html" class="brand-card">
+          <div class="brand-logo"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Cohiba_logo.svg/200px-Cohiba_logo.svg.png" alt="高希霸" onerror="this.style.display='none';this.parentElement.innerHTML='<span style=font-size:28px;font-family:var(--font-display);color:var(--accent);>C</span>';"></div>
+          <div class="brand-name">高希霸</div>
+          <div class="brand-count">89 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+            <span class="tag tag-gold">全球</span>
+          </div>
+        </a>
+        <a href="brand-detail.html" class="brand-card">
+          <div class="brand-logo"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/H._Upmann_logo.svg/200px-H._Upmann_logo.svg.png" alt="乌普曼" onerror="this.style.display='none';this.parentElement.innerHTML='<span style=font-size:28px;font-family:var(--font-display);color:var(--accent);>H</span>';"></div>
+          <div class="brand-name">乌普曼</div>
+          <div class="brand-count">70 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+            <span class="tag tag-gold">全球</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--accent);">H</span></div>
+          <div class="brand-name">好友</div>
+          <div class="brand-count">69 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+            <span class="tag tag-gold">全球</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--accent);">M</span></div>
+          <div class="brand-name">蒙特</div>
+          <div class="brand-count">80 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+            <span class="tag tag-gold">全球</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--accent);">P</span></div>
+          <div class="brand-name">帕特加斯</div>
+          <div class="brand-count">123 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+            <span class="tag tag-gold">全球</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--accent);">R</span></div>
+          <div class="brand-name">罗密欧与朱丽叶</div>
+          <div class="brand-count">100 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+            <span class="tag tag-gold">全球</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- 价值品牌 -->
+    <section class="category-section" data-category="value">
+      <div class="category-header">
+          <h2 class="category-title">价值品牌</h2>
+        <span class="category-count">5 个品牌</span>
+      </div>
+      <div class="brand-grid" id="valueBrands">
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--accent-2);">B</span></div>
+          <div class="brand-name">玻利瓦</div>
+          <div class="brand-count">83 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+            <span class="tag">价值</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--accent-2);">P</span></div>
+          <div class="brand-name">潘趣</div>
+          <div class="brand-count">74 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+            <span class="tag">价值</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--accent-2);">Q</span></div>
+          <div class="brand-name">希多尔赛</div>
+          <div class="brand-count">21 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+            <span class="tag">价值</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--accent-2);">R</span></div>
+          <div class="brand-name">雷蒙阿隆尼</div>
+          <div class="brand-count">80 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+            <span class="tag">价值</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--accent-2);">T</span></div>
+          <div class="brand-name">千里达</div>
+          <div class="brand-count">30 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+            <span class="tag">价值</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- 走量品牌 -->
+    <section class="category-section" data-category="volume">
+      <div class="category-header">
+          <h2 class="category-title">走量品牌</h2>
+        <span class="category-count">3 个品牌</span>
+      </div>
+      <div class="brand-grid" id="volumeBrands">
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">J</span></div>
+          <div class="brand-name">荷西比雅达</div>
+          <div class="brand-count">11 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">Q</span></div>
+          <div class="brand-name">金特罗</div>
+          <div class="brand-count">16 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">V</span></div>
+          <div class="brand-name">威古洛</div>
+          <div class="brand-count">11 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- 其他品牌 -->
+    <section class="category-section" data-category="other">
+      <div class="category-header">
+          <h2 class="category-title">其他品牌</h2>
+        <span class="category-count">13 个品牌</span>
+      </div>
+      <div class="brand-grid" id="otherBrands">
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">C</span></div>
+          <div class="brand-name">库阿巴</div>
+          <div class="brand-count">8 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">D</span></div>
+          <div class="brand-name">外交官</div>
+          <div class="brand-count">15 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">F</span></div>
+          <div class="brand-name">丰塞卡</div>
+          <div class="brand-count">12 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">J</span></div>
+          <div class="brand-name">胡安洛佩斯</div>
+          <div class="brand-count">18 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">L</span></div>
+          <div class="brand-name">拉弗洛尔德卡诺</div>
+          <div class="brand-count">9 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">L</span></div>
+          <div class="brand-name">拉格洛里亚库巴纳</div>
+          <div class="brand-count">22 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">P</span></div>
+          <div class="brand-name">波尔拉腊尼加</div>
+          <div class="brand-count">14 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">S</span></div>
+          <div class="brand-name">桑丘潘萨</div>
+          <div class="brand-count">16 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">S</span></div>
+          <div class="brand-name">圣克里斯托</div>
+          <div class="brand-count">20 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">S</span></div>
+          <div class="brand-name">圣路易斯雷伊</div>
+          <div class="brand-count">12 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">V</span></div>
+          <div class="brand-name">维加斯罗宾纳</div>
+          <div class="brand-count">13 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">R</span></div>
+          <div class="brand-name">拉斐尔冈萨雷斯</div>
+          <div class="brand-count">10 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+        <a href="#" class="brand-card">
+          <div class="brand-logo"><span style="font-size:28px;font-family:var(--font-display);color:var(--muted);">E</span></div>
+          <div class="brand-name">世界之王</div>
+          <div class="brand-count">17 款雪茄</div>
+          <div class="brand-tags">
+            <span class="tag tag-accent">古巴</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- Empty State -->
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <p style="font-family:var(--font-display);font-size:20px;margin-bottom:8px;">未找到匹配品牌</p>
+      <p>请尝试其他搜索词</p>
+    </div>
+  </main>
+
+  <!-- Mobile Nav -->
+  <nav class="mobile-nav">
+    <a href="brands.html" class="mobile-nav-item active">
+      <span>品牌</span>
+    </a>
+    <a href="#" class="mobile-nav-item">
+      <span>库存</span>
+    </a>
+    <a href="index.html" class="mobile-nav-item">
+      <span>价格</span>
+    </a>
+    <a href="#" class="mobile-nav-item">
+      <span>链接</span>
+    </a>
+    <a href="#" class="mobile-nav-item">
+      <span>我</span>
+    </a>
+  </nav>
+
+  <script>
+    const searchInput = document.getElementById('brandSearch');
+    const emptyState = document.getElementById('emptyState');
+    const sections = document.querySelectorAll('.category-section');
+
+    searchInput.addEventListener('input', e => {
+      const q = e.target.value.toLowerCase().trim();
+      let totalVisible = 0;
+
+      sections.forEach(section => {
+        const cards = section.querySelectorAll('.brand-card');
+        let sectionVisible = 0;
+        cards.forEach(card => {
+          const name = card.querySelector('.brand-name').textContent.toLowerCase();
+          const match = !q || name.includes(q);
+          card.style.display = match ? '' : 'none';
+          if (match) sectionVisible++;
+        });
+        section.style.display = sectionVisible > 0 ? '' : 'none';
+        totalVisible += sectionVisible;
+      });
+
+      emptyState.style.display = totalVisible === 0 ? 'block' : 'none';
+    });
+  </script>
+</body>
+</html>

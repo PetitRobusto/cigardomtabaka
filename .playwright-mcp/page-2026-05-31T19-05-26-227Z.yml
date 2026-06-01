@@ -1,0 +1,56 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - heading "Page not found (404)" [level=1] [ref=e3]
+    - table [ref=e4]:
+      - rowgroup [ref=e5]:
+        - 'row "Request Method: GET" [ref=e6]':
+          - rowheader "Request Method:" [ref=e7]
+          - cell "GET" [ref=e8]
+        - 'row "Request URL: http://localhost:8000/cigars/brand/partagas/" [ref=e9]':
+          - rowheader "Request URL:" [ref=e10]
+          - cell "http://localhost:8000/cigars/brand/partagas/" [ref=e11]
+  - main [ref=e12]:
+    - paragraph [ref=e13]:
+      - text: Using the URLconf defined in
+      - code [ref=e14]: cigardomtabaka_backend.urls
+      - text: ", Django tried these URL patterns, in this order:"
+    - list [ref=e15]:
+      - listitem [ref=e16]:
+        - code [ref=e17]: admin/
+      - listitem [ref=e18]:
+        - code [ref=e19]: "[name='brand_list']"
+      - listitem [ref=e20]:
+        - code [ref=e21]: brand/<slug:slug>/ [name='brand_detail']
+      - listitem [ref=e22]:
+        - code [ref=e23]: cigar/<int:cigar_id>/ [name='cigar_detail']
+      - listitem [ref=e24]:
+        - code [ref=e25]: inventory/ [name='inventory']
+      - listitem [ref=e26]:
+        - code [ref=e27]: api/login/ [name='api_login']
+      - listitem [ref=e28]:
+        - code [ref=e29]: api/logout/ [name='api_logout']
+      - listitem [ref=e30]:
+        - code [ref=e31]: login/ [name='login_page']
+      - listitem [ref=e32]:
+        - code [ref=e33]: prices/ [name='price_dashboard']
+      - listitem [ref=e34]:
+        - code [ref=e35]: prices/<path:path> [name='price_dashboard_catchall']
+      - listitem [ref=e36]:
+        - code [ref=e37]: api/prices/
+      - listitem [ref=e38]:
+        - code [ref=e39]: privnote/
+      - listitem [ref=e40]:
+        - code [ref=e41]: p/<str:token>/ [name='privnote_view']
+      - listitem [ref=e42]:
+        - code [ref=e43]: ^media/(?P<path>.*)$
+    - paragraph [ref=e44]:
+      - text: The current path,
+      - code [ref=e45]: cigars/brand/partagas/
+      - text: ", didn’t match any of these."
+  - contentinfo [ref=e46]:
+    - paragraph [ref=e47]:
+      - text: You’re seeing this error because you have
+      - code [ref=e48]: DEBUG = True
+      - text: in your Django settings file. Change that to
+      - code [ref=e49]: "False"
+      - text: ", and Django will display a standard 404 page."

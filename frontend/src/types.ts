@@ -151,3 +151,183 @@ export interface AlertItem {
   enabled: boolean;
   last_triggered?: string;
 }
+
+// =================== NEW CATALOG TYPES ===================
+
+export interface BrandItem {
+  english_name: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  origin: string;
+  category: string;
+  cigar_count: number;
+}
+
+export interface BrandSection {
+  key: string;
+  label: string;
+  brands: BrandItem[];
+}
+
+export interface BrandListResponse {
+  sections: BrandSection[];
+  total_brands: number;
+}
+
+export interface CigarChild {
+  id: number;
+  name: string;
+  english_name: string;
+  release_type: string;
+  release_type_cn: string;
+}
+
+export interface CigarSummary {
+  id: number;
+  name: string;
+  english_name: string;
+  vitola: string;
+  vitola_cn: string;
+  length: number | null;
+  ring_gauge: number | null;
+  release_type: string;
+  release_type_cn: string;
+  status: string;
+  thumb_url: string | null;
+  image_url: string | null;
+  children: CigarChild[];
+}
+
+export interface CigarSection {
+  label: string;
+  is_header?: boolean;
+  cigars: CigarSummary[];
+}
+
+export interface BrandDetailResponse {
+  brand: {
+    english_name: string;
+    name: string;
+    slug: string;
+    logo_url: string | null;
+    origin: string;
+    category: string;
+    is_discontinued: boolean;
+  };
+  sections: CigarSection[];
+  total: number;
+}
+
+export interface CigarImage {
+  url: string;
+  thumbnail_url: string | null;
+  image_type: string;
+  order: number;
+  is_primary: boolean;
+}
+
+export interface CigarDetailResponse {
+  cigar: {
+    id: number;
+    brand: string;
+    english_name: string;
+    name: string;
+    vitola: string;
+    vitola_cn: string;
+    length: number | null;
+    ring_gauge: number | null;
+    common_name: string;
+    common_name_cn: string;
+    origin: string;
+    status: string;
+    release_type: string;
+    release_type_cn: string;
+    release_name: string;
+    production_method: string;
+    packagings: string[];
+  };
+  brand: {
+    english_name: string;
+    name: string;
+    slug: string;
+    logo_url: string | null;
+  } | null;
+  images_by_type: Record<string, CigarImage[]>;
+  total_images: number;
+  related: {
+    id: number;
+    name: string;
+    english_name: string;
+    vitola: string;
+    thumb_url: string | null;
+  }[];
+  children: {
+    id: number;
+    name: string;
+    english_name: string;
+    release_type: string;
+    release_type_cn: string;
+    thumb_url: string | null;
+  }[];
+}
+
+export interface InventoryItem {
+  id: number;
+  brand: string;
+  name: string;
+  english_name: string;
+  release_type_cn: string | null;
+  release_type: string | null;
+  total_stock: number;
+  total_cost: number;
+  avg_cost: number;
+  latest_date: string | null;
+}
+
+export interface InventoryResponse {
+  cigars: InventoryItem[];
+  brands: string[];
+  stats: {
+    brand_count: number;
+    cigar_count: number;
+    total_qty: number;
+    total_cost: number;
+  };
+}
+
+export interface PrivnoteResponse {
+  title: string;
+  note_type?: string;
+  data?: {
+    mode: string;
+    brand_groups: {
+      brand: string;
+      name: string;
+      logo_url: string | null;
+      items: {
+        name: string;
+        english_name: string;
+        vitola: string;
+        box_size: number;
+        full_boxes: number;
+        loose: number;
+        total_sticks: number;
+        box_price: number;
+        stick_price: number;
+        thumb_url: string;
+      }[];
+    }[];
+    total_items: number;
+    total_boxes: number;
+    total_loose: number;
+    empty: boolean;
+  };
+  has_password?: boolean;
+  requires_password?: boolean;
+  burn_after_read?: boolean;
+  is_destroyed?: boolean;
+  expires_at?: string;
+  error?: string;
+  reason?: string;
+}

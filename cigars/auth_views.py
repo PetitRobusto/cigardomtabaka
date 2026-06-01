@@ -1,26 +1,14 @@
-"""认证接口 — 用户名密码登录 + 退出"""
+"""认证接口 — 用户名密码登录 + 退出 + 当前用户"""
 from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
-from django.shortcuts import render, redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-
-
-def login_page(request):
-    """GET /login/ — 登录页面；已登录则跳首页"""
-    if request.user.is_authenticated:
-        return redirect('brand_list')
-    return render(request, 'cigars/login.html')
 
 
 @csrf_exempt
 @require_POST
 def api_login(request):
-    """POST /api/login/
-    Body: { "username": "...", "password": "..." }
-    成功 → 200 { ok: true, user: {...} } + Set-Cookie sessionid
-    失败 → 401 { ok: false, error: "..." }
-    """
+    """POST /api/login/"""
     username = request.POST.get('username', '').strip()
     password = request.POST.get('password', '')
 
@@ -50,6 +38,20 @@ def api_login(request):
 @csrf_exempt
 @require_POST
 def api_logout(request):
-    """POST /api/logout/ — 清除 session"""
+    """POST /api/logout/"""
     logout(request)
     return JsonResponse({'ok': True})
+
+
+def api_me(request):
+    """GET /api/auth/me/"""
+    if request.user.is_authenticated:
+        return JsonResponse({
+            'authenticated': True,
+            'user': {
+                'username': request.user.username,
+                'is_staff': request.user.is_staff,
+                'is_superuser': request.user.is_superuser,
+            },
+        })
+    return JsonResponse({'authenticated': False})

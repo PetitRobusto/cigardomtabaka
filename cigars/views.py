@@ -1,12 +1,11 @@
-from django.shortcuts import render
-from django.db.models import Count, Sum, Max, F, Q
+from django.db.models import Count, Sum, Max, F
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 
 from .models import Brand, Cigar, PurchaseBatch
 
 
 PACKAGING_TRANSLATIONS = [
-    # 盒型
     (r'Numbered black lacquered boîte nature box', '编号黑漆自然盒'),
     (r'Black lacquered boîte nature box', '黑漆自然盒'),
     (r'Black lacquered slide lid box', '黑漆滑盖木盒'),
@@ -39,7 +38,6 @@ PACKAGING_TRANSLATIONS = [
     (r'Numbered book', '编号书本盒'),
     (r'Numbered chest', '编号箱'),
     (r'Numbered box', '编号盒'),
-    # 包装细节 — 数量型放前面（先匹配具体结构）
     (r'in aluminium tubes', '铝管装'),
     (r'of (\d+) aluminium tubed cigars', r'，\1 支铝管雪茄'),
     (r'aluminium tubed cigars', '铝管雪茄'),
@@ -49,7 +47,6 @@ PACKAGING_TRANSLATIONS = [
     (r'of (\d+) cigars', r'，\1 支'),
     (r'of (\d+) aluminium', r'，\1 铝'),
     (r'\s+in\s+(\d+)', r'，内含 \1'),
-    # 限量/年份标记
     (r'\((\d[\d,]*)\s*produced\)', r'（限量 \1 件）'),
     (r'\(discontinued\s+(\d{4})\)', r'（\1 年停产）'),
     (r'\(discontinued\s+pre-(\d{4})\)', r'（\1 年前停产）'),
@@ -61,12 +58,11 @@ PACKAGING_TRANSLATIONS = [
 
 
 def translate_packaging(text: str) -> str:
-    """翻译英文包装描述为中文，返回翻译后的字符串"""
+    """翻译英文包装描述为中文"""
     import re
     result = text.strip()
     for pattern, replacement in PACKAGING_TRANSLATIONS:
         result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
-    # 清理多余的空格和标点
     result = result.replace(' .', '。').replace(' ,', '，')
     result = re.sub(r'\s+，', '，', result)
     result = re.sub(r'\s+。', '。', result)
@@ -75,22 +71,18 @@ def translate_packaging(text: str) -> str:
     return result
 
 
-
-
-
 SECTION_ORDER = [
-    ('global',        '🌍 全球品牌'),
-    ('value',         '💎 价值品牌'),
-    ('volume',        '📦 走量品牌'),
-    ('other',         '📋 其他品牌'),
-    ('ict',           '🏭 ICT 机制'),
-    ('special',       '⭐ 特殊品牌'),
-    ('discontinued',  '🪦 已停产品牌'),
+    ('global',        '全球品牌'),
+    ('value',         '价值品牌'),
+    ('volume',        '走量品牌'),
+    ('other',         '其他品牌'),
+    ('ict',           'ICT 机制'),
+    ('special',       '特殊品牌'),
+    ('discontinued',  '已停产品牌'),
 ]
 
-# 品牌详情页 release type 展示顺序
 RELEASE_TYPE_ORDER = [
-    ('',                '📦 常规款'),
+    ('',                '常规款'),
     ('Limited Edition Series',          '限量版'),
     ('Regional Edition Series',         '地区限量版'),
     ('Commemorative Release',           '纪念版'),
@@ -110,18 +102,15 @@ RELEASE_TYPE_ORDER = [
 ]
 
 
-def brand_list(request):
-    """品牌列表页 — 按分类分组，带 LOGO + 产地 + 停产标记"""
-    brands = list(Brand.objects.all().order_by('english_name'))
+# =================== API VIEWS ===================
 
-    # 手动统计每品牌款数（排除子雪茄）
+def api_brand_list(request):
+    """GET /api/brands/"""
+    brands = list(Brand.objects.all().order_by('english_name'))
     cigar_counts = {}
     for row in Cigar.objects.filter(parent__isnull=True).values('brand').annotate(n=Count('id')):
         cigar_counts[row['brand']] = row['n']
-    for b in brands:
-        b.cigar_count = cigar_counts.get(b.english_name, 0)
 
-    # 按分类分组
     brand_by_cat = {}
     for b in brands:
         brand_by_cat.setdefault(b.category, []).append(b)
@@ -131,37 +120,42 @@ def brand_list(request):
         if cat_key in brand_by_cat:
             sections.append({
                 'key': cat_key,
-                'label': f'{cat_label} ({len(brand_by_cat[cat_key])})',
-                'brands': brand_by_cat[cat_key],
+                'label': cat_label,
+                'brands': [
+                    {
+                        'english_name': b.english_name,
+                        'name': b.name or b.english_name,
+                        'slug': b.slug,
+                        'logo_url': b.logo.url if b.logo else None,
+                        'origin': b.origin,
+                        'category': b.category,
+                        'cigar_count': cigar_counts.get(b.english_name, 0),
+                    }
+                    for b in brand_by_cat[cat_key]
+                ],
             })
 
-    return render(request, 'cigars/brand_list.html', {
-        'sections': sections,
-        'total_brands': len(brands),
-    })
+    return JsonResponse({'sections': sections, 'total_brands': len(brands)})
 
 
-def brand_detail(request, slug):
-    """品牌详情页 — 三区：常规款 | 特别发行 | 停产款 + 机制茄"""
+def api_brand_detail(request, slug):
+    """GET /api/brands/<slug>/"""
     brand = Brand.objects.get(slug=slug)
     all_cigars = Cigar.objects.filter(brand=brand.english_name)\
         .order_by('english_name')\
         .prefetch_related('images')
 
-    current = []         # 所有 Current（不含机制茄/小雪茄）
-    orphan_special = {}  # 无 parent 的 Special Releases（不含机制茄/小雪茄）
-    discontinued = []    # Discontinued（不含子款，不含机制茄/小雪茄）
-    small_cigars = []    # 小雪茄 (vitola: Mini/Short/Club)
+    current = []
+    orphan_special = {}
+    discontinued = []
+    small_cigars = []
 
     for c in all_cigars:
         if c.parent_id:
-            continue  # 子雪茄 → 不独立展示
-        
-        # 小雪茄单独分组（放最后）
+            continue
         if c.vitola in ('Mini', 'Short', 'Club'):
             small_cigars.append(c)
             continue
-        
         status = c.status or ''
         rt = c.release_type or ''
         if status == 'Discontinued':
@@ -171,128 +165,174 @@ def brand_detail(request, slug):
         else:
             current.append(c)
 
-    # 为所有父款统计子款数量
     all_parents = current + discontinued + small_cigars
     for v in orphan_special.values():
         all_parents.extend(v)
+
+    parent_children = {}
     for c in all_parents:
-        c.children = list(
-            Cigar.objects.filter(parent=c).order_by('release_type', 'english_name')
-        )
+        children = list(Cigar.objects.filter(parent=c).order_by('release_type', 'english_name'))
+        if children:
+            parent_children[c.id] = children
+
+    def _serialize_cigar(c):
+        primary = c.primary_image
+        return {
+            'id': c.id,
+            'name': c.name or c.english_name,
+            'english_name': c.english_name,
+            'vitola': c.vitola,
+            'vitola_cn': c.vitola_cn,
+            'length': c.length,
+            'ring_gauge': c.ring_gauge,
+            'release_type': c.release_type,
+            'release_type_cn': c.release_type_cn,
+            'status': c.status,
+            'thumb_url': primary.thumbnail.url if primary and primary.thumbnail else None,
+            'image_url': primary.image.url if primary and primary.image else None,
+            'children': [
+                {
+                    'id': child.id,
+                    'name': child.name or child.english_name,
+                    'english_name': child.english_name,
+                    'release_type': child.release_type,
+                    'release_type_cn': child.release_type_cn,
+                }
+                for child in parent_children.get(c.id, [])
+            ],
+        }
 
     sections = []
-
-    # 📦 常规款
     if current:
-        child_count = sum(1 for c in current if c.children)
-        label = f'📦 常规款 ({len(current)})'
-        if child_count:
-            label += f' · {child_count} 款含子款'
-        sections.append({'label': label, 'cigars': current})
+        sections.append({'label': f'常规款 ({len(current)})', 'cigars': [_serialize_cigar(c) for c in current]})
 
-    # ⭐ 独立特别发行（无 parent）
     special_sections = []
     for rt_key, rt_label in RELEASE_TYPE_ORDER:
         if rt_key in orphan_special:
-            label = f'{rt_label} ({len(orphan_special[rt_key])})'
-            special_sections.append({'label': label, 'cigars': orphan_special[rt_key]})
-
+            special_sections.append({'label': f'{rt_label} ({len(orphan_special[rt_key])})', 'cigars': [_serialize_cigar(c) for c in orphan_special[rt_key]]})
     if '' in orphan_special:
-        special_sections.append({
-            'label': f'其他特别版 ({len(orphan_special[""])})',
-            'cigars': orphan_special[''],
-        })
+        special_sections.append({'label': f"其他特别版 ({len(orphan_special[''])})", 'cigars': [_serialize_cigar(c) for c in orphan_special['']]})
 
     special_total = sum(len(v) for v in orphan_special.values())
     if special_sections:
-        sections.append({
-            'label': f'⭐ 独立特别发行 ({special_total})',
-            'cigars': [], 'is_header': True,
-        })
+        sections.append({'label': f'独立特别发行 ({special_total})', 'is_header': True, 'cigars': []})
         sections.extend(special_sections)
 
-    # 🪦 停产款（含子款）
     if discontinued:
-        child_count = sum(1 for c in discontinued if c.children)
-        label = f'🪦 停产款 ({len(discontinued)})'
-        if child_count:
-            label += f' · {child_count} 款含子款'
-        sections.append({'label': label, 'cigars': discontinued})
+        sections.append({'label': f'停产款 ({len(discontinued)})', 'cigars': [_serialize_cigar(c) for c in discontinued]})
 
-    # ⚙️ 小雪茄 (Mini/Short/Club)
     if small_cigars:
-        child_count = sum(1 for c in small_cigars if c.children)
-        label = f'🪶 小雪茄 ({len(small_cigars)})'
-        if child_count:
-            label += f' · {child_count} 款含子款'
-        sections.append({'label': label, 'cigars': small_cigars})
+        sections.append({'label': f'小雪茄 ({len(small_cigars)})', 'cigars': [_serialize_cigar(c) for c in small_cigars]})
 
-    return render(request, 'cigars/brand_detail.html', {
-        'brand': brand,
+    return JsonResponse({
+        'brand': {
+            'english_name': brand.english_name,
+            'name': brand.name or brand.english_name,
+            'slug': brand.slug,
+            'logo_url': brand.logo.url if brand.logo else None,
+            'origin': brand.origin,
+            'category': brand.category,
+            'is_discontinued': brand.category == 'discontinued',
+        },
         'sections': sections,
         'total': all_cigars.count(),
     })
 
 
-def cigar_detail(request, cigar_id):
-    """雪茄详情页 — 全部信息 + 所有图片"""
+def api_cigar_detail(request, cigar_id):
+    """GET /api/cigars/<id>/"""
     import json
-
     cigar = Cigar.objects.get(id=cigar_id)
     brand = Brand.objects.filter(english_name=cigar.brand).first()
 
-    # 解析包装信息
     packagings = []
     if cigar.packagings:
         try:
             raw = json.loads(cigar.packagings)
-            # packagings 是 dict: {raw, box_sizes, sub_quantity}
             if isinstance(raw, dict):
                 descs = [s.strip() for s in raw.get('raw', '').split('.') if s.strip()]
                 for desc in descs:
                     packagings.append(translate_packaging(desc))
             elif isinstance(raw, list):
-                # 兼容旧格式
                 for item in raw:
                     if isinstance(item, dict):
                         packagings.append(item)
         except json.JSONDecodeError:
             pass
 
-    # 图片分组
     images = cigar.images.all().order_by('image_type', 'order')
     images_by_type = {}
     for img in images:
-        images_by_type.setdefault(img.get_image_type_display(), []).append(img)
+        type_label = img.get_image_type_display()
+        images_by_type.setdefault(type_label, []).append({
+            'url': img.image.url,
+            'thumbnail_url': img.thumbnail.url if img.thumbnail else None,
+            'image_type': img.image_type,
+            'order': img.order,
+            'is_primary': img.is_primary,
+        })
 
-    # 同品牌其他雪茄（推荐）
-    related = list(Cigar.objects.filter(
-        brand=cigar.brand
-    ).exclude(id=cigar_id).order_by('?')[:8])
+    related = list(Cigar.objects.filter(brand=cigar.brand).exclude(id=cigar_id).order_by('?')[:8])
+    children = list(Cigar.objects.filter(parent=cigar).order_by('release_type', 'english_name'))
 
-    # 子款列表（如果是父款）
-    children = list(Cigar.objects.filter(
-        parent=cigar
-    ).order_by('release_type', 'english_name'))
-
-    return render(request, 'cigars/cigar_detail.html', {
-        'cigar': cigar,
-        'brand': brand,
-        'packagings': packagings,
+    return JsonResponse({
+        'cigar': {
+            'id': cigar.id,
+            'brand': cigar.brand,
+            'english_name': cigar.english_name,
+            'name': cigar.name,
+            'vitola': cigar.vitola,
+            'vitola_cn': cigar.vitola_cn,
+            'length': cigar.length,
+            'ring_gauge': cigar.ring_gauge,
+            'common_name': cigar.common_name,
+            'common_name_cn': cigar.common_name_cn,
+            'origin': cigar.origin,
+            'status': cigar.status,
+            'release_type': cigar.release_type,
+            'release_type_cn': cigar.release_type_cn,
+            'release_name': cigar.release_name,
+            'production_method': cigar.production_method,
+            'packagings': packagings,
+        },
+        'brand': {
+            'english_name': brand.english_name if brand else cigar.brand,
+            'name': (brand.name if brand else None) or (brand.english_name if brand else cigar.brand),
+            'slug': brand.slug if brand else None,
+            'logo_url': brand.logo.url if brand and brand.logo else None,
+        } if brand else None,
         'images_by_type': images_by_type,
         'total_images': images.count(),
-        'related': related,
-        'children': children,
+        'related': [
+            {
+                'id': c.id,
+                'name': c.name or c.english_name,
+                'english_name': c.english_name,
+                'vitola': c.vitola,
+                'thumb_url': c.primary_image.thumbnail.url if c.primary_image and c.primary_image.thumbnail else None,
+            }
+            for c in related
+        ],
+        'children': [
+            {
+                'id': c.id,
+                'name': c.name or c.english_name,
+                'english_name': c.english_name,
+                'release_type': c.release_type,
+                'release_type_cn': c.release_type_cn,
+                'thumb_url': c.primary_image.thumbnail.url if c.primary_image and c.primary_image.thumbnail else None,
+            }
+            for c in children
+        ],
     })
 
 
 @login_required
-def inventory(request):
-    """库存总览页 — 仅 staff 可访问"""
+def api_inventory(request):
+    """GET /api/inventory/"""
     if not request.user.is_staff:
-        return render(request, '403.html', status=403)
+        return JsonResponse({'error': 'Forbidden'}, status=403)
 
-    # 从 PurchaseBatch 聚合库存数据
     stock_data = {}
     batches = PurchaseBatch.objects.filter(remaining__gt=0).values(
         'cigar_id'
@@ -306,45 +346,46 @@ def inventory(request):
         stock_data[row['cigar_id']] = {
             'total_stock': row['total_stock'],
             'total_cost': row['total_cost'],
-            'avg_cost': round(row['total_cost'] / row['total_stock'], 2),
-            'latest_date': row['latest_date'],
+            'avg_cost': round(row['total_cost'] / row['total_stock'], 2) if row['total_stock'] else 0,
+            'latest_date': row['latest_date'].isoformat() if row['latest_date'] else None,
         }
 
-    # 获取对应雪茄对象
     cigars = Cigar.objects.filter(id__in=stock_data.keys()).order_by('brand', 'english_name')
 
-    # 组装结果列表
     result = []
     for c in cigars:
         sd = stock_data[c.id]
-        c.total_stock = sd['total_stock']
-        c.total_cost = sd['total_cost']
-        c.avg_cost = sd['avg_cost']
-        c.latest_date = sd['latest_date']
-        result.append(c)
+        result.append({
+            'id': c.id,
+            'brand': c.brand,
+            'name': c.name or c.english_name,
+            'english_name': c.english_name,
+            'release_type_cn': c.release_type_cn,
+            'release_type': c.release_type,
+            'total_stock': sd['total_stock'],
+            'total_cost': sd['total_cost'],
+            'avg_cost': sd['avg_cost'],
+            'latest_date': sd['latest_date'],
+        })
 
-    # 统计数据
-    brands_with_stock = sorted(set(c.brand for c in result))
-    total_qty = sum(c.total_stock for c in result)
-    total_cost_sum = sum(c.total_cost for c in result)
+    brands_with_stock = sorted(set(c['brand'] for c in result))
+    total_qty = sum(c['total_stock'] for c in result)
+    total_cost_sum = sum(c['total_cost'] for c in result)
 
-    # 品牌筛选
     brand_filter = request.GET.get('brand', '')
     search_query = request.GET.get('q', '').strip()
 
     if brand_filter:
-        result = [c for c in result if c.brand == brand_filter]
+        result = [c for c in result if c['brand'] == brand_filter]
     if search_query:
         result = [
             c for c in result
-            if search_query.lower() in (c.name or c.english_name).lower()
+            if search_query.lower() in c['name'].lower() or search_query.lower() in c['english_name'].lower()
         ]
 
-    return render(request, 'cigars/inventory.html', {
+    return JsonResponse({
         'cigars': result,
         'brands': brands_with_stock,
-        'brand_filter': brand_filter,
-        'search_query': search_query,
         'stats': {
             'brand_count': len(brands_with_stock),
             'cigar_count': len(result),

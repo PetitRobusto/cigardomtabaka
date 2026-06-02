@@ -543,12 +543,18 @@ class COHChinaScraper(BaseScraper):
         for attempt in range(3):
             try:
                 await page.goto(url, wait_until='domcontentloaded', timeout=30000)
-                await page.wait_for_timeout(2000)
+                # 不等固定时间，改等产品数据加载（AJAX 可能慢）
+                try:
+                    await page.wait_for_selector('span.product_header', timeout=10000)
+                except Exception:
+                    # 可能该品牌真的没产品，继续解析
+                    pass
+                await page.wait_for_timeout(500)  # 200ms 兜底渲染
                 html = await page.content()
                 items = _parse_coh_page(html, brand_name)
                 if items:
                     return items
-                # 空结果可能 Cloudflare 拦截，等一下再试
+                logger.debug(f'COH中国 {brand_name}: page loaded but no products parsed')
                 await page.wait_for_timeout(2000)
             except Exception as e:
                 if attempt < 2:

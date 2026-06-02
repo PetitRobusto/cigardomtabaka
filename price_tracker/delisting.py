@@ -19,25 +19,40 @@ def detect_delistings(source, scraped_combos):
     """
     today = timezone.now().date()
 
-    # 1. 找到该 source 下所有曾有货的 (cigar_id, box_size) 去重组合
-    ever_in_stock_combos = (
+    # 1. 找到上一次爬取中仍在售的 combo（不是全部历史！）
+    #    只对比 "上次有 → 这次无" 的才标记下架，避免历史累积导致每天重复标记
+    last_scrape_date = (
         PriceSnapshot.objects
         .filter(source=source, in_stock=True)
+        .exclude(scraped_date=today)
+        .aggregate(last=Max('scraped_date'))['last']
+    )
+
+    if not last_scrape_date:
+        logger.debug('Source %s has no pre-today in-stock snapshots, skipping.', source.slug)
+        return {'newly_delisted': 0, 'already_delisted': 0}
+
+    prev_combos = (
+        PriceSnapshot.objects
+        .filter(source=source, scraped_date=last_scrape_date, in_stock=True)
         .values_list('cigar_id', 'box_size')
         .distinct()
     )
 
-    if not ever_in_stock_combos:
-        logger.debug('Source %s has no historical in-stock snapshots, skipping.', source.slug)
+    if not prev_combos:
+        logger.debug('Source %s: no in-stock combos on %s, skipping.', source.slug, last_scrape_date)
         return {'newly_delisted': 0, 'already_delisted': 0}
+
+    logger.debug(f'[delisting] comparing {len(prev_combos)} prev combos (from {last_scrape_date}) '
+                 f'vs {len(scraped_combos)} today')
 
     newly_delisted = 0
     already_delisted = 0
 
-    for cigar_id, box_size in ever_in_stock_combos:
+    for cigar_id, box_size in prev_combos:
         combo = (cigar_id, box_size)
 
-        # 2. 如果在今天的爬取结果中 → 仍在售，跳过
+        # 2. 如果今天还在 → 跳过
         if combo in scraped_combos:
             continue
 

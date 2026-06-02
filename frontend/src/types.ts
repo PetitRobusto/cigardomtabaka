@@ -252,6 +252,7 @@ export interface CigarDetailResponse {
     name: string;
     slug: string;
     logo_url: string | null;
+    cigar_count: number;
   } | null;
   images_by_type: Record<string, CigarImage[]>;
   total_images: number;
@@ -260,6 +261,7 @@ export interface CigarDetailResponse {
     name: string;
     english_name: string;
     vitola: string;
+    release_type_cn: string;
     thumb_url: string | null;
   }[];
   children: {

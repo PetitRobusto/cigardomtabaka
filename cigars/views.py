@@ -153,7 +153,8 @@ def api_brand_detail(request, slug):
     for c in all_cigars:
         if c.parent_id:
             continue
-        if c.vitola in ('Mini', 'Short', 'Club'):
+        vitola_lower = (c.vitola or '').lower()
+        if vitola_lower in ('mini', 'short', 'club'):
             small_cigars.append(c)
             continue
         status = c.status or ''
@@ -274,6 +275,7 @@ def api_cigar_detail(request, cigar_id):
 
     related = list(Cigar.objects.filter(brand=cigar.brand).exclude(id=cigar_id).order_by('?')[:8])
     children = list(Cigar.objects.filter(parent=cigar).order_by('release_type', 'english_name'))
+    brand_cigar_count = Cigar.objects.filter(brand=cigar.brand, parent__isnull=True).count() if brand else 0
 
     return JsonResponse({
         'cigar': {
@@ -300,6 +302,7 @@ def api_cigar_detail(request, cigar_id):
             'name': (brand.name if brand else None) or (brand.english_name if brand else cigar.brand),
             'slug': brand.slug if brand else None,
             'logo_url': brand.logo.url if brand and brand.logo else None,
+            'cigar_count': brand_cigar_count,
         } if brand else None,
         'images_by_type': images_by_type,
         'total_images': images.count(),
@@ -309,6 +312,7 @@ def api_cigar_detail(request, cigar_id):
                 'name': c.name or c.english_name,
                 'english_name': c.english_name,
                 'vitola': c.vitola,
+                'release_type_cn': c.release_type_cn,
                 'thumb_url': c.primary_image.thumbnail.url if c.primary_image and c.primary_image.thumbnail else None,
             }
             for c in related

@@ -372,6 +372,7 @@ export interface PaymentData {
   payment_methods: PaymentMethod[];
   customer_name: string;
   remark: string;
+  payment_remark: string;
 }
 
 export interface MessageData {

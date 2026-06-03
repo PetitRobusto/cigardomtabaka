@@ -107,6 +107,9 @@ class PaymentMethod(models.Model):
     # 二维码
     qr_image = models.ImageField('二维码', upload_to='payment_qr/', blank=True)
 
+    # 备注（收款说明，如"转账请备注订单号"）
+    remark = models.TextField('收款备注', blank=True, default='')
+
     sort_order = models.IntegerField('排序', default=0)
     is_active = models.BooleanField('启用', default=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)

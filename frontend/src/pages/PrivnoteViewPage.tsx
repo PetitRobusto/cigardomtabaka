@@ -334,15 +334,11 @@ function PaymentView({ data }: { data: PaymentData }) {
                   />
                 </div>
               )}
+              {pm.remark && (
+                <div className="mt-2 pt-2 border-t border-border text-xs text-muted whitespace-pre-wrap">{pm.remark}</div>
+              )}
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Payment remark */}
-      {data.payment_remark && (
-        <div className="bg-accent/5 border border-accent/20 rounded-md p-4">
-          <div className="text-sm whitespace-pre-wrap leading-relaxed">{data.payment_remark}</div>
         </div>
       )}
 

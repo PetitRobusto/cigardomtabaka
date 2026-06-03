@@ -160,6 +160,7 @@ def _build_payment_data(sales_order):
                 'card_number': pm.card_number,
                 'card_holder': pm.card_holder,
                 'qr_url': pm.qr_image.url if pm.qr_image else None,
+                'remark': pm.remark,
             })
         except PaymentMethod.DoesNotExist:
             pass
@@ -186,7 +187,6 @@ def _build_payment_data(sales_order):
         'payment_methods': payment_methods,
         'customer_name': sales_order.customer_name or '',
         'remark': sales_order.payment_manual.get('remark', '') if sales_order.payment_manual else '',
-        'payment_remark': sales_order.payment_manual.get('payment_remark', '') if sales_order.payment_manual else '',
     }
 
 
@@ -245,7 +245,6 @@ def create(request):
         payment_manual_raw = request.POST.get('payment_manual', '{}')
         extra_fees_raw = request.POST.get('extra_fees', '[]')
         remark = request.POST.get('remark', '').strip()
-        payment_remark = request.POST.get('payment_remark', '').strip()
 
         try:
             payment_manual = json.loads(payment_manual_raw) if payment_manual_raw else {}
@@ -265,7 +264,7 @@ def create(request):
             operator=None,
             status='draft',
             payment_method_id=int(payment_method_id) if payment_method_id else None,
-            payment_manual=dict(payment_manual, extra_fees=extra_fees, remark=remark, payment_remark=payment_remark),
+            payment_manual=dict(payment_manual, extra_fees=extra_fees, remark=remark),
         )
 
         total_revenue = 0
@@ -476,6 +475,7 @@ def list_payment_methods(request):
             'card_number': m.card_number,
             'card_holder': m.card_holder,
             'qr_url': m.qr_image.url if m.qr_image else None,
+            'remark': m.remark,
         })
     return JsonResponse({'methods': data})
 

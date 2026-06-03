@@ -347,6 +347,7 @@ class SalesOrder(models.Model):
     total_profit = models.FloatField('利润合计', default=0)
     operator = models.ForeignKey(
         User, on_delete=models.PROTECT, related_name='sales_orders',
+        null=True, blank=True,
         verbose_name='操作人'
     )
     note = models.TextField('备注', blank=True)

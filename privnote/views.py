@@ -219,7 +219,7 @@ def create(request):
 
         # 创建 SalesOrder
         order = SalesOrder.objects.create(
-            customer_name=customer_name or None,
+            customer_name=customer_name or '',
             operator=None,
             status='draft',
             payment_method_id=int(payment_method_id) if payment_method_id else None,
@@ -323,7 +323,7 @@ def search_cigars(request):
     q = request.GET.get('q', '').strip()
     stock_only = request.GET.get('stock_only', '0') == '1'
 
-    cigars = Cigar.objects.select_related('brand').all()
+    cigars = Cigar.objects.all()
 
     if stock_only:
         in_stock_ids = PurchaseBatch.objects.filter(
@@ -344,7 +344,7 @@ def search_cigars(request):
     for c in cigars:
         batches = []
         if stock_only:
-            for b in c.purchase_batches.filter(remaining__gt=0).select_related('purchase_order_item'):
+            for b in c.purchasebatch_set.filter(remaining__gt=0).select_related('purchase_order_item'):
                 box_size = b.purchase_order_item.box_size or 25
                 batches.append({
                     'batch_id': b.id,

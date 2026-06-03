@@ -1,0 +1,55 @@
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd /opt/cigardomtabaka
+
+            echo "=== git pull ==="
+            git pull origin master
+
+            echo "=== pip install ==="
+            source venv/bin/activate
+            pip install -r requirements.txt
+
+            echo "=== collectstatic ==="
+            python manage.py collectstatic --noinput
+
+            echo "=== database migrate ==="
+            python manage.py migrate
+
+            echo "=== frontend build ==="
+            cd frontend
+            npm ci
+            npm run build
+            cd ..
+
+            echo "=== restart gunicorn ==="
+            sudo systemctl restart gunicorn
+
+            echo "=== reload nginx ==="
+            sudo nginx -t && sudo systemctl reload nginx
+
+            echo "=== deploy done ==="

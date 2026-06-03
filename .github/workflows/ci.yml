@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      # No external services needed (SQLite)
+      # playwright would need browsers but tests don't use it
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check Django migrations
+        env:
+          DJANGO_DEBUG: "True"
+          DJANGO_SECRET_KEY: ci-test-key
+        run: |
+          python manage.py makemigrations --check --dry-run
+          python manage.py check --deploy 2>/dev/null || true
+
+      - name: Run tests
+        env:
+          DJANGO_DEBUG: "True"
+          DJANGO_SECRET_KEY: ci-test-key
+        run: |
+          python -m pytest --tb=short -p no:warnings --no-header -q
+
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: frontend/node_modules
+          key: node-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install & Build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build

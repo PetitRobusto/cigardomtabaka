@@ -1,0 +1,22 @@
+[Unit]
+Description=cigardomtabaka gunicorn daemon
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/cigardomtabaka
+EnvironmentFile=/opt/cigardomtabaka/.env
+ExecStart=/opt/cigardomtabaka/venv/bin/gunicorn \
+    --workers 3 \
+    --bind unix:/run/gunicorn.sock \
+    --timeout 120 \
+    --access-logfile /var/log/gunicorn/access.log \
+    --error-logfile /var/log/gunicorn/error.log \
+    cigardomtabaka_backend.wsgi:application
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

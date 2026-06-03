@@ -65,12 +65,16 @@ export const createPrivnote = (data: FormData) =>
     headers: { 'X-CSRFToken': getCSRFToken() },
   }).then(r => r.json());
 
-// Privnote upgrade APIs
+// Privnote upgrade APIs (not under /api/ prefix)
 export const searchCigars = (q: string, stockOnly = false): Promise<SearchCigarResult[]> =>
-  api.get('/privnote/api/search-cigars/', { params: { q, stock_only: stockOnly ? '1' : '0' } }).then(r => r.data.results || r.data);
+  fetch(`/privnote/api/search-cigars/?q=${encodeURIComponent(q)}&stock_only=${stockOnly ? '1' : '0'}`)
+    .then(r => r.json())
+    .then(d => d.results || d);
 
 export const fetchPaymentMethods = (): Promise<PaymentMethod[]> =>
-  api.get('/privnote/api/payment-methods/').then(r => r.data.results || r.data);
+  fetch('/privnote/api/payment-methods/')
+    .then(r => r.json())
+    .then(d => d.results || d);
 
 export const previewInventoryPrivnote = (): Promise<{ preview: InventoryViewData }> =>
   fetch('/privnote/create/', {

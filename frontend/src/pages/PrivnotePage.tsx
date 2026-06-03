@@ -56,6 +56,7 @@ export default function PrivnotePage() {
   const [useCourier, setUseCourier] = useState(false);
   const [courierAmount, setCourierAmount] = useState(0);
   const [customFees, setCustomFees] = useState<ExtraFee[]>([]);
+  const [remark, setRemark] = useState('');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const customerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -211,6 +212,7 @@ export default function PrivnotePage() {
       form.append('customer_name', customerName);
       form.append('payment_method_id', paymentMethodId);
       form.append('extra_fees', JSON.stringify(getExtraFees()));
+      form.append('remark', remark);
     } else if (activeTab === 'message') {
       form.append('text', messageText);
       form.append('attachments', JSON.stringify(attachments));
@@ -472,6 +474,18 @@ export default function PrivnotePage() {
                       <Plus className="w-3 h-3" /> 添加费用
                     </button>
                   </div>
+                </div>
+
+                {/* Remark */}
+                <div>
+                  <label className="block text-sm font-medium text-fg mb-1">备注</label>
+                  <textarea
+                    value={remark}
+                    onChange={e => setRemark(e.target.value)}
+                    rows={3}
+                    placeholder="备注信息…"
+                    className="w-full px-3 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent resize-none"
+                  />
                 </div>
 
                 {/* Payment method */}

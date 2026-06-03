@@ -185,6 +185,7 @@ def _build_payment_data(sales_order):
         'grand_total': round(total + extra_total, 2),
         'payment_methods': payment_methods,
         'customer_name': sales_order.customer_name or '',
+        'remark': sales_order.payment_manual.get('remark', '') if sales_order.payment_manual else '',
     }
 
 
@@ -242,6 +243,7 @@ def create(request):
         payment_method_id = request.POST.get('payment_method_id', '')
         payment_manual_raw = request.POST.get('payment_manual', '{}')
         extra_fees_raw = request.POST.get('extra_fees', '[]')
+        remark = request.POST.get('remark', '').strip()
 
         try:
             payment_manual = json.loads(payment_manual_raw) if payment_manual_raw else {}
@@ -261,7 +263,7 @@ def create(request):
             operator=None,
             status='draft',
             payment_method_id=int(payment_method_id) if payment_method_id else None,
-            payment_manual=dict(payment_manual, extra_fees=extra_fees),
+            payment_manual=dict(payment_manual, extra_fees=extra_fees, remark=remark),
         )
 
         total_revenue = 0

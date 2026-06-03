@@ -371,6 +371,7 @@ export interface PaymentData {
   grand_total: number;
   payment_methods: PaymentMethod[];
   customer_name: string;
+  remark: string;
 }
 
 export interface MessageData {

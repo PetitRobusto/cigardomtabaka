@@ -8,11 +8,12 @@ class Privnote(models.Model):
     """一次性客户文档 — 库存展示 / 销售单据"""
 
     class NoteType(models.TextChoices):
-        CATALOG = 'catalog', '库存展示'
-        SALES = 'sales', '销售单据'
+        INVENTORY = 'inventory', '库存展示'
+        PAYMENT   = 'payment',   '收款'
+        MESSAGE   = 'message',   '消息'
 
     token = models.CharField(max_length=12, unique=True, db_index=True)
-    note_type = models.CharField('类型', max_length=10, choices=NoteType.choices, default='catalog')
+    note_type = models.CharField('类型', max_length=10, choices=NoteType.choices, default='inventory')
     title = models.CharField('标题', max_length=200, default='Untitled')
 
     brand = models.ForeignKey(
@@ -21,6 +22,11 @@ class Privnote(models.Model):
     )
 
     html = models.TextField('预渲染HTML', blank=True)
+    sales_order = models.ForeignKey(
+        'cigars.SalesOrder', on_delete=models.SET_NULL,
+        null=True, blank=True,
+        verbose_name='关联销售单'
+    )
     data_json = models.JSONField('结构化数据', default=dict, blank=True)
 
     # 安全配置
@@ -80,3 +86,35 @@ class Privnote(models.Model):
         kwargs.setdefault('burn_after_read', True)
         kwargs.setdefault('max_views', 1)
         return cls.objects.create(**kwargs)
+
+
+class PaymentMethod(models.Model):
+    """预配置收款方式 — 全局共用"""
+
+    class MethodType(models.TextChoices):
+        BANK_CARD = 'bank_card', '银行卡'
+        WECHAT    = 'wechat',    '微信'
+        ALIPAY    = 'alipay',    '支付宝'
+
+    method_type = models.CharField('类型', max_length=20, choices=MethodType.choices)
+    label = models.CharField('标签', max_length=100, help_text='如 "Сбербанк", "微信收款码"')
+
+    # 银行卡专用
+    bank_name = models.CharField('银行名', max_length=100, blank=True)
+    card_number = models.CharField('卡号', max_length=50, blank=True)
+    card_holder = models.CharField('持卡人', max_length=100, blank=True)
+
+    # 二维码
+    qr_image = models.ImageField('二维码', upload_to='payment_qr/', blank=True)
+
+    sort_order = models.IntegerField('排序', default=0)
+    is_active = models.BooleanField('启用', default=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        ordering = ['sort_order', '-created_at']
+        verbose_name = '收款方式'
+        verbose_name_plural = '收款方式'
+
+    def __str__(self):
+        return f'{self.get_method_type_display()} · {self.label}'

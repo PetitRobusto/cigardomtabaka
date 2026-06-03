@@ -1,10 +1,196 @@
+# Privnote v3: 收款 + 消息
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
+
+**Goal:** Privnote 从两类型升级为三类型（库存/收款/消息），新增 PaymentMethod 模型和 SalesOrder 状态机。
+
+**Architecture:** 单表 Privnote + NoteType 选择字段。收款类型关联 SalesOrder（可选），实时渲染。消息类型纯文本+图片附件。库存类型现有逻辑不变。
+
+**Tech Stack:** Django 6.0 + SQLite + Django REST Framework
+
+---
+
+## File Structure
+
+| 文件 | 操作 | 职责 |
+|------|------|------|
+| `privnote/models.py` | 修改 | NoteType 改名+扩展, PaymentMethod 新模型, Privnote +sales_order |
+| `cigars/models.py` | 修改 | SalesOrder +status +payment_method_id +payment_manual |
+| `privnote/views.py` | 重写 | create() 三分支, _build_payment_data(), search API, payment-methods API |
+| `privnote/urls.py` | 修改 | 新路由 |
+| `cigardomtabaka_backend/urls.py` | 修改 | 注册新 API 路由 |
+
+---
+
+## Task 1: Models — 数据模型变更
+
+**Files:**
+- Modify: `privnote/models.py`
+- Modify: `cigars/models.py`
+
+### Step 1: NoteType 重命名 + 扩展
+
+`privnote/models.py` — 把 `NoteType` 的 `CATALOG` 改为 `INVENTORY`，加 `PAYMENT` 和 `MESSAGE`:
+
+```python
+class NoteType(models.TextChoices):
+    INVENTORY = 'inventory', '库存展示'   # was CATALOG='catalog'
+    PAYMENT   = 'payment',   '收款'
+    MESSAGE   = 'message',   '消息'
+```
+
+同时把 `note_type` 字段的 `default` 从 `'catalog'` 改为 `'inventory'`。
+
+### Step 2: Privnote + sales_order 字段
+
+在 Privnote 模型 `html` 字段后面加:
+
+```python
+sales_order = models.ForeignKey(
+    'cigars.SalesOrder', on_delete=models.SET_NULL,
+    null=True, blank=True,
+    verbose_name='关联销售单'
+)
+```
+
+### Step 3: PaymentMethod 新模型
+
+在 `privnote/models.py` 末尾加:
+
+```python
+class PaymentMethod(models.Model):
+    """预配置收款方式 — 全局共用"""
+
+    class MethodType(models.TextChoices):
+        BANK_CARD = 'bank_card', '银行卡'
+        WECHAT    = 'wechat',    '微信'
+        ALIPAY    = 'alipay',    '支付宝'
+
+    method_type = models.CharField('类型', max_length=20, choices=MethodType.choices)
+    label = models.CharField('标签', max_length=100, help_text='如 "Сбербанк", "微信收款码"')
+
+    # 银行卡专用
+    bank_name = models.CharField('银行名', max_length=100, blank=True)
+    card_number = models.CharField('卡号', max_length=50, blank=True)
+    card_holder = models.CharField('持卡人', max_length=100, blank=True)
+
+    # 二维码
+    qr_image = models.ImageField('二维码', upload_to='payment_qr/', blank=True)
+
+    sort_order = models.IntegerField('排序', default=0)
+    is_active = models.BooleanField('启用', default=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        ordering = ['sort_order', '-created_at']
+        verbose_name = '收款方式'
+        verbose_name_plural = '收款方式'
+
+    def __str__(self):
+        return f'{self.get_method_type_display()} · {self.label}'
+```
+
+### Step 4: SalesOrder 加字段
+
+`cigars/models.py` 的 SalesOrder 类，在 `note` 字段后面加:
+
+```python
+class SalesOrder(models.Model):
+    # ... existing fields ...
+    note = models.TextField('备注', blank=True)
+
+    # NEW
+    STATUS_CHOICES = [
+        ('draft', '草稿'),
+        ('pending_payment', '待付款'),
+        ('paid', '已付款'),
+        ('shipped', '已发货'),
+        ('completed', '已完成'),
+        ('cancelled', '已取消'),
+    ]
+    status = models.CharField('状态', max_length=20, choices=STATUS_CHOICES, default='draft')
+
+    payment_method_id = models.IntegerField('收款方式ID', null=True, blank=True,
+        help_text='引用 PaymentMethod.id')
+    payment_manual = models.JSONField('手动收款信息', default=dict, blank=True,
+        help_text='{"bank_name":"...","card_number":"...","card_holder":"...","wechat_qr":null,"alipay_qr":null}')
+
+    locked = models.BooleanField('已锁定', default=False)
+    # ... rest unchanged ...
+```
+
+### Step 5: 确认代码无语法错误
+
+```bash
+cd /home/jason/moscow_cigar && python -c "import cigars.models; import privnote.models; print('OK')"
+```
+
+### Step 6: Commit
+
+```bash
+git add cigars/models.py privnote/models.py
+git commit -m "feat: add PaymentMethod model, SalesOrder status/payment fields, NoteType inventory/payment/message"
+```
+
+---
+
+## Task 2: Migrations
+
+**Files:**
+- Create: `privnote/migrations/0004_*.py` (auto)
+- Create: `cigars/migrations/01XX_*.py` (auto)
+
+### Step 1: 生成并执行 migration
+
+```bash
+cd /home/jason/moscow_cigar
+python manage.py makemigrations privnote cigars
+python manage.py migrate
+```
+
+Expected: makemigrations 生成两个新文件，migrate 无报错。
+
+### Step 2: 验证数据库
+
+```bash
+python -c "
+import django; import os
+os.environ['DJANGO_SETTINGS_MODULE'] = 'cigardomtabaka_backend.settings'
+django.setup()
+from privnote.models import Privnote, PaymentMethod
+from cigars.models import SalesOrder
+print('Privnote fields:', [f.name for f in Privnote._meta.get_fields()])
+print('SalesOrder fields:', [f.name for f in SalesOrder._meta.get_fields()])
+print('PaymentMethod exists:', PaymentMethod is not None)
+"
+```
+
+### Step 3: Commit
+
+```bash
+git add privnote/migrations/ cigars/migrations/
+git commit -m "migrations: NoteType rename + SalesOrder status + PaymentMethod"
+```
+
+---
+
+## Task 3: Views — 创建/查看/API
+
+**Files:**
+- Modify: `privnote/views.py`
+
+### Step 1: 重写 `create()` — 三分支
+
+把现有 `create()` 函数替换为:
+
+```python
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
-from django.db import models
 from datetime import timedelta
 from django.utils import timezone
+from django.template.loader import render_to_string
 import uuid
 import json
 
@@ -19,7 +205,6 @@ DURATION_CHOICES = [
 
 
 def _is_staff(request):
-    """检查请求者是否为 staff"""
     if request.user.is_authenticated and request.user.is_staff:
         return True
     tg_id = request.headers.get('X-Telegram-ID', '').strip()
@@ -32,7 +217,7 @@ def _is_staff(request):
     return False
 
 
-# ═══════════════ Inventory ═══════════════
+# ── Inventory (现有逻辑不变) ──────────────────────────
 
 def _build_inventory_data():
     """从 PurchaseBatch 构建盒装库存结构化数据"""
@@ -116,7 +301,7 @@ def _build_inventory_data():
     }
 
 
-# ═══════════════ Payment ═══════════════
+# ── Payment ──────────────────────────────────────────
 
 def _build_payment_data(sales_order):
     """实时渲染收款 privnote 数据"""
@@ -139,6 +324,7 @@ def _build_payment_data(sales_order):
 
     total = round(sum(it['subtotal'] for it in items), 2)
 
+    # 收款方式
     payment_methods = []
     if sales_order.payment_method_id:
         try:
@@ -156,14 +342,14 @@ def _build_payment_data(sales_order):
 
     if sales_order.payment_manual:
         manual = sales_order.payment_manual
-        if manual.get('bank_name') or manual.get('card_number') or manual.get('card_holder'):
+        if manual.get('bank_name') or manual.get('card_number'):
             payment_methods.append({
                 'method_type': 'bank_card',
                 'label': '手动填写',
                 'bank_name': manual.get('bank_name', ''),
                 'card_number': manual.get('card_number', ''),
                 'card_holder': manual.get('card_holder', ''),
-                'qr_url': manual.get('qr_url'),
+                'qr_url': None,
             })
 
     return {
@@ -175,7 +361,7 @@ def _build_payment_data(sales_order):
     }
 
 
-# ═══════════════ CREATE ═══════════════
+# ── CREATE ───────────────────────────────────────────
 
 @csrf_exempt
 def create(request):
@@ -199,6 +385,7 @@ def create(request):
 
     # ── PAYMENT ──
     elif note_type == 'payment':
+        # 从 POST 解析订单数据
         items_json = request.POST.get('items', '[]')
         try:
             items_raw = json.loads(items_json)
@@ -220,7 +407,7 @@ def create(request):
         # 创建 SalesOrder
         order = SalesOrder.objects.create(
             customer_name=customer_name or None,
-            operator=None,
+            operator=None,   # TODO: 关联当前 staff
             status='draft',
             payment_method_id=int(payment_method_id) if payment_method_id else None,
             payment_manual=payment_manual,
@@ -271,6 +458,7 @@ def create(request):
     # ── MESSAGE ──
     elif note_type == 'message':
         text = request.POST.get('text', '').strip()
+        # 附件由前端上传到 media，这里只收文件路径列表
         attachments_raw = request.POST.get('attachments', '[]')
         try:
             attachments = json.loads(attachments_raw)
@@ -312,11 +500,11 @@ def create(request):
     })
 
 
-# ═══════════════ SEARCH API ═══════════════
+# ── SEARCH API ───────────────────────────────────────
 
 @csrf_exempt
 def search_cigars(request):
-    """GET /privnote/api/search-cigars/?q=xxx&stock_only=0|1"""
+    """GET /api/cigars/search/?q=xxx&stock_only=1"""
     if not _is_staff(request):
         return HttpResponseForbidden("仅限工作人员访问")
 
@@ -326,6 +514,7 @@ def search_cigars(request):
     cigars = Cigar.objects.select_related('brand').all()
 
     if stock_only:
+        # 只显示有库存的
         in_stock_ids = PurchaseBatch.objects.filter(
             remaining__gt=0
         ).values_list('cigar_id', flat=True).distinct()
@@ -335,13 +524,15 @@ def search_cigars(request):
         cigars = cigars.filter(
             models.Q(name__icontains=q) |
             models.Q(english_name__icontains=q) |
-            models.Q(brand__icontains=q)
+            models.Q(brand__name__icontains=q) |
+            models.Q(brand__english_name__icontains=q)
         )
 
     cigars = cigars[:30]
 
     results = []
     for c in cigars:
+        # 如果是从库存模式，附带 batch 信息
         batches = []
         if stock_only:
             for b in c.purchase_batches.filter(remaining__gt=0).select_related('purchase_order_item'):
@@ -362,7 +553,7 @@ def search_cigars(request):
             'id': c.id,
             'name': c.name or c.english_name,
             'english_name': c.english_name,
-            'brand': c.brand,
+            'brand': c.brand.name or c.brand.english_name,
             'vitola': c.vitola or '',
             'thumb_url': thumb_url,
             'batches': batches,
@@ -371,10 +562,10 @@ def search_cigars(request):
     return JsonResponse({'results': results})
 
 
-# ═══════════════ PAYMENT METHODS API ═══════════════
+# ── PAYMENT METHODS API ──────────────────────────────
 
 def list_payment_methods(request):
-    """GET /privnote/api/payment-methods/"""
+    """GET /api/payment-methods/"""
     if not _is_staff(request):
         return HttpResponseForbidden("仅限工作人员访问")
 
@@ -393,7 +584,7 @@ def list_payment_methods(request):
     return JsonResponse({'methods': data})
 
 
-# ═══════════════ API: VIEW NOTE ═══════════════
+# ── API: VIEW NOTE (客户查看) ─────────────────────────
 
 @csrf_exempt
 def api_privnote(request, token):
@@ -444,3 +635,113 @@ def api_privnote(request, token):
 # Compatibility alias
 def create_note(request):
     return create(request)
+```
+
+### Step 2: 添加 models.Q 导入
+
+确认 `privnote/views.py` 顶部有:
+
+```python
+from django.db import models
+```
+
+### Step 3: 验证语法
+
+```bash
+cd /home/jason/moscow_cigar && python -c "import privnote.views; print('OK')"
+```
+
+### Step 4: Commit
+
+```bash
+git add privnote/views.py
+git commit -m "feat: privnote create() three-branch, search API, payment-methods API, real-time payment view"
+```
+
+---
+
+## Task 4: URLs
+
+**Files:**
+- Modify: `privnote/urls.py`
+- Modify: `cigardomtabaka_backend/urls.py`
+
+### Step 1: `privnote/urls.py`
+
+```python
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('create/', views.create, name='privnote_create'),
+    path('api/search-cigars/', views.search_cigars, name='privnote_search_cigars'),
+    path('api/payment-methods/', views.list_payment_methods, name='privnote_payment_methods'),
+]
+```
+
+### Step 2: 主 `urls.py` 注册 privnote urls
+
+`cigardomtabaka_backend/urls.py`:
+
+```python
+# 已有: path('privnote/create/', create_note, name='privnote_create'),
+# 改为:
+path('privnote/', include('privnote.urls')),
+```
+
+同时删除顶部的 `from privnote.views import create_note`（因为现在通过 include 走）。
+
+### Step 3: 验证路由
+
+```bash
+cd /home/jason/moscow_cigar && python manage.py show_urls 2>/dev/null || python -c "
+from cigardomtabaka_backend.urls import urlpatterns
+for u in urlpatterns:
+    print(u.pattern)
+"
+```
+
+### Step 4: Commit
+
+```bash
+git add privnote/urls.py cigardomtabaka_backend/urls.py
+git commit -m "feat: register privnote URLs via include, add search/payment-methods routes"
+```
+
+---
+
+## Task 5: Django Admin 注册 (可选)
+
+**Files:**
+- Modify: `privnote/admin.py` (不存在则创建)
+
+### Step 1: 注册 PaymentMethod 到 Admin
+
+```bash
+cat > /home/jason/moscow_cigar/privnote/admin.py << 'EOF'
+from django.contrib import admin
+from .models import Privnote, PaymentMethod
+
+
+@admin.register(Privnote)
+class PrivnoteAdmin(admin.ModelAdmin):
+    list_display = ['token', 'note_type', 'title', 'burn_after_read', 'view_count', 'created_at', 'expires_at']
+    list_filter = ['note_type', 'burn_after_read']
+    search_fields = ['token', 'title']
+    readonly_fields = ['token', 'view_count', 'created_at']
+
+
+@admin.register(PaymentMethod)
+class PaymentMethodAdmin(admin.ModelAdmin):
+    list_display = ['label', 'method_type', 'is_active', 'sort_order']
+    list_filter = ['method_type', 'is_active']
+    search_fields = ['label', 'bank_name', 'card_number']
+EOF
+```
+
+### Step 2: Commit
+
+```bash
+git add privnote/admin.py
+git commit -m "feat: register Privnote+PaymentMethod in Django Admin"
+```

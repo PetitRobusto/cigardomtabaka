@@ -5,11 +5,12 @@ After=network.target
 [Service]
 User=www-data
 Group=www-data
+RuntimeDirectory=gunicorn
 WorkingDirectory=/opt/cigardomtabaka
 EnvironmentFile=/opt/cigardomtabaka/.env
 ExecStart=/opt/cigardomtabaka/venv/bin/gunicorn \
     --workers 3 \
-    --bind unix:/run/gunicorn.sock \
+    --bind unix:/run/gunicorn/gunicorn.sock \
     --timeout 120 \
     --access-logfile /var/log/gunicorn/access.log \
     --error-logfile /var/log/gunicorn/error.log \

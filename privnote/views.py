@@ -1,4 +1,4 @@
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.http import JsonResponse, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
@@ -447,6 +447,15 @@ def api_privnote(request, token):
 # Compatibility alias
 def create_note(request):
     return create(request)
+
+
+# ═══════════════ PAGES ═══════════════
+
+def index(request):
+    """GET /privnote/ — 创建页面 (仅 staff)"""
+    if not _is_staff(request):
+        return HttpResponseForbidden("仅限工作人员访问")
+    return render(request, 'privnote/index.html')
 
 
 # ═══════════════ VIEW NOTE PAGE ═══════════════

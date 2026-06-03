@@ -38,15 +38,15 @@ jobs:
           DJANGO_DEBUG: "True"
           DJANGO_SECRET_KEY: ci-test-key
         run: |
-          python manage.py makemigrations --check --dry-run
-          python manage.py check --deploy 2>/dev/null || true
+          python3 manage.py makemigrations --check --dry-run
+          python3 manage.py check --deploy 2>/dev/null || true
 
       - name: Run tests
         env:
           DJANGO_DEBUG: "True"
           DJANGO_SECRET_KEY: ci-test-key
         run: |
-          python -m pytest --tb=short -p no:warnings --no-header -q
+          python3 -m pytest --tb=short -p no:warnings --no-header -q
 
   frontend:
     runs-on: ubuntu-latest

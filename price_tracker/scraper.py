@@ -157,27 +157,38 @@ def run_scrape_sync(source_slug: str) -> dict:
     scraped_combos = set()
 
     # --- URL 匹配缓存：已见过的商品不重复匹配 ---
-    # 从历史快照建 {url: cigar_id} 映射，O(1) 查找避免全库 FTS
-    url_cache = {}
-    for snap in PriceSnapshot.objects.filter(source=source, url__gt='').values('url', 'cigar_id').distinct():
-        url_cache[snap['url']] = snap['cigar_id']
-    logger.info(f'[url-cache] loaded {len(url_cache)} cached URL→cigar mappings for {source.slug}')
+    # ⚠️ 缓存 key 是 (url, product_name)，不是纯 url
+    #    COH 等站点 URL 是品牌页级别（所有 Cohiba 共享 /cigars-cohiba），
+    #    纯 url 会导致同一品牌所有产品匹配到同一个 cigar！
+    url_cache: dict[tuple, int] = {}
+    for snap in PriceSnapshot.objects.filter(source=source, url__gt='').values('url', 'raw_data', 'cigar_id'):
+        url = snap['url']
+        product = snap['raw_data'].get('product', '') if isinstance(snap['raw_data'], dict) else ''
+        key = (url, product) if product else (url, str(snap['cigar_id']))
+        url_cache[key] = snap['cigar_id']
+    logger.info(f'[url-cache] loaded {len(url_cache)} cached (url,product)→cigar mappings for {source.slug}')
 
     cache_hits = 0
     cache_misses = 0
 
     for item in items:
-        # 优先走 URL 缓存
+        # 优先走 URL 缓存（双键：url + product name）
         cigar = None
-        if item.url and item.url in url_cache:
-            cigar_id = url_cache[item.url]
-            try:
-                cigar = Cigar.objects.get(id=cigar_id)
-                cache_hits += 1
-            except Cigar.DoesNotExist:
-                # 缓存指向的雪茄被删了 → 退回到匹配器
-                del url_cache[item.url]
-                logger.debug(f'[url-cache] stale cache (cigar {cigar_id} deleted) for {item.url}')
+        if item.url:
+            product_hint = item.raw_data.get('product', '') if isinstance(item.raw_data, dict) else ''
+            cache_key = (item.url, product_hint) if product_hint else (item.url, '')
+            # 也尝试不带 product 的 fallback（兼容旧缓存）
+            if cache_key in url_cache:
+                cigar_id = url_cache[cache_key]
+                try:
+                    cigar = Cigar.objects.get(id=cigar_id)
+                    cache_hits += 1
+                except Cigar.DoesNotExist:
+                    del url_cache[cache_key]
+                    logger.debug(f'[url-cache] stale cache (cigar {cigar_id} deleted) for {cache_key}')
+            elif product_hint and (item.url, '') in url_cache:
+                # 新格式没命中，试旧格式（纯 url）
+                pass  # 不走缓存，让 matcher 重新匹配并更新缓存
 
         if not cigar:
             cigar = scraper.match_cigar(item)

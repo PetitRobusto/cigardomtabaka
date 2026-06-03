@@ -279,7 +279,7 @@ export default function PrivnotePage() {
                     />
                   </div>
                   {searching && <p className="text-xs text-muted mt-1">搜索中…</p>}
-                  {searchResults.length > 0 && (
+                  {Array.isArray(searchResults) && searchResults.length > 0 && (
                     <div className="mt-1 border border-border rounded-md bg-white max-h-48 overflow-y-auto">
                       {searchResults.map(c => (
                         <div
@@ -312,7 +312,7 @@ export default function PrivnotePage() {
                 </div>
 
                 {/* Items list */}
-                {paymentItems.length > 0 && (
+                {Array.isArray(paymentItems) && paymentItems.length > 0 && (
                   <div className="space-y-2">
                     {paymentItems.map((item, idx) => (
                       <div

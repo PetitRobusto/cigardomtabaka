@@ -65,16 +65,23 @@ export const createPrivnote = (data: FormData) =>
     headers: { 'X-CSRFToken': getCSRFToken() },
   }).then(r => r.json());
 
-// Privnote upgrade APIs (not under /api/ prefix)
+// ── Privnote upgrade APIs (NOT under /api/ prefix) ──
+
 export const searchCigars = (q: string, stockOnly = false): Promise<SearchCigarResult[]> =>
-  fetch(`/privnote/api/search-cigars/?q=${encodeURIComponent(q)}&stock_only=${stockOnly ? '1' : '0'}`)
+  fetch(`/privnote/api/search-cigars/?q=${encodeURIComponent(q)}&stock_only=${stockOnly ? '1' : '0'}`, {
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': getCSRFToken() },
+  })
     .then(r => r.json())
-    .then(d => d.results || d);
+    .then(d => Array.isArray(d?.results) ? d.results : []);
 
 export const fetchPaymentMethods = (): Promise<PaymentMethod[]> =>
-  fetch('/privnote/api/payment-methods/')
+  fetch('/privnote/api/payment-methods/', {
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': getCSRFToken() },
+  })
     .then(r => r.json())
-    .then(d => d.results || d);
+    .then(d => Array.isArray(d?.methods) ? d.methods : []);
 
 export const previewInventoryPrivnote = (): Promise<{ preview: InventoryViewData }> =>
   fetch('/privnote/create/', {

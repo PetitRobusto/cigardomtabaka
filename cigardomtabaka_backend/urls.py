@@ -6,7 +6,7 @@ from django.shortcuts import render
 
 from cigars import views
 from cigars.auth_views import api_login, api_logout, api_me
-from privnote.views import api_privnote, view_note
+from privnote.views import api_privnote, create as privnote_create, search_cigars as privnote_search_cigars, list_payment_methods as privnote_payment_methods
 
 
 def spa_index(request):
@@ -25,11 +25,13 @@ urlpatterns = [
     path('api/cigars/<int:cigar_id>/', views.api_cigar_detail, name='api_cigar_detail'),
     path('api/inventory/', views.api_inventory, name='api_inventory'),
     path('api/prices/', include('price_tracker.urls')),
+    # Privnote — JSON API + customer view API (frontend handled by React SPA)
     path('api/privnote/<str:token>/', api_privnote, name='api_privnote'),
-    path('p/<str:token>/', view_note, name='privnote_view'),
-    path('privnote/', include('privnote.urls')),
+    path('privnote/create/', privnote_create, name='privnote_create'),
+    path('privnote/api/search-cigars/', privnote_search_cigars, name='privnote_search_cigars'),
+    path('privnote/api/payment-methods/', privnote_payment_methods, name='privnote_payment_methods'),
     # SPA catch-all (must be last)
-    re_path(r'^(?!admin/|api/|static/|media/|privnote/|p/).*$', spa_index, name='spa_index'),
+    re_path(r'^(?!admin/|api/|static/|media/).*$', spa_index, name='spa_index'),
 ]
 
 if settings.DEBUG:

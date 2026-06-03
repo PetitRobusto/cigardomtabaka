@@ -301,35 +301,102 @@ export interface InventoryResponse {
 export interface PrivnoteResponse {
   title: string;
   note_type?: string;
-  data?: {
-    mode: string;
-    brand_groups: {
-      brand: string;
-      name: string;
-      logo_url: string | null;
-      items: {
-        name: string;
-        english_name: string;
-        vitola: string;
-        box_size: number;
-        full_boxes: number;
-        loose: number;
-        total_sticks: number;
-        box_price: number;
-        stick_price: number;
-        thumb_url: string;
-      }[];
-    }[];
-    total_items: number;
-    total_boxes: number;
-    total_loose: number;
-    empty: boolean;
-  };
+  data?: InventoryViewData | PaymentData | MessageData;
   has_password?: boolean;
   requires_password?: boolean;
   burn_after_read?: boolean;
   is_destroyed?: boolean;
   expires_at?: string;
+  url?: string;
+  token?: string;
   error?: string;
   reason?: string;
+  sales_order_id?: number | null;
+}
+
+// =================== PRIVNOTE UPGRADE TYPES ===================
+
+export interface PaymentMethod {
+  id: number;
+  method_type: 'bank_card' | 'wechat' | 'alipay';
+  label: string;
+  bank_name?: string;
+  card_number?: string;
+  card_holder?: string;
+  qr_url?: string | null;
+}
+
+export interface SearchCigarResult {
+  id: number;
+  name: string;
+  english_name: string;
+  brand: string;
+  vitola: string;
+  thumb_url: string | null;
+  stock_qty: number;
+  batches: {
+    batch_id: number;
+    box_size: number;
+    remaining: number;
+    unit_cost_cny: number;
+  }[];
+}
+
+export interface PaymentItem {
+  cigar_id: number;
+  batch_id?: number;
+  name: string;
+  english_name: string;
+  vitola: string;
+  thumb_url: string | null;
+  quantity: number;
+  unit_price: number;
+  box_size: number;
+}
+
+export interface PaymentData {
+  mode: 'payment';
+  items: {
+    name: string;
+    english_name: string;
+    vitola: string;
+    quantity: number;
+    unit_price: number;
+    subtotal: number;
+    thumb_url: string;
+  }[];
+  total: number;
+  payment_methods: PaymentMethod[];
+  customer_name: string;
+}
+
+export interface MessageData {
+  mode: 'message';
+  text: string;
+  attachments: { name: string; url: string }[];
+}
+
+export interface InventoryViewData {
+  mode: 'inventory';
+  brand_groups: {
+    brand: string;
+    name: string;
+    logo_url: string | null;
+    items: {
+      name: string;
+      english_name: string;
+      vitola: string;
+      box_size: number;
+      full_boxes: number;
+      loose: number;
+      total_sticks: number;
+      box_price: number;
+      stick_price: number;
+      thumb_url: string;
+    }[];
+  }[];
+  total_items: number;
+  total_boxes: number;
+  total_loose: number;
+  empty: boolean;
 }

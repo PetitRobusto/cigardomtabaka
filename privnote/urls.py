@@ -3,4 +3,6 @@ from . import views
 
 urlpatterns = [
     path('create/', views.create, name='privnote_create'),
+    path('api/search-cigars/', views.search_cigars, name='privnote_search_cigars'),
+    path('api/payment-methods/', views.list_payment_methods, name='privnote_payment_methods'),
 ]

@@ -350,6 +350,22 @@ class SalesOrder(models.Model):
         verbose_name='操作人'
     )
     note = models.TextField('备注', blank=True)
+
+    STATUS_CHOICES = [
+        ('draft', '草稿'),
+        ('pending_payment', '待付款'),
+        ('paid', '已付款'),
+        ('shipped', '已发货'),
+        ('completed', '已完成'),
+        ('cancelled', '已取消'),
+    ]
+    status = models.CharField('状态', max_length=20, choices=STATUS_CHOICES, default='draft')
+
+    payment_method_id = models.IntegerField('收款方式ID', null=True, blank=True,
+        help_text='引用 PaymentMethod.id')
+    payment_manual = models.JSONField('手动收款信息', default=dict, blank=True,
+        help_text='{"bank_name":"...","card_number":"...","card_holder":"..."}')
+
     locked = models.BooleanField('已锁定', default=False)
     locked_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True,

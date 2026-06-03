@@ -193,6 +193,9 @@ def create(request):
 
     # ── INVENTORY ──
     if note_type == 'inventory':
+        # Preview mode: return inventory data without creating privnote
+        if request.POST.get('preview') == '1':
+            return JsonResponse({'preview': _build_inventory_data()})
         title = f'库存报价单 · {timezone.now().strftime("%Y-%m-%d")}{debug_tag}'
         data = _build_inventory_data()
         sales_order = None
@@ -444,3 +447,11 @@ def api_privnote(request, token):
 # Compatibility alias
 def create_note(request):
     return create(request)
+
+
+# ═══════════════ VIEW NOTE PAGE ═══════════════
+
+def view_note(request, token):
+    """GET /p/<token>/ — 客户查看页面 (JS 渲染版)"""
+    from django.shortcuts import render
+    return render(request, 'privnote/view.html', {'token': token})

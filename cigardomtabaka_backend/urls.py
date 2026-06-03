@@ -6,7 +6,7 @@ from django.shortcuts import render
 
 from cigars import views
 from cigars.auth_views import api_login, api_logout, api_me
-from privnote.views import api_privnote
+from privnote.views import api_privnote, view_note
 
 
 def spa_index(request):
@@ -26,9 +26,10 @@ urlpatterns = [
     path('api/inventory/', views.api_inventory, name='api_inventory'),
     path('api/prices/', include('price_tracker.urls')),
     path('api/privnote/<str:token>/', api_privnote, name='api_privnote'),
+    path('p/<str:token>/', view_note, name='privnote_view'),
     path('privnote/', include('privnote.urls')),
     # SPA catch-all (must be last)
-    re_path(r'^(?!admin/|api/|static/|media/|privnote/).*$', spa_index, name='spa_index'),
+    re_path(r'^(?!admin/|api/|static/|media/|privnote/|p/).*$', spa_index, name='spa_index'),
 ]
 
 if settings.DEBUG:

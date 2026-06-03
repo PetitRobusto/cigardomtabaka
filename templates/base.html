@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="light" {% block html_attrs %}{% endblock %}>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}CigarDomTabaka{% endblock %}</title>
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/output.css' %}?v=9">
+<link rel="stylesheet" href="{% static 'css/mc-luxury-theme.css' %}">
+<!-- Playfair Display — 奢侈品衬线展示字体 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+/* ==============================
+   SELECT — DaisyUI v5 缺 .select 组件，手动补上
+   ============================== */
+.select {
+  cursor: pointer;
+  border: var(--border) solid #0000;
+  appearance: none;
+  background-color: var(--color-base-100);
+  width: clamp(3rem, 20rem, 100%);
+  height: var(--size);
+  font-size: max(var(--font-size, .875rem), .875rem);
+  touch-action: manipulation;
+  border-color: var(--input-color);
+  box-shadow: 0 1px var(--input-color) inset,
+              0 -1px oklch(100% 0 0 / calc(var(--depth) * .1)) inset;
+  border-start-start-radius: var(--join-ss, var(--radius-field));
+  border-start-end-radius:   var(--join-se, var(--radius-field));
+  border-end-end-radius:     var(--join-ee, var(--radius-field));
+  border-end-start-radius:   var(--join-es, var(--radius-field));
+  flex-shrink: 1;
+  align-items: center;
+  gap: .5rem;
+  padding-inline: .75rem;
+  display: inline-flex;
+  position: relative;
+  --size: calc(var(--size-field, .25rem) * 10);
+  --input-color: var(--color-base-content);
+}
+@supports (color: color-mix(in lab, red, red)) {
+  .select {
+    box-shadow: 0 1px color-mix(in oklab, var(--input-color) calc(var(--depth)*10%), #0000) inset,
+                0 -1px oklch(100% 0 0 / calc(var(--depth)*.1)) inset;
+    --input-color: color-mix(in oklab, var(--color-base-content) 20%, #0000);
+  }
+}
+.select:focus, .select:focus-within {
+  --input-color: var(--color-base-content);
+  outline: 2px solid var(--input-color);
+  outline-offset: 2px;
+  isolation: isolate;
+}
+@supports (color: color-mix(in lab, red, red)) {
+  .select:focus, .select:focus-within {
+    box-shadow: 0 1px color-mix(in oklab, var(--input-color) calc(var(--depth)*10%), #0000);
+  }
+}
+.select:disabled {
+  cursor: not-allowed;
+  border-color: var(--color-base-200);
+  background-color: var(--color-base-200);
+  box-shadow: none;
+}
+.select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%23888' stroke-width='1.5' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right .75rem center;
+  padding-inline-end: 2.25rem;
+}
+
+/* ==============================
+   THEME — 勃艮第红奢侈品风
+   ============================== */
+
+/* --- LIGHT 主题 --- */
+[data-theme="light"] {
+  --color-base-100:      #FAF8F5;          /* 暖奶油底 */
+  --color-base-200:      #F5EFE8;          /* 暖羊皮纸 */
+  --color-base-300:      #E8E0D6;          /* 边框 */
+  --color-base-content:  #2C2416;          /* 深褐黑文字 */
+
+  --color-accent:        #7A1F2E;          /* 勃艮第红 */
+  --color-accent-content: #FFFFFF;
+
+  --color-error:         #7A1F2E;
+  --color-error-content: #FFFFFF;
+
+  --color-success:       #3D6B4F;
+  --color-warning:       #B87A3A;
+  --color-info:          #8A7E6E;
+
+  --radius-selector: 4px;
+  --radius-field:    4px;
+  --radius-box:      4px;
+}
+
+/* --- DARK 主题（Privnote）--- */
+[data-theme="dark"] {
+  --color-base-100:      #1A1510;
+  --color-base-200:      #2C2416;
+  --color-base-300:      #E8E0D6;
+  --color-base-content:  #FAF8F5;
+
+  --color-accent:        #A04050;
+  --color-accent-content: #FAF8F5;
+
+  --color-error:         #A04050;
+  --color-error-content: #FAF8F5;
+
+  --color-success:       #4D8B5F;
+  --color-warning:       #D4A34A;
+  --color-info:          #9A8E7E;
+
+  --radius-selector: 4px;
+  --radius-field:    4px;
+  --radius-box:      4px;
+}
+
+/* ==============================
+   GLOBAL — 全局微调
+   ============================== */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  background: #FAF8F5;
+}
+
+/* stat 组件微调 */
+.stats { overflow-x: auto; }
+
+/* 平滑过渡主题切换 */
+*, *::before, *::after {
+  transition: background-color .3s ease, border-color .3s ease, color .2s ease;
+}
+.icon { width:1em; height:1em; display:inline-block; vertical-align:text-bottom; }
+</style>
+{% block extra_head %}{% endblock %}
+</head>
+<body class="min-h-screen flex flex-col">
+
+<!-- ===== TOPBAR ===== -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo-mark">MC</div>
+    <span>CigarDomTabaka</span>
+    {% block navbar_title %}{% endblock %}
+  </div>
+  <div class="topbar-nav hidden lg:flex items-center gap-1">
+    <a href="{% url 'brand_list' %}" class="btn btn-ghost btn-sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M9.293 2.293a1 1 0 011.414 0l7 7A1 1 0 0117 11h-1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-3a1 1 0 00-1-1H9a1 1 0 00-1 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-6H3a1 1 0 01-.707-1.707l7-7z" clip-rule="evenodd"/></svg> 品牌</a>
+    {% if user.is_authenticated and user.is_staff %}
+      <a href="{% url 'inventory' %}" class="btn btn-ghost btn-sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M2 3a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 7a1 1 0 011-1h14a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V7zm5 3a1 1 0 000 2h6a1 1 0 100-2H7z"/></svg> 库存</a>
+      <a href="{% url 'price_dashboard' %}" class="btn btn-ghost btn-sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg> 价格</a>
+      <a href="{% url 'privnote_index' %}" class="btn btn-ghost btn-sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.225a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.606 6.364.75.75 0 101.06-1.06 2.5 2.5 0 01-.378-3.477l3-3zM7.768 15.768a2.5 2.5 0 01-3.536-3.536l1.225-1.225a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 005.656 5.656l3-3a4 4 0 00-.606-6.364.75.75 0 00-1.06 1.06 2.5 2.5 0 01.378 3.477l-3 3z"/></svg> 链接</a>
+      <a href="/admin/" class="btn btn-ghost btn-sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M7.84 1.804A1 1 0 018.82 1h2.36a1 1 0 01.98.804l.331 1.652a6.993 6.993 0 011.929 1.115l1.598-.54a1 1 0 011.186.447l1.18 2.044a1 1 0 01-.205 1.251l-1.267 1.113a7.047 7.047 0 010 2.228l1.267 1.113a1 1 0 01.205 1.251l-1.18 2.045a1 1 0 01-1.186.447l-1.598-.541a6.993 6.993 0 01-1.929 1.115l-.33 1.652A1 1 0 0111.18 19H8.82a1 1 0 01-.98-.804l-.331-1.652a6.992 6.992 0 01-1.929-1.115l-1.598.54a1 1 0 01-1.186-.446l-1.18-2.045a1 1 0 01.205-1.251l1.267-1.113a7.047 7.047 0 010-2.228L1.821 7.773a1 1 0 01-.205-1.25l1.18-2.045A1 1 0 013.982 4.03l1.598.54A6.993 6.993 0 017.51 3.456l.33-1.652zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg> 管理</a>
+    {% endif %}
+  </div>
+  <div class="topbar-right">
+    {% if user.is_authenticated %}
+      <a href="#" onclick="logout()">退出</a>
+      <div class="user">
+        <div class="user-avatar">{{ user.username|slice:":1" }}</div>
+        <span>{{ user.username }}</span>
+      </div>
+    {% else %}
+      <a href="{% url 'login_page' %}" class="btn btn-primary">登录</a>
+    {% endif %}
+  </div>
+</header>
+
+<!-- ===== PAGE BODY ===== -->
+<main class="flex-1 pb-20 lg:pb-0">
+{% block body %}{% endblock %}
+</main>
+
+<!-- ===== BOTTOM NAV (mobile only) ===== -->
+<div class="mobile-nav">
+  <a href="{% url 'brand_list' %}" class="mobile-nav-item active">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mobile-nav-icon"><path fill-rule="evenodd" d="M9.293 2.293a1 1 0 011.414 0l7 7A1 1 0 0117 11h-1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-3a1 1 0 00-1-1H9a1 1 0 00-1 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-6H3a1 1 0 01-.707-1.707l7-7z" clip-rule="evenodd"/></svg>
+    <span>品牌</span>
+  </a>
+  {% if user.is_authenticated and user.is_staff %}
+  <a href="{% url 'inventory' %}" class="mobile-nav-item">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mobile-nav-icon"><path d="M2 3a1 1 0 011-1h14a1 1 0 110 2H3a1 1 0 01-1-1zM2 7a1 1 0 011-1h14a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V7zm5 3a1 1 0 000 2h6a1 1 0 100-2H7z"/></svg>
+    <span>库存</span>
+  </a>
+  <a href="{% url 'price_dashboard' %}" class="mobile-nav-item">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mobile-nav-icon"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+    <span>价格</span>
+  </a>
+  <a href="{% url 'privnote_index' %}" class="mobile-nav-item">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mobile-nav-icon"><path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.225a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.606 6.364.75.75 0 101.06-1.06 2.5 2.5 0 01-.378-3.477l3-3zM7.768 15.768a2.5 2.5 0 01-3.536-3.536l1.225-1.225a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 005.656 5.656l3-3a4 4 0 00-.606-6.364.75.75 0 00-1.06 1.06 2.5 2.5 0 01.378 3.477l-3 3z"/></svg>
+    <span>链接</span>
+  </a>
+  {% endif %}
+  {% if user.is_authenticated %}
+  <a href="#" onclick="logout()" class="mobile-nav-item">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mobile-nav-icon"><path fill-rule="evenodd" d="M3 4.25A2.25 2.25 0 015.25 2h5.5A2.25 2.25 0 0113 4.25v2a.75.75 0 01-1.5 0v-2a.75.75 0 00-.75-.75h-5.5a.75.75 0 00-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 00.75-.75v-2a.75.75 0 011.5 0v2A2.25 2.25 0 0110.75 18h-5.5A2.25 2.25 0 013 15.75V4.25z" clip-rule="evenodd"/> <path fill-rule="evenodd" d="M6 10a.75.75 0 01.75-.75h9.546l-1.048-.943a.75.75 0 111.004-1.114l2.5 2.25a.75.75 0 010 1.114l-2.5 2.25a.75.75 0 11-1.004-1.114l1.048-.943H6.75A.75.75 0 016 10z" clip-rule="evenodd"/></svg>
+    <span>退出</span>
+  </a>
+  {% else %}
+  <a href="{% url 'login_page' %}" class="mobile-nav-item">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="mobile-nav-icon"><path fill-rule="evenodd" d="M8 7a5 5 0 113.61 4.804l-1.903 1.903A1 1 0 019 14H8v1a1 1 0 01-1 1H6v1a1 1 0 01-1 1H3a1 1 0 01-1-1v-2a1 1 0 01.293-.707L8.196 8.39A5.002 5.002 0 018 7zm5-3a.75.75 0 000 1.5A1.5 1.5 0 0114.5 7 .75.75 0 0016 7a3 3 0 00-3-3z" clip-rule="evenodd"/></svg>
+    <span>登录</span>
+  </a>
+  {% endif %}
+</div>
+
+<!-- ===== SHARED FOOTER ===== -->
+<footer class="hidden lg:flex text-center text-xs text-muted py-6 border-t border-[#E8E0D6] mt-8 justify-center">
+  CigarDomTabaka · 仅供内部参考
+</footer>
+
+<script>
+async function logout(){
+  const r = await fetch('/api/logout/', {method:'POST'});
+  const d = await r.json();
+  if (d.ok) window.location.reload();
+}
+</script>
+
+{% block extra_scripts %}{% endblock %}
+
+</body>
+</html>

@@ -1,35 +1,264 @@
 {% extends "base.html" %}
 {% block html_attrs %}data-theme="dark"{% endblock %}
-{% block title %}生成链接 · {{ note.title }}{% endblock %}
-{% block navbar_title %}
-<span class="text-sm text-base-content/50 ml-3 hidden sm:inline">· <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.225a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.606 6.364.75.75 0 101.06-1.06 2.5 2.5 0 01-.378-3.477l3-3zM7.768 15.768a2.5 2.5 0 01-3.536-3.536l1.225-1.225a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 005.656 5.656l3-3a4 4 0 00-.606-6.364.75.75 0 00-1.06 1.06 2.5 2.5 0 01.378 3.477l-3 3z"/></svg> 生成链接</span>
-{% endblock %}
+{% block title %}密语 · CigarDomTabaka{% endblock %}
 
 {% block body %}
-<div class="container mx-auto px-4 py-6 max-w-3xl">
-  <div class="card bg-base-200 border border-base-300 mb-6">
-    <div class="card-body p-4">
-      <div class="flex items-center gap-3">
-        <span class="text-2xl">
-          {% if note.note_type == 'catalog' %}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M15.5 2A1.5 1.5 0 0014 3.5v13a1.5 1.5 0 001.5 1.5h1a1.5 1.5 0 001.5-1.5v-13A1.5 1.5 0 0016.5 2h-1zM9.5 6A1.5 1.5 0 008 7.5v9A1.5 1.5 0 009.5 18h1a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0010.5 6h-1zM3.5 10A1.5 1.5 0 002 11.5v5A1.5 1.5 0 003.5 18h1A1.5 1.5 0 006 16.5v-5A1.5 1.5 0 004.5 10h-1z"/></svg>{% else %}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M4.5 2A1.5 1.5 0 003 3.5v13A1.5 1.5 0 004.5 18h11a1.5 1.5 0 001.5-1.5V7.621a1.5 1.5 0 00-.44-1.06l-4.12-4.122A1.5 1.5 0 0011.378 2H4.5zm2.25 8.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zm0 3a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5z" clip-rule="evenodd"/></svg>{% endif %}
-        </span>
-        <div class="flex-1">
-          <div class="font-bold tracking-wide text-accent">{{ note.title }}</div>
-          <div class="text-xs text-base-content/50 mt-0.5">阅后即焚 · 关闭页面后无法再次访问</div>
-        </div>
-        <span class="badge badge-error badge-sm animate-pulse">一次性链接</span>
-      </div>
-    </div>
-  </div>
-  <div class="flex items-center gap-2 px-4 mb-6 text-sm text-base-content/50">
-    <span class="w-2 h-2 rounded-full bg-success"></span>
-    <span>此页面仅可查看一次</span>
-  </div>
-  {{ html|safe }}
-  <div class="divider"></div>
-  <div class="flex justify-between text-xs text-base-content/30 pb-8">
-    <span>莫斯科仓 · 仅供内部参考</span>
-    <span class="text-error/50"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg> 关闭后立即销毁</span>
+<div id="privnote-app" class="container mx-auto px-4 py-6 max-w-3xl">
+  <div class="text-center py-12 text-base-content/50">
+    <span class="loading loading-spinner loading-lg"></span>
+    <p class="mt-4">加载中...</p>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const TOKEN='{{ token }}';
+let burnAfterRead = false;
+
+async function loadNote() {
+  const app = document.getElementById('privnote-app');
+  try {
+    const r = await fetch('/api/privnote/' + TOKEN + '/');
+    const d = await r.json();
+
+    if (r.status === 410) {
+      renderDestroyed(d.reason);
+      return;
+    }
+
+    if (d.requires_password) {
+      renderPasswordGate();
+      return;
+    }
+
+    burnAfterRead = d.burn_after_read;
+    if (d.note_type === 'inventory') renderInventory(d);
+    else if (d.note_type === 'payment') renderPayment(d);
+    else if (d.note_type === 'message') renderMessage(d);
+    else app.innerHTML = '<div class="text-center py-12 text-base-content/50">未知内容类型</div>';
+  } catch(e) {
+    app.innerHTML = '<div class="text-center py-12 text-error">加载失败: ' + e.message + '</div>';
+  }
+}
+
+/* ── Destroyed ── */
+function renderDestroyed(reason) {
+  const app = document.getElementById('privnote-app');
+  const msg = reason === 'expired' ? '此密语已过期' : '此密语已销毁';
+  const desc = reason === 'expired' ? '该链接已超过有效期，内容无法查看。' : '该链接已被阅读并自动销毁，内容永久消失无法恢复。';
+  app.innerHTML = `
+    <div class="card bg-base-200 border border-base-300 text-center p-8 max-w-md mx-auto mt-12">
+      <div class="text-4xl mb-4 text-base-content/30">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="inline w-12 h-12">
+          <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+        </svg>
+      </div>
+      <h1 class="text-xl font-bold text-base-content mb-2">${msg}</h1>
+      <p class="text-sm text-base-content/50">${desc}</p>
+    </div>`;
+}
+
+/* ── Password Gate ── */
+function renderPasswordGate(error) {
+  const app = document.getElementById('privnote-app');
+  app.innerHTML = `
+    <div class="card bg-base-200 border border-base-300 p-8 max-w-md mx-auto mt-12 text-center">
+      <div class="text-2xl font-display font-bold text-accent mb-2">PN</div>
+      <h1 class="text-lg font-bold mb-1">此密语已加密</h1>
+      <p class="text-sm text-base-content/50 mb-4">发送者已为此内容设置密码保护。<br>请输入密码以查看内容。</p>
+      ${error ? '<div class="alert alert-error alert-soft text-sm mb-3">' + error + '</div>' : ''}
+      <div class="join w-full">
+        <input type="password" id="pwdInput" class="input input-bordered join-item flex-1" placeholder="输入密码" autofocus
+               onkeydown="if(event.key==='Enter')submitPassword()">
+        <button class="btn btn-accent join-item" onclick="submitPassword()">查看内容</button>
+      </div>
+      <p class="text-xs text-base-content/40 mt-4">密码验证通过后内容将展示。若已设置阅后即焚，关闭页面后无法再次查看。</p>
+    </div>`;
+}
+
+async function submitPassword() {
+  const pwd = document.getElementById('pwdInput').value.trim();
+  if (!pwd) { renderPasswordGate('请输入密码'); return; }
+  try {
+    const r = await fetch('/api/privnote/' + TOKEN + '/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({password: pwd})
+    });
+    const d = await r.json();
+    if (r.status === 401) {
+      renderPasswordGate(d.error || '密码错误');
+      return;
+    }
+    if (r.ok) {
+      burnAfterRead = d.burn_after_read;
+      if (d.note_type === 'inventory') renderInventory(d);
+      else if (d.note_type === 'payment') renderPayment(d);
+      else if (d.note_type === 'message') renderMessage(d);
+    }
+  } catch(e) {
+    renderPasswordGate('验证失败: ' + e.message);
+  }
+}
+
+/* ── Inventory View ── */
+function renderInventory(d) {
+  const app = document.getElementById('privnote-app');
+  const data = d.data;
+  if (data.empty) {
+    app.innerHTML = `<div class="text-center py-12">
+      <div class="text-4xl mb-4 text-base-content/30">📦</div>
+      <p class="text-base-content/50">当前库存为空</p>
+    </div>`;
+    return;
+  }
+
+  let html = '';
+  // Header
+  html += `<div class="mb-6">
+    <h1 class="text-xl font-bold text-accent">${d.title}</h1>
+    <p class="text-xs text-base-content/50 mt-1">库存快照 · ${new Date().toLocaleDateString('zh-CN')}</p>
+  </div>`;
+
+  // Stats
+  html += `<div class="grid grid-cols-3 gap-3 mb-6">
+    <div class="stat bg-base-200 rounded-lg text-center p-3"><div class="stat-value text-accent text-lg">${data.total_items}</div><div class="stat-desc text-xs text-base-content/50">款雪茄</div></div>
+    <div class="stat bg-base-200 rounded-lg text-center p-3"><div class="stat-value text-accent text-lg">${data.total_boxes}</div><div class="stat-desc text-xs text-base-content/50">盒</div></div>
+    <div class="stat bg-base-200 rounded-lg text-center p-3"><div class="stat-value text-accent text-lg">${data.total_loose}</div><div class="stat-desc text-xs text-base-content/50">散支</div></div>
+  </div>`;
+
+  // Brand groups
+  data.brand_groups.forEach(g => {
+    html += `<div class="card bg-base-200 border border-base-300 mb-4">
+      <div class="card-body p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-bold text-accent flex items-center gap-2">
+            ${g.logo_url ? '<img src="'+g.logo_url+'" class="w-5 h-5 object-contain">' : ''}
+            ${g.name}
+          </h3>
+          <span class="text-xs text-base-content/50">${g.items.length} 款</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="table table-xs">
+            <thead><tr class="text-base-content/50"><th>雪茄</th><th>型号</th><th class="text-right">盒装</th><th class="text-right">散支</th><th class="text-right">盒价</th><th class="text-right">支价</th></tr></thead>
+            <tbody>${g.items.map(it => `
+              <tr class="hover:bg-base-300">
+                <td><div class="font-medium text-xs">${it.name}</div><div class="text-[10px] text-base-content/40">${it.box_size}支/盒</div></td>
+                <td class="text-xs text-base-content/60">${it.vitola}</td>
+                <td class="text-right text-xs font-mono">${it.full_boxes > 0 ? it.full_boxes + ' 盒' : '—'}</td>
+                <td class="text-right text-xs font-mono">${it.loose > 0 ? it.loose + ' 支' : '—'}</td>
+                <td class="text-right text-xs font-mono text-success">${it.full_boxes > 0 ? '¥'+it.box_price.toLocaleString() : '—'}</td>
+                <td class="text-right text-xs font-mono text-success">¥${it.stick_price.toLocaleString()}</td>
+              </tr>`).join('')}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  html += footerHtml();
+  app.innerHTML = html;
+}
+
+/* ── Payment View ── */
+function renderPayment(d) {
+  const app = document.getElementById('privnote-app');
+  const data = d.data;
+
+  let html = `<div class="mb-6">
+    <h1 class="text-xl font-bold text-accent">订单与收款</h1>
+    <p class="text-xs text-base-content/50 mt-1">来自 Moscow Cigar · ${new Date().toLocaleDateString('zh-CN')}</p>
+    ${data.customer_name ? '<span class="badge badge-accent badge-sm mt-1">客户：'+data.customer_name+'</span>' : ''}
+  </div>`;
+
+  // Order Items
+  html += `<div class="card bg-base-200 border border-base-300 mb-4">
+    <div class="card-body p-4">
+      <h3 class="text-sm font-bold mb-3 flex items-center justify-between">
+        订单商品 <span class="text-xs text-base-content/50 font-normal">${data.items.length} 项</span>
+      </h3>
+      <div class="overflow-x-auto">
+        <table class="table table-xs">
+          <thead><tr class="text-base-content/50"><th>雪茄</th><th>型号</th><th class="text-right">数量</th><th class="text-right">单价</th><th class="text-right">小计</th></tr></thead>
+          <tbody>${data.items.map(it => `
+            <tr class="hover:bg-base-300">
+              <td><div class="font-medium text-xs">${it.name}</div></td>
+              <td class="text-xs text-base-content/60">${it.vitola || '—'}</td>
+              <td class="text-right text-xs font-mono">${it.quantity}</td>
+              <td class="text-right text-xs font-mono">¥${it.unit_price.toLocaleString()}</td>
+              <td class="text-right text-xs font-mono">¥${it.subtotal.toLocaleString()}</td>
+            </tr>`).join('')}
+            <tr><td colspan="4" class="text-right text-xs text-base-content/50">合计</td><td class="text-right text-sm font-bold font-mono text-accent">¥${data.total.toLocaleString()}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+
+  // Payment Methods
+  if (data.payment_methods && data.payment_methods.length > 0) {
+    html += `<div class="card bg-base-200 border border-base-300 mb-4">
+      <div class="card-body p-4">
+        <h3 class="text-sm font-bold mb-3">收款方式</h3>
+        <div class="space-y-2">${data.payment_methods.map(m => `
+          <div class="flex items-center gap-3 p-3 bg-base-100 rounded-lg">
+            <div class="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-xs font-bold text-accent">${m.method_type === 'bank_card' ? '银' : m.method_type === 'wechat' ? '微' : '支'}</div>
+            <div class="flex-1">
+              <div class="text-sm font-medium">${m.bank_name || m.label}</div>
+              ${m.method_type === 'bank_card' ? `<div class="text-xs text-base-content/50">卡号 ${m.card_number} · 持卡人 ${m.card_holder}</div>` : '<div class="text-xs text-base-content/50">扫码支付</div>'}
+            </div>
+            ${m.qr_url ? `<img src="${m.qr_url}" class="w-12 h-12 object-contain rounded">` : ''}
+          </div>`).join('')}</div>
+      </div>
+    </div>`;
+  }
+
+  html += footerHtml();
+  app.innerHTML = html;
+}
+
+/* ── Message View ── */
+function renderMessage(d) {
+  const app = document.getElementById('privnote-app');
+  const data = d.data;
+
+  let html = `<div class="mb-6">
+    <h1 class="text-xl font-bold text-accent">密语消息</h1>
+    <p class="text-xs text-base-content/50 mt-1">来自 Moscow Cigar · ${new Date().toLocaleDateString('zh-CN')}</p>
+    ${burnAfterRead ? '<span class="badge badge-accent badge-sm mt-1">阅后即焚</span>' : ''}
+  </div>`;
+
+  if (data.text) {
+    html += `<div class="card bg-base-200 border border-base-300 mb-4">
+      <div class="card-body p-6 text-sm leading-relaxed whitespace-pre-wrap">${data.text}</div>
+    </div>`;
+  }
+
+  if (data.attachments && data.attachments.length > 0) {
+    html += `<div class="mb-4">
+      <h3 class="text-sm font-bold mb-2 flex items-center justify-between">
+        附件 <span class="text-xs text-base-content/50 font-normal">${data.attachments.length} 张图片</span>
+      </h3>
+      <div class="flex flex-wrap gap-3">${data.attachments.map(url => `
+        <img src="${url}" class="w-28 h-36 object-cover rounded-lg border border-base-300 cursor-pointer hover:opacity-80 transition-opacity" onclick="window.open('${url}')">
+      `).join('')}</div>
+    </div>`;
+  }
+
+  html += footerHtml();
+  app.innerHTML = html;
+}
+
+/* ── Shared Footer ── */
+function footerHtml() {
+  if (!burnAfterRead) return '';
+  return `<div class="text-center py-4 text-xs text-base-content/40 border-t border-base-300 mt-4">
+    此密语已设置阅后即焚，关闭页面后将无法再次查看
+  </div>`;
+}
+
+// Boot
+loadNote();
+</script>
 {% endblock %}

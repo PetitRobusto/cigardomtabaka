@@ -351,6 +351,7 @@ def search_cigars(request):
     results = []
     for c in cigars:
         batches = []
+        total_stock = 0
         if stock_only:
             for b in c.purchasebatch_set.filter(remaining__gt=0).select_related('purchase_order_item'):
                 box_size = b.purchase_order_item.box_size or 25
@@ -360,6 +361,12 @@ def search_cigars(request):
                     'remaining': b.remaining,
                     'unit_cost_cny': b.unit_cost_cny,
                 })
+                total_stock += b.remaining
+        else:
+            # Non-stock mode: still compute total stock for display
+            total_stock = c.purchasebatch_set.filter(remaining__gt=0).aggregate(
+                total=models.Sum('remaining')
+            )['total'] or 0
 
         thumb_url = ''
         primary = c.primary_image
@@ -374,6 +381,7 @@ def search_cigars(request):
             'vitola': c.vitola or '',
             'thumb_url': thumb_url,
             'batches': batches,
+            'stock_qty': total_stock,
         })
 
     return JsonResponse({'results': results})

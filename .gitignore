@@ -30,6 +30,9 @@ node_modules/
 .vscode/
 .idea/
 .superpowers/
+.kilo/
+.opendesign/
+tools/
 *.swp
 *.swo
 *~
@@ -46,3 +49,8 @@ docs/
 # 业务文档
 *.xlsx
 *.xls
+
+# 项目截图/临时dump（根目录）
+brand_logos.json
+image_manifest.json
+*_snapshot.md

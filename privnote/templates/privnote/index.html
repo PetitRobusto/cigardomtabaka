@@ -1,81 +1,563 @@
 {% extends "base.html" %}
-{% block html_attrs %}data-theme="dark"{% endblock %}
-{% block title %}生成链接 · CigarDomTabaka{% endblock %}
+{% block html_attrs %}data-theme="light"{% endblock %}
+{% block title %}创建密语 · CigarDomTabaka{% endblock %}
 {% block navbar_title %}
-<span class="text-sm text-base-content/50 ml-3 hidden sm:inline">· <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.225a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.606 6.364.75.75 0 101.06-1.06 2.5 2.5 0 01-.378-3.477l3-3zM7.768 15.768a2.5 2.5 0 01-3.536-3.536l1.225-1.225a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 005.656 5.656l3-3a4 4 0 00-.606-6.364.75.75 0 00-1.06 1.06 2.5 2.5 0 01.378 3.477l-3 3z"/></svg> 生成链接</span>
+<span class="text-sm text-base-content/50 ml-3 hidden sm:inline">· 🔗 生成链接</span>
 {% endblock %}
 
 {% block body %}
-<div class="container mx-auto px-4 py-8 max-w-lg">
+<div class="container mx-auto px-4 py-8 max-w-3xl">
 
-  <div class="text-center mb-8">
-    <h1 class="text-2xl font-bold tracking-[3px] text-accent"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.225a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.606 6.364.75.75 0 101.06-1.06 2.5 2.5 0 01-.378-3.477l3-3zM7.768 15.768a2.5 2.5 0 01-3.536-3.536l1.225-1.225a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 005.656 5.656l3-3a4 4 0 00-.606-6.364.75.75 0 00-1.06 1.06 2.5 2.5 0 01.378 3.477l-3 3z"/></svg> 生成链接</h1>
-    <p class="text-sm text-base-content/50 mt-2">为客户生成加密文档链接</p>
+  <!-- Page Header -->
+  <div class="mb-8">
+    <h1 class="text-2xl font-bold text-accent tracking-wider">创建密语</h1>
+    <p class="text-sm text-base-content/50 mt-1">Create a private note</p>
   </div>
 
-  <!-- 场景选择 -->
-  <div class="tabs tabs-bordered mb-8 justify-center">
-    <input type="radio" name="scenario" class="tab" aria-label="库存展示" value="catalog" checked onchange="switchTab(this.value)">
-    <input type="radio" name="scenario" class="tab" aria-label="销售单据" value="sales" onchange="switchTab(this.value)">
-  </div>
-
-  <!-- 库存展示 -->
-  <div id="panel-catalog">
-    <form onsubmit="return createLink(event)" class="flex flex-col gap-4">
-      <input type="hidden" name="note_type" value="catalog">
-
-      <div class="card bg-base-200 p-4 text-sm text-base-content/70">
-        <p><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M15.5 2A1.5 1.5 0 0014 3.5v13a1.5 1.5 0 001.5 1.5h1a1.5 1.5 0 001.5-1.5v-13A1.5 1.5 0 0016.5 2h-1zM9.5 6A1.5 1.5 0 008 7.5v9A1.5 1.5 0 009.5 18h1a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0010.5 6h-1zM3.5 10A1.5 1.5 0 002 11.5v5A1.5 1.5 0 003.5 18h1A1.5 1.5 0 006 16.5v-5A1.5 1.5 0 004.5 10h-1z"/></svg> <strong>实时库存快照</strong>：基于当前仓库数据生成加密链接，客户打开后仅可查看一次。</p>
-      </div>
-
-      {% include "privnote/_config_fields.html" %}
-      <button type="submit" class="btn btn-accent w-full mt-2"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M15.98 1.804a1 1 0 00-1.96 0l-.24 1.192a1 1 0 01-.784.785l-1.192.238a1 1 0 000 1.962l1.192.238a1 1 0 01.785.785l.238 1.192a1 1 0 001.962 0l.238-1.192a1 1 0 01.785-.785l1.192-.238a1 1 0 000-1.962l-1.192-.238a1 1 0 01-.785-.785l-.238-1.192zM6.949 5.684a1 1 0 00-1.898 0l-.683 2.051a1 1 0 01-.633.633l-2.051.683a1 1 0 000 1.898l2.051.684a1 1 0 01.633.632l.683 2.051a1 1 0 001.898 0l.683-2.051a1 1 0 01.633-.633l2.051-.683a1 1 0 000-1.898l-2.051-.683a1 1 0 01-.633-.633L6.95 5.684zM13.949 13.684a1 1 0 00-1.898 0l-.184.553a1 1 0 01-.632.633l-.553.183a1 1 0 000 1.898l.553.183a1 1 0 01.632.633l.184.553a1 1 0 001.898 0l.184-.553a1 1 0 01.632-.633l.553-.183a1 1 0 000-1.898l-.553-.184a1 1 0 01-.632-.632l-.184-.553z"/></svg> 生成链接</button>
-    </form>
-  </div>
-
-  <!-- 销售单据 -->
-  <div id="panel-sales" class="hidden">
-    <div class="card bg-base-200 p-6 text-center">
-      <p class="text-base-content/50 text-sm">销售单据功能即将上线</p>
+  <!-- Config -->
+  <div class="flex flex-wrap items-end gap-4 mb-6 p-4 bg-base-200 rounded-lg">
+    <div class="form-control">
+      <label class="label py-0 pb-1"><span class="label-text text-xs text-base-content/50">有效期</span></label>
+      <select id="durationSelect" class="select select-bordered select-sm">
+        <option value="1">1 小时</option>
+        <option value="6">6 小时</option>
+        <option value="12">12 小时</option>
+        <option value="24" selected>24 小时</option>
+        <option value="72">3 天</option>
+        <option value="168">7 天</option>
+      </select>
+    </div>
+    <div class="form-control">
+      <label class="label py-0 pb-1"><span class="label-text text-xs text-base-content/50">密码</span></label>
+      <input type="text" id="passwordInput" class="input input-bordered input-sm" placeholder="可选">
+    </div>
+    <div class="form-control ml-auto">
+      <label class="label cursor-pointer gap-3">
+        <div>
+          <span class="label-text font-medium">阅后即焚</span>
+          <br><span class="label-text text-xs text-base-content/40">首次查看后自动销毁</span>
+        </div>
+        <input type="checkbox" id="burnToggle" class="toggle toggle-accent" checked>
+      </label>
     </div>
   </div>
 
-  <!-- 结果 -->
-  <div id="result" class="hidden mt-6">
+  <!-- Tabs -->
+  <div role="tablist" class="tabs tabs-bordered mb-6">
+    <button role="tab" class="tab tab-active" data-tab="inventory" onclick="switchTab('inventory')">库存展示</button>
+    <button role="tab" class="tab" data-tab="payment" onclick="switchTab('payment')">收款</button>
+    <button role="tab" class="tab" data-tab="message" onclick="switchTab('message')">消息</button>
+  </div>
+
+  <!-- TAB: INVENTORY -->
+  <div id="tab-inventory" class="tab-panel">
+    <div class="card bg-base-100 border border-base-300">
+      <div class="card-body p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="card-title text-base">库存清单</h2>
+          <input type="text" id="invSearch" class="input input-bordered input-sm w-56" placeholder="搜索雪茄或品牌..." oninput="filterInvTable()">
+        </div>
+        <div id="invLoading" class="text-center py-8 text-base-content/50">加载中...</div>
+        <div id="invData" class="hidden">
+          <!-- brand groups rendered by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: PAYMENT -->
+  <div id="tab-payment" class="tab-panel hidden">
+    <!-- Add Product -->
+    <div class="card bg-base-100 border border-base-300 mb-4">
+      <div class="card-body p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="card-title text-base">添加商品</h2>
+          <div class="join">
+            <button class="join-item btn btn-xs btn-accent" data-mode="stock" onclick="switchPayMode('stock')">从库存选</button>
+            <button class="join-item btn btn-xs btn-ghost" data-mode="manual" onclick="switchPayMode('manual')">手动输入</button>
+          </div>
+        </div>
+        <!-- Stock Mode -->
+        <div id="stockMode">
+          <input type="text" id="paySearch" class="input input-bordered input-sm w-full" placeholder="搜索雪茄名称或品牌..."
+                 oninput="searchCigars(this.value)" onfocus="this.value && searchCigars(this.value)">
+          <div id="payResults" class="mt-2 max-h-64 overflow-y-auto rounded-lg border border-base-300 hidden"></div>
+        </div>
+        <!-- Manual Mode -->
+        <div id="manualMode" class="hidden">
+          <div class="flex gap-2 items-end">
+            <div class="form-control flex-1">
+              <label class="label py-0 pb-1"><span class="label-text text-xs">雪茄名称</span></label>
+              <input id="manualName" class="input input-bordered input-sm" placeholder="输入雪茄名称">
+            </div>
+            <div class="form-control w-20">
+              <label class="label py-0 pb-1"><span class="label-text text-xs">数量</span></label>
+              <input id="manualQty" type="number" class="input input-bordered input-sm" value="1" min="1">
+            </div>
+            <div class="form-control w-28">
+              <label class="label py-0 pb-1"><span class="label-text text-xs">单价 ¥</span></label>
+              <input id="manualPrice" type="number" class="input input-bordered input-sm" placeholder="0" min="0">
+            </div>
+            <button class="btn btn-accent btn-sm" onclick="addManualItem()">加入</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Order List -->
+    <div id="orderCard" class="card bg-base-100 border border-base-300 mb-4 hidden">
+      <div class="card-body p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="card-title text-base">已选商品</h2>
+          <span class="text-xs text-base-content/50" id="orderCount">0 项</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>雪茄</th>
+                <th class="text-right">数量</th>
+                <th class="text-right">单价</th>
+                <th class="text-right">小计</th>
+                <th class="w-8"></th>
+              </tr>
+            </thead>
+            <tbody id="orderBody"></tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3" class="text-right text-xs text-base-content/50">合计</td>
+                <td class="text-right font-bold" id="orderTotal">¥0</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Customer -->
+    <div class="card bg-base-100 border border-base-300 mb-4">
+      <div class="card-body p-4">
+        <h2 class="card-title text-base mb-2">客户信息</h2>
+        <input type="text" id="customerName" class="input input-bordered input-sm w-full" placeholder="客户姓名（选填）">
+      </div>
+    </div>
+
+    <!-- Payment Method -->
+    <div class="card bg-base-100 border border-base-300 mb-4">
+      <div class="card-body p-4">
+        <h2 class="card-title text-base mb-2">收款方式</h2>
+        <div id="paymentMethodsList" class="text-sm text-base-content/50 mb-3">
+          <span class="loading loading-spinner loading-xs"></span> 加载收款方式...
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: MESSAGE -->
+  <div id="tab-message" class="tab-panel hidden">
+    <div class="card bg-base-100 border border-base-300 mb-4">
+      <div class="card-body p-4">
+        <h2 class="card-title text-base mb-2">消息内容</h2>
+        <textarea id="messageText" class="textarea textarea-bordered w-full h-32" placeholder="在此输入要发送的消息内容..."></textarea>
+      </div>
+    </div>
+    <div class="card bg-base-100 border border-base-300">
+      <div class="card-body p-4">
+        <h2 class="card-title text-base mb-2">附件</h2>
+        <div class="border-2 border-dashed border-base-300 rounded-lg p-6 text-center cursor-pointer hover:border-accent/50 transition-colors"
+             onclick="document.getElementById('fileInput').click()"
+             ondragover="this.classList.add('border-accent')"
+             ondragleave="this.classList.remove('border-accent')"
+             ondrop="handleDrop(event)">
+          <div class="text-sm text-base-content/50">点击或拖拽上传图片</div>
+          <div class="text-xs text-base-content/30 mt-1">支持 jpg / png / gif</div>
+          <input type="file" id="fileInput" class="hidden" accept="image/*" multiple onchange="handleFiles(this.files)">
+        </div>
+        <div id="fileList" class="flex flex-wrap gap-2 mt-3"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div class="sticky bottom-0 bg-base-100/95 backdrop-blur border-t border-base-300 p-4 flex items-center justify-between mt-6 z-10"
+       style="box-shadow: 0 -4px 16px rgba(44,36,22,0.04);">
+    <div id="actionHint" class="text-sm text-base-content/50">选择一种内容类型并填写信息</div>
+    <button class="btn btn-accent" id="createBtn" onclick="createPrivnote()">创建密语</button>
+  </div>
+
+  <!-- Result -->
+  <div id="result" class="hidden mt-4">
     <div class="card bg-success/10 border border-success/20">
       <div class="card-body p-4 text-center">
-        <div class="text-success font-bold mb-2"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg> 链接已生成</div>
-        <div class="bg-base-200 rounded-lg p-3 my-3 break-all">
+        <div class="text-success font-bold mb-2">✅ 链接已生成</div>
+        <div class="bg-base-200 rounded-lg p-3 break-all">
           <a id="result-link" href="" class="text-sm text-accent no-underline" target="_blank"></a>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Hidden fields for payment tab -->
+  <div id="paymentHiddenFields">
+    <div id="paymentPresetSelect" class="hidden"></div>
+  </div>
 </div>
+{% endblock %}
 
+{% block extra_scripts %}
 <script>
-function switchTab(val){
-  document.getElementById('panel-catalog').classList.toggle('hidden', val !== 'catalog');
-  document.getElementById('panel-sales').classList.toggle('hidden', val !== 'sales');
+/* ── Tab switching ── */
+function switchTab(name) {
+  document.querySelectorAll('[role="tab"]').forEach(t => t.classList.remove('tab-active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelector(`[data-tab="${name}"]`).classList.add('tab-active');
+  document.getElementById('tab-' + name).classList.remove('hidden');
   document.getElementById('result').classList.add('hidden');
+  updateHint();
 }
 
-async function createLink(e){
-  e.preventDefault();
-  const btn = e.target.querySelector('button[type=submit]');
-  btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clip-rule="evenodd"/></svg> 生成中...'; btn.disabled = true;
-  try {
-    const fd = new FormData(e.target);
-    const r = await fetch('/privnote/create/', {method:'POST', body: fd});
-    const d = await r.json();
-    document.getElementById('result-link').href = d.url;
-    document.getElementById('result-link').textContent = d.url;
-    document.getElementById('result').classList.remove('hidden');
-    try { await navigator.clipboard.writeText(d.url); } catch(_) { /* HTTP fallback */ }
-  } catch(err) {
-    alert('生成失败: ' + err.message);
-  }
-  btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path d="M15.98 1.804a1 1 0 00-1.96 0l-.24 1.192a1 1 0 01-.784.785l-1.192.238a1 1 0 000 1.962l1.192.238a1 1 0 01.785.785l.238 1.192a1 1 0 001.962 0l.238-1.192a1 1 0 01.785-.785l1.192-.238a1 1 0 000-1.962l-1.192-.238a1 1 0 01-.785-.785l-.238-1.192zM6.949 5.684a1 1 0 00-1.898 0l-.683 2.051a1 1 0 01-.633.633l-2.051.683a1 1 0 000 1.898l2.051.684a1 1 0 01.633.632l.683 2.051a1 1 0 001.898 0l.683-2.051a1 1 0 01.633-.633l2.051-.683a1 1 0 000-1.898l-2.051-.683a1 1 0 01-.633-.633L6.95 5.684zM13.949 13.684a1 1 0 00-1.898 0l-.184.553a1 1 0 01-.632.633l-.553.183a1 1 0 000 1.898l.553.183a1 1 0 01.632.633l.184.553a1 1 0 001.898 0l.184-.553a1 1 0 01.632-.633l.553-.183a1 1 0 000-1.898l-.553-.184a1 1 0 01-.632-.632l-.184-.553z"/></svg> 生成链接'; btn.disabled = false;
+/* ── Action hint ── */
+function updateHint() {
+  const active = document.querySelector('.tab-active').dataset.tab;
+  const hint = document.getElementById('actionHint');
+  if (active === 'inventory') hint.textContent = '将展示完整库存清单';
+  else if (active === 'payment') hint.textContent = orderItems.length ? '已选 ' + orderItems.length + ' 项商品' : '添加商品并选择收款方式';
+  else hint.textContent = '输入消息内容并上传附件';
 }
+
+/* ═══════════════ INVENTORY TAB ═══════════════ */
+let invData = null;
+async function loadInventory() {
+  if (invData) return;
+  const el = document.getElementById('invLoading');
+  el.textContent = '加载库存数据...';
+  try {
+    const r = await fetch('/privnote/create/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'note_type=inventory&duration=24&preview=1'
+    });
+    const d = await r.json();
+    if (d.preview && d.preview.brand_groups) {
+      invData = d.preview;
+      renderInventory(d.preview);
+    } else {
+      el.textContent = '暂无库存数据';
+    }
+  } catch(e) {
+    el.textContent = '加载失败: ' + e.message;
+  }
+}
+
+function renderInventory(preview) {
+  const el = document.getElementById('invData');
+  const groups = preview.brand_groups;
+  if (!groups || groups.length === 0) {
+    el.innerHTML = '<div class="text-center py-8 text-base-content/50">暂无库存数据</div>';
+    el.classList.remove('hidden');
+    document.getElementById('invLoading').classList.add('hidden');
+    return;
+  }
+  let html = '';
+  groups.forEach(g => {
+    const logoTag = g.logo_url ? `<img src="${g.logo_url}" alt="" class="w-5 h-5 object-contain">` : '';
+    html += `<div class="mb-6">`;
+    html += `<h3 class="text-sm font-bold text-accent mb-2 border-b border-base-300 pb-1 flex items-center gap-2">${logoTag}${g.name} <span class="text-xs text-base-content/40 font-normal">${g.items.length} 款</span></h3>`;
+    html += `<div class="overflow-x-auto"><table class="table table-xs"><thead><tr class="text-base-content/50">`;
+    html += `<th>雪茄</th><th>型号</th><th class="text-right">盒装</th><th class="text-right">散支</th><th class="text-right">盒价</th><th class="text-right">支价</th>`;
+    html += `</tr></thead><tbody>`;
+    g.items.forEach(it => {
+      html += `<tr class="hover:bg-base-200">`;
+      html += `<td><div class="font-medium text-xs">${it.name}</div><div class="text-[10px] text-base-content/40">${it.box_size}支/盒</div></td>`;
+      html += `<td class="text-xs text-base-content/60">${it.vitola}</td>`;
+      html += `<td class="text-right text-xs font-mono">${it.full_boxes > 0 ? it.full_boxes + ' 盒' : '—'}</td>`;
+      html += `<td class="text-right text-xs font-mono">${it.loose > 0 ? it.loose + ' 支' : '—'}</td>`;
+      html += `<td class="text-right text-xs font-mono text-success">${it.full_boxes > 0 ? '¥' + it.box_price.toLocaleString() : '—'}</td>`;
+      html += `<td class="text-right text-xs font-mono text-success">¥${it.stick_price.toLocaleString()}</td>`;
+      html += `</tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  });
+  html += `<div class="text-center text-xs text-base-content/40 py-4">共 ${groups.length} 个品牌 · ${preview.total_items} 款雪茄</div>`;
+  el.innerHTML = html;
+  el.classList.remove('hidden');
+  document.getElementById('invLoading').classList.add('hidden');
+}
+
+function filterInvTable() {
+  const q = document.getElementById('invSearch').value.toLowerCase();
+  const rows = document.querySelectorAll('#invData tbody tr');
+  const groups = document.querySelectorAll('#invData .mb-6');
+  groups.forEach(group => {
+    const items = group.querySelectorAll('tbody tr');
+    let visible = false;
+    items.forEach(row => {
+      const show = !q || row.textContent.toLowerCase().includes(q);
+      row.style.display = show ? '' : 'none';
+      if (show) visible = true;
+    });
+    group.style.display = visible ? '' : 'none';
+  });
+}
+
+// Auto-load on tab switch
+const origSwitchTab = switchTab;
+switchTab = function(name) {
+  origSwitchTab(name);
+  if (name === 'inventory') loadInventory();
+  if (name === 'payment') loadPaymentMethods();
+};
+
+/* ═══════════════ PAYMENT TAB ═══════════════ */
+let orderItems = [];
+let paymentMethods = [];
+
+function switchPayMode(mode) {
+  document.querySelectorAll('[data-mode]').forEach(b => {
+    b.classList.toggle('btn-accent', b.dataset.mode === mode);
+    b.classList.toggle('btn-ghost', b.dataset.mode !== mode);
+  });
+  document.getElementById('stockMode').classList.toggle('hidden', mode !== 'stock');
+  document.getElementById('manualMode').classList.toggle('hidden', mode !== 'manual');
+}
+
+let searchTimer = null;
+function searchCigars(q) {
+  clearTimeout(searchTimer);
+  const results = document.getElementById('payResults');
+  if (!q || q.length < 1) { results.classList.add('hidden'); return; }
+  searchTimer = setTimeout(async () => {
+    try {
+      const r = await fetch(`/privnote/api/search-cigars/?q=${encodeURIComponent(q)}&stock_only=1`);
+      const d = await r.json();
+      if (!d.results || d.results.length === 0) {
+        results.innerHTML = '<div class="p-3 text-xs text-base-content/50">未找到匹配雪茄</div>';
+      } else {
+        results.innerHTML = d.results.map(c => {
+          const batch = c.batches[0] || {};
+          const remaining = batch.remaining || 0;
+          const boxSize = batch.box_size || 25;
+          const boxes = Math.floor(remaining / boxSize);
+          const info = c.brand + ' · ' + c.vitola + (boxes > 0 ? ' · 库存 ' + boxes + ' 盒' : '');
+          const price = c.batches[0] ? Math.round(c.batches[0].unit_cost_cny * 1.5) : 0;
+          return `<div class="flex items-center justify-between p-3 hover:bg-base-200 cursor-pointer border-b border-base-200 last:border-0"
+                     onclick="addToOrder(${c.id},'${c.name.replace(/'/g,"\\'")}','${c.vitola.replace(/'/g,"\\'")}',${c.batches[0]?.unit_cost_cny||0},${c.batches[0]?.box_size||25},${price})">
+            <div>
+              <div class="font-medium text-sm">${c.name}</div>
+              <div class="text-xs text-base-content/50">${info}</div>
+            </div>
+            ${price > 0 ? `<span class="text-xs text-success font-mono">¥${price.toLocaleString()}/盒</span>` : ''}
+          </div>`;
+        }).join('');
+      }
+      results.classList.remove('hidden');
+    } catch(e) {
+      results.innerHTML = '<div class="p-3 text-xs text-error">搜索失败</div>';
+      results.classList.remove('hidden');
+    }
+  }, 300);
+}
+
+function addToOrder(id, name, vitola, unitCost, boxSize, suggestPrice) {
+  const existing = orderItems.find(i => i.cigar_id === id);
+  if (existing) { existing.quantity += 1; }
+  else {
+    orderItems.push({
+      cigar_id: id, name, vitola, quantity: 1, unit_price: suggestPrice || 0,
+      batch_id: null, box_size: boxSize, unit_cost: unitCost
+    });
+  }
+  document.getElementById('paySearch').value = '';
+  document.getElementById('payResults').classList.add('hidden');
+  renderOrder();
+}
+
+function addManualItem() {
+  const name = document.getElementById('manualName').value.trim();
+  const qty = parseInt(document.getElementById('manualQty').value) || 1;
+  const price = parseFloat(document.getElementById('manualPrice').value) || 0;
+  if (!name || price <= 0) return;
+  orderItems.push({ cigar_id: null, name, vitola: '', quantity: qty, unit_price: price, is_manual: true });
+  document.getElementById('manualName').value = '';
+  document.getElementById('manualQty').value = '1';
+  document.getElementById('manualPrice').value = '';
+  renderOrder();
+}
+
+function removeOrderItem(index) { orderItems.splice(index, 1); renderOrder(); }
+
+function renderOrder() {
+  const card = document.getElementById('orderCard');
+  const tbody = document.getElementById('orderBody');
+  if (orderItems.length === 0) { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  document.getElementById('orderCount').textContent = orderItems.length + ' 项';
+  let total = 0;
+  tbody.innerHTML = orderItems.map((it, i) => {
+    const subtotal = it.quantity * it.unit_price;
+    total += subtotal;
+    return `<tr>
+      <td>${it.name}${it.vitola ? '<div class="text-[10px] text-base-content/50">'+it.vitola+'</div>' : ''}</td>
+      <td class="text-right text-sm font-mono">${it.quantity}</td>
+      <td class="text-right text-sm font-mono">¥${it.unit_price.toLocaleString()}</td>
+      <td class="text-right text-sm font-mono">¥${subtotal.toLocaleString()}</td>
+      <td><button class="btn btn-ghost btn-xs text-error" onclick="removeOrderItem(${i})">×</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('orderTotal').textContent = '¥' + total.toLocaleString();
+  updateHint();
+}
+
+/* Payment Methods */
+async function loadPaymentMethods() {
+  try {
+    const r = await fetch('/privnote/api/payment-methods/');
+    const d = await r.json();
+    paymentMethods = d.methods || [];
+    renderPaymentMethods();
+  } catch(e) {
+    document.getElementById('paymentMethodsList').innerHTML = '<span class="text-error text-xs">加载失败</span>';
+  }
+}
+
+function renderPaymentMethods() {
+  const el = document.getElementById('paymentMethodsList');
+  if (paymentMethods.length === 0) {
+    el.innerHTML = '<div class="text-xs text-base-content/50 mb-2">暂无预设收款方式</div>';
+  } else {
+    el.innerHTML = paymentMethods.map((m, i) => `
+      <label class="flex items-center gap-3 p-3 bg-base-200 rounded-lg mb-2 cursor-pointer hover:bg-base-300 transition-colors">
+        <input type="radio" name="paymentMethod" value="${m.id}" onchange="document.getElementById('manualPaymentFields').classList.add('hidden')">
+        <div class="flex-1">
+          <div class="text-sm font-medium">${m.label}</div>
+          ${m.method_type === 'bank_card' ? `<div class="text-xs text-base-content/50">卡号 ${m.card_number || '—'} · ${m.card_holder || '—'}</div>` : '<div class="text-xs text-base-content/50">扫码支付</div>'}
+        </div>
+        ${m.qr_url ? `<img src="${m.qr_url}" class="w-10 h-10 object-contain rounded">` : ''}
+      </label>
+    `).join('');
+  }
+  // Manual payment option
+  el.innerHTML += `
+    <label class="flex items-center gap-3 p-3 bg-base-200 rounded-lg cursor-pointer hover:bg-base-300 transition-colors">
+      <input type="radio" name="paymentMethod" value="" checked onchange="document.getElementById('manualPaymentFields').classList.remove('hidden')">
+      <span class="text-sm font-medium">手动填写</span>
+    </label>
+    <div id="manualPaymentFields" class="mt-3 grid grid-cols-2 gap-2">
+      <input id="manualBankName" class="input input-bordered input-sm" placeholder="银行名称">
+      <input id="manualCardNumber" class="input input-bordered input-sm" placeholder="卡号">
+      <input id="manualCardHolder" class="input input-bordered input-sm" placeholder="持卡人">
+    </div>`;
+}
+
+/* ═══════════════ CREATE ═══════════════ */
+async function createPrivnote() {
+  const active = document.querySelector('.tab-active').dataset.tab;
+  const btn = document.getElementById('createBtn');
+  const duration = document.getElementById('durationSelect').value;
+  const password = document.getElementById('passwordInput').value.trim();
+  const burn = document.getElementById('burnToggle').checked;
+
+  btn.textContent = '创建中...';
+  btn.disabled = true;
+
+  const fd = new FormData();
+  fd.append('note_type', active);
+  fd.append('duration', duration);
+  fd.append('burn', burn ? 'on' : 'off');
+  if (password) fd.append('password', password);
+
+  try {
+    if (active === 'inventory') {
+      // nothing extra
+    } else if (active === 'payment') {
+      if (orderItems.length === 0) { alert('请至少添加一个商品'); btn.textContent = '创建密语'; btn.disabled = false; return; }
+      fd.append('items', JSON.stringify(orderItems.map(it => ({
+        cigar_id: it.cigar_id || null,
+        quantity: it.quantity,
+        unit_price: it.unit_price,
+        batch_id: it.batch_id || null,
+      }))));
+      const customerName = document.getElementById('customerName').value.trim();
+      if (customerName) fd.append('customer_name', customerName);
+
+      const selectedPm = document.querySelector('input[name="paymentMethod"]:checked');
+      if (selectedPm && selectedPm.value) {
+        fd.append('payment_method_id', selectedPm.value);
+      } else {
+        const manual = {
+          bank_name: document.getElementById('manualBankName').value.trim(),
+          card_number: document.getElementById('manualCardNumber').value.trim(),
+          card_holder: document.getElementById('manualCardHolder').value.trim(),
+        };
+        fd.append('payment_manual', JSON.stringify(manual));
+      }
+    } else if (active === 'message') {
+      const text = document.getElementById('messageText').value.trim();
+      if (!text && fileAttachments.length === 0) { alert('消息内容和附件至少填一个'); btn.textContent = '创建密语'; btn.disabled = false; return; }
+      fd.append('text', text);
+      fd.append('attachments', JSON.stringify(fileAttachments));
+    }
+
+    const r = await fetch('/privnote/create/', { method: 'POST', body: fd });
+    const d = await r.json();
+
+    if (r.ok) {
+      document.getElementById('result-link').href = d.url;
+      document.getElementById('result-link').textContent = d.url;
+      document.getElementById('result').classList.remove('hidden');
+      try { await navigator.clipboard.writeText(d.url); } catch(_) {}
+    } else {
+      alert('创建失败: ' + (d.error || '未知错误'));
+    }
+  } catch(e) {
+    alert('创建失败: ' + e.message);
+  }
+  btn.textContent = '创建密语';
+  btn.disabled = false;
+}
+
+/* ═══════════════ FILE HANDLING ═══════════════ */
+let fileAttachments = [];
+
+function handleFiles(files) {
+  Array.from(files).forEach(f => {
+    fileAttachments.push({ name: f.name, size: f.size });
+    const tag = document.createElement('span');
+    tag.className = 'badge badge-sm gap-1 cursor-pointer';
+    tag.innerHTML = f.name + '<span onclick="removeFile(\''+f.name+'\')" class="text-base-content/50 hover:text-error">×</span>';
+    document.getElementById('fileList').appendChild(tag);
+  });
+  document.getElementById('fileInput').value = '';
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('border-accent');
+  if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+}
+
+function removeFile(name) {
+  fileAttachments = fileAttachments.filter(f => f.name !== name);
+  document.getElementById('fileList').innerHTML = '';
+  fileAttachments.forEach(f => {
+    const tag = document.createElement('span');
+    tag.className = 'badge badge-sm gap-1 cursor-pointer';
+    tag.innerHTML = f.name + '<span onclick="removeFile(\''+f.name+'\')" class="text-base-content/50 hover:text-error">×</span>';
+    document.getElementById('fileList').appendChild(tag);
+  });
+}
+
+// Hide pay results on click outside
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#paySearch') && !e.target.closest('#payResults')) {
+    document.getElementById('payResults').classList.add('hidden');
+  }
+});
+
+// Init: load inventory on page load if it's active
+document.addEventListener('DOMContentLoaded', function() {
+  switchTab('inventory');
+});
 </script>
 {% endblock %}

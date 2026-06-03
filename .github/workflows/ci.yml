@@ -10,10 +10,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    services:
-      # No external services needed (SQLite)
-      # playwright would need browsers but tests don't use it
-
     steps:
       - uses: actions/checkout@v4
 

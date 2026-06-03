@@ -57,6 +57,7 @@ export default function PrivnotePage() {
   const [courierAmount, setCourierAmount] = useState(0);
   const [customFees, setCustomFees] = useState<ExtraFee[]>([]);
   const [remark, setRemark] = useState('');
+  const [paymentRemark, setPaymentRemark] = useState('');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const customerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -213,6 +214,7 @@ export default function PrivnotePage() {
       form.append('payment_method_id', paymentMethodId);
       form.append('extra_fees', JSON.stringify(getExtraFees()));
       form.append('remark', remark);
+      form.append('payment_remark', paymentRemark);
     } else if (activeTab === 'message') {
       form.append('text', messageText);
       form.append('attachments', JSON.stringify(attachments));
@@ -501,6 +503,18 @@ export default function PrivnotePage() {
                       <option key={pm.id} value={pm.id}>{pm.label}</option>
                     ))}
                   </select>
+                </div>
+
+                {/* Payment remark */}
+                <div>
+                  <label className="block text-sm font-medium text-fg mb-1">收款备注</label>
+                  <textarea
+                    value={paymentRemark}
+                    onChange={e => setPaymentRemark(e.target.value)}
+                    rows={2}
+                    placeholder="付款说明，如：请转账到以上卡号…"
+                    className="w-full px-3 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent resize-none"
+                  />
                 </div>
               </div>
             )}

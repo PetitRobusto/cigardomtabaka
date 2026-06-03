@@ -233,6 +233,8 @@ function InventoryView({ data }: { data: InventoryViewData }) {
 }
 
 function PaymentView({ data }: { data: PaymentData }) {
+  const [zoomedQr, setZoomedQr] = useState<string | null>(null);
+
   return (
     <div className="space-y-6">
       {data.customer_name && (
@@ -319,17 +321,38 @@ function PaymentView({ data }: { data: PaymentData }) {
           </h3>
           {data.payment_methods.map((pm, idx) => (
             <div key={idx} className="bg-white border border-border rounded-md p-4 space-y-1">
-              <div className="text-sm font-medium text-fg">{pm.label}</div>
-              {pm.bank_name && <div className="text-xs text-muted">银行：{pm.bank_name}</div>}
-              {pm.card_number && <div className="text-xs text-muted">卡号：{pm.card_number}</div>}
+              {pm.bank_name && <div className="text-sm text-muted">银行：{pm.bank_name}</div>}
+              {pm.card_number && <div className="text-sm text-fg font-medium tracking-wide">{pm.card_number}</div>}
               {pm.card_holder && <div className="text-xs text-muted">持卡人：{pm.card_holder}</div>}
               {pm.qr_url && (
                 <div className="mt-2">
-                  <img src={pm.qr_url} alt="收款码" className="w-32 h-32 object-contain rounded" />
+                  <img
+                    src={pm.qr_url}
+                    alt="收款码"
+                    className="w-40 h-40 object-contain rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => setZoomedQr(pm.qr_url!)}
+                  />
                 </div>
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Payment remark */}
+      {data.payment_remark && (
+        <div className="bg-accent/5 border border-accent/20 rounded-md p-4">
+          <div className="text-sm whitespace-pre-wrap leading-relaxed">{data.payment_remark}</div>
+        </div>
+      )}
+
+      {/* QR zoom overlay */}
+      {zoomedQr && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setZoomedQr(null)}
+        >
+          <img src={zoomedQr} alt="收款码" className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
         </div>
       )}
     </div>

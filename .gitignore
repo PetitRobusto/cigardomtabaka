@@ -40,6 +40,9 @@ node_modules/
 .superpowers/
 .pytest_cache/
 
+# 本地计划/文档
+docs/
+
 # 业务文档
 *.xlsx
 *.xls

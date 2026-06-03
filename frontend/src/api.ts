@@ -3,6 +3,7 @@ import type {
   PriceSnapshot, PriceHistoryResponse, Source, AggregatedCigar,
   BrandListResponse, BrandDetailResponse, CigarDetailResponse,
   InventoryResponse, PrivnoteResponse,
+  PaymentMethod, SearchCigarResult, InventoryViewData,
 } from './types';
 
 function getCSRFToken(): string {
@@ -62,4 +63,19 @@ export const createPrivnote = (data: FormData) =>
     body: data,
     credentials: 'same-origin',
     headers: { 'X-CSRFToken': getCSRFToken() },
+  }).then(r => r.json());
+
+// Privnote upgrade APIs
+export const searchCigars = (q: string, stockOnly = false): Promise<SearchCigarResult[]> =>
+  api.get('/privnote/api/search-cigars/', { params: { q, stock_only: stockOnly ? '1' : '0' } }).then(r => r.data.results || r.data);
+
+export const fetchPaymentMethods = (): Promise<PaymentMethod[]> =>
+  api.get('/privnote/api/payment-methods/').then(r => r.data.results || r.data);
+
+export const previewInventoryPrivnote = (): Promise<{ preview: InventoryViewData }> =>
+  fetch('/privnote/create/', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': getCSRFToken(), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ note_type: 'inventory', preview: '1' }),
   }).then(r => r.json());

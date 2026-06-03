@@ -1,9 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link2, Clock, Lock, Flame, Copy, Check } from 'lucide-react';
-import { fetchBrandList, createPrivnote } from '../api';
-import { LoadingState } from '../components/shared/LoadingState';
+import {
+  Link2, Clock, Lock, Flame, Copy, Check,
+  Package, CreditCard, MessageSquare, Search, Plus, Trash2
+} from 'lucide-react';
+import {
+  fetchPaymentMethods, searchCigars, createPrivnote
+} from '../api';
 import { useAuthStore } from '../store/authStore';
+import type { SearchCigarResult, PaymentItem } from '../types';
 
 const DURATIONS = [
   { value: '1', label: '1 小时' },
@@ -14,21 +19,69 @@ const DURATIONS = [
   { value: '720', label: '30 天' },
 ];
 
+const TABS = [
+  { key: 'inventory' as const, label: '库存报价', icon: Package },
+  { key: 'payment' as const, label: '收款单', icon: CreditCard },
+  { key: 'message' as const, label: '消息', icon: MessageSquare },
+];
+
+type TabKey = typeof TABS[number]['key'];
+
 export default function PrivnotePage() {
   const { user } = useAuthStore();
-  const [noteType, setNoteType] = useState('catalog');
+  const [activeTab, setActiveTab] = useState<TabKey>('inventory');
+
+  // Common config
   const [duration, setDuration] = useState('24');
   const [password, setPassword] = useState('');
   const [burn, setBurn] = useState(true);
+
+  // Result
   const [result, setResult] = useState<{ url: string; token: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const { data: brandsData } = useQuery({
-    queryKey: ['brands'],
-    queryFn: fetchBrandList,
-    enabled: false,
+  // Payment tab state
+  const [searchQ, setSearchQ] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchCigarResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [paymentItems, setPaymentItems] = useState<PaymentItem[]>([]);
+  const [customerName, setCustomerName] = useState('');
+  const [paymentMethodId, setPaymentMethodId] = useState('');
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { data: paymentMethods } = useQuery({
+    queryKey: ['payment-methods'],
+    queryFn: fetchPaymentMethods,
+    enabled: activeTab === 'payment',
   });
+
+  // Message tab state
+  const [messageText, setMessageText] = useState('');
+  const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([]);
+  const [attachName, setAttachName] = useState('');
+  const [attachUrl, setAttachUrl] = useState('');
+
+  // Debounced search
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (!searchQ.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const res = await searchCigars(searchQ, true);
+        setSearchResults(res);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [searchQ]);
 
   if (!user?.is_staff) {
     return (
@@ -38,22 +91,6 @@ export default function PrivnotePage() {
     );
   }
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const form = new FormData();
-    form.append('note_type', noteType);
-    form.append('duration', duration);
-    form.append('password', password);
-    form.append('burn', burn ? 'on' : 'off');
-    try {
-      const res = await createPrivnote(form);
-      if (res.url) setResult({ url: res.url, token: res.token });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const copyUrl = () => {
     if (result?.url) {
       navigator.clipboard.writeText(result.url);
@@ -62,8 +99,98 @@ export default function PrivnotePage() {
     }
   };
 
+  const addPaymentItem = (cigar: SearchCigarResult, batchId?: number) => {
+    const batch = batchId ? cigar.batches.find(b => b.batch_id === batchId) : cigar.batches[0];
+    const boxSize = batch?.box_size || 25;
+    const unitCost = batch?.unit_cost_cny || 0;
+    const unitPrice = Math.round(unitCost * 1.5);
+    const exists = paymentItems.find(i => i.cigar_id === cigar.id && i.batch_id === batchId);
+    if (exists) return;
+    setPaymentItems(prev => [...prev, {
+      cigar_id: cigar.id,
+      batch_id: batchId || batch?.batch_id,
+      name: cigar.name,
+      english_name: cigar.english_name,
+      vitola: cigar.vitola,
+      thumb_url: cigar.thumb_url,
+      quantity: 1,
+      unit_price: unitPrice,
+      box_size: boxSize,
+    }]);
+    setSearchQ('');
+    setSearchResults([]);
+  };
+
+  const removePaymentItem = (idx: number) => {
+    setPaymentItems(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const updatePaymentItem = (idx: number, field: keyof PaymentItem, value: string | number) => {
+    setPaymentItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
+  };
+
+  const addAttachment = () => {
+    if (!attachName.trim() || !attachUrl.trim()) return;
+    setAttachments(prev => [...prev, { name: attachName.trim(), url: attachUrl.trim() }]);
+    setAttachName('');
+    setAttachUrl('');
+  };
+
+  const removeAttachment = (idx: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const form = new FormData();
+    form.append('note_type', activeTab);
+    form.append('duration', duration);
+    form.append('password', password);
+    form.append('burn', burn ? 'on' : 'off');
+
+    if (activeTab === 'payment') {
+      form.append('items', JSON.stringify(paymentItems.map(i => ({
+        cigar_id: i.cigar_id,
+        batch_id: i.batch_id,
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+      }))));
+      form.append('customer_name', customerName);
+      form.append('payment_method_id', paymentMethodId);
+    } else if (activeTab === 'message') {
+      form.append('text', messageText);
+      form.append('attachments', JSON.stringify(attachments));
+    }
+
+    try {
+      const res = await createPrivnote(form);
+      if (res.url) setResult({ url: res.url, token: res.token });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetAll = () => {
+    setResult(null);
+    setPassword('');
+    setPaymentItems([]);
+    setCustomerName('');
+    setPaymentMethodId('');
+    setMessageText('');
+    setAttachments([]);
+    setSearchQ('');
+    setSearchResults([]);
+  };
+
+  const canSubmit = () => {
+    if (activeTab === 'payment') return paymentItems.length > 0;
+    if (activeTab === 'message') return !!messageText.trim() || attachments.length > 0;
+    return true;
+  };
+
   return (
-    <div className="animate-fade-in max-w-xl mx-auto">
+    <div className="animate-fade-in max-w-2xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
           <Link2 className="w-5 h-5 text-accent" />
@@ -89,100 +216,292 @@ export default function PrivnotePage() {
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             </button>
           </div>
-          <button
-            onClick={() => { setResult(null); setPassword(''); }}
-            className="text-sm text-accent hover:underline"
-          >
+          <button onClick={resetAll} className="text-sm text-accent hover:underline">
             创建新的链接
           </button>
         </div>
       ) : (
-        <form onSubmit={handleCreate} className="bg-white border border-border rounded-md p-5 space-y-5">
-          {/* Note Type */}
-          <div>
-            <label className="block text-sm font-medium text-fg mb-2">场景</label>
-            <div className="flex gap-2">
+        <form onSubmit={handleCreate} className="space-y-5">
+          {/* Tabs */}
+          <div className="flex gap-2">
+            {TABS.map(tab => (
               <button
+                key={tab.key}
                 type="button"
-                onClick={() => setNoteType('catalog')}
-                className={`flex-1 py-2.5 rounded-md text-sm font-medium transition-all ${
-                  noteType === 'catalog'
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-medium transition-all ${
+                  activeTab === tab.key
                     ? 'bg-accent text-white'
                     : 'bg-accent-light text-fg hover:bg-accent/10'
                 }`}
               >
-                库存展示
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
               </button>
-              <button
-                type="button"
-                onClick={() => setNoteType('sales')}
-                className={`flex-1 py-2.5 rounded-md text-sm font-medium transition-all ${
-                  noteType === 'sales'
-                    ? 'bg-accent text-white'
-                    : 'bg-accent-light text-fg hover:bg-accent/10'
-                }`}
+            ))}
+          </div>
+
+          {/* Tab Content */}
+          <div className="bg-white border border-border rounded-md p-5 space-y-5">
+            {activeTab === 'inventory' && (
+              <div>
+                <p className="text-sm text-muted">
+                  生成当前库存的快照链接，客户可查看实时库存与报价。
+                </p>
+              </div>
+            )}
+
+            {activeTab === 'payment' && (
+              <div className="space-y-4">
+                {/* Customer */}
+                <div>
+                  <label className="block text-sm font-medium text-fg mb-1">客户名称（可选）</label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={e => setCustomerName(e.target.value)}
+                    placeholder="输入客户名"
+                    className="w-full px-3 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
+                  />
+                </div>
+
+                {/* Search */}
+                <div>
+                  <label className="block text-sm font-medium text-fg mb-1">添加商品</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                    <input
+                      type="text"
+                      value={searchQ}
+                      onChange={e => setSearchQ(e.target.value)}
+                      placeholder="搜索雪茄名称…"
+                      className="w-full pl-9 pr-4 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
+                    />
+                  </div>
+                  {searching && <p className="text-xs text-muted mt-1">搜索中…</p>}
+                  {searchResults.length > 0 && (
+                    <div className="mt-1 border border-border rounded-md bg-white max-h-48 overflow-y-auto">
+                      {searchResults.map(c => (
+                        <div
+                          key={c.id}
+                          className="px-3 py-2 hover:bg-accent-light cursor-pointer border-b border-border last:border-0"
+                          onClick={() => addPaymentItem(c)}
+                        >
+                          <div className="text-sm font-medium">{c.name}</div>
+                          <div className="text-xs text-muted">
+                            {c.brand} · {c.vitola} · 库存 {c.stock_qty} 支
+                          </div>
+                          {c.batches.length > 1 && (
+                            <div className="flex gap-1 mt-1">
+                              {c.batches.map(b => (
+                                <button
+                                  key={b.batch_id}
+                                  type="button"
+                                  onClick={ev => { ev.stopPropagation(); addPaymentItem(c, b.batch_id); }}
+                                  className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent hover:bg-accent/20"
+                                >
+                                  {b.box_size}支/盒 · 余{b.remaining}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Items list */}
+                {paymentItems.length > 0 && (
+                  <div className="space-y-2">
+                    {paymentItems.map((item, idx) => (
+                      <div
+                        key={`${item.cigar_id}-${item.batch_id}`}
+                        className="flex items-center gap-3 bg-accent-light rounded-md p-3"
+                      >
+                        <div className="w-10 h-10 rounded bg-white flex items-center justify-center shrink-0 overflow-hidden">
+                          {item.thumb_url ? (
+                            <img src={item.thumb_url} alt={item.name} className="w-full h-full object-contain p-0.5" />
+                          ) : (
+                            <Package className="w-4 h-4 text-muted" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{item.name}</div>
+                          <div className="text-xs text-muted">{item.vitola}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={1}
+                            value={item.quantity}
+                            onChange={e => updatePaymentItem(idx, 'quantity', parseInt(e.target.value) || 1)}
+                            className="w-14 px-2 py-1 border border-border rounded text-sm text-center"
+                          />
+                          <span className="text-xs text-muted">×</span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={item.unit_price}
+                            onChange={e => updatePaymentItem(idx, 'unit_price', parseInt(e.target.value) || 0)}
+                            className="w-20 px-2 py-1 border border-border rounded text-sm text-right"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removePaymentItem(idx)}
+                          className="p-1 text-muted hover:text-red-500"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <div className="text-right text-sm font-medium text-fg">
+                      合计：¥{paymentItems.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)}
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment method */}
+                <div>
+                  <label className="block text-sm font-medium text-fg mb-1">收款方式（可选）</label>
+                  <select
+                    value={paymentMethodId}
+                    onChange={e => setPaymentMethodId(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white border border-border rounded-md text-sm text-fg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
+                  >
+                    <option value="">手动填写或不填</option>
+                    {paymentMethods?.map(pm => (
+                      <option key={pm.id} value={pm.id}>{pm.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'message' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-fg mb-1">消息内容</label>
+                  <textarea
+                    value={messageText}
+                    onChange={e => setMessageText(e.target.value)}
+                    rows={5}
+                    placeholder="输入要发送的消息…"
+                    className="w-full px-3 py-2.5 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-fg mb-1">附件（可选）</label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={attachName}
+                      onChange={e => setAttachName(e.target.value)}
+                      placeholder="附件名称"
+                      className="flex-1 px-3 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
+                    />
+                    <input
+                      type="text"
+                      value={attachUrl}
+                      onChange={e => setAttachUrl(e.target.value)}
+                      placeholder="URL"
+                      className="flex-[2] px-3 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
+                    />
+                    <button
+                      type="button"
+                      onClick={addAttachment}
+                      className="px-3 py-2 bg-accent text-white rounded-md text-sm hover:bg-accent-hover"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {attachments.length > 0 && (
+                    <div className="space-y-1">
+                      {attachments.map((att, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between bg-accent-light rounded-md px-3 py-2"
+                        >
+                          <a
+                            href={att.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sm text-accent hover:underline truncate"
+                          >
+                            {att.name}
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => removeAttachment(idx)}
+                            className="p-1 text-muted hover:text-red-500"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Common Config */}
+          <div className="bg-white border border-border rounded-md p-5 space-y-5">
+            <div>
+              <label className="flex items-center gap-1.5 text-sm font-medium text-fg mb-2">
+                <Clock className="w-4 h-4" />
+                有效期
+              </label>
+              <select
+                value={duration}
+                onChange={e => setDuration(e.target.value)}
+                className="w-full px-3 py-2.5 bg-white border border-border rounded-md text-sm text-fg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
               >
-                销售单据
-              </button>
+                {DURATIONS.map(d => (
+                  <option key={d.value} value={d.value}>{d.label}</option>
+                ))}
+              </select>
             </div>
-          </div>
 
-          {/* Duration */}
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium text-fg mb-2">
-              <Clock className="w-4 h-4" />
-              有效期
-            </label>
-            <select
-              value={duration}
-              onChange={e => setDuration(e.target.value)}
-              className="w-full px-3 py-2.5 bg-white border border-border rounded-md text-sm text-fg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-            >
-              {DURATIONS.map(d => (
-                <option key={d.value} value={d.value}>{d.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Password */}
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium text-fg mb-2">
-              <Lock className="w-4 h-4" />
-              密码保护（可选）
-            </label>
-            <input
-              type="text"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="留空则不设密码"
-              className="w-full px-3 py-2.5 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-            />
-          </div>
-
-          {/* Burn after read */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Flame className="w-4 h-4 text-accent" />
-              <span className="text-sm font-medium text-fg">阅后即焚</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setBurn(!burn)}
-              className={`relative w-11 h-6 rounded-full transition-colors ${
-                burn ? 'bg-accent' : 'bg-border'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                  burn ? 'translate-x-5' : 'translate-x-0'
-                }`}
+            <div>
+              <label className="flex items-center gap-1.5 text-sm font-medium text-fg mb-2">
+                <Lock className="w-4 h-4" />
+                密码保护（可选）
+              </label>
+              <input
+                type="text"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="留空则不设密码"
+                className="w-full px-3 py-2.5 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
               />
-            </button>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Flame className="w-4 h-4 text-accent" />
+                <span className="text-sm font-medium text-fg">阅后即焚</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBurn(!burn)}
+                className={`relative w-11 h-6 rounded-full transition-colors ${burn ? 'bg-accent' : 'bg-border'}`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                    burn ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !canSubmit()}
             className="w-full py-2.5 bg-accent text-white rounded-md text-sm font-medium hover:bg-accent-hover active:scale-[0.98] transition-all disabled:opacity-50"
           >
             {loading ? '生成中…' : '生成链接'}

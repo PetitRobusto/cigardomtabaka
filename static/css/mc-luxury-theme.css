@@ -1,5 +1,5 @@
 /**
- * Moscow Cigar — Luxury Theme CSS
+ * CigarDomTabaka — Luxury Theme CSS
  * ----------------------------------------------------------
  * A warm-cream + burgundy + cognac-gold design system for
  * premium cigar / luxury internal tools.
@@ -1978,4 +1978,113 @@ body {
 @media (max-width: 480px) {
   .cigar-card-grid { grid-template-columns: 1fr; }
   .cigar-card-image { aspect-ratio: 16/6; }
+}
+
+/* ============================================================
+   SITE FOOTER — CigarDomTabaka Premium Footer v2
+   Warm parchment background, circular dark social icons
+   ============================================================ */
+.site-footer {
+  background: var(--accent-3);
+  color: var(--fg);
+  padding: 48px 32px 32px;
+  margin-top: 0;
+  border-top: 2px solid var(--accent);
+}
+.site-footer-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ── Top row: brand + contact ── */
+.site-footer-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 32px;
+  flex-wrap: wrap;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--border);
+}
+.site-footer-brand {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.site-footer-tagline {
+  font-size: 13px;
+  color: var(--muted);
+  font-style: italic;
+  font-family: var(--font-display);
+}
+
+/* ── Contact info ── */
+.site-footer-info {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+.site-footer-info-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fg);
+}
+.site-footer-info-item svg {
+  width: 15px;
+  height: 15px;
+  stroke: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ── Bottom row: copyright + socials ── */
+.site-footer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding-top: 24px;
+  flex-wrap: wrap;
+}
+.site-footer-copy {
+  font-size: 12px;
+  color: var(--muted);
+}
+.site-footer-socials {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.site-footer-social {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--fg);
+  display: grid;
+  place-items: center;
+  transition: all 0.2s;
+  text-decoration: none;
+  border: 1px solid var(--fg);
+}
+.site-footer-social:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.site-footer-social svg {
+  width: 18px;
+  height: 18px;
+  fill: var(--accent-3);
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .site-footer { padding: 32px 16px 24px; }
+  .site-footer-top { flex-direction: column; gap: 20px; }
+  .site-footer-info { flex-direction: column; gap: 12px; }
+  .site-footer-bottom { flex-direction: column; align-items: flex-start; gap: 16px; }
 }

@@ -366,6 +366,9 @@ export interface PaymentData {
     thumb_url: string;
   }[];
   total: number;
+  extra_fees: { name: string; amount: number }[];
+  extra_total: number;
+  grand_total: number;
   payment_methods: PaymentMethod[];
   customer_name: string;
 }
@@ -374,6 +377,17 @@ export interface MessageData {
   mode: 'message';
   text: string;
   attachments: { name: string; url: string }[];
+}
+
+export interface CustomerResult {
+  id: number;
+  name: string;
+  phone: string;
+}
+
+export interface ExtraFee {
+  name: string;
+  amount: number;
 }
 
 export interface InventoryViewData {

@@ -8,8 +8,14 @@ from django.utils import timezone
 import uuid
 import json
 
-from cigars.models import Brand, Cigar, PurchaseBatch, User, SalesOrder, SalesOrderItem
+from cigars.models import Brand, Cigar, PurchaseBatch, User, SalesOrder, SalesOrderItem, Customer
 from .models import Privnote, PaymentMethod
+
+try:
+    from rapidfuzz import fuzz
+    HAS_RAPIDFUZZ = True
+except ImportError:
+    HAS_RAPIDFUZZ = False
 
 
 DURATION_CHOICES = [
@@ -139,6 +145,10 @@ def _build_payment_data(sales_order):
 
     total = round(sum(it['subtotal'] for it in items), 2)
 
+    # 额外费用
+    extra_fees = sales_order.payment_manual.get('extra_fees', []) if sales_order.payment_manual else []
+    extra_total = round(sum(float(f.get('amount', 0)) for f in extra_fees), 2)
+
     payment_methods = []
     if sales_order.payment_method_id:
         try:
@@ -170,6 +180,9 @@ def _build_payment_data(sales_order):
         'mode': 'payment',
         'items': items,
         'total': total,
+        'extra_fees': extra_fees,
+        'extra_total': extra_total,
+        'grand_total': round(total + extra_total, 2),
         'payment_methods': payment_methods,
         'customer_name': sales_order.customer_name or '',
     }
@@ -217,13 +230,30 @@ def create(request):
             return JsonResponse({'error': '至少需要一个商品'}, status=400)
 
         customer_name = request.POST.get('customer_name', '').strip()
+        customer_id = request.POST.get('customer_id', '').strip()
+        # customer_id 优先
+        if customer_id:
+            try:
+                customer = Customer.objects.get(id=int(customer_id))
+                customer_name = customer.name
+            except (Customer.DoesNotExist, ValueError):
+                pass
+
         payment_method_id = request.POST.get('payment_method_id', '')
         payment_manual_raw = request.POST.get('payment_manual', '{}')
+        extra_fees_raw = request.POST.get('extra_fees', '[]')
 
         try:
             payment_manual = json.loads(payment_manual_raw) if payment_manual_raw else {}
         except json.JSONDecodeError:
             payment_manual = {}
+
+        try:
+            extra_fees = json.loads(extra_fees_raw)
+        except json.JSONDecodeError:
+            extra_fees = []
+
+        total_extra = round(sum(float(f.get('amount', 0)) for f in extra_fees), 2)
 
         # 创建 SalesOrder
         order = SalesOrder.objects.create(
@@ -231,7 +261,7 @@ def create(request):
             operator=None,
             status='draft',
             payment_method_id=int(payment_method_id) if payment_method_id else None,
-            payment_manual=payment_manual,
+            payment_manual=dict(payment_manual, extra_fees=extra_fees),
         )
 
         total_revenue = 0
@@ -340,13 +370,51 @@ def search_cigars(request):
         cigars = cigars.filter(id__in=in_stock_ids)
 
     if q:
-        cigars = cigars.filter(
-            models.Q(name__icontains=q) |
-            models.Q(english_name__icontains=q) |
-            models.Q(brand__icontains=q)
-        )
+        # 多词查询：拆词 OR 搜，解决「品牌+型号」跨字段搜索
+        terms = q.split()
+        if len(terms) > 1:
+            q_filter = models.Q()
+            for term in terms:
+                q_filter |= models.Q(name__icontains=term) | models.Q(
+                    english_name__icontains=term
+                ) | models.Q(brand__icontains=term)
+            cigars = cigars.filter(q_filter)
+        else:
+            cigars = cigars.filter(
+                models.Q(name__icontains=q) |
+                models.Q(english_name__icontains=q) |
+                models.Q(brand__icontains=q)
+            )
 
-    cigars = cigars[:30]
+    cigars = list(cigars[:100])
+
+    # ── RapidFuzz 精排 ──
+    if HAS_RAPIDFUZZ and q and len(cigars) > 1:
+        q_lower = q.lower().strip()
+        scored = []
+        for c in cigars:
+            # 组合搜索字符串：品牌 + 中文名 + 英文名 + 型号
+            haystack = f"{c.brand} {c.name or ''} {c.english_name or ''} {c.vitola or ''}"
+            score = fuzz.token_sort_ratio(q_lower, haystack.lower())
+            # 中文也是 token_sort_ratio 能处理的（按空格/标点分词）
+            name_text = c.name or c.english_name
+            if q_lower in name_text.lower():
+                score += 15  # 精确子串加分
+            if q_lower in c.brand.lower():
+                score += 10
+            scored.append((c, score))
+        scored.sort(key=lambda x: -x[1])
+        # 去重：保留同 (brand, english_name, vitola) 中最高分的
+        seen = set()
+        deduped = []
+        for c, s in scored:
+            key = (c.brand, c.english_name, c.vitola)
+            if key not in seen:
+                seen.add(key)
+                deduped.append(c)
+        cigars = deduped[:30]
+    else:
+        cigars = cigars[:30]
 
     results = []
     for c in cigars:
@@ -363,7 +431,6 @@ def search_cigars(request):
                 })
                 total_stock += b.remaining
         else:
-            # Non-stock mode: still compute total stock for display
             total_stock = c.purchasebatch_set.filter(remaining__gt=0).aggregate(
                 total=models.Sum('remaining')
             )['total'] or 0
@@ -407,6 +474,20 @@ def list_payment_methods(request):
             'qr_url': m.qr_image.url if m.qr_image else None,
         })
     return JsonResponse({'methods': data})
+
+
+# ═══════════════ CUSTOMER SEARCH API ═══════════════
+
+def search_customers(request):
+    """GET /privnote/api/search-customers/?q=xxx"""
+    if not _is_staff(request):
+        return HttpResponseForbidden("仅限工作人员访问")
+    q = request.GET.get('q', '').strip()
+    if not q:
+        return JsonResponse({'results': []})
+    customers = Customer.objects.filter(name__icontains=q)[:20]
+    results = [{'id': c.id, 'name': c.name, 'phone': c.phone} for c in customers]
+    return JsonResponse({'results': results})
 
 
 # ═══════════════ API: VIEW NOTE ═══════════════

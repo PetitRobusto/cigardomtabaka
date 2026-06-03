@@ -4,6 +4,7 @@ import type {
   BrandListResponse, BrandDetailResponse, CigarDetailResponse,
   InventoryResponse, PrivnoteResponse,
   PaymentMethod, SearchCigarResult, InventoryViewData,
+  CustomerResult,
 } from './types';
 
 function getCSRFToken(): string {
@@ -90,3 +91,11 @@ export const previewInventoryPrivnote = (): Promise<{ preview: InventoryViewData
     headers: { 'X-CSRFToken': getCSRFToken(), 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ note_type: 'inventory', preview: '1' }),
   }).then(r => r.json());
+
+export const searchCustomers = (q: string): Promise<CustomerResult[]> =>
+  fetch(`/privnote/api/search-customers/?q=${encodeURIComponent(q)}`, {
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': getCSRFToken() },
+  })
+    .then(r => r.json())
+    .then(d => Array.isArray(d?.results) ? d.results : []);

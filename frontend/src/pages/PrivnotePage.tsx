@@ -5,10 +5,10 @@ import {
   Package, CreditCard, MessageSquare, Search, Plus, Trash2
 } from 'lucide-react';
 import {
-  fetchPaymentMethods, searchCigars, createPrivnote
+  fetchPaymentMethods, searchCigars, createPrivnote, searchCustomers
 } from '../api';
 import { useAuthStore } from '../store/authStore';
-import type { SearchCigarResult, PaymentItem } from '../types';
+import type { SearchCigarResult, PaymentItem, CustomerResult, ExtraFee } from '../types';
 
 const DURATIONS = [
   { value: '1', label: '1 小时' },
@@ -47,8 +47,17 @@ export default function PrivnotePage() {
   const [searching, setSearching] = useState(false);
   const [paymentItems, setPaymentItems] = useState<PaymentItem[]>([]);
   const [customerName, setCustomerName] = useState('');
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [customerResults, setCustomerResults] = useState<CustomerResult[]>([]);
+  const [customerSearching, setCustomerSearching] = useState(false);
   const [paymentMethodId, setPaymentMethodId] = useState('');
+  const [useShipping, setUseShipping] = useState(false);
+  const [shippingAmount, setShippingAmount] = useState(0);
+  const [useCourier, setUseCourier] = useState(false);
+  const [courierAmount, setCourierAmount] = useState(0);
+  const [customFees, setCustomFees] = useState<ExtraFee[]>([]);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const customerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: paymentMethods } = useQuery({
     queryKey: ['payment-methods'],
@@ -62,7 +71,7 @@ export default function PrivnotePage() {
   const [attachName, setAttachName] = useState('');
   const [attachUrl, setAttachUrl] = useState('');
 
-  // Debounced search
+  // Debounced cigar search (stock_only=0: all cigars, not just in-stock)
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     if (!searchQ.trim()) {
@@ -72,7 +81,7 @@ export default function PrivnotePage() {
     setSearching(true);
     searchTimer.current = setTimeout(async () => {
       try {
-        const res = await searchCigars(searchQ, true);
+        const res = await searchCigars(searchQ, false);
         setSearchResults(res);
       } catch {
         setSearchResults([]);
@@ -82,6 +91,27 @@ export default function PrivnotePage() {
     }, 300);
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
   }, [searchQ]);
+
+  // Debounced customer search
+  useEffect(() => {
+    if (customerTimer.current) clearTimeout(customerTimer.current);
+    if (!customerQuery.trim()) {
+      setCustomerResults([]);
+      return;
+    }
+    setCustomerSearching(true);
+    customerTimer.current = setTimeout(async () => {
+      try {
+        const res = await searchCustomers(customerQuery);
+        setCustomerResults(res);
+      } catch {
+        setCustomerResults([]);
+      } finally {
+        setCustomerSearching(false);
+      }
+    }, 300);
+    return () => { if (customerTimer.current) clearTimeout(customerTimer.current); };
+  }, [customerQuery]);
 
   if (!user?.is_staff) {
     return (
@@ -103,7 +133,7 @@ export default function PrivnotePage() {
     const batch = batchId ? cigar.batches.find(b => b.batch_id === batchId) : cigar.batches[0];
     const boxSize = batch?.box_size || 25;
     const unitCost = batch?.unit_cost_cny || 0;
-    const unitPrice = Math.round(unitCost * 1.5);
+    const unitPrice = batch ? Math.round(unitCost * 1.5) : 0;
     const exists = paymentItems.find(i => i.cigar_id === cigar.id && i.batch_id === batchId);
     if (exists) return;
     setPaymentItems(prev => [...prev, {
@@ -140,6 +170,28 @@ export default function PrivnotePage() {
     setAttachments(prev => prev.filter((_, i) => i !== idx));
   };
 
+  const addCustomFee = () => {
+    setCustomFees(prev => [...prev, { name: '', amount: 0 }]);
+  };
+
+  const updateCustomFee = (idx: number, field: keyof ExtraFee, value: string | number) => {
+    setCustomFees(prev => prev.map((f, i) => i === idx ? { ...f, [field]: value } : f));
+  };
+
+  const removeCustomFee = (idx: number) => {
+    setCustomFees(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const getExtraFees = (): ExtraFee[] => {
+    const fees: ExtraFee[] = [];
+    if (useShipping && shippingAmount > 0) fees.push({ name: '运费', amount: shippingAmount });
+    if (useCourier && courierAmount > 0) fees.push({ name: '人肉费', amount: courierAmount });
+    for (const f of customFees) {
+      if (f.name.trim() && f.amount > 0) fees.push({ name: f.name.trim(), amount: f.amount });
+    }
+    return fees;
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -158,6 +210,7 @@ export default function PrivnotePage() {
       }))));
       form.append('customer_name', customerName);
       form.append('payment_method_id', paymentMethodId);
+      form.append('extra_fees', JSON.stringify(getExtraFees()));
     } else if (activeTab === 'message') {
       form.append('text', messageText);
       form.append('attachments', JSON.stringify(attachments));
@@ -253,19 +306,37 @@ export default function PrivnotePage() {
 
             {activeTab === 'payment' && (
               <div className="space-y-4">
-                {/* Customer */}
+                {/* Customer search */}
                 <div>
-                  <label className="block text-sm font-medium text-fg mb-1">客户名称（可选）</label>
-                  <input
-                    type="text"
-                    value={customerName}
-                    onChange={e => setCustomerName(e.target.value)}
-                    placeholder="输入客户名"
-                    className="w-full px-3 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-                  />
+                  <label className="block text-sm font-medium text-fg mb-1">客户</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                    <input
+                      type="text"
+                      value={customerQuery}
+                      onChange={e => { setCustomerQuery(e.target.value); setCustomerName(e.target.value); }}
+                      placeholder="搜索客户（输入名字，选已有或输入新名）"
+                      className="w-full pl-9 pr-4 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
+                    />
+                  </div>
+                  {customerSearching && <p className="text-xs text-muted mt-1">搜索中…</p>}
+                  {Array.isArray(customerResults) && customerResults.length > 0 && (
+                    <div className="mt-1 border border-border rounded-md bg-white max-h-36 overflow-y-auto">
+                      {customerResults.map(c => (
+                        <div
+                          key={c.id}
+                          className="px-3 py-2 hover:bg-accent-light cursor-pointer border-b border-border last:border-0"
+                          onClick={() => { setCustomerName(c.name); setCustomerQuery(c.name); setCustomerResults([]); }}
+                        >
+                          <div className="text-sm font-medium">{c.name}</div>
+                          {c.phone && <div className="text-xs text-muted">{c.phone}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Search */}
+                {/* Cigar search */}
                 <div>
                   <label className="block text-sm font-medium text-fg mb-1">添加商品</label>
                   <div className="relative">
@@ -274,7 +345,7 @@ export default function PrivnotePage() {
                       type="text"
                       value={searchQ}
                       onChange={e => setSearchQ(e.target.value)}
-                      placeholder="搜索雪茄名称…"
+                      placeholder="搜索雪茄（品牌+型号，中英文均可）"
                       className="w-full pl-9 pr-4 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
                     />
                   </div>
@@ -328,7 +399,7 @@ export default function PrivnotePage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium truncate">{item.name}</div>
-                          <div className="text-xs text-muted">{item.vitola}</div>
+                          <div className="text-xs text-muted">{item.vitola} · {item.box_size}支/盒</div>
                         </div>
                         <div className="flex items-center gap-2">
                           <input
@@ -338,7 +409,7 @@ export default function PrivnotePage() {
                             onChange={e => updatePaymentItem(idx, 'quantity', parseInt(e.target.value) || 1)}
                             className="w-14 px-2 py-1 border border-border rounded text-sm text-center"
                           />
-                          <span className="text-xs text-muted">×</span>
+                          <span className="text-xs text-muted">× ¥</span>
                           <input
                             type="number"
                             min={0}
@@ -357,10 +428,51 @@ export default function PrivnotePage() {
                       </div>
                     ))}
                     <div className="text-right text-sm font-medium text-fg">
-                      合计：¥{paymentItems.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)}
+                      商品合计：¥{paymentItems.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)}
                     </div>
                   </div>
                 )}
+
+                {/* Extra fees */}
+                <div>
+                  <label className="block text-sm font-medium text-fg mb-2">额外费用</label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2">
+                      <input type="checkbox" checked={useShipping} onChange={e => setUseShipping(e.target.checked)} className="checkbox checkbox-sm" />
+                      <span className="text-sm">运费</span>
+                      {useShipping && (
+                        <input type="number" min={0} value={shippingAmount}
+                          onChange={e => setShippingAmount(parseInt(e.target.value) || 0)}
+                          className="w-20 px-2 py-0.5 border border-border rounded text-sm text-right" />
+                      )}
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input type="checkbox" checked={useCourier} onChange={e => setUseCourier(e.target.checked)} className="checkbox checkbox-sm" />
+                      <span className="text-sm">人肉费</span>
+                      {useCourier && (
+                        <input type="number" min={0} value={courierAmount}
+                          onChange={e => setCourierAmount(parseInt(e.target.value) || 0)}
+                          className="w-20 px-2 py-0.5 border border-border rounded text-sm text-right" />
+                      )}
+                    </label>
+                    {customFees.map((f, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input type="text" value={f.name}
+                          onChange={e => updateCustomFee(idx, 'name', e.target.value)}
+                          placeholder="费用名" className="flex-1 px-2 py-0.5 border border-border rounded text-sm" />
+                        <input type="number" min={0} value={f.amount}
+                          onChange={e => updateCustomFee(idx, 'amount', parseInt(e.target.value) || 0)}
+                          placeholder="金额" className="w-20 px-2 py-0.5 border border-border rounded text-sm text-right" />
+                        <button type="button" onClick={() => removeCustomFee(idx)} className="p-1 text-muted hover:text-red-500">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={addCustomFee} className="text-xs text-accent hover:underline flex items-center gap-1">
+                      <Plus className="w-3 h-3" /> 添加费用
+                    </button>
+                  </div>
+                </div>
 
                 {/* Payment method */}
                 <div>
@@ -370,7 +482,7 @@ export default function PrivnotePage() {
                     onChange={e => setPaymentMethodId(e.target.value)}
                     className="w-full px-3 py-2.5 bg-white border border-border rounded-md text-sm text-fg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
                   >
-                    <option value="">手动填写或不填</option>
+                    <option value="">不选（手动填）</option>
                     {paymentMethods?.map(pm => (
                       <option key={pm.id} value={pm.id}>{pm.label}</option>
                     ))}

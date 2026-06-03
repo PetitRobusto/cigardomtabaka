@@ -184,6 +184,11 @@ def create(request):
         return HttpResponseForbidden("仅限工作人员访问")
 
     note_type = request.POST.get('note_type', 'inventory')
+    # Backward compat: old NoteType values
+    if note_type == 'catalog':
+        note_type = 'inventory'
+    elif note_type == 'sales':
+        note_type = 'payment'
     duration_hours = int(request.POST.get('duration', 24))
     password = request.POST.get('password', '').strip()
     burn = request.POST.get('burn', 'on') == 'on'

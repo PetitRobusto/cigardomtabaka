@@ -47,11 +47,13 @@ master → git checkout -b feature/xxx → 开发 → commit → merge 回 maste
 
 ## 前端开发
 
+- ⚠️ **所有前端页面走 React SPA (`frontend/`)**，禁止新建 Django 模板页面
 - 涉及视觉/配色/风格 → 先加载 `ui-ux-pro-max` 出预览，让用户选方案
 - 前端/UI 重写 → 用看板 Kanban 派 kimi-coder，自己不写前端代码
 - 后端 Python → 用 coder (deepseek-v4-flash)
-- 修改 base.html 导航栏 → 必须同时改桌面端（navbar-end）和手机端底部导航（BOTTOM NAV）
 - 前端源码在 `frontend/`（React + Vite + Tailwind + DaisyUI）
+- 修改 base.html 导航栏 → 必须同时改桌面端和手机端底部导航（BOTTOM NAV）
+- privnote 前端 → React SPA 路由 `/privnote/` 和 `/p/:token/`，不走 Django 模板
 
 ---
 

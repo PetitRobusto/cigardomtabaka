@@ -28,6 +28,7 @@ jobs:
             cd /opt/cigardomtabaka
 
             echo "=== git pull ==="
+            git config --global --add safe.directory /opt/cigardomtabaka 2>/dev/null || true
             git pull origin main
 
             echo "=== pip install ==="

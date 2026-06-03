@@ -38,6 +38,9 @@ jobs:
             echo "=== collectstatic ==="
             python manage.py collectstatic --noinput
 
+            echo "=== cleanup orphan FK ==="
+            sqlite3 cigars.db "DELETE FROM cigars_cigarimage WHERE cigar_id NOT IN (SELECT id FROM cigars_cigar);"
+
             echo "=== database migrate ==="
             python manage.py migrate
 

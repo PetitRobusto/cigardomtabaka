@@ -55,3 +55,4 @@ brand_logos.json
 image_manifest.json
 *_snapshot.md
 .playwright-mcp/
+static/frontend/

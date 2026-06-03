@@ -302,6 +302,14 @@ function PaymentView({ data }: { data: PaymentData }) {
         )}
       </div>
 
+      {/* Remark */}
+      {data.remark && (
+        <div className="bg-white border border-border rounded-md p-4">
+          <div className="text-xs text-muted mb-2">备注</div>
+          <div className="text-sm whitespace-pre-wrap leading-relaxed">{data.remark}</div>
+        </div>
+      )}
+
       {/* Payment methods */}
       {data.payment_methods.length > 0 && (
         <div className="space-y-3">

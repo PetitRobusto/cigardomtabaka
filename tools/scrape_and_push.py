@@ -64,8 +64,17 @@ def scrape_and_push(source_slug: str) -> dict:
 
     items = []
     for snap in snapshots.iterator():
+        # 用 raw_data 里的原始标题（含 GR/EL/RE 等关键词）
+        name_for_push = (
+            snap.raw_data.get('title_original')
+            or snap.raw_data.get('product_name')
+            or snap.raw_data.get('title')
+            or snap.cigar.english_name
+            or snap.cigar.name
+            or ''
+        )
         items.append({
-            'name': snap.cigar.english_name or snap.cigar.name or '',
+            'name': name_for_push,
             'price': snap.price,
             'original_price': snap.original_price,
             'price_cny': snap.price_cny,

@@ -69,6 +69,7 @@ def push_bulk(request):
     skipped = 0
     errors = 0
     scraped_combos = set()
+    anomaly_groups = set()  # 本次创建的 (cigar_id, box_size)，用于异常重算
 
     # URL 缓存 — key=(url, product_name)
     url_cache = {}
@@ -182,6 +183,7 @@ def push_bulk(request):
                 scraped_date=today,
             )
             created += 1
+            anomaly_groups.add((cigar.id, box_key))
 
         except Exception:
             logger.exception('Error processing item: %s', item_data.get('name', '?'))
@@ -226,6 +228,12 @@ def push_bulk(request):
     # 更新 source 最后爬取时间
     source.last_scraped = timezone.now()
     source.save(update_fields=['last_scraped'])
+
+    # --- 异常检测 ---
+    if anomaly_groups:
+        from .anomaly import detect_and_mark_group
+        for cid, bs in anomaly_groups:
+            detect_and_mark_group(cid, bs)
 
     return JsonResponse({
         'ok': True,

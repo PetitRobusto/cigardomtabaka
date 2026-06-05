@@ -170,6 +170,7 @@ def run_scrape_sync(source_slug: str) -> dict:
 
     cache_hits = 0
     cache_misses = 0
+    anomaly_groups = set()  # 本次爬取涉及的 (cigar_id, box_size)，用于批量重算异常
 
     for item in items:
         # 优先走 URL 缓存（双键：url + product name）
@@ -309,12 +310,20 @@ def run_scrape_sync(source_slug: str) -> dict:
                 raw_data=raw_data,
             )
             created += 1
+            # 记录需要重算异常的 (cigar_id, box_size) 组合
+            anomaly_groups.add((cigar.id, box_size))
 
     # --- 下架检测 ---
     from .delisting import detect_delistings
 
     delisting_result = detect_delistings(source, scraped_combos)
     oos_count = delisting_result['newly_delisted']
+
+    # --- 异常检测：批量重算受影响的 (cigar_id, box_size) 组 ---
+    if anomaly_groups:
+        from .anomaly import detect_and_mark_group
+        for cid, bs in anomaly_groups:
+            detect_and_mark_group(cid, bs)
 
     source.last_scraped = timezone.now()
     source.save(update_fields=['last_scraped'])

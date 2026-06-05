@@ -35,6 +35,9 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = PriceSnapshot.objects.select_related('cigar', 'source')
+        # 默认过滤异常价格（可通过 ?show_anomalous=1 查看全部）
+        if self.request.query_params.get('show_anomalous') != '1':
+            qs = qs.filter(is_anomalous=False)
         # 按雪茄过滤
         cigar_id = self.request.query_params.get('cigar_id')
         if cigar_id:
@@ -209,9 +212,10 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         from cigars.models import Brand
         from .models import ExchangeRate
 
-        # 1. 取每个(cigar, source, box_size)的最新快照
+        # 1. 取每个(cigar, source, box_size)的最新快照（排除异常+售罄）
         latest_ids = (
             PriceSnapshot.objects
+            .filter(is_anomalous=False, in_stock=True)
             .values('cigar_id', 'source_id', 'box_size')
             .annotate(max_id=DMax('id'))
             .values_list('max_id', flat=True)

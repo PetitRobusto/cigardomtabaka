@@ -131,8 +131,9 @@ PLURAL_SINGULAR = {
 
 STOP_WORDS = {
     # 雪茄特殊停用词
+    # ⚠️ 'reserva' 不在停用词中 — 它是 Reserve vs Grand Reserve vs 常规 的关键区分词
     'edicion', 'edition', 'limitada', 'limited', 'regional', 'especial',
-    'special', 'release', 'seleccion', 'reserva', 'coleccion',
+    'special', 'release', 'seleccion', 'coleccion',
     'lcdh', 'habanos', 'exclusive', 'humidor', 'jar', 'ceramic',
     # 通用虚词（防止跨名匹配，如 "Year of the Rabbit" vs "Year of the Horse"）
     'of', 'the', 'de', 'la', 'el', 'del', 'en', 'con', 'por', 'para',
@@ -612,6 +613,7 @@ SUFFIX_PATTERNS = [
     # 陈年
     (r'\bAnejados?\b', 'Anejados', 6),
     # GR / Gran Reserva / Reserva Cosecha / Grand Reserve
+    (r'\bGR\b', 'Grand Reserve Series', 9),
     (r'\bGran[\s-]+Reserva\b', 'Grand Reserve Series', 10),
     (r'\bGrand[\s-]+Reserve\b', 'Grand Reserve Series', 10),
     (r'\bReserva[\s-]+Cosecha\b', 'Grand Reserve Series', 10),
@@ -651,19 +653,21 @@ def _extract_hints(name: str) -> list[str]:
 
 
 def _strip_known_suffixes(name: str) -> str:
-    """剥离所有已知后缀（装饰性 + 类型标记），保留核心品名用于模糊匹配。
+    """剥离纯噪音后缀（装饰性 + 无类型标记），保留类型关键词（GR/EL/RE/LE/LCDH等）。
     
-    类型标记（EL/RE/LE/LCDH等）虽然被剥离，但通过 _extract_hints() 
-    识别的 release_type 会在后续加权打分（+15）中体现。
+    只剥离 release_type=None 的后缀（Estuche/Gift Box/AGED/Caja/Jar/裸年份），
+    保留带 release_type 的模式。RapidFuzz 的 token_set_ratio 天然处理额外
+    token，不需要手动剥离类型关键词——剥离反而削弱区分信号。
     
     例如:
         'Petit Robusto /25 AGED 2014' → 'Petit Robusto /25'
-        'Superiores /10 LCDH AGED 2017' → 'Superiores /10'
-        'Super Corona /25 Limited Edition 2014' → 'Super Corona /25'
-        '898 /10 Regional Edition Asia Pacifico 2018' → '898 /10'
+        'Super Corona /25 Limited Edition 2014' → 'Super Corona /25 Limited Edition 2014'  (保留 LE!)
+        '898 /10 Regional Edition Asia Pacifico 2018' → '898 /10 Regional Edition Asia Pacifico 2018'  (保留 RE!)
     """
     result = name
-    for pattern, _rel_type, _priority in SUFFIX_PATTERNS:
+    for pattern, rel_type, _priority in SUFFIX_PATTERNS:
+        if rel_type is not None:
+            continue  # 保留类型关键词 — 它们不是噪音，是匹配信号
         result = re.sub(pattern, '', result, flags=re.IGNORECASE)
     # 清理多余空格和尾部标点
     result = re.sub(r'\s+', ' ', result).strip()
@@ -819,10 +823,10 @@ def match_cigar(
 
             score = rpf_score
 
-            # Hint 加权：类型提示匹配
+            # Hint 加权：类型提示精确匹配（用 == 而非 in，防止 "Reserve" 漏到 "Grand Reserve"）
             if release_hints and cigar.release_type:
                 for hint_type in release_hints:
-                    if hint_type.lower() in (cigar.release_type or '').lower():
+                    if hint_type == cigar.release_type:
                         score += 15
                         break
 

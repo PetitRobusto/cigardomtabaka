@@ -592,34 +592,34 @@ SUFFIX_PATTERNS = [
     # 年限/限量 (EL/LE + 年份)
     (r'\bEL\s*\d{2,4}\b', 'Limited Edition Series', 10),
     (r'\bLE\s*\d{2,4}\b', 'Limited Edition Series', 10),
-    (r'\bEdición\s+Limitada\b', 'Limited Edition Series', 10),
-    (r'\bLimited\s+Edition\b', 'Limited Edition Series', 10),
+    (r'\bEdición[\s-]+Limitada\b', 'Limited Edition Series', 10),
+    (r'\bLimited[\s-]+Edition\b', 'Limited Edition Series', 10),
     # 地限 (RE + 年份/地区关键词)
     (r'\bRE\s*\d{2,4}\b', 'Regional Edition Series', 10),
-    (r'\bEdición\s+Regional\b', 'Regional Edition Series', 10),
-    (r'\bRegional\s+Edition\b', 'Regional Edition Series', 10),
+    (r'\bEdición[\s-]+Regional\b', 'Regional Edition Series', 10),
+    (r'\bRegional[\s-]+Edition\b', 'Regional Edition Series', 10),
     # 地区关键词（地限后缀）
-    (r'\bAsia\s+Pacifico?\b', 'Regional Edition Series', 5),
-    (r'\bAsia\s+Pacific\b', 'Regional Edition Series', 5),
-    (r'\bGran\s+Bretaña\b', 'Regional Edition Series', 5),
-    (r'\bGreat\s+Britain\b', 'Regional Edition Series', 5),
-    (r'\bEmiratos\s+Árabes\b', 'Regional Edition Series', 5),
+    (r'\bAsia[\s-]+Pacifico?\b', 'Regional Edition Series', 5),
+    (r'\bAsia[\s-]+Pacific\b', 'Regional Edition Series', 5),
+    (r'\bGran[\s-]+Bretaña\b', 'Regional Edition Series', 5),
+    (r'\bGreat[\s-]+Britain\b', 'Regional Edition Series', 5),
+    (r'\bEmiratos[\s-]+Árabes\b', 'Regional Edition Series', 5),
     # LCDH
     (r'\bLCDH\b', 'La Casa del Habano Exclusivo', 8),
-    (r'\bLa\s+Casa\s+del\s+Habano\b', 'La Casa del Habano Exclusivo', 8),
+    (r'\bLa[\s-]+Casa[\s-]+del[\s-]+Habano\b', 'La Casa del Habano Exclusivo', 8),
     # Colección Habanos
-    (r'\bColección\s+Habanos?\b', 'Colección Habanos', 8),
+    (r'\bColección[\s-]+Habanos?\b', 'Colección Habanos', 8),
     # 陈年
     (r'\bAnejados?\b', 'Anejados', 6),
     # GR / Gran Reserva / Reserva Cosecha / Grand Reserve
-    (r'\bGran\s+Reserva\b', 'Grand Reserve Series', 10),
-    (r'\bGrand\s+Reserve\b', 'Grand Reserve Series', 10),
-    (r'\bReserva\s+Cosecha\b', 'Grand Reserve Series', 10),
+    (r'\bGran[\s-]+Reserva\b', 'Grand Reserve Series', 10),
+    (r'\bGrand[\s-]+Reserve\b', 'Grand Reserve Series', 10),
+    (r'\bReserva[\s-]+Cosecha\b', 'Grand Reserve Series', 10),
     (r'\bReserva\b', 'Reserve Series', 8),
     # 包装标记（纯装饰, release_type=None）
     (r'\bEstuche\b', None, 1),
-    (r'\bTravel\s+Humidor\b', None, 1),
-    (r'\bGift\s+Box\b', None, 1),
+    (r'\bTravel[\s-]+Humidor\b', None, 1),
+    (r'\bGift[\s-]+Box\b', None, 1),
     (r'\bJar\b', None, 1),
     (r'\bCaja\b', None, 1),
     # 陈年标记（装饰）

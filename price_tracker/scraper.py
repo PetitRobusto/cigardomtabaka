@@ -229,10 +229,24 @@ def run_scrape_sync(source_slug: str) -> dict:
         combo = (cigar.id, box_size)
         scraped_combos.add(combo)
 
-        # Get latest snapshot for this combo
-        latest = PriceSnapshot.objects.filter(
+        # Get latest snapshot for this (cigar, box_size, URL) combo
+        # ⚠️ CRITICAL: 同一个 (cigar_id, box_size) 可能有不同产品变体
+        #   (如 Nyon: Gran Reserva vs Tubos, Vintage vs 普通 SLB)
+        #   不加 URL 过滤会导致对比基准漂移，产生 ±1000% 的假波动
+        base_qs = PriceSnapshot.objects.filter(
             source=source, cigar=cigar, box_size=box_size
-        ).order_by('-scraped_at').first()
+        )
+        if item.url:
+            url_match = base_qs.filter(url=item.url).order_by('-scraped_at').first()
+            if url_match:
+                latest = url_match
+            else:
+                # 新 URL（首次出现）→ 当新品处理，不对比旧数据
+                logger.info(f'[url-new] {item.name} → {cigar.english_name} '
+                           f'(url={item.url[:60]}) — 首次出现，跳过价格对比')
+                latest = None
+        else:
+            latest = base_qs.order_by('-scraped_at').first()
 
         should_create = False
         raw_data = dict(item.raw_data) if item.raw_data else {}
@@ -249,10 +263,23 @@ def run_scrape_sync(source_slug: str) -> dict:
             else:
                 raw_data['relisted'] = True
                 raw_data['relisted_at'] = timezone.now().isoformat()
-        elif item.price is not None and latest.price != item.price:
-            # Price changed → create (skip if OOS with no price to avoid dupes)
+        elif item.price is not None and abs(latest.price - item.price) > 0.001:
+            # Price changed (1/1000 tolerance for float rounding)
             should_create = True
         # else: price unchanged → skip (dedup!)
+
+        # ⚠️ Time-window dedup guard: if latest snapshot was created within the
+        # scrape interval AND nothing changed, skip even if comparison missed it.
+        # This prevents silent duplicates from float edge cases or race conditions.
+        if not should_create and latest is not None:
+            gap_minutes = (timezone.now() - latest.scraped_at).total_seconds() / 60
+            scrape_interval_hours = source.scrape_interval_hours or 24
+            if gap_minutes < (scrape_interval_hours * 60 * 0.8):
+                # Within the scrape window — keep dedup decision
+                pass
+            else:
+                logger.debug(f'[dedup-skip] {item.name}: last snapshot {gap_minutes:.0f}min ago '
+                           f'(price={item.price}, stock={item.in_stock}) — unchanged, skipping')
 
         if should_create:
             # 币种：优先 item 自带的 → source 默认

@@ -122,6 +122,11 @@ def _parse_structured(soup, brand_name: str) -> list[ScrapedItem]:
         parts = full_text.split(' - ', 1)
         brand_from_page = parts[0].strip()
         product_name = parts[1].strip()
+        
+        # ⚠️ 剥离 COH 常见前缀（防止匹配漂移）
+        # "5 Pack- Montecristo 80 Aniversario" → "Montecristo 80 Aniversario"
+        product_name = re.sub(r'^\d+\s+Pack\s*[-–]?\s*', '', product_name).strip()
+        product_name = re.sub(r'^Pack\s+of\s+\d+\s*[-–]?\s*', '', product_name).strip()
 
         if not _brand_matches(brand_from_page):
             continue
@@ -206,10 +211,14 @@ def _parse_text_lines(lines: list[str], brand_name: str) -> list[ScrapedItem]:
             i += 1
             continue
 
-        name_match = re.match(r'^([A-Za-zÀ-ÿ][\wÀ-ÿ\.\s\'&]+?)\s*-\s*(.+)$', line)
+        name_match = re.match(r"^([A-Za-zÀ-ÿ][\wÀ-ÿ\.\s\'&]+?)\s*-\s*(.+)$", line)
         if name_match:
             brand_from_line = name_match.group(1).strip()
             product_name = name_match.group(2).strip()
+            
+            # ⚠️ 剥离 COH 常见前缀
+            product_name = re.sub(r'^\d+\s+Pack\s*[-–]?\s*', '', product_name).strip()
+            product_name = re.sub(r'^Pack\s+of\s+\d+\s*[-–]?\s*', '', product_name).strip()
 
             if not _brand_matches(brand_from_line):
                 i += 1

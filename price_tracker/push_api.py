@@ -130,11 +130,13 @@ def push_bulk(request):
             matched += 1
             scraped_combos.add((cigar.id, item.box_size))
 
-            # 汇率换算 CNY
-            rate = ExchangeRate.get_rate(item.currency) if item.currency else None
-            if rate is None:
-                rate = 7.0
-            price_cny = round(item.price * rate, 2) if item.price is not None else None
+            # 人民币价格：优先用推送方算好的（避免生产端汇率缺失）
+            price_cny = item_data.get('price_cny')
+            if price_cny is None and item.price is not None:
+                rate = ExchangeRate.get_rate(item.currency) if item.currency else None
+                if rate is None:
+                    rate = 7.0
+                price_cny = round(item.price * rate, 2)
 
             # 价格去重（浮点容差 0.01）
             box_key = item.box_size  # 保持 None 语义

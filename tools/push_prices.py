@@ -51,6 +51,7 @@ def push_source(source_slug: str) -> dict:
             'name': snap.cigar.english_name or snap.cigar.name or '',
             'price': snap.price,
             'original_price': snap.original_price,
+            'price_cny': snap.price_cny,
             'currency': snap.currency,
             'box_size': snap.box_size if snap.box_size != 0 else None,
             'url': snap.url or '',

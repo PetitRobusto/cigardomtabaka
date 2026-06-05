@@ -65,6 +65,8 @@ class PriceSnapshot(models.Model):
     raw_data = models.JSONField('原始数据', default=dict, blank=True)
     scraped_at = models.DateTimeField('抓取时间', auto_now_add=True)
     scraped_date = models.DateField('抓取日期', auto_now_add=True)
+    is_anomalous = models.BooleanField('价格异常', default=False,
+        help_text='IQR异常检测标记：价格超出同组(cigar_id,box_size)的Q1-3*IQR~Q3+3*IQR范围')
 
     objects = SafeDeleteQuerySet.as_manager()
 
@@ -81,6 +83,29 @@ class PriceSnapshot(models.Model):
 
     def __str__(self):
         return f'{self.cigar} @ {self.source.name} — {self.price} {self.currency}'
+
+    def save(self, *args, **kwargs):
+        """保存时如果 cigar_id 变更，自动重算新旧两组的异常标记"""
+        is_new = self._state.adding
+        old_cigar_id = None
+        old_box_size = None
+        if not is_new:
+            try:
+                old = PriceSnapshot.objects.only('cigar_id', 'box_size').get(pk=self.pk)
+                old_cigar_id = old.cigar_id
+                old_box_size = old.box_size
+            except PriceSnapshot.DoesNotExist:
+                pass
+
+        super().save(*args, **kwargs)
+
+        # cigar_id 变更 → 重算旧组和新组
+        new_cigar_id = self.cigar_id
+        new_box_size = self.box_size
+        if not is_new and old_cigar_id is not None and old_cigar_id != new_cigar_id:
+            from .anomaly import detect_and_mark_group
+            detect_and_mark_group(old_cigar_id, old_box_size)
+            detect_and_mark_group(new_cigar_id, new_box_size)
 
 
 class PriceAlert(models.Model):

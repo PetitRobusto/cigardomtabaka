@@ -1,6 +1,7 @@
 """价格数据推送 API — 仅 DEBUG=False 时可用"""
 import json
 import logging
+import os
 from functools import wraps
 
 from django.conf import settings
@@ -20,7 +21,7 @@ def require_api_key(view_func):
     """X-API-Key 认证装饰器"""
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
-        api_key = getattr(settings, 'PRICE_PUSH_API_KEY', None)
+        api_key = os.environ.get('PRICE_PUSH_API_KEY', '')
         if not api_key:
             return JsonResponse({'error': 'API key not configured'}, status=500)
         request_key = request.headers.get('X-API-Key', '')

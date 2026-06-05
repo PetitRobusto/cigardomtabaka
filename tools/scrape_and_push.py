@@ -11,7 +11,13 @@ import json
 import argparse
 import requests
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+sys.path.insert(0, BASE_DIR)
+
+# 加载 .env（cron 环境没有预设环境变量）
+from dotenv import load_dotenv
+load_dotenv(os.path.join(BASE_DIR, '.env'))
+
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cigardomtabaka_backend.settings')
 import django
 django.setup()
@@ -23,7 +29,7 @@ from django.db.models import Max
 API_URL = "https://cigardomtabaka.com/api/prices/push-bulk/"
 API_KEY=os.environ.get('PRICE_PUSH_API_KEY', '')
 
-ACTIVE_SOURCES = ['coh_china', 'lcdh_nyon', 'lcdh_dl', 'lcdh_brussels', 'vipcigars']
+SKIP_SLUGS = {'egm', 'ihavanas'}  # 占位爬虫，无实际数据
 
 
 def scrape_and_push(source_slug: str) -> dict:
@@ -42,11 +48,14 @@ def scrape_and_push(source_slug: str) -> dict:
     print(f'[{source_slug}] Scrape OK: {result.get("created", 0)} new, '
           f'{result.get("skipped", 0)} skipped, {result.get("matched", 0)} matched')
 
-    # 推送全量最新快照到生产
+    # 推送全量最新在售快照到生产（不下架标记）
     print(f'[{source_slug}] Pushing to production...')
-    source = PriceSource.objects.get(slug=source_slug)
+    source = PriceSource.objects.filter(slug=source_slug).first()
+    if not source:
+        print(f'[{source_slug}] ERROR: source not found')
+        return {'scrape': result, 'push': {'error': 'Source not found'}}
     latest_ids = (
-        PriceSnapshot.objects.filter(source=source)
+        PriceSnapshot.objects.filter(source=source, in_stock=True)
         .values('cigar_id', 'box_size')
         .annotate(max_id=Max('id'))
         .values_list('max_id', flat=True)
@@ -98,7 +107,9 @@ if __name__ == '__main__':
     parser.add_argument('--source', '-s', help='Single source to run')
     args = parser.parse_args()
 
-    sources = [args.source] if args.source else ACTIVE_SOURCES
+    sources = [args.source] if args.source else [
+        s.slug for s in PriceSource.objects.filter(active=True).exclude(slug__in=SKIP_SLUGS)
+    ]
     results = {}
     for slug in sources:
         try:

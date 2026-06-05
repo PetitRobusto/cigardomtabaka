@@ -11,7 +11,13 @@ import json
 import argparse
 import requests
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+sys.path.insert(0, BASE_DIR)
+
+# 加载 .env（cron 环境没有预设环境变量）
+from dotenv import load_dotenv
+load_dotenv(os.path.join(BASE_DIR, '.env'))
+
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cigardomtabaka_backend.settings')
 import django
 django.setup()
@@ -29,10 +35,10 @@ def push_source(source_slug: str) -> dict:
     if not source:
         return {'error': f'Source {source_slug} not found'}
 
-    # 每个 (cigar, box_size) 的最新一条
+    # 每个 (cigar, box_size) 的最新在售记录（不下架标记）
     latest_ids = (
         PriceSnapshot.objects
-        .filter(source=source)
+        .filter(source=source, in_stock=True)
         .values('cigar_id', 'box_size')
         .annotate(max_id=Max('id'))
         .values_list('max_id', flat=True)

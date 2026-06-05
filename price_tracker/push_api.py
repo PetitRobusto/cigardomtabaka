@@ -23,7 +23,7 @@ def require_api_key(view_func):
     def wrapper(request, *args, **kwargs):
         api_key = os.environ.get('PRICE_PUSH_API_KEY', '')
         if not api_key:
-            return JsonResponse({'error': 'API key not configured'}, status=500)
+            return JsonResponse({'error': 'Forbidden'}, status=403)
         request_key = request.headers.get('X-API-Key', '')
         if request_key != api_key:
             return JsonResponse({'error': 'Invalid API key'}, status=403)
@@ -136,15 +136,23 @@ def push_bulk(request):
                 rate = 7.0
             price_cny = round(item.price * rate, 2) if item.price is not None else None
 
-            # 价格去重
-            box_key = item.box_size or 0
+            # 价格去重（浮点容差 0.01）
+            box_key = item.box_size  # 保持 None 语义
+            from django.db.models import Q
+            box_filter = Q(box_size=box_key) if box_key is not None else Q(box_size__isnull=True)
             latest = PriceSnapshot.objects.filter(
                 source=source,
                 cigar=cigar,
-                box_size=box_key,
-            ).order_by('-scraped_at').first()
+            ).filter(box_filter).order_by('-scraped_at').first()
 
-            if latest and latest.price == item.price and latest.in_stock == item.in_stock:
+            # 浮点数用容差比较（避免 IEEE 754 精度问题）
+            price_same = (
+                latest is not None
+                and latest.price is not None
+                and item.price is not None
+                and abs(float(latest.price) - float(item.price)) < 0.01
+            )
+            if price_same and latest.in_stock == item.in_stock:
                 if latest.scraped_at.date() < today:
                     latest.scraped_at = timezone.now()
                     latest.save(update_fields=['scraped_at'])

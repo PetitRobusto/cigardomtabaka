@@ -76,6 +76,7 @@ def scrape_and_push(source_slug: str) -> dict:
             json={'source_slug': source_slug, 'items': items},
             headers={'X-API-Key': API_KEY, 'Content-Type': 'application/json'},
             timeout=120,
+            proxies={'http': None, 'https': None},
         )
         resp.raise_for_status()
         push_result = resp.json()

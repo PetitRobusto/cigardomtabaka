@@ -154,7 +154,13 @@ def push_bulk(request):
                 and item.price is not None
                 and abs(float(latest.price) - float(item.price)) < 0.01
             )
-            if price_same and latest.in_stock == item.in_stock:
+            # 原币价 + CNY 都相同才跳过（汇率变动时 CNY 会变）
+            cny_same = (
+                price_cny is not None
+                and latest.price_cny is not None
+                and abs(float(latest.price_cny) - float(price_cny)) < 0.01
+            )
+            if price_same and cny_same and latest.in_stock == item.in_stock:
                 if latest.scraped_at.date() < today:
                     latest.scraped_at = timezone.now()
                     latest.save(update_fields=['scraped_at'])

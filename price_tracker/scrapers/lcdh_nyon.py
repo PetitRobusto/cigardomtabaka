@@ -75,9 +75,27 @@ class LCDHNyonScraper(BaseScraper):
             stealth = Stealth()
             await stealth.apply_stealth_async(page)
             
-            # Load homepage to pass Cloudflare
-            await page.goto(f'{BASE_URL}/en/', wait_until='domcontentloaded', timeout=60000)
+            # Load homepage to pass Cloudflare — 强制 CHF 货币
+            # ⚠️ Nyon 网站默认可能随机显示 EUR/CHF，必须显式设置
+            # WooCommerce 多币种插件常见参数: ?currency=CHF 或 Cookie: woocs=CHF
+            await page.goto(f'{BASE_URL}/en/?currency=CHF', wait_until='domcontentloaded', timeout=60000)
             await page.wait_for_timeout(8000)
+            
+            # 双重保险：通过 JS 设置 cookie + 点击货币切换器（如果存在）
+            await page.evaluate('''() => {
+                document.cookie = "woocs=CHF;path=/;max-age=86400";
+                document.cookie = "currency=CHF;path=/;max-age=86400";
+                document.cookie = "woocommerce_currency=CHF;path=/;max-age=86400";
+            }''')
+            
+            # 尝试点击页面上的 CHF 货币切换器（如果可见）
+            try:
+                chf_switcher = await page.query_selector('[data-currency="CHF"], .woocs_flag_CHF, a[href*="currency=CHF"]')
+                if chf_switcher:
+                    await chf_switcher.click()
+                    await page.wait_for_timeout(2000)
+            except Exception:
+                pass
             
             # Use fetch() to scrape all brands
             all_items = []
@@ -194,11 +212,30 @@ class LCDHNyonScraper(BaseScraper):
                 box_size = int(m.group(1))
                 name = re.sub(r'\s*\(\d+\)', '', name).strip()
         
-        # 解析价格: "Swiss franc 1,350.00"
+        # 解析价格: "Swiss franc 1,350.00" 或 "€ 1,090.58"
+        # ⚠️ Nyon 网站偶尔切换显示货币（EUR/CHF），必须检测并统一换算为 CHF
         price_chf = None
-        m = re.search(r'[\d,]+\.?\d*', price_str.replace("'", ''))
+        detected_currency = 'CHF'
+        if '€' in price_str or 'EUR' in price_str.upper():
+            detected_currency = 'EUR'
+        elif 'CHF' in price_str.upper() or 'swiss' in price_str.lower() or 'franc' in price_str.lower():
+            detected_currency = 'CHF'
+        
+        m = re.search(r'[\d,]+\\.?\\d*', price_str.replace("'", ''))
         if m:
-            price_chf = float(m.group().replace(',', ''))
+            raw_price = float(m.group().replace(',', ''))
+            if detected_currency == 'EUR':
+                # Convert EUR → CHF using real exchange rate if available
+                from price_tracker.models import ExchangeRate
+                eur_rate = ExchangeRate.get_rate('EUR')
+                chf_rate = ExchangeRate.get_rate('CHF')
+                if eur_rate and chf_rate:
+                    # Both rates are against CNY, so cross-rate: CHF = EUR * (EUR_rate / CHF_rate)
+                    price_chf = round(raw_price * eur_rate / chf_rate, 2)
+                else:
+                    price_chf = round(raw_price * 1.10, 2)  # approximate fallback
+            else:
+                price_chf = raw_price
 
         # 解析原价（WooCommerce 折扣时的划线价，从 del/ins 提取）
         orig_price_chf = None

@@ -753,8 +753,17 @@ def match_cigar(
     # 剥离品牌前缀
     stripped_norm = normalize(strip_brand(name))
 
-    # 剥离装饰后缀（AGED、Estuche 等纯噪音），用于 RapidFuzz
+    # 剥离装饰后缀（仅纯噪音，保留类型关键词），用于 RapidFuzz
     clean_norm = normalize(_strip_known_suffixes(strip_brand(name)))
+
+    # 全剥离版本（旧行为，兜底：当类型关键词稀释 token_set_ratio 时用）
+    _stripped_name = strip_brand(name)
+    import re as _re
+    for _pat, _rel, _pri in SUFFIX_PATTERNS:
+        _stripped_name = _re.sub(_pat, '', _stripped_name, flags=_re.IGNORECASE)
+    _stripped_name = _re.sub(r'\s+', ' ', _stripped_name).strip()
+    _stripped_name = _re.sub(r'\s*/\s*$', '', _stripped_name)
+    clean_norm_stripped = normalize(_stripped_name)
 
     # 脆弱名单词检测
     fragile = (
@@ -813,11 +822,16 @@ def match_cigar(
                 continue
             db_norm = normalize(cigar.english_name)
             db_base = normalize(strip_brand(cigar.english_name))
-            # 双向取最高分（用 clean_norm 替代 stripped_norm）
-            rpf_score = max(
-                fuzz.token_set_ratio(clean_norm, db_base),
-                fuzz.token_set_ratio(clean_norm, db_norm),
-            )
+            # 双向取最高分，两个 clean_norm 都试（保留类型关键词 + 全剥离兜底）
+            scores_variants = [
+                (fuzz.token_set_ratio(clean_norm, db_base), clean_norm),
+                (fuzz.token_set_ratio(clean_norm, db_norm), clean_norm),
+                (fuzz.token_set_ratio(clean_norm_stripped, db_base), clean_norm_stripped),
+                (fuzz.token_set_ratio(clean_norm_stripped, db_norm), clean_norm_stripped),
+            ]
+            rpf_score, best_clean = max(scores_variants, key=lambda x: x[0])
+            # 保留类型关键词的分数（用于 tiebreaker：同等总分时优先选区分度更高的）
+            rpf_score_typed = max(scores_variants[0][0], scores_variants[1][0])
             if rpf_score < 80:
                 continue
 
@@ -830,15 +844,15 @@ def match_cigar(
                         score += 15
                         break
 
-            # 精确包含加分（icontains）
-            if db_norm in clean_norm or clean_norm in db_norm:
+            # 精确包含加分（icontains），用最佳匹配的 clean
+            if db_norm in best_clean or best_clean in db_norm:
                 score += 5
 
-            # 长度惩罚（用 clean_norm 的长度）
-            ratio = max(len(clean_norm), len(db_norm)) / max(min(len(clean_norm), len(db_norm)), 1)
+            # 长度惩罚（用最佳匹配的 clean 长度）
+            ratio = max(len(best_clean), len(db_norm)) / max(min(len(best_clean), len(db_norm)), 1)
             if ratio > 2.5:
                 score -= int(5 * (ratio - 2.5))
-            if len(clean_norm) < 10:
+            if len(best_clean) < 10:
                 score += 5
 
             # 状态加权
@@ -846,11 +860,12 @@ def match_cigar(
             score += status_bonus.get(getattr(cigar, 'status', ''), 0)
 
             if score >= 80:
-                candidates.append((cigar, score))
+                candidates.append((cigar, score, rpf_score_typed))
 
         if candidates:
-            candidates.sort(key=lambda x: -x[1])
-            best, best_score = candidates[0]
+            # 排序：总分 > 带类型的原始分（区分度更高） > 名字更短（更精确）
+            candidates.sort(key=lambda x: (-x[1], -x[2], len(x[0].english_name)))
+            best, best_score, _ = candidates[0]
             logger.debug(f'[rpf-main] {clean_norm[:30]} → {best.english_name} '
                          f'(score={best_score}, hints={release_hints})')
             return best

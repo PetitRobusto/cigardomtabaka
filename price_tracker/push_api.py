@@ -208,8 +208,8 @@ def push_bulk(request):
                         pass
 
     # 更新 source 最后爬取时间
-    source.last_scraped_at = timezone.now()
-    source.save(update_fields=['last_scraped_at'])
+    source.last_scraped = timezone.now()
+    source.save(update_fields=['last_scraped'])
 
     return JsonResponse({
         'ok': True,

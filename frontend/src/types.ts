@@ -356,6 +356,11 @@ export interface PaymentItem {
   box_size: number;
 }
 
+export interface RemarkImage {
+  url: string;
+  name: string;
+}
+
 export interface PaymentData {
   mode: 'payment';
   items: {
@@ -374,12 +379,14 @@ export interface PaymentData {
   payment_methods: PaymentMethod[];
   customer_name: string;
   remark: string;
+  images?: RemarkImage[];
 }
 
 export interface MessageData {
   mode: 'message';
   text: string;
   attachments: { name: string; url: string }[];
+  images?: RemarkImage[];
 }
 
 export interface CustomerResult {
@@ -446,4 +453,7 @@ export interface QuoteData {
   brand_groups: QuoteBrandGroup[];
   total_items: number;
   shipping_included: boolean;
+  shipping_fee_per_stick?: number;
+  customer_name?: string;
+  custom_prices?: Record<number, number>;
 }

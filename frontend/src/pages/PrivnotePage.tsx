@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Link2, Clock, Lock, Flame, Copy, Check,
-  Package, CreditCard, MessageSquare, Search, Plus, Trash2,
-  FileText
+  Copy, Check,
+  Package, Search, Plus,
+  X, Upload, ImageIcon, ClipboardList, Wallet, Send
 } from 'lucide-react';
 import {
   fetchPaymentMethods, searchCigars, createPrivnote, searchCustomers,
-  fetchQuoteProducts
+  fetchQuoteProducts, uploadPrivnoteImage
 } from '../api';
 import { useAuthStore } from '../store/authStore';
 import type { SearchCigarResult, PaymentItem, CustomerResult, ExtraFee, QuoteProduct } from '../types';
@@ -22,18 +22,113 @@ const DURATIONS = [
 ];
 
 const TABS = [
-  { key: 'inventory' as const, label: '库存/报价', icon: Package },
-  { key: 'payment' as const, label: '收款单', icon: CreditCard },
-  { key: 'message' as const, label: '消息', icon: MessageSquare },
+  { key: 'quote' as const, label: '报价单', icon: ClipboardList },
+  { key: 'payment' as const, label: '收款', icon: Wallet },
+  { key: 'message' as const, label: '消息', icon: Send },
 ];
 
 type TabKey = typeof TABS[number]['key'];
-type SubMode = 'inventory' | 'quote';
 type QuoteMode = 'full' | 'custom';
+type PaymentAddMode = 'stock' | 'manual';
+
+/* ─── Image Upload Hook ─── */
+function useImageUpload() {
+  const [images, setImages] = useState<{ url: string; name: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  const onFileSelect = useCallback(async (files: FileList | null) => {
+    if (!files) return;
+    setUploading(true);
+    const newImages: { url: string; name: string }[] = [];
+    for (const file of Array.from(files)) {
+      try {
+        const res = await uploadPrivnoteImage(file);
+        if (res.url) newImages.push({ url: res.url, name: res.name || file.name });
+      } catch {
+        // ignore upload errors
+      }
+    }
+    setImages(prev => [...prev, ...newImages]);
+    setUploading(false);
+  }, []);
+
+  const onRemove = useCallback((idx: number) => {
+    setImages(prev => prev.filter((_, i) => i !== idx));
+  }, []);
+
+  return { images, setImages, uploading, onFileSelect, onRemove };
+}
+
+/* ─── File Upload Component ─── */
+function FileUploadArea({
+  images, uploading, onFileSelect, onRemove
+}: {
+  images: { url: string; name: string }[];
+  uploading: boolean;
+  onFileSelect: (files: FileList | null) => void;
+  onRemove: (idx: number) => void;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onFileSelect(e.target.files);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [onFileSelect]);
+
+  return (
+    <div>
+      <div
+        onClick={handleClick}
+        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={e => { e.preventDefault(); setDragOver(false); onFileSelect(e.dataTransfer.files); }}
+        className={`border-2 border-dashed rounded-sm p-8 text-center cursor-pointer transition-colors ${
+          dragOver ? 'border-accent bg-accent-light/50' : 'border-border hover:border-accent'
+        }`}
+      >
+        <div className="text-sm text-muted mb-2 flex items-center justify-center gap-2">
+          <Upload className="w-4 h-4" />
+          {uploading ? '上传中…' : '点击或拖拽上传图片'}
+        </div>
+        <div className="text-xs text-border">支持 jpg / png / gif / webp</div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={handleChange}
+        />
+      </div>
+      {images.length > 0 && (
+        <div className="flex gap-2 flex-wrap mt-3">
+          {images.map((img, idx) => (
+            <div key={idx} className="relative group inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent-light rounded-full text-xs">
+              <ImageIcon className="w-3 h-3 text-muted" />
+              <span className="max-w-[120px] truncate">{img.name}</span>
+              <button
+                type="button"
+                onClick={() => onRemove(idx)}
+                className="w-4 h-4 rounded-full bg-border/50 hover:bg-accent hover:text-white flex items-center justify-center transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function PrivnotePage() {
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<TabKey>('inventory');
+  const [activeTab, setActiveTab] = useState<TabKey>('quote');
 
   // Common config
   const [duration, setDuration] = useState('24');
@@ -61,8 +156,13 @@ export default function PrivnotePage() {
   const [courierAmount, setCourierAmount] = useState(0);
   const [customFees, setCustomFees] = useState<ExtraFee[]>([]);
   const [remark, setRemark] = useState('');
+  const [paymentAddMode, setPaymentAddMode] = useState<PaymentAddMode>('stock');
+  const [manualName, setManualName] = useState('');
+  const [manualQty, setManualQty] = useState(1);
+  const [manualPrice, setManualPrice] = useState(0);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const customerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const paymentImages = useImageUpload();
 
   const { data: paymentMethods } = useQuery({
     queryKey: ['payment-methods'],
@@ -75,23 +175,34 @@ export default function PrivnotePage() {
   const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([]);
   const [attachName, setAttachName] = useState('');
   const [attachUrl, setAttachUrl] = useState('');
-
-  // Inventory/Quote sub-mode
-  const [subMode, setSubMode] = useState<SubMode>('inventory');
+  const [showAttachments, setShowAttachments] = useState(false);
+  const messageImages = useImageUpload();
 
   // Quote mode
   const [quoteMode, setQuoteMode] = useState<QuoteMode>('full');
   const [shippingIncluded, setShippingIncluded] = useState(false);
   const [quoteSearchQ, setQuoteSearchQ] = useState('');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [customPrices, setCustomPrices] = useState<Record<number, number>>({});
+  const [quoteCustomerName, setQuoteCustomerName] = useState('');
 
   const { data: quoteProducts } = useQuery({
     queryKey: ['quote-products'],
     queryFn: fetchQuoteProducts,
-    enabled: activeTab === 'inventory' && subMode === 'quote',
+    enabled: activeTab === 'quote',
   });
 
-  // Debounced cigar search (stock_only=0: all cigars, not just in-stock)
+  // Default select all when switching to custom mode
+  useEffect(() => {
+    if (quoteMode === 'custom' && quoteProducts && quoteProducts.length > 0) {
+      const allIds = [...new Set(quoteProducts.map(p => p.cigar_id))];
+      setSelectedIds(allIds);
+    }
+  }, [quoteMode, quoteProducts]);
+
+
+
+  // Debounced cigar search
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     if (!searchQ.trim()) {
@@ -141,9 +252,23 @@ export default function PrivnotePage() {
     );
   }
 
-  const copyUrl = () => {
-    if (result?.url) {
-      navigator.clipboard.writeText(result.url);
+  const copyUrl = async () => {
+    if (!result?.url) return;
+    let success = false;
+    try {
+      await navigator.clipboard.writeText(result.url);
+      success = true;
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = result.url;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      success = document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+    if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -169,6 +294,23 @@ export default function PrivnotePage() {
     }]);
     setSearchQ('');
     setSearchResults([]);
+  };
+
+  const addManualPaymentItem = () => {
+    if (!manualName.trim() || manualPrice <= 0) return;
+    setPaymentItems(prev => [...prev, {
+      cigar_id: 0,
+      name: manualName.trim(),
+      english_name: '',
+      vitola: '',
+      thumb_url: null,
+      quantity: manualQty,
+      unit_price: manualPrice,
+      box_size: 1,
+    }]);
+    setManualName('');
+    setManualQty(1);
+    setManualPrice(0);
   };
 
   const removePaymentItem = (idx: number) => {
@@ -217,14 +359,12 @@ export default function PrivnotePage() {
     setLoading(true);
     const form = new FormData();
 
-    // When in quote sub-mode, send note_type=quote
-    const actualNoteType = activeTab === 'inventory' && subMode === 'quote' ? 'quote' : activeTab;
-    form.append('note_type', actualNoteType);
+    form.append('note_type', activeTab);
     form.append('duration', duration);
     form.append('password', password);
     form.append('burn', burn ? 'on' : 'off');
 
-    if (actualNoteType === 'payment') {
+    if (activeTab === 'payment') {
       form.append('items', JSON.stringify(paymentItems.map(i => ({
         cigar_id: i.cigar_id,
         batch_id: i.batch_id,
@@ -235,13 +375,21 @@ export default function PrivnotePage() {
       form.append('payment_method_id', paymentMethodId);
       form.append('extra_fees', JSON.stringify(getExtraFees()));
       form.append('remark', remark);
-    } else if (actualNoteType === 'message') {
+      form.append('images', JSON.stringify(paymentImages.images));
+    } else if (activeTab === 'message') {
       form.append('text', messageText);
       form.append('attachments', JSON.stringify(attachments));
-    } else if (actualNoteType === 'quote') {
+      form.append('images', JSON.stringify(messageImages.images));
+    } else if (activeTab === 'quote') {
       form.append('quote_mode', quoteMode);
       form.append('selected_ids', JSON.stringify(selectedIds));
       form.append('shipping_included', shippingIncluded ? 'true' : 'false');
+      if (quoteCustomerName.trim()) {
+        form.append('customer_name', quoteCustomerName.trim());
+      }
+      if (quoteMode === 'custom' && Object.keys(customPrices).length > 0) {
+        form.append('custom_prices', JSON.stringify(customPrices));
+      }
     }
 
     try {
@@ -260,51 +408,66 @@ export default function PrivnotePage() {
     setPaymentMethodId('');
     setMessageText('');
     setAttachments([]);
+    setShowAttachments(false);
     setSearchQ('');
     setSearchResults([]);
-    setSubMode('inventory');
     setQuoteMode('full');
     setShippingIncluded(false);
     setQuoteSearchQ('');
     setSelectedIds([]);
+    setCustomPrices({});
+    setQuoteCustomerName('');
+    paymentImages.setImages([]);
+    messageImages.setImages([]);
+    setRemark('');
+    setUseShipping(false);
+    setUseCourier(false);
+    setCustomFees([]);
+    setShippingAmount(0);
+    setCourierAmount(0);
+    setActiveTab('quote');
   };
 
   const canSubmit = () => {
     if (activeTab === 'payment') return paymentItems.length > 0;
-    if (activeTab === 'message') return !!messageText.trim() || attachments.length > 0;
-    if (activeTab === 'inventory') {
-      if (subMode === 'inventory') return true;
-      if (subMode === 'quote') {
-        if (quoteMode === 'full') return true;
-        return selectedIds.length > 0;
-      }
+    if (activeTab === 'message') return !!messageText.trim() || attachments.length > 0 || messageImages.images.length > 0;
+    if (activeTab === 'quote') {
+      if (quoteMode === 'full') return true;
+      return selectedIds.length > 0;
     }
-    return true;
+    return false;
   };
 
+  const actionHint = () => {
+    if (activeTab === 'quote') {
+      if (quoteMode === 'full') return '将生成包含全部 72 款雪茄的完整报价单';
+      return selectedIds.length > 0 ? `已选 ${selectedIds.length} 项商品` : '请勾选要包含在报价单中的雪茄';
+    }
+    if (activeTab === 'payment') return paymentItems.length > 0 ? `已选 ${paymentItems.length} 项商品` : '添加商品并选择收款方式';
+    return '输入消息内容并上传附件';
+  };
+
+  const totalPayment = paymentItems.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
+
   return (
-    <div className="animate-fade-in max-w-2xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-          <Link2 className="w-5 h-5 text-accent" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-fg">生成链接</h1>
-          <p className="text-sm text-muted">创建一次性客户文档</p>
-        </div>
+    <div className="animate-fade-in max-w-4xl mx-auto pb-32">
+      {/* Page Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-display font-semibold text-fg">创建私密链接</h1>
+        <p className="text-sm text-muted mt-1">Create a private link</p>
       </div>
 
       {result ? (
-        <div className="bg-white border border-border rounded-md p-6 text-center">
+        <div className="bg-white border border-border rounded-sm p-6 text-center">
           <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
             <Check className="w-6 h-6 text-emerald-600" />
           </div>
           <h3 className="text-lg font-semibold text-fg mb-2">链接已生成</h3>
-          <div className="flex items-center gap-2 bg-accent-light rounded-md p-3 mb-4">
+          <div className="flex items-center gap-2 bg-accent-light rounded-sm p-3 mb-4">
             <code className="text-sm text-fg flex-1 break-all">{result.url}</code>
             <button
               onClick={copyUrl}
-              className="p-2 rounded-md text-accent hover:bg-accent/10 transition-colors shrink-0"
+              className="p-2 rounded-sm text-accent hover:bg-accent/10 transition-colors shrink-0"
             >
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             </button>
@@ -315,63 +478,84 @@ export default function PrivnotePage() {
         </div>
       ) : (
         <form onSubmit={handleCreate} className="space-y-5">
-          {/* Tabs */}
-          <div className="flex gap-2">
-            {TABS.map(tab => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-medium transition-all ${
-                  activeTab === tab.key
-                    ? 'bg-accent text-white'
-                    : 'bg-accent-light text-fg hover:bg-accent/10'
-                }`}
+          {/* Note Config */}
+          <div className="bg-white border border-border rounded-sm p-5 flex items-center gap-8 flex-wrap">
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted uppercase tracking-wider">有效期</span>
+              <select
+                value={duration}
+                onChange={e => setDuration(e.target.value)}
+                className="px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent min-w-[120px]"
               >
-                <tab.icon className="w-4 h-4" />
-                {tab.label}
-              </button>
-            ))}
+                {DURATIONS.map(d => (
+                  <option key={d.value} value={d.value}>{d.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted uppercase tracking-wider">密码</span>
+              <input
+                type="text"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="可选"
+                className="px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent min-w-[160px]"
+              />
+            </div>
+            <div className="flex items-center gap-3 ml-auto">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div className="relative">
+                  <input type="checkbox" className="sr-only" checked={burn} onChange={e => setBurn(e.target.checked)} />
+                  <span className={`block w-10 h-[22px] rounded-full transition-colors ${burn ? 'bg-accent' : 'bg-border'}`}>
+                    <span className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform ${burn ? 'translate-x-[18px]' : 'translate-x-0'}`} />
+                  </span>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-fg">阅后即焚</div>
+                  <div className="text-xs text-muted">首次查看后自动销毁</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex border-b border-border overflow-x-auto">
+            {TABS.map(tab => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors flex items-center gap-2 ${
+                    activeTab === tab.key
+                      ? 'text-accent border-accent'
+                      : 'text-muted border-transparent hover:text-fg'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* Tab Content */}
-          <div className="bg-white border border-border rounded-md p-5 space-y-5">
-            {activeTab === 'inventory' && (
+          <div>
+            {/* ── QUOTE TAB ── */}
+            {activeTab === 'quote' && (
               <div className="space-y-4">
-                {/* Sub-mode toggle */}
-                <div className="flex items-center justify-center gap-2">
-                  <span className={`text-sm ${subMode === 'inventory' ? 'font-medium text-fg' : 'text-muted'}`}>现货库存</span>
-                  <button
-                    type="button"
-                    onClick={() => setSubMode(subMode === 'inventory' ? 'quote' : 'inventory')}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${subMode === 'quote' ? 'bg-accent' : 'bg-border'}`}
-                  >
-                    <span
-                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                        subMode === 'quote' ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                  <span className={`text-sm ${subMode === 'quote' ? 'font-medium text-fg' : 'text-muted'}`}>批发报价</span>
-                </div>
-
-                {subMode === 'inventory' && (
-                  <p className="text-sm text-muted">
-                    生成当前库存的快照链接，客户可查看实时库存与报价。
-                  </p>
-                )}
-
-                {subMode === 'quote' && (
-                  <div className="space-y-4">
-                    {/* Quote mode selector */}
-                    <div className="flex gap-2">
+                <div className="bg-white border border-border rounded-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+                    <span className="text-xs text-muted uppercase tracking-wider font-medium">报价单模式</span>
+                    <div className="inline-flex bg-accent-light rounded-sm p-1 gap-1">
                       <button
                         type="button"
                         onClick={() => setQuoteMode('full')}
-                        className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
+                        className={`px-4 py-2 text-xs font-medium rounded-sm transition-all ${
                           quoteMode === 'full'
-                            ? 'bg-accent text-white'
-                            : 'bg-accent-light text-fg hover:bg-accent/10'
+                            ? 'bg-white text-fg shadow-sm'
+                            : 'text-muted hover:text-fg'
                         }`}
                       >
                         完整目录
@@ -379,36 +563,54 @@ export default function PrivnotePage() {
                       <button
                         type="button"
                         onClick={() => setQuoteMode('custom')}
-                        className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
+                        className={`px-4 py-2 text-xs font-medium rounded-sm transition-all ${
                           quoteMode === 'custom'
-                            ? 'bg-accent text-white'
-                            : 'bg-accent-light text-fg hover:bg-accent/10'
+                            ? 'bg-white text-fg shadow-sm'
+                            : 'text-muted hover:text-fg'
                         }`}
                       >
                         定制选择
                       </button>
                     </div>
-
+                  </div>
+                  <div className="p-5 space-y-4">
                     {/* Shipping toggle */}
-                    <label className="flex items-center gap-2">
+                    <div className="flex items-center gap-3 pb-4 border-b border-border">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="relative">
+                          <input type="checkbox" className="sr-only" checked={shippingIncluded} onChange={e => setShippingIncluded(e.target.checked)} />
+                          <span className={`block w-10 h-[22px] rounded-full transition-colors ${shippingIncluded ? 'bg-accent' : 'bg-border'}`}>
+                            <span className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform ${shippingIncluded ? 'translate-x-[18px]' : 'translate-x-0'}`} />
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-fg">报价含运费</div>
+                          <div className="text-xs text-muted">{shippingIncluded ? '开启 — 报价已包含运费' : '关闭 — 运费另行计算'}</div>
+                        </div>
+                      </label>
+                    </div>
+
+                    {/* Customer (optional) */}
+                    <div className="pb-4 border-b border-border">
+                      <label className="block text-xs text-muted uppercase tracking-wider mb-2">客户名称（可选）</label>
                       <input
-                        type="checkbox"
-                        checked={shippingIncluded}
-                        onChange={e => setShippingIncluded(e.target.checked)}
-                        className="checkbox checkbox-sm"
+                        type="text"
+                        value={quoteCustomerName}
+                        onChange={e => setQuoteCustomerName(e.target.value)}
+                        placeholder="输入客户名称，将显示在报价单头部"
+                        className="w-full px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent"
                       />
-                      <span className="text-sm">含运费（报价已含运费）</span>
-                    </label>
+                    </div>
 
                     {quoteMode === 'full' && (
-                      <p className="text-sm text-muted">
-                        将生成包含全部 {quoteProducts?.length ?? 0} 款雪茄批发报价的完整目录链接。
+                      <p className="text-sm text-fg leading-relaxed">
+                        将生成包含全部 <strong className="text-accent">{quoteProducts?.length ?? 0}</strong> 款雪茄批发报价的完整目录链接。<br />
+                        <span className="text-muted">客户打开后可查看所有品牌、款式、支数、批发价及折算单价。</span>
                       </p>
                     )}
 
                     {quoteMode === 'custom' && (
                       <div className="space-y-3">
-                        {/* Search */}
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
                           <input
@@ -416,13 +618,12 @@ export default function PrivnotePage() {
                             value={quoteSearchQ}
                             onChange={e => setQuoteSearchQ(e.target.value)}
                             placeholder="搜索雪茄（品牌/品名/英文名）"
-                            className="w-full pl-9 pr-4 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
+                            className="w-full pl-9 pr-4 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent"
                           />
                         </div>
 
-                        {/* Product list grouped by brand */}
                         {quoteProducts && quoteProducts.length > 0 && (
-                          <div className="border border-border rounded-md bg-white max-h-96 overflow-y-auto">
+                          <div className="border border-border rounded-sm bg-white max-h-[480px] overflow-y-auto">
                             {(() => {
                               const filtered = quoteSearchQ.trim()
                                 ? quoteProducts.filter(p =>
@@ -438,17 +639,17 @@ export default function PrivnotePage() {
                               });
                               return Object.entries(byBrand).map(([brand, items]) => (
                                 <div key={brand} className="border-b border-border last:border-0">
-                                  <div className="px-3 py-1.5 bg-accent-light text-xs font-semibold text-fg sticky top-0">
+                                  <div className="px-3 py-2 bg-accent-light text-xs font-semibold text-fg sticky top-0 uppercase tracking-wider">
                                     {items[0]?.brand_cn || brand}
                                   </div>
                                   {items.map(p => (
                                     <label
                                       key={`${p.cigar_id}-${p.box_size}`}
-                                      className="flex items-center gap-2 px-3 py-2 hover:bg-accent-light cursor-pointer border-b border-border last:border-0"
+                                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent-light cursor-pointer border-b border-border last:border-0"
                                     >
                                       <input
                                         type="checkbox"
-                                        className="checkbox checkbox-sm shrink-0"
+                                        className="w-4 h-4 accent-accent shrink-0 cursor-pointer"
                                         checked={selectedIds.includes(p.cigar_id)}
                                         onChange={e => {
                                           if (e.target.checked) {
@@ -458,13 +659,27 @@ export default function PrivnotePage() {
                                           }
                                         }}
                                       />
-                                      <div className="flex-1 min-w-0 text-sm">
-                                        <div className="font-medium truncate">{p.name}</div>
-                                        <div className="text-xs text-muted">{p.english_name} · {p.vitola}</div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-medium truncate">{p.name}</div>
+                                        <div className="text-xs text-muted font-display italic">{p.english_name}</div>
                                       </div>
-                                      <div className="text-right shrink-0 text-xs text-muted">
-                                        <div className="font-medium text-fg">¥{p.wholesale_price}</div>
-                                        <div>{p.box_size}支/盒</div>
+                                      <div className="flex items-center gap-3 shrink-0">
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          value={customPrices[p.cigar_id] ?? p.wholesale_price}
+                                          onChange={e => {
+                                            const val = parseInt(e.target.value) || p.wholesale_price;
+                                            setCustomPrices(prev => ({ ...prev, [p.cigar_id]: val }));
+                                          }}
+                                          onClick={e => e.stopPropagation()}
+                                          className="w-20 px-2 py-1 border border-border rounded-sm text-sm text-right focus:outline-none focus:border-accent"
+                                          title="自定义批发价"
+                                        />
+                                        <div className="text-right shrink-0 w-24">
+                                          <div className="text-sm font-mono font-semibold text-accent">¥{(customPrices[p.cigar_id] ?? p.wholesale_price).toLocaleString()}</div>
+                                          <div className="text-xs text-muted">{p.box_size}支/盒</div>
+                                        </div>
                                       </div>
                                     </label>
                                   ))}
@@ -474,10 +689,9 @@ export default function PrivnotePage() {
                           </div>
                         )}
 
-                        {/* Selection summary */}
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted">已选 {selectedIds.length} 项</span>
-                          <div className="flex gap-2">
+                        <div className="flex items-center justify-between pt-3 border-t border-border">
+                          <span className="text-sm text-muted">已选 {selectedIds.length} 项</span>
+                          <div className="flex gap-3">
                             <button
                               type="button"
                               onClick={() => {
@@ -500,171 +714,285 @@ export default function PrivnotePage() {
                       </div>
                     )}
                   </div>
-                )}
+                </div>
               </div>
             )}
 
+            {/* ── PAYMENT TAB ── */}
             {activeTab === 'payment' && (
               <div className="space-y-4">
-                {/* Customer search */}
-                <div>
-                  <label className="block text-sm font-medium text-fg mb-1">客户</label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-                    <input
-                      type="text"
-                      value={customerQuery}
-                      onChange={e => { setCustomerQuery(e.target.value); setCustomerName(e.target.value); }}
-                      placeholder="搜索客户（输入名字，选已有或输入新名）"
-                      className="w-full pl-9 pr-4 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-                    />
-                  </div>
-                  {customerSearching && <p className="text-xs text-muted mt-1">搜索中…</p>}
-                  {Array.isArray(customerResults) && customerResults.length > 0 && (
-                    <div className="mt-1 border border-border rounded-md bg-white max-h-36 overflow-y-auto">
-                      {customerResults.map(c => (
-                        <div
-                          key={c.id}
-                          className="px-3 py-2 hover:bg-accent-light cursor-pointer border-b border-border last:border-0"
-                          onClick={() => { setCustomerName(c.name); setCustomerQuery(c.name); setCustomerResults([]); }}
-                        >
-                          <div className="text-sm font-medium">{c.name}</div>
-                          {c.phone && <div className="text-xs text-muted">{c.phone}</div>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Cigar search */}
-                <div>
-                  <label className="block text-sm font-medium text-fg mb-1">添加商品</label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-                    <input
-                      type="text"
-                      value={searchQ}
-                      onChange={e => setSearchQ(e.target.value)}
-                      placeholder="搜索雪茄（品牌+型号，中英文均可）"
-                      className="w-full pl-9 pr-4 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-                    />
-                  </div>
-                  {searching && <p className="text-xs text-muted mt-1">搜索中…</p>}
-                  {Array.isArray(searchResults) && searchResults.length > 0 && (
-                    <div className="mt-1 border border-border rounded-md bg-white max-h-48 overflow-y-auto">
-                      {searchResults.map(c => (
-                        <div
-                          key={c.id}
-                          className="px-3 py-2 hover:bg-accent-light cursor-pointer border-b border-border last:border-0"
-                          onClick={() => addPaymentItem(c)}
-                        >
-                          <div className="text-sm font-medium">{c.name}</div>
-                          <div className="text-xs text-muted">
-                            {c.brand} · {c.vitola} · 库存 {c.stock_qty} 支
-                          </div>
-                          {c.batches.length > 1 && (
-                            <div className="flex gap-1 mt-1">
-                              {c.batches.map(b => (
-                                <button
-                                  key={b.batch_id}
-                                  type="button"
-                                  onClick={ev => { ev.stopPropagation(); addPaymentItem(c, b.batch_id); }}
-                                  className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent hover:bg-accent/20"
-                                >
-                                  {b.box_size}支/盒 · 余{b.remaining}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Items list */}
-                {Array.isArray(paymentItems) && paymentItems.length > 0 && (
-                  <div className="space-y-2">
-                    {paymentItems.map((item, idx) => (
-                      <div
-                        key={`${item.cigar_id}-${item.batch_id}`}
-                        className="flex items-center gap-3 bg-accent-light rounded-md p-3"
+                {/* Add Product */}
+                <div className="bg-white border border-border rounded-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+                    <span className="text-xs text-muted uppercase tracking-wider font-medium">添加商品</span>
+                    <div className="inline-flex bg-accent-light rounded-sm p-1 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentAddMode('stock')}
+                        className={`px-4 py-2 text-xs font-medium rounded-sm transition-all ${
+                          paymentAddMode === 'stock'
+                            ? 'bg-white text-fg shadow-sm'
+                            : 'text-muted hover:text-fg'
+                        }`}
                       >
-                        <div className="w-10 h-10 rounded bg-white flex items-center justify-center shrink-0 overflow-hidden">
-                          {item.thumb_url ? (
-                            <img src={item.thumb_url} alt={item.name} className="w-full h-full object-contain p-0.5" />
-                          ) : (
-                            <Package className="w-4 h-4 text-muted" />
-                          )}
+                        从库存选
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentAddMode('manual')}
+                        className={`px-4 py-2 text-xs font-medium rounded-sm transition-all ${
+                          paymentAddMode === 'manual'
+                            ? 'bg-white text-fg shadow-sm'
+                            : 'text-muted hover:text-fg'
+                        }`}
+                      >
+                        手动输入
+                      </button>
+                    </div>
+                  </div>
+                  <div className="p-5">
+                    {paymentAddMode === 'stock' ? (
+                      <div>
+                        <div className="relative mb-3">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                          <input
+                            type="text"
+                            value={searchQ}
+                            onChange={e => setSearchQ(e.target.value)}
+                            placeholder="搜索品牌 + 款式，如：高希霸 罗布图 / Cohiba D4"
+                            className="w-full pl-9 pr-4 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent"
+                          />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{item.name}</div>
-                          <div className="text-xs text-muted">{item.vitola} · {item.box_size}支/盒</div>
+                        {searching && <p className="text-xs text-muted mb-2">搜索中…</p>}
+                        {Array.isArray(searchResults) && searchResults.length > 0 && (
+                          <div className="border border-border rounded-sm bg-white max-h-48 overflow-y-auto">
+                            {searchResults.map(c => (
+                              <div
+                                key={c.id}
+                                className="px-4 py-3 hover:bg-accent-light cursor-pointer border-b border-border last:border-0 flex items-center gap-3"
+                                onClick={() => addPaymentItem(c)}
+                              >
+                                <div className="w-10 h-10 rounded-sm bg-accent-light flex items-center justify-center shrink-0 overflow-hidden">
+                                  {c.thumb_url ? (
+                                    <img src={c.thumb_url} alt={c.name} className="w-full h-full object-contain p-0.5" />
+                                  ) : (
+                                    <Package className="w-4 h-4 text-muted" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium">{c.name}</div>
+                                  <div className="text-xs text-muted">{c.brand} · {c.vitola} · 库存 {c.stock_qty} 支</div>
+                                </div>
+                                {c.batches.length > 1 && (
+                                  <div className="flex gap-1 flex-wrap justify-end">
+                                    {c.batches.map(b => (
+                                      <button
+                                        key={b.batch_id}
+                                        type="button"
+                                        onClick={ev => { ev.stopPropagation(); addPaymentItem(c, b.batch_id); }}
+                                        className="text-[10px] px-2 py-1 rounded-sm bg-accent/10 text-accent hover:bg-accent/20"
+                                      >
+                                        {b.box_size}支/盒 · 余{b.remaining}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-xs text-muted uppercase tracking-wider mb-2">雪茄名称</label>
+                          <input
+                            type="text"
+                            value={manualName}
+                            onChange={e => setManualName(e.target.value)}
+                            placeholder="输入雪茄名称"
+                            className="w-full px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent"
+                          />
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div>
+                          <label className="block text-xs text-muted uppercase tracking-wider mb-2">数量</label>
                           <input
                             type="number"
                             min={1}
-                            value={item.quantity}
-                            onChange={e => updatePaymentItem(idx, 'quantity', parseInt(e.target.value) || 1)}
-                            className="w-14 px-2 py-1 border border-border rounded text-sm text-center"
+                            value={manualQty}
+                            onChange={e => setManualQty(parseInt(e.target.value) || 1)}
+                            placeholder="1"
+                            className="w-full px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent"
                           />
-                          <span className="text-xs text-muted">× ¥</span>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-muted uppercase tracking-wider mb-2">单价 (CNY)</label>
                           <input
                             type="number"
                             min={0}
-                            value={item.unit_price}
-                            onChange={e => updatePaymentItem(idx, 'unit_price', parseInt(e.target.value) || 0)}
-                            className="w-20 px-2 py-1 border border-border rounded text-sm text-right"
+                            value={manualPrice}
+                            onChange={e => setManualPrice(parseInt(e.target.value) || 0)}
+                            placeholder="0"
+                            className="w-full px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent"
                           />
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => removePaymentItem(idx)}
-                          className="p-1 text-muted hover:text-red-500"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="col-span-3 text-right">
+                          <button
+                            type="button"
+                            onClick={addManualPaymentItem}
+                            className="px-4 py-2 bg-accent text-white rounded-sm text-sm font-medium hover:bg-accent-hover transition-colors"
+                          >
+                            加入订单
+                          </button>
+                        </div>
                       </div>
-                    ))}
-                    <div className="text-right text-sm font-medium text-fg">
-                      商品合计：¥{paymentItems.reduce((sum, i) => sum + i.quantity * i.unit_price, 0)}
+                    )}
+                  </div>
+                </div>
+
+                {/* Order List */}
+                {paymentItems.length > 0 && (
+                  <div className="bg-white border border-border rounded-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                      <span className="text-xs text-muted uppercase tracking-wider font-medium">已选商品</span>
+                      <span className="text-sm text-muted">{paymentItems.length} 项</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr className="bg-accent-light">
+                            <th className="px-4 py-3 text-left text-xs text-muted uppercase tracking-wider font-medium">雪茄</th>
+                            <th className="px-4 py-3 text-right text-xs text-muted uppercase tracking-wider font-medium">数量</th>
+                            <th className="px-4 py-3 text-right text-xs text-muted uppercase tracking-wider font-medium">单价</th>
+                            <th className="px-4 py-3 text-right text-xs text-muted uppercase tracking-wider font-medium">小计</th>
+                            <th className="px-4 py-3 text-center text-xs text-muted uppercase tracking-wider font-medium w-10"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paymentItems.map((item, idx) => (
+                            <tr key={`${item.cigar_id}-${item.batch_id}-${idx}`} className="border-b border-border hover:bg-accent-light/30">
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-sm bg-accent-light flex items-center justify-center shrink-0 overflow-hidden">
+                                    {item.thumb_url ? (
+                                      <img src={item.thumb_url} alt={item.name} className="w-full h-full object-contain p-0.5" />
+                                    ) : (
+                                      <Package className="w-4 h-4 text-muted" />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <div className="text-sm font-medium">{item.name}</div>
+                                    <div className="text-xs text-muted">{item.vitola}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={item.quantity}
+                                  onChange={e => updatePaymentItem(idx, 'quantity', parseInt(e.target.value) || 1)}
+                                  className="w-16 px-2 py-1 border border-border rounded-sm text-sm text-center focus:outline-none focus:border-accent"
+                                />
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <span className="text-xs text-muted">¥</span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={item.unit_price}
+                                    onChange={e => updatePaymentItem(idx, 'unit_price', parseInt(e.target.value) || 0)}
+                                    className="w-20 px-2 py-1 border border-border rounded-sm text-sm text-right focus:outline-none focus:border-accent"
+                                  />
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono font-semibold">
+                                ¥{(item.quantity * item.unit_price).toLocaleString()}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => removePaymentItem(idx)}
+                                  className="text-muted hover:text-accent transition-colors"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                          <tr className="bg-accent-light font-semibold">
+                            <td colSpan={3} className="px-4 py-3 text-right text-sm text-muted">合计</td>
+                            <td className="px-4 py-3 text-right font-display text-lg text-accent">¥{totalPayment.toLocaleString()}</td>
+                            <td></td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}
 
-                {/* Extra fees */}
-                <div>
-                  <label className="block text-sm font-medium text-fg mb-2">额外费用</label>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2">
-                      <input type="checkbox" checked={useShipping} onChange={e => setUseShipping(e.target.checked)} className="checkbox checkbox-sm" />
+                {/* Extra Fees */}
+                <div className="bg-white border border-border rounded-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border">
+                    <span className="text-xs text-muted uppercase tracking-wider font-medium">额外费用</span>
+                  </div>
+                  <div className="p-5 space-y-3">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div className="relative">
+                        <input type="checkbox" className="sr-only" checked={useShipping} onChange={e => setUseShipping(e.target.checked)} />
+                        <span className={`block w-10 h-[22px] rounded-full transition-colors ${useShipping ? 'bg-accent' : 'bg-border'}`}>
+                          <span className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform ${useShipping ? 'translate-x-[18px]' : 'translate-x-0'}`} />
+                        </span>
+                      </div>
                       <span className="text-sm">运费</span>
                       {useShipping && (
-                        <input type="number" min={0} value={shippingAmount}
+                        <input
+                          type="number"
+                          min={0}
+                          value={shippingAmount}
                           onChange={e => setShippingAmount(parseInt(e.target.value) || 0)}
-                          className="w-20 px-2 py-0.5 border border-border rounded text-sm text-right" />
+                          className="w-20 px-2 py-1 border border-border rounded-sm text-sm text-right focus:outline-none focus:border-accent"
+                        />
                       )}
                     </label>
-                    <label className="flex items-center gap-2">
-                      <input type="checkbox" checked={useCourier} onChange={e => setUseCourier(e.target.checked)} className="checkbox checkbox-sm" />
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div className="relative">
+                        <input type="checkbox" className="sr-only" checked={useCourier} onChange={e => setUseCourier(e.target.checked)} />
+                        <span className={`block w-10 h-[22px] rounded-full transition-colors ${useCourier ? 'bg-accent' : 'bg-border'}`}>
+                          <span className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform ${useCourier ? 'translate-x-[18px]' : 'translate-x-0'}`} />
+                        </span>
+                      </div>
                       <span className="text-sm">人肉费</span>
                       {useCourier && (
-                        <input type="number" min={0} value={courierAmount}
+                        <input
+                          type="number"
+                          min={0}
+                          value={courierAmount}
                           onChange={e => setCourierAmount(parseInt(e.target.value) || 0)}
-                          className="w-20 px-2 py-0.5 border border-border rounded text-sm text-right" />
+                          className="w-20 px-2 py-1 border border-border rounded-sm text-sm text-right focus:outline-none focus:border-accent"
+                        />
                       )}
                     </label>
                     {customFees.map((f, idx) => (
                       <div key={idx} className="flex items-center gap-2">
-                        <input type="text" value={f.name}
+                        <input
+                          type="text"
+                          value={f.name}
                           onChange={e => updateCustomFee(idx, 'name', e.target.value)}
-                          placeholder="费用名" className="flex-1 px-2 py-0.5 border border-border rounded text-sm" />
-                        <input type="number" min={0} value={f.amount}
+                          placeholder="费用名"
+                          className="flex-1 px-3 py-1.5 border border-border rounded-sm text-sm focus:outline-none focus:border-accent"
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          value={f.amount}
                           onChange={e => updateCustomFee(idx, 'amount', parseInt(e.target.value) || 0)}
-                          placeholder="金额" className="w-20 px-2 py-0.5 border border-border rounded text-sm text-right" />
-                        <button type="button" onClick={() => removeCustomFee(idx)} className="p-1 text-muted hover:text-red-500">
-                          <Trash2 className="w-3.5 h-3.5" />
+                          placeholder="金额"
+                          className="w-24 px-3 py-1.5 border border-border rounded-sm text-sm text-right focus:outline-none focus:border-accent"
+                        />
+                        <button type="button" onClick={() => removeCustomFee(idx)} className="p-1 text-muted hover:text-accent transition-colors">
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                     ))}
@@ -674,97 +1002,173 @@ export default function PrivnotePage() {
                   </div>
                 </div>
 
-                {/* Remark */}
-                <div>
-                  <label className="block text-sm font-medium text-fg mb-1">备注</label>
-                  <textarea
-                    value={remark}
-                    onChange={e => setRemark(e.target.value)}
-                    rows={3}
-                    placeholder="备注信息…"
-                    className="w-full px-3 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent resize-none"
-                  />
+                {/* Customer */}
+                <div className="bg-white border border-border rounded-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border">
+                    <span className="text-xs text-muted uppercase tracking-wider font-medium">客户信息</span>
+                  </div>
+                  <div className="p-5">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                      <input
+                        type="text"
+                        value={customerQuery}
+                        onChange={e => { setCustomerQuery(e.target.value); setCustomerName(e.target.value); }}
+                        placeholder="搜索客户（输入名字，选已有或输入新名）"
+                        className="w-full pl-9 pr-4 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent"
+                      />
+                    </div>
+                    {customerSearching && <p className="text-xs text-muted mt-2">搜索中…</p>}
+                    {Array.isArray(customerResults) && customerResults.length > 0 && (
+                      <div className="mt-2 border border-border rounded-sm bg-white max-h-36 overflow-y-auto">
+                        {customerResults.map(c => (
+                          <div
+                            key={c.id}
+                            className="px-4 py-2.5 hover:bg-accent-light cursor-pointer border-b border-border last:border-0"
+                            onClick={() => { setCustomerName(c.name); setCustomerQuery(c.name); setCustomerResults([]); }}
+                          >
+                            <div className="text-sm font-medium">{c.name}</div>
+                            {c.phone && <div className="text-xs text-muted">{c.phone}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Payment method */}
-                <div>
-                  <label className="block text-sm font-medium text-fg mb-1">收款方式（可选）</label>
-                  <select
-                    value={paymentMethodId}
-                    onChange={e => setPaymentMethodId(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-white border border-border rounded-md text-sm text-fg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-                  >
-                    <option value="">不选（手动填）</option>
-                    {paymentMethods?.map(pm => (
-                      <option key={pm.id} value={pm.id}>{pm.label}</option>
-                    ))}
-                  </select>
+                {/* Payment Method */}
+                <div className="bg-white border border-border rounded-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border">
+                    <span className="text-xs text-muted uppercase tracking-wider font-medium">收款方式</span>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    <div>
+                      <label className="block text-xs text-muted uppercase tracking-wider mb-2">选择预设收款方式</label>
+                      <select
+                        value={paymentMethodId}
+                        onChange={e => setPaymentMethodId(e.target.value)}
+                        className="w-full px-3 py-2.5 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent appearance-none"
+                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A7E6E' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center', paddingRight: 36 }}
+                      >
+                        <option value="">手动填写</option>
+                        {paymentMethods?.map(pm => (
+                          <option key={pm.id} value={pm.id}>{pm.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Remark */}
+                    <div>
+                      <label className="block text-xs text-muted uppercase tracking-wider mb-2">备注</label>
+                      <textarea
+                        value={remark}
+                        onChange={e => setRemark(e.target.value)}
+                        rows={3}
+                        placeholder="备注信息…"
+                        className="w-full px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent resize-none leading-relaxed"
+                      />
+                    </div>
+
+                    {/* Remark Images */}
+                    <div>
+                      <label className="block text-xs text-muted uppercase tracking-wider mb-2">备注图片</label>
+                      <FileUploadArea {...paymentImages} />
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
 
+            {/* ── MESSAGE TAB ── */}
             {activeTab === 'message' && (
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-fg mb-1">消息内容</label>
-                  <textarea
-                    value={messageText}
-                    onChange={e => setMessageText(e.target.value)}
-                    rows={5}
-                    placeholder="输入要发送的消息…"
-                    className="w-full px-3 py-2.5 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent resize-none"
-                  />
+                <div className="bg-white border border-border rounded-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border">
+                    <span className="text-xs text-muted uppercase tracking-wider font-medium">消息内容</span>
+                  </div>
+                  <div className="p-5">
+                    <textarea
+                      value={messageText}
+                      onChange={e => setMessageText(e.target.value)}
+                      rows={6}
+                      placeholder="在此输入要发送的消息内容..."
+                      className="w-full px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent resize-none leading-relaxed min-h-[120px]"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-fg mb-1">附件（可选）</label>
-                  <div className="flex gap-2 mb-2">
-                    <input
-                      type="text"
-                      value={attachName}
-                      onChange={e => setAttachName(e.target.value)}
-                      placeholder="附件名称"
-                      className="flex-1 px-3 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-                    />
-                    <input
-                      type="text"
-                      value={attachUrl}
-                      onChange={e => setAttachUrl(e.target.value)}
-                      placeholder="URL"
-                      className="flex-[2] px-3 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-                    />
-                    <button
-                      type="button"
-                      onClick={addAttachment}
-                      className="px-3 py-2 bg-accent text-white rounded-md text-sm hover:bg-accent-hover"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
+                {/* Image upload — always visible */}
+                <div className="bg-white border border-border rounded-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border">
+                    <span className="text-xs text-muted uppercase tracking-wider font-medium">图片附件</span>
                   </div>
-                  {attachments.length > 0 && (
-                    <div className="space-y-1">
-                      {attachments.map((att, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between bg-accent-light rounded-md px-3 py-2"
+                  <div className="p-5">
+                    <FileUploadArea {...messageImages} />
+                  </div>
+                </div>
+
+                {/* External link attachments — collapsible */}
+                <div className="bg-white border border-border rounded-sm overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowAttachments(v => !v)}
+                    className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-accent-light/30 transition-colors"
+                  >
+                    <span className="text-xs text-muted uppercase tracking-wider font-medium">外部链接附件</span>
+                    <span className="text-xs text-accent">{showAttachments ? '收起' : '展开添加'}</span>
+                  </button>
+                  {showAttachments && (
+                    <div className="px-5 pb-5 space-y-4">
+                      <p className="text-xs text-muted">可添加外部资源链接（如网盘、文档、视频链接等），客户可在查看页直接打开</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={attachName}
+                          onChange={e => setAttachName(e.target.value)}
+                          placeholder="附件名称"
+                          className="flex-1 px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent"
+                        />
+                        <input
+                          type="text"
+                          value={attachUrl}
+                          onChange={e => setAttachUrl(e.target.value)}
+                          placeholder="URL"
+                          className="flex-[2] px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent"
+                        />
+                        <button
+                          type="button"
+                          onClick={addAttachment}
+                          className="px-3 py-2 bg-accent text-white rounded-sm text-sm hover:bg-accent-hover transition-colors"
                         >
-                          <a
-                            href={att.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-sm text-accent hover:underline truncate"
-                          >
-                            {att.name}
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => removeAttachment(idx)}
-                            className="p-1 text-muted hover:text-red-500"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {attachments.length > 0 && (
+                        <div className="space-y-1">
+                          {attachments.map((att, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between bg-accent-light rounded-sm px-3 py-2"
+                            >
+                              <a
+                                href={att.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sm text-accent hover:underline truncate"
+                              >
+                                {att.name}
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => removeAttachment(idx)}
+                                className="p-1 text-muted hover:text-accent transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
                 </div>
@@ -772,64 +1176,26 @@ export default function PrivnotePage() {
             )}
           </div>
 
-          {/* Common Config */}
-          <div className="bg-white border border-border rounded-md p-5 space-y-5">
-            <div>
-              <label className="flex items-center gap-1.5 text-sm font-medium text-fg mb-2">
-                <Clock className="w-4 h-4" />
-                有效期
-              </label>
-              <select
-                value={duration}
-                onChange={e => setDuration(e.target.value)}
-                className="w-full px-3 py-2.5 bg-white border border-border rounded-md text-sm text-fg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-              >
-                {DURATIONS.map(d => (
-                  <option key={d.value} value={d.value}>{d.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="flex items-center gap-1.5 text-sm font-medium text-fg mb-2">
-                <Lock className="w-4 h-4" />
-                密码保护（可选）
-              </label>
-              <input
-                type="text"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="留空则不设密码"
-                className="w-full px-3 py-2.5 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Flame className="w-4 h-4 text-accent" />
-                <span className="text-sm font-medium text-fg">阅后即焚</span>
-              </div>
+          {/* Action Bar */}
+          <div className="sticky bottom-0 bg-white border-t border-border px-6 py-4 flex items-center justify-between gap-4 z-50">
+            <div className="text-sm text-muted">{actionHint()}</div>
+            <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => setBurn(!burn)}
-                className={`relative w-11 h-6 rounded-full transition-colors ${burn ? 'bg-accent' : 'bg-border'}`}
+                onClick={resetAll}
+                className="px-5 py-2.5 border border-border rounded-sm text-sm font-medium text-fg hover:bg-accent-light transition-colors"
               >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                    burn ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
+                取消
+              </button>
+              <button
+                type="submit"
+                disabled={loading || !canSubmit()}
+                className="px-5 py-2.5 bg-accent text-white rounded-sm text-sm font-medium hover:bg-accent-hover active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                {loading ? '生成中…' : '创建私密链接'}
               </button>
             </div>
           </div>
-
-          <button
-            type="submit"
-            disabled={loading || !canSubmit()}
-            className="w-full py-2.5 bg-accent text-white rounded-md text-sm font-medium hover:bg-accent-hover active:scale-[0.98] transition-all disabled:opacity-50"
-          >
-            {loading ? '生成中…' : '生成链接'}
-          </button>
         </form>
       )}
     </div>

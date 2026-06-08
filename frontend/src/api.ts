@@ -107,3 +107,14 @@ export const fetchQuoteProducts = (): Promise<QuoteProduct[]> =>
   })
     .then(r => r.json())
     .then(d => Array.isArray(d?.products) ? d.products : []);
+
+export const uploadPrivnoteImage = (file: File): Promise<{ url: string; name: string }> => {
+  const form = new FormData();
+  form.append('image', file);
+  return fetch('/privnote/api/upload-image/', {
+    method: 'POST',
+    body: form,
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': getCSRFToken() },
+  }).then(r => r.json());
+};

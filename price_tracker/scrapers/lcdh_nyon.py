@@ -1,7 +1,7 @@
 """
 LCDH Nyon 爬虫 (la-casa-del-habano-nyon.com)
 瑞士雪茄店，WooCommerce + Flatsome主题
-Cloudflare防护 → 必须通过已认证页面用 fetch() 爬取
+Cloudflare防护 → 独立 headless Chromium + stealth 绕过
 """
 import re, json, logging
 from typing import Optional
@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = 'https://la-casa-del-habano-nyon.com'
 
-# 所有古巴雪茄品牌（category slug → brand name）
 BRAND_CATEGORIES = {
     'bolivar': 'Bolívar',
     'cohiba': 'Cohiba',
@@ -38,7 +37,7 @@ BRAND_CATEGORIES = {
     'ramon-allones': 'Ramón Allones',
     'romeo-y-julieta': 'Romeo y Julieta',
     'saint-luis-rey': 'Saint Luis Rey',
-    'san-cristobal-de-la-habana': 'San Cristóbal de la Habana',
+    'san-cristobal': 'San Cristóbal',
     'sancho-panza': 'Sancho Panza',
     'trinidad': 'Trinidad',
     'vegas-robaina': 'Vegas Robaina',
@@ -48,68 +47,70 @@ BRAND_CATEGORIES = {
 
 @register_scraper('lcdh_nyon')
 class LCDHNyonScraper(BaseScraper):
-    """LCDH Nyon 爬虫 — 需要 Playwright browser 先过 Cloudflare"""
+    """LCDH Nyon 爬虫 — 独立 Chromium + stealth + 批处理绕过 Cloudflare"""
     
     source_slug = 'lcdh_nyon'
     
-    def __init__(self, source, browser_page=None):
-        super().__init__(source)
-        self._page = browser_page
-    
     async def scrape_catalog(self) -> list[ScrapedItem]:
-        """独立运行：启动 Playwright + stealth，抓取全站"""
         from playwright.async_api import async_playwright
         from playwright_stealth import Stealth
         
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=['--no-sandbox', '--disable-setuid-sandbox']
-            )
-            context = await browser.new_context(
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-                viewport={'width': 1920, 'height': 1080},
-                locale='en-US'
-            )
-            page = await context.new_page()
-            stealth = Stealth()
-            await stealth.apply_stealth_async(page)
-            
-            # Load homepage to pass Cloudflare — 强制 CHF 货币
-            # ⚠️ Nyon 网站默认可能随机显示 EUR/CHF，必须显式设置
-            # WooCommerce 多币种插件常见参数: ?currency=CHF 或 Cookie: woocs=CHF
-            await page.goto(f'{BASE_URL}/en/?currency=CHF', wait_until='domcontentloaded', timeout=60000)
-            await page.wait_for_timeout(8000)
-            
-            # 双重保险：通过 JS 设置 cookie + 点击货币切换器（如果存在）
-            await page.evaluate('''() => {
-                document.cookie = "woocs=CHF;path=/;max-age=86400";
-                document.cookie = "currency=CHF;path=/;max-age=86400";
-                document.cookie = "woocommerce_currency=CHF;path=/;max-age=86400";
-            }''')
-            
-            # 尝试点击页面上的 CHF 货币切换器（如果可见）
-            try:
-                chf_switcher = await page.query_selector('[data-currency="CHF"], .woocs_flag_CHF, a[href*="currency=CHF"]')
-                if chf_switcher:
-                    await chf_switcher.click()
-                    await page.wait_for_timeout(2000)
-            except Exception:
-                pass
-            
-            # Use fetch() to scrape all brands
-            all_items = []
-            for cat_slug, brand_name in BRAND_CATEGORIES.items():
-                try:
-                    items = await self._scrape_brand_async(page, brand_name, cat_slug)
-                    all_items.extend(items)
-                    logger.info(f'  {brand_name}: {len(items)} products')
-                except Exception as e:
-                    logger.error(f'  {brand_name}: {e}')
-            
-            await browser.close()
+        all_items = []
+        brand_list = list(BRAND_CATEGORIES.items())
+        batch_size = 10
         
-        # Dedup
+        async with async_playwright() as p:  # 单次启动 driver
+            for batch_start in range(0, len(brand_list), batch_size):
+                batch = brand_list[batch_start:batch_start + batch_size]
+                
+                browser = await p.chromium.launch(
+                    headless=True,
+                    args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+                )
+                context = await browser.new_context(
+                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                               '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+                    viewport={'width': 1920, 'height': 1080},
+                    locale='en-US'
+                )
+                page = await context.new_page()
+                stealth = Stealth()
+                await stealth.apply_stealth_async(page)
+                
+                try:
+                    await page.goto(f'{BASE_URL}/en/?currency=CHF',
+                                   wait_until='domcontentloaded', timeout=30000)
+                    await page.wait_for_timeout(3000)
+                    
+                    body = await page.locator('body').inner_text()
+                    if '安全验证' in body or 'challenge' in body.lower():
+                        logger.warning(f'Nyon CF 封锁 (batch {batch_start//batch_size+1})')
+                        continue
+                    
+                    await page.evaluate('''() => {
+                        document.cookie = "woocs=CHF;path=/;max-age=86400";
+                        document.cookie = "currency=CHF;path=/;max-age=86400";
+                    }''')
+                    
+                    for cat_slug, brand_name in batch:
+                        try:
+                            items = await self._scrape_brand(page, brand_name, cat_slug)
+                            all_items.extend(items)
+                            logger.info(f'  {brand_name}: {len(items)} products')
+                        except Exception as e:
+                            logger.warning(f'  {brand_name}: {e}')
+                    
+                finally:
+                    try:
+                        await context.close()
+                    except Exception:
+                        pass
+                    try:
+                        await browser.close()
+                    except Exception:
+                        pass
+        
+        # 去重
         seen = set()
         unique = []
         for item in all_items:
@@ -119,65 +120,56 @@ class LCDHNyonScraper(BaseScraper):
         
         return unique
     
-    async def _scrape_brand_async(self, page, brand_name: str, cat_slug: str) -> list[ScrapedItem]:
-        """Async version: 用 fetch() 抓取单个品牌"""
-        try:
-            result = await page.evaluate(f'''
-                async () => {{
-                    const resp = await fetch('/en/product-category/cigares-cubains/{cat_slug}/');
-                    const html = await resp.text();
-                    const div = document.createElement('div');
-                    div.innerHTML = html;
-                    const products = [];
-                    div.querySelectorAll('.product-small, li.product').forEach(card => {{
-                        const titleEl = card.querySelector('.product-title a, .woocommerce-loop-product__title');
-                        const priceEl = card.querySelector('.price');
-                        const linkEl = card.querySelector('a[href*="/boutique/"]');
-                        // 多种方式检测售罄：
-                        // 1. 卡片自身 class 含 out-of-stock / outofstock
-                        // 2. 子元素 .out-of-stock-label（法文: Rupture de stock）
-                        // 3. Add to cart 按钮文字不是 "Add to cart"（如 Lire la suite）
-                        const cardClass = (card.className || '').toLowerCase();
-                        const oosLabel = card.querySelector('.out-of-stock-label');
-                        const oosBadgeText = (oosLabel?.textContent || '').trim().toLowerCase();
-                        const addToCartEl = card.querySelector('.add_to_cart_button, .add-to-cart-button');
-                        const cartText = (addToCartEl?.textContent || '').trim().toLowerCase();
-                        const isOOS = cardClass.includes('out-of-stock') || cardClass.includes('outofstock')
-                            || oosBadgeText.includes('rupture') || oosBadgeText.includes('out of stock')
-                            || (cartText && !cartText.includes('add to cart') && !cartText.includes('select option'));
-                        if (!titleEl) return;
-                        // 折扣价检测：WooCommerce 常见结构 <del><span class="amount">原价</span></del> <ins><span class="amount">现价</span></ins>
-                        const delAmount = priceEl?.querySelector('del .woocommerce-Price-amount, del .amount');
-                        const insAmount = priceEl?.querySelector('ins .woocommerce-Price-amount, ins .amount');
-                        const normalAmount = priceEl?.querySelector('.woocommerce-Price-amount, .amount');
-                        const priceText = (delAmount && insAmount) ? insAmount.textContent.trim() : (normalAmount?.textContent?.trim() || priceEl?.textContent?.trim() || '');
-                        const origPriceText = delAmount ? delAmount.textContent.trim() : '';
-                        products.push({{
-                            title: titleEl.textContent.trim(),
-                            price: priceText,
-                            originalPrice: origPriceText,
-                            url: linkEl?.getAttribute('href') || '',
-                            badge: oosLabel?.textContent?.trim() || (isOOS ? 'Out of stock' : ''),
-                            inStock: !isOOS
-                        }});
+    async def _scrape_brand(self, page, brand_name: str, cat_slug: str) -> list[ScrapedItem]:
+        """用 fetch() 抓取单个品牌"""
+        result = await page.evaluate(f'''
+            async () => {{
+                const resp = await fetch('/en/product-category/cigares-cubains/{cat_slug}/');
+                const html = await resp.text();
+                const div = document.createElement('div');
+                div.innerHTML = html;
+                const products = [];
+                div.querySelectorAll('.product-small, li.product').forEach(card => {{
+                    const titleEl = card.querySelector('.product-title a, .woocommerce-loop-product__title');
+                    const priceEl = card.querySelector('.price');
+                    const linkEl = card.querySelector('a[href*="/boutique/"]');
+                    const cardClass = (card.className || '').toLowerCase();
+                    const oosLabel = card.querySelector('.out-of-stock-label');
+                    const oosBadgeText = (oosLabel?.textContent || '').trim().toLowerCase();
+                    const addToCartEl = card.querySelector('.add_to_cart_button, .add-to-cart-button');
+                    const cartText = (addToCartEl?.textContent || '').trim().toLowerCase();
+                    const isOOS = cardClass.includes('out-of-stock') || cardClass.includes('outofstock')
+                        || oosBadgeText.includes('rupture') || oosBadgeText.includes('out of stock')
+                        || (cartText && !cartText.includes('add to cart') && !cartText.includes('select option'));
+                    if (!titleEl) return;
+                    const delAmount = priceEl?.querySelector('del .woocommerce-Price-amount, del .amount');
+                    const insAmount = priceEl?.querySelector('ins .woocommerce-Price-amount, ins .amount');
+                    const normalAmount = priceEl?.querySelector('.woocommerce-Price-amount, .amount');
+                    const priceText = (delAmount && insAmount) ? insAmount.textContent.trim() : (normalAmount?.textContent?.trim() || priceEl?.textContent?.trim() || '');
+                    const origPriceText = delAmount ? delAmount.textContent.trim() : '';
+                    products.push({{
+                        title: titleEl.textContent.trim(),
+                        price: priceText,
+                        originalPrice: origPriceText,
+                        url: linkEl?.getAttribute('href') || '',
+                        badge: oosLabel?.textContent?.trim() || (isOOS ? 'Out of stock' : ''),
+                        inStock: !isOOS
                     }});
-                    return JSON.stringify(products);
-                }}
-            ''')
-            
-            data = json.loads(result)
-            items = []
-            for p in data:
-                item = self._parse_product(p, brand_name)
-                if item:
-                    items.append(item)
-            return items
-        except Exception as e:
-            logger.error(f'{brand_name}: {e}')
-            return []
+                }});
+                return JSON.stringify(products);
+            }}
+        ''')
+        
+        data = json.loads(result)
+        items = []
+        for p in data:
+            item = self._parse_product(p, brand_name)
+            if item:
+                items.append(item)
+        return items
     
     def _parse_product(self, raw: dict, brand: str) -> Optional[ScrapedItem]:
-        """解析单个产品（含售罄产品）"""
+        """解析单个产品"""
         title = raw.get('title', '')
         price_str = raw.get('price', '')
         url = raw.get('url', '')
@@ -185,12 +177,9 @@ class LCDHNyonScraper(BaseScraper):
         
         if not title:
             return None
-        
-        # 无价格 → 强制标记售罄
         if not price_str:
             in_stock = False
         
-        # 解析标题: "Bolívar Regentes Edición Limitada 2021 (25)"
         # 去掉品牌前缀
         name = title
         for prefix in [brand, brand.replace('á','a'), brand.replace('í','i')]:
@@ -198,22 +187,19 @@ class LCDHNyonScraper(BaseScraper):
                 name = name[len(prefix):].strip()
                 break
         
-        # 提取盒装支数: (25) or (5×20) or (5 x 20)
+        # 提取盒装支数
         box_size = None
-        # 先试 (5×20) / (5 x 20) 格式
         m = re.search(r'\((\d+)\s*[×xX]\s*(\d+)\)', name)
         if m:
             box_size = int(m.group(1)) * int(m.group(2))
             name = re.sub(r'\s*\(\d+\s*[×xX]\s*\d+\)', '', name).strip()
         else:
-            # 单数字格式 (25)
             m = re.search(r'\((\d+)\)', name)
             if m:
                 box_size = int(m.group(1))
                 name = re.sub(r'\s*\(\d+\)', '', name).strip()
         
-        # 解析价格: "Swiss franc 1,350.00" 或 "€ 1,090.58"
-        # ⚠️ Nyon 网站偶尔切换显示货币（EUR/CHF），必须检测并统一换算为 CHF
+        # 解析价格 + 货币检测
         price_chf = None
         detected_currency = 'CHF'
         if '€' in price_str or 'EUR' in price_str.upper():
@@ -221,31 +207,28 @@ class LCDHNyonScraper(BaseScraper):
         elif 'CHF' in price_str.upper() or 'swiss' in price_str.lower() or 'franc' in price_str.lower():
             detected_currency = 'CHF'
         
-        m = re.search(r'[\d,]+\\.?\\d*', price_str.replace("'", ''))
-        if m:
-            raw_price = float(m.group().replace(',', ''))
+        # 提取原价（折扣时的划线价）
+        orig_price_chf = None
+        orig_price_str = raw.get('originalPrice', '')
+        if orig_price_str:
+            m_orig = re.search(r'[\d,]+\.?\d*', orig_price_str.replace("'", ''))
+            if m_orig:
+                orig_price_chf = float(m_orig.group().replace(',', ''))
+        
+        m_price = re.search(r'[\d,]+\.?\d*', price_str.replace("'", ''))
+        if m_price:
+            raw_price = float(m_price.group().replace(',', ''))
             if detected_currency == 'EUR':
-                # Convert EUR → CHF using real exchange rate if available
                 from price_tracker.models import ExchangeRate
                 eur_rate = ExchangeRate.get_rate('EUR')
                 chf_rate = ExchangeRate.get_rate('CHF')
                 if eur_rate and chf_rate:
-                    # Both rates are against CNY, so cross-rate: CHF = EUR * (EUR_rate / CHF_rate)
                     price_chf = round(raw_price * eur_rate / chf_rate, 2)
                 else:
-                    price_chf = round(raw_price * 1.10, 2)  # approximate fallback
+                    price_chf = round(raw_price * 1.10, 2)
             else:
                 price_chf = raw_price
-
-        # 解析原价（WooCommerce 折扣时的划线价，从 del/ins 提取）
-        orig_price_chf = None
-        orig_price_str = raw.get('originalPrice', '')
-        if orig_price_str:
-            m = re.search(r'[\d,]+\.?\d*', orig_price_str.replace("'", ''))
-            if m:
-                orig_price_chf = float(m.group().replace(',', ''))
         
-        # 完整原始品名（用于匹配）
         full_name = f'{brand} {name}'
         
         return ScrapedItem(

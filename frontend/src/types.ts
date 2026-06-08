@@ -333,7 +333,10 @@ export interface SearchCigarResult {
   name: string;
   english_name: string;
   brand: string;
+  brand_cn: string;
   vitola: string;
+  length: number | null;
+  ring_gauge: number | null;
   thumb_url: string | null;
   stock_qty: number;
   batches: {
@@ -349,7 +352,11 @@ export interface PaymentItem {
   batch_id?: number;
   name: string;
   english_name: string;
+  brand: string;
+  brand_cn: string;
   vitola: string;
+  length: number | null;
+  ring_gauge: number | null;
   thumb_url: string | null;
   quantity: number;
   unit_price: number;

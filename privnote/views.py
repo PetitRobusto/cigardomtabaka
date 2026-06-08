@@ -8,6 +8,7 @@ from django.utils import timezone
 import uuid
 import json
 import os
+import re
 from datetime import datetime
 
 from cigars.models import Brand, Cigar, PurchaseBatch, User, SalesOrder, SalesOrderItem, Customer, CigarPrice
@@ -26,10 +27,74 @@ except ImportError:
     HAS_MATCHER = False
 
 
+# 品牌外文名 → 中文名（用于搜索聚合关键字）
+BRAND_CN_MAP = {
+    'Belinda': '贝琳达',
+    'Bolívar': '玻利瓦',
+    'Cabañas': '卡班纳',
+    'Caney': '凯尼',
+    'Cifuentes': '西福恩特斯',
+    'Cohiba': '高希霸',
+    'Cuaba': '库阿巴',
+    'Cubatabaco': '古巴雪茄',
+    'Davidoff': '大卫杜夫',
+    'Diplomáticos': '外交官',
+    'Don Alfredo': '唐、阿尔佛',
+    'Don Cándido': '唐、坎迪多',
+    'Dunhill': '登喜路',
+    'Edmundo Dantes': '艾蒙度但丁',
+    'El Rey del Mundo': '世界之王',
+    'Flor del Punto': '繁花',
+    'Fonseca': '科塞卡',
+    'Gispert': '基斯伯',
+    'Guantanamera': '关达拉美拉',
+    'H. Upmann': '乌普曼',
+    'Habanos': '哈伯纳斯',
+    'Hoyo de Monterrey': '好友',
+    'J. J. Fox Exclusives': 'J.J·福克斯 专享',
+    'José L. Piedra': '荷西比雅达',
+    'Juan López': '胡安佩洛斯',
+    'La Corona': '皇冠雪茄',
+    'La Escepción': '拉雅仕帕西安',
+    'La Flor de Cano': '卡诺之花',
+    'La Flor del Caney': '拉弗洛德卡妮',
+    'La Gloria Cubana': '古巴荣耀',
+    'Los Statos de Luxe': '劳斯登徒',
+    'María Guerrero': '玛丽亚 格雷多',
+    'Montecristo': '蒙特',
+    'Multi-Brand Releases': '精选品牌系列',
+    'Partagás': '帕特加斯',
+    'Por Larrañaga': '波尔拉腊尼加',
+    'Punch': '潘趣',
+    "Quai d'Orsay": '希多尔赛',
+    'Quintero': '金特罗',
+    'Rafael González': '拉斐尔',
+    'Ramón Allones': '雷蒙阿隆尼',
+    'Romeo y Julieta': '罗密欧与朱丽叶',
+    'Saint Luis Rey': '圣路易斯雷伊',
+    'San Cristóbal': '圣克里斯多',
+    'San Cristóbal de la Habana': '圣克里斯多',
+    'San Luis Rey': '新路易斯雷伊',
+    'Sancho Panza': '桑丘潘萨',
+    'Siboney': '西波妮',
+    'Small Cigars': '小雪茄',
+    'Trinidad': '千里达',
+    'Troya': '特洛伊',
+    'Vegas Robaina': '瓦格斯陆班纳',
+    'Vegueros': '威古洛',
+}
+
+
 DURATION_CHOICES = [
     (1, '1 小时'), (6, '6 小时'), (24, '24 小时'),
     (72, '3 天'), (168, '7 天'), (720, '30 天'),
 ]
+
+
+def _split_search_terms(q):
+    """按 CJK/非 CJK 边界拆分查询词，支持 '帕特D4' → ['帕特', 'D4']"""
+    terms = re.findall(r'[\u4e00-\u9fff]+|[^\u4e00-\u9fff\s]+', q)
+    return [t.lower() for t in terms if len(t) >= 1]
 
 
 def _is_staff(request):
@@ -525,46 +590,53 @@ def search_cigars(request):
         ).values_list('cigar_id', flat=True).distinct()
         cigars = cigars.filter(id__in=in_stock_ids)
 
-    if q:
-        # 多词查询：拆词 OR 搜，确保召回率（每个词至少命中一个字段）
-        terms = q.split()
-        if len(terms) > 1:
-            q_filter = models.Q()
-            for term in terms:
-                q_filter |= models.Q(name__icontains=term) | models.Q(
-                    english_name__icontains=term
-                ) | models.Q(brand__icontains=term) | models.Q(vitola__icontains=term)
-            cigars = cigars.filter(q_filter)
-        else:
-            cigars = cigars.filter(
-                models.Q(name__icontains=q) |
-                models.Q(english_name__icontains=q) |
-                models.Q(brand__icontains=q) |
-                models.Q(vitola__icontains=q)
-            )
-
-    cigars = list(cigars[:100])
+    # 不过滤：直接全量取，让 RapidFuzz 在聚合关键字上做匹配
+    # （库中仅 ~1300 条，全量排序性能可接受）
+    cigars = list(cigars)
 
     # ── RapidFuzz 精排 ──
     if HAS_RAPIDFUZZ and q and len(cigars) > 1:
         q_lower = q.lower().strip()
-        terms = q_lower.split()
+        terms = _split_search_terms(q)
         is_multi_term = len(terms) > 1
         scored = []
 
         for c in cigars:
             brand = c.brand or ''
+            brand_cn = BRAND_CN_MAP.get(brand, '')
             name = c.name or ''
             ename = c.english_name or ''
             vitola = c.vitola or ''
+            vitola_cn = c.vitola_cn or ''
+            common = c.common_name or ''
+            common_cn = c.common_name_cn or ''
 
-            full = f"{brand} {name} {ename} {vitola}"
-            full_lower = full.lower()
+            # 生成缩写别名，用于提升模糊搜索召回率
+            abbreviations = []
+            # 从英文名提取 Serie X No.Y → XY
+            for m in re.finditer(r'\b([A-Z])\s*No\.\s*(\d+)', ename, re.I):
+                abbreviations.append(f"{m.group(1)}{m.group(2)}")  # e.g. D4
+            # 从中文名提取 X系列 Y号 → XY
+            for m in re.finditer(r'([A-Z])系列\s*(\d+)号', name):
+                abbreviations.append(f"{m.group(1)}{m.group(2)}")  # e.g. D4
+            # 英文名 BHK 54 → BHK54
+            for m in re.finditer(r'\b(BHK)\s+(\d+)', ename, re.I):
+                abbreviations.append(f"{m.group(1)}{m.group(2)}")  # e.g. BHK54
+            # 英文名 Magnum 54 → Magnum54
+            for m in re.finditer(r'\b(Magnum)\s+(\d+)', ename, re.I):
+                abbreviations.append(f"{m.group(1)}{m.group(2)}")
 
-            # 基础分：token_sort_ratio + partial_ratio
+            # 聚合搜索关键字：包含中/外文品牌、品名、型号、常见名 + 缩写别名
+            search_text = f"{brand_cn} {brand} {name} {ename} {vitola} {vitola_cn} {common} {common_cn} {' '.join(abbreviations)}"
+            search_lower = search_text.lower()
+            # 去除所有空格，用于模糊匹配（解决"宽丘"无法匹配"宽 丘吉尔"的问题）
+            search_compact = search_lower.replace(' ', '')
+
+            # 基础分：token_set_ratio + partial_ratio + ratio（使用 compact 文本提升子串匹配）
             base_score = max(
-                fuzz.token_sort_ratio(q_lower, full_lower),
-                fuzz.partial_ratio(q_lower, full_lower) * 0.9,
+                fuzz.token_set_ratio(q_lower, search_compact),
+                fuzz.partial_ratio(q_lower, search_compact),
+                fuzz.ratio(q_lower, search_compact) * 0.85,
             )
             score = base_score
 
@@ -572,42 +644,40 @@ def search_cigars(request):
             if is_multi_term:
                 all_terms_hit = True
                 for term in terms:
-                    term_hit = False
                     term_lower = term.lower()
-                    if term_lower in brand.lower():
-                        score += 20
-                        term_hit = True
-                    if term_lower in name.lower():
-                        score += 15
-                        term_hit = True
-                    if term_lower in vitola.lower():
-                        score += 15
-                        term_hit = True
-                    if term_lower in ename.lower():
-                        score += 10
-                        term_hit = True
-                    if not term_hit:
+                    # 纯数字要求非数字边界匹配，避免 "4" 匹配 "2024"
+                    if term.isdigit():
+                        has_term = bool(re.search(rf'(?<!\d){re.escape(term_lower)}(?!\d)', search_compact))
+                    else:
+                        has_term = term_lower in search_compact
+                    if has_term:
+                        # 命中品牌名区域（靠前）权重更高
+                        brand_zone = f"{brand_cn} {brand}".lower().replace(' ', '')
+                        if term_lower in brand_zone:
+                            score += 20
+                        else:
+                            score += 10
+                    else:
                         all_terms_hit = False
                 if all_terms_hit:
                     score += 25  # 全匹配奖励
 
-            # ── 缩写/编号特殊处理 ──
-            if HAS_MATCHER and vitola:
-                norm_vitola = _matcher_normalize(vitola)
-                norm_query = _matcher_normalize(q)
-                if norm_query and norm_vitola and norm_query in norm_vitola:
-                    score += 20
-
             # ── 单查询词额外加分 ──
             if not is_multi_term:
-                if q_lower in name.lower():
+                if q_lower in search_compact:
                     score += 15
-                if q_lower in ename.lower():
-                    score += 15
-                if q_lower in vitola.lower():
-                    score += 15
-                if q_lower in brand.lower():
-                    score += 15
+
+            # ── 常规款优先：特殊版/保湿盒/周年款降权 ──
+            if c.release_type in ('Limited Edition Series', 'Replica Antique Humidor Series',
+                                  'Commemorative Release', 'Grand Reserve Series',
+                                  'Reserve Series', 'Aged Habanos Series',
+                                  'Vintage Series', 'Chinese Year Series',
+                                  'Millennium Reserve Series', 'Special Production'):
+                score -= 10
+            elif c.release_type:
+                score -= 3
+            else:
+                score += 5  # 常规款加分
 
             scored.append((c, score))
 
@@ -653,7 +723,10 @@ def search_cigars(request):
             'name': c.name or c.english_name,
             'english_name': c.english_name,
             'brand': c.brand,
+            'brand_cn': BRAND_CN_MAP.get(c.brand, ''),
             'vitola': c.vitola or '',
+            'length': c.length,
+            'ring_gauge': c.ring_gauge,
             'thumb_url': thumb_url,
             'batches': batches,
             'stock_qty': total_stock,

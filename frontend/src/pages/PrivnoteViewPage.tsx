@@ -4,11 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Lock, Flame, AlertTriangle, Cigarette,
   Package, CreditCard, MessageSquare, User, Banknote,
-  Building2, Phone, MessageCircle, MapPin
+  Building2, Phone, MessageCircle, MapPin, FileText
 } from 'lucide-react';
 import { fetchPrivnote, verifyPrivnotePassword } from '../api';
 import { LoadingState } from '../components/shared/LoadingState';
-import type { InventoryViewData, PaymentData, MessageData } from '../types';
+import type { InventoryViewData, PaymentData, MessageData, QuoteData } from '../types';
 
 /* ── Store Header ── */
 function StoreHeader() {
@@ -135,6 +135,7 @@ export default function PrivnoteViewPage() {
             {mode === 'inventory' && <Package className="w-5 h-5 text-accent" />}
             {mode === 'payment' && <CreditCard className="w-5 h-5 text-accent" />}
             {mode === 'message' && <MessageSquare className="w-5 h-5 text-accent" />}
+            {mode === 'quote' && <FileText className="w-5 h-5 text-accent" />}
             <h1 className="text-xl font-display font-semibold">{displayData?.title}</h1>
           </div>
           <div className="flex items-center gap-3 text-xs text-muted">
@@ -147,8 +148,8 @@ export default function PrivnoteViewPage() {
           </div>
         </div>
 
-        {/* Store info for payment & inventory */}
-        {(mode === 'payment' || mode === 'inventory') && <StoreHeader />}
+        {/* Store info for payment & inventory & quote */}
+        {(mode === 'payment' || mode === 'inventory' || mode === 'quote') && <StoreHeader />}
 
         {/* INVENTORY VIEW */}
         {mode === 'inventory' && noteData && <InventoryView data={noteData as InventoryViewData} />}
@@ -158,6 +159,9 @@ export default function PrivnoteViewPage() {
 
         {/* MESSAGE VIEW */}
         {mode === 'message' && noteData && <MessageView data={noteData as MessageData} />}
+
+        {/* QUOTE VIEW */}
+        {mode === 'quote' && noteData && <QuoteView data={noteData as QuoteData} createdAt={displayData?.expires_at} />}
       </div>
     </div>
   );
@@ -351,6 +355,139 @@ function PaymentView({ data }: { data: PaymentData }) {
           <img src={zoomedQr} alt="收款码" className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
         </div>
       )}
+    </div>
+  );
+}
+
+function QuoteView({ data, createdAt }: { data: QuoteData; createdAt?: string }) {
+  const formatDate = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Quote Header */}
+      <div className="text-center space-y-2">
+        <div className="flex items-center justify-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
+            <FileText className="w-4 h-4 text-accent" />
+          </div>
+          <span className="text-lg font-bold tracking-wide">CigarDomTabaka</span>
+        </div>
+        <h2 className="text-xl font-bold text-fg">批发报价单</h2>
+        {createdAt && (
+          <p className="text-xs text-muted">创建日期：{formatDate(createdAt)}</p>
+        )}
+        <p className="text-xs text-muted">本报价单有效期 7 天，价格以实际成交为准</p>
+      </div>
+
+      {/* Contact Strip */}
+      <StoreHeader />
+
+      {/* Quote Table */}
+      <div className="space-y-4">
+        {data.brand_groups.map(group => (
+          <div key={group.brand}>
+            {/* Brand header */}
+            <div className="flex items-center gap-2 px-3 py-2 bg-accent/5 rounded-t-md border border-border border-b-0">
+              {group.logo_url && (
+                <img src={group.logo_url} alt={group.brand_cn} className="w-6 h-6 object-contain" />
+              )}
+              <span className="text-sm font-semibold">{group.brand_cn || group.brand}</span>
+            </div>
+
+            {/* Table */}
+            <div className="border border-border rounded-b-md overflow-hidden">
+              {/* Table header */}
+              <div className="hidden md:grid grid-cols-12 gap-2 px-3 py-2 bg-accent-light text-xs font-medium text-muted border-b border-border">
+                <div className="col-span-4">款式</div>
+                <div className="col-span-2">中文名</div>
+                <div className="col-span-2 text-right">支数/盒</div>
+                <div className="col-span-2 text-right">批发价/盒</div>
+                <div className="col-span-2 text-right">折算单价/支</div>
+              </div>
+
+              {group.items.map(item => (
+                <div
+                  key={`${item.cigar_id}-${item.box_size}`}
+                  className="grid grid-cols-1 md:grid-cols-12 gap-2 px-3 py-3 border-b border-border last:border-0 items-center hover:bg-accent-light/50"
+                >
+                  {/* 款式 */}
+                  <div className="md:col-span-4 flex items-center gap-2">
+                    <div className="w-10 h-10 rounded bg-cream flex items-center justify-center shrink-0 overflow-hidden">
+                      {item.thumb_url ? (
+                        <img src={item.thumb_url} alt={item.name} className="w-full h-full object-contain p-0.5" />
+                      ) : (
+                        <Cigarette className="w-4 h-4 text-border" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium flex items-center gap-1">
+                        {item.english_name}
+                        {item.in_stock && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700">
+                            现货
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted md:hidden">{item.vitola}</div>
+                    </div>
+                  </div>
+
+                  {/* 中文名 */}
+                  <div className="md:col-span-2 text-sm">
+                    <span className="md:hidden text-xs text-muted mr-1">中文名:</span>
+                    {item.name}
+                  </div>
+
+                  {/* 支数/盒 */}
+                  <div className="md:col-span-2 md:text-right text-sm">
+                    <span className="md:hidden text-xs text-muted mr-1">支数/盒:</span>
+                    {item.box_size}
+                  </div>
+
+                  {/* 批发价/盒 */}
+                  <div className="md:col-span-2 md:text-right text-sm font-medium text-fg">
+                    <span className="md:hidden text-xs text-muted mr-1">批发价/盒:</span>
+                    ¥{item.wholesale_price.toLocaleString()}
+                  </div>
+
+                  {/* 折算单价/支 */}
+                  <div className="md:col-span-2 md:text-right text-sm text-accent font-medium">
+                    <span className="md:hidden text-xs text-muted mr-1">折算单价/支:</span>
+                    ¥{item.per_stick_price}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Summary */}
+      <div className="bg-white border border-border rounded-md p-4 text-center">
+        <span className="text-sm text-muted">共 {data.total_items} 款雪茄</span>
+      </div>
+
+      {/* Footer */}
+      <div className="bg-white border border-border rounded-md p-4 space-y-2">
+        <h3 className="text-sm font-semibold text-fg">订货须知</h3>
+        <ul className="text-xs text-muted space-y-1 list-disc list-inside">
+          <li>以上价格为人民币批发价，不含税费。</li>
+          {data.shipping_included ? (
+            <li>本报价已含运费，无需额外支付运输费用。</li>
+          ) : (
+            <li>运费另计，根据实际运输方式及目的地计算。</li>
+          )}
+          <li>现货商品可立即发货，预售商品需等待到货。</li>
+          <li>订货请联系微信：cigardomtabaka 或电话：+7 929 638-48-78。</li>
+        </ul>
+        <div className="pt-2 border-t border-border text-center text-xs text-muted">
+          &copy; {new Date().getFullYear()} CigarDomTabaka · 莫斯科烟草之家
+        </div>
+      </div>
     </div>
   );
 }

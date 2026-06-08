@@ -4,7 +4,7 @@ import type {
   BrandListResponse, BrandDetailResponse, CigarDetailResponse,
   InventoryResponse, PrivnoteResponse,
   PaymentMethod, SearchCigarResult, InventoryViewData,
-  CustomerResult,
+  CustomerResult, QuoteProduct,
 } from './types';
 
 function getCSRFToken(): string {
@@ -99,3 +99,11 @@ export const searchCustomers = (q: string): Promise<CustomerResult[]> =>
   })
     .then(r => r.json())
     .then(d => Array.isArray(d?.results) ? d.results : []);
+
+export const fetchQuoteProducts = (): Promise<QuoteProduct[]> =>
+  fetch('/privnote/api/quote-products/', {
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': getCSRFToken() },
+  })
+    .then(r => r.json())
+    .then(d => Array.isArray(d?.products) ? d.products : []);

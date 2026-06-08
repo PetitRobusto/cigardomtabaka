@@ -2,13 +2,15 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Link2, Clock, Lock, Flame, Copy, Check,
-  Package, CreditCard, MessageSquare, Search, Plus, Trash2
+  Package, CreditCard, MessageSquare, Search, Plus, Trash2,
+  FileText
 } from 'lucide-react';
 import {
-  fetchPaymentMethods, searchCigars, createPrivnote, searchCustomers
+  fetchPaymentMethods, searchCigars, createPrivnote, searchCustomers,
+  fetchQuoteProducts
 } from '../api';
 import { useAuthStore } from '../store/authStore';
-import type { SearchCigarResult, PaymentItem, CustomerResult, ExtraFee } from '../types';
+import type { SearchCigarResult, PaymentItem, CustomerResult, ExtraFee, QuoteProduct } from '../types';
 
 const DURATIONS = [
   { value: '1', label: '1 小时' },
@@ -20,12 +22,14 @@ const DURATIONS = [
 ];
 
 const TABS = [
-  { key: 'inventory' as const, label: '库存报价', icon: Package },
+  { key: 'inventory' as const, label: '库存/报价', icon: Package },
   { key: 'payment' as const, label: '收款单', icon: CreditCard },
   { key: 'message' as const, label: '消息', icon: MessageSquare },
 ];
 
 type TabKey = typeof TABS[number]['key'];
+type SubMode = 'inventory' | 'quote';
+type QuoteMode = 'full' | 'custom';
 
 export default function PrivnotePage() {
   const { user } = useAuthStore();
@@ -71,6 +75,21 @@ export default function PrivnotePage() {
   const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([]);
   const [attachName, setAttachName] = useState('');
   const [attachUrl, setAttachUrl] = useState('');
+
+  // Inventory/Quote sub-mode
+  const [subMode, setSubMode] = useState<SubMode>('inventory');
+
+  // Quote mode
+  const [quoteMode, setQuoteMode] = useState<QuoteMode>('full');
+  const [shippingIncluded, setShippingIncluded] = useState(false);
+  const [quoteSearchQ, setQuoteSearchQ] = useState('');
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+  const { data: quoteProducts } = useQuery({
+    queryKey: ['quote-products'],
+    queryFn: fetchQuoteProducts,
+    enabled: activeTab === 'inventory' && subMode === 'quote',
+  });
 
   // Debounced cigar search (stock_only=0: all cigars, not just in-stock)
   useEffect(() => {
@@ -197,12 +216,15 @@ export default function PrivnotePage() {
     e.preventDefault();
     setLoading(true);
     const form = new FormData();
-    form.append('note_type', activeTab);
+
+    // When in quote sub-mode, send note_type=quote
+    const actualNoteType = activeTab === 'inventory' && subMode === 'quote' ? 'quote' : activeTab;
+    form.append('note_type', actualNoteType);
     form.append('duration', duration);
     form.append('password', password);
     form.append('burn', burn ? 'on' : 'off');
 
-    if (activeTab === 'payment') {
+    if (actualNoteType === 'payment') {
       form.append('items', JSON.stringify(paymentItems.map(i => ({
         cigar_id: i.cigar_id,
         batch_id: i.batch_id,
@@ -213,9 +235,13 @@ export default function PrivnotePage() {
       form.append('payment_method_id', paymentMethodId);
       form.append('extra_fees', JSON.stringify(getExtraFees()));
       form.append('remark', remark);
-    } else if (activeTab === 'message') {
+    } else if (actualNoteType === 'message') {
       form.append('text', messageText);
       form.append('attachments', JSON.stringify(attachments));
+    } else if (actualNoteType === 'quote') {
+      form.append('quote_mode', quoteMode);
+      form.append('selected_ids', JSON.stringify(selectedIds));
+      form.append('shipping_included', shippingIncluded ? 'true' : 'false');
     }
 
     try {
@@ -241,6 +267,13 @@ export default function PrivnotePage() {
   const canSubmit = () => {
     if (activeTab === 'payment') return paymentItems.length > 0;
     if (activeTab === 'message') return !!messageText.trim() || attachments.length > 0;
+    if (activeTab === 'inventory') {
+      if (subMode === 'inventory') return true;
+      if (subMode === 'quote') {
+        if (quoteMode === 'full') return true;
+        return selectedIds.length > 0;
+      }
+    }
     return true;
   };
 
@@ -299,10 +332,170 @@ export default function PrivnotePage() {
           {/* Tab Content */}
           <div className="bg-white border border-border rounded-md p-5 space-y-5">
             {activeTab === 'inventory' && (
-              <div>
-                <p className="text-sm text-muted">
-                  生成当前库存的快照链接，客户可查看实时库存与报价。
-                </p>
+              <div className="space-y-4">
+                {/* Sub-mode toggle */}
+                <div className="flex items-center justify-center gap-2">
+                  <span className={`text-sm ${subMode === 'inventory' ? 'font-medium text-fg' : 'text-muted'}`}>现货库存</span>
+                  <button
+                    type="button"
+                    onClick={() => setSubMode(subMode === 'inventory' ? 'quote' : 'inventory')}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${subMode === 'quote' ? 'bg-accent' : 'bg-border'}`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                        subMode === 'quote' ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                  <span className={`text-sm ${subMode === 'quote' ? 'font-medium text-fg' : 'text-muted'}`}>批发报价</span>
+                </div>
+
+                {subMode === 'inventory' && (
+                  <p className="text-sm text-muted">
+                    生成当前库存的快照链接，客户可查看实时库存与报价。
+                  </p>
+                )}
+
+                {subMode === 'quote' && (
+                  <div className="space-y-4">
+                    {/* Quote mode selector */}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setQuoteMode('full')}
+                        className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
+                          quoteMode === 'full'
+                            ? 'bg-accent text-white'
+                            : 'bg-accent-light text-fg hover:bg-accent/10'
+                        }`}
+                      >
+                        完整目录
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setQuoteMode('custom')}
+                        className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
+                          quoteMode === 'custom'
+                            ? 'bg-accent text-white'
+                            : 'bg-accent-light text-fg hover:bg-accent/10'
+                        }`}
+                      >
+                        定制选择
+                      </button>
+                    </div>
+
+                    {/* Shipping toggle */}
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={shippingIncluded}
+                        onChange={e => setShippingIncluded(e.target.checked)}
+                        className="checkbox checkbox-sm"
+                      />
+                      <span className="text-sm">含运费（报价已含运费）</span>
+                    </label>
+
+                    {quoteMode === 'full' && (
+                      <p className="text-sm text-muted">
+                        将生成包含全部 {quoteProducts?.length ?? 0} 款雪茄批发报价的完整目录链接。
+                      </p>
+                    )}
+
+                    {quoteMode === 'custom' && (
+                      <div className="space-y-3">
+                        {/* Search */}
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                          <input
+                            type="text"
+                            value={quoteSearchQ}
+                            onChange={e => setQuoteSearchQ(e.target.value)}
+                            placeholder="搜索雪茄（品牌/品名/英文名）"
+                            className="w-full pl-9 pr-4 py-2 bg-white border border-border rounded-md text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
+                          />
+                        </div>
+
+                        {/* Product list grouped by brand */}
+                        {quoteProducts && quoteProducts.length > 0 && (
+                          <div className="border border-border rounded-md bg-white max-h-96 overflow-y-auto">
+                            {(() => {
+                              const filtered = quoteSearchQ.trim()
+                                ? quoteProducts.filter(p =>
+                                    p.brand.toLowerCase().includes(quoteSearchQ.toLowerCase()) ||
+                                    p.name.toLowerCase().includes(quoteSearchQ.toLowerCase()) ||
+                                    p.english_name.toLowerCase().includes(quoteSearchQ.toLowerCase())
+                                  )
+                                : quoteProducts;
+                              const byBrand: Record<string, QuoteProduct[]> = {};
+                              filtered.forEach(p => {
+                                if (!byBrand[p.brand]) byBrand[p.brand] = [];
+                                byBrand[p.brand].push(p);
+                              });
+                              return Object.entries(byBrand).map(([brand, items]) => (
+                                <div key={brand} className="border-b border-border last:border-0">
+                                  <div className="px-3 py-1.5 bg-accent-light text-xs font-semibold text-fg sticky top-0">
+                                    {items[0]?.brand_cn || brand}
+                                  </div>
+                                  {items.map(p => (
+                                    <label
+                                      key={`${p.cigar_id}-${p.box_size}`}
+                                      className="flex items-center gap-2 px-3 py-2 hover:bg-accent-light cursor-pointer border-b border-border last:border-0"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        className="checkbox checkbox-sm shrink-0"
+                                        checked={selectedIds.includes(p.cigar_id)}
+                                        onChange={e => {
+                                          if (e.target.checked) {
+                                            setSelectedIds(prev => [...prev, p.cigar_id]);
+                                          } else {
+                                            setSelectedIds(prev => prev.filter(id => id !== p.cigar_id));
+                                          }
+                                        }}
+                                      />
+                                      <div className="flex-1 min-w-0 text-sm">
+                                        <div className="font-medium truncate">{p.name}</div>
+                                        <div className="text-xs text-muted">{p.english_name} · {p.vitola}</div>
+                                      </div>
+                                      <div className="text-right shrink-0 text-xs text-muted">
+                                        <div className="font-medium text-fg">¥{p.wholesale_price}</div>
+                                        <div>{p.box_size}支/盒</div>
+                                      </div>
+                                    </label>
+                                  ))}
+                                </div>
+                              ));
+                            })()}
+                          </div>
+                        )}
+
+                        {/* Selection summary */}
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted">已选 {selectedIds.length} 项</span>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const allIds = (quoteProducts || []).map(p => p.cigar_id);
+                                setSelectedIds(allIds);
+                              }}
+                              className="text-xs text-accent hover:underline"
+                            >
+                              全选
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedIds([])}
+                              className="text-xs text-accent hover:underline"
+                            >
+                              取消全选
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

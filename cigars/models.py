@@ -444,3 +444,28 @@ class AdjustmentRecord(models.Model):
 
     def __str__(self):
         return f'{self.get_type_display()} {self.cigar} ×{self.quantity}'
+
+
+class CigarPrice(models.Model):
+    """雪茄定价 — 每个包装规格独立批发价/零售价"""
+    cigar = models.ForeignKey(Cigar, on_delete=models.CASCADE, related_name='prices')
+    box_size = models.IntegerField('包装支数')
+    wholesale_price = models.IntegerField('批发价/盒(CNY)', help_text='人民币批发价')
+    retail_price = models.IntegerField('零售价/盒(CNY)', null=True, blank=True)
+    sort_order = models.IntegerField('排序', default=0)
+    is_active = models.BooleanField('启用', default=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'cigar__brand', 'cigar__english_name']
+        verbose_name = '雪茄定价'
+        verbose_name_plural = '雪茄定价'
+        unique_together = ('cigar', 'box_size')
+
+    def __str__(self):
+        return f'{self.cigar} · {self.box_size}支/盒 · 批发¥{self.wholesale_price}'
+
+    @property
+    def per_stick_price(self):
+        return round(self.wholesale_price / self.box_size)

@@ -8,7 +8,7 @@ from django.utils import timezone
 import uuid
 import json
 
-from cigars.models import Brand, Cigar, PurchaseBatch, User, SalesOrder, SalesOrderItem, Customer
+from cigars.models import Brand, Cigar, PurchaseBatch, User, SalesOrder, SalesOrderItem, Customer, CigarPrice
 from .models import Privnote, PaymentMethod
 
 try:
@@ -190,6 +190,80 @@ def _build_payment_data(sales_order):
     }
 
 
+# ═══════════════ Quote ═══════════════
+
+def _build_quote_data(quote_mode='full', selected_ids=None, shipping_included=False):
+    """从 CigarPrice 构建报价单结构化数据"""
+    qs = CigarPrice.objects.filter(is_active=True).select_related('cigar')
+
+    if quote_mode == 'custom' and selected_ids:
+        qs = qs.filter(cigar_id__in=selected_ids)
+
+    brand_groups = {}
+    total_items = 0
+
+    for cp in qs:
+        cigar = cp.cigar
+        brand = cigar.brand
+        total_items += 1
+
+        # 实时检查库存状态
+        in_stock = PurchaseBatch.objects.filter(cigar=cigar, remaining__gt=0).exists()
+
+        thumb_url = ''
+        primary = cigar.primary_image
+        if primary and primary.thumbnail:
+            thumb_url = primary.thumbnail.url
+
+        item = {
+            'cigar_id': cigar.id,
+            'brand': brand,
+            'brand_cn': '',
+            'name': cigar.name or cigar.english_name,
+            'english_name': cigar.english_name,
+            'vitola': cigar.vitola or '—',
+            'box_size': cp.box_size,
+            'wholesale_price': cp.wholesale_price,
+            'per_stick_price': cp.per_stick_price,
+            'thumb_url': thumb_url,
+            'in_stock': in_stock,
+        }
+
+        if brand not in brand_groups:
+            brand_groups[brand] = {
+                'brand': brand,
+                'brand_cn': '',
+                'logo_url': None,
+                'items': [],
+            }
+        brand_groups[brand]['items'].append(item)
+
+    # 获取品牌中文名和 logo
+    brand_en_names = list(brand_groups.keys())
+    for b in Brand.objects.filter(english_name__in=brand_en_names):
+        if b.english_name in brand_groups:
+            brand_groups[b.english_name]['brand_cn'] = b.name or b.english_name
+            if b.logo:
+                brand_groups[b.english_name]['logo_url'] = b.logo.url
+
+    groups = []
+    for brand in sorted(brand_groups.keys()):
+        g = brand_groups[brand]
+        groups.append({
+            'brand': g['brand'],
+            'brand_cn': g['brand_cn'] or g['brand'],
+            'logo_url': g['logo_url'],
+            'items': g['items'],
+        })
+
+    return {
+        'mode': 'quote',
+        'brand_groups': groups,
+        'total_items': total_items,
+        'shipping_included': shipping_included,
+    }
+
+
 # ═══════════════ CREATE ═══════════════
 
 @csrf_exempt
@@ -325,6 +399,29 @@ def create(request):
         data = {'mode': 'message', 'text': text, 'attachments': attachments}
         sales_order = None
 
+    # ── QUOTE ──
+    elif note_type == 'quote':
+        quote_mode = request.POST.get('quote_mode', 'full')
+        selected_ids_raw = request.POST.get('selected_ids', '[]')
+        shipping_included = request.POST.get('shipping_included', 'false') == 'true'
+
+        try:
+            selected_ids = json.loads(selected_ids_raw) if selected_ids_raw else []
+        except json.JSONDecodeError:
+            selected_ids = []
+
+        if quote_mode == 'custom' and not selected_ids:
+            return JsonResponse({'error': '定制选择模式下至少选择一款雪茄'}, status=400)
+
+        title = f'批发报价单 · {timezone.now().strftime("%Y-%m-%d")}{debug_tag}'
+        data = {
+            'mode': 'quote',
+            'quote_mode': quote_mode,
+            'selected_ids': selected_ids,
+            'shipping_included': shipping_included,
+        }
+        sales_order = None
+
     else:
         return JsonResponse({'error': f'未知类型: {note_type}'}, status=400)
 
@@ -457,6 +554,47 @@ def search_cigars(request):
     return JsonResponse({'results': results})
 
 
+# ═══════════════ QUOTE PRODUCTS API ═══════════════
+
+def list_quote_products(request):
+    """GET /privnote/api/quote-products/ — 返回全部有批发价的雪茄"""
+    if not _is_staff(request):
+        return HttpResponseForbidden("仅限工作人员访问")
+
+    qs = CigarPrice.objects.filter(is_active=True).select_related('cigar')
+    products = []
+
+    for cp in qs:
+        cigar = cp.cigar
+        in_stock = PurchaseBatch.objects.filter(cigar=cigar, remaining__gt=0).exists()
+
+        thumb_url = ''
+        primary = cigar.primary_image
+        if primary and primary.thumbnail:
+            thumb_url = primary.thumbnail.url
+
+        brand_cn = cigar.brand
+        brand_obj = Brand.objects.filter(english_name=cigar.brand).first()
+        if brand_obj:
+            brand_cn = brand_obj.name or brand_obj.english_name
+
+        products.append({
+            'cigar_id': cigar.id,
+            'brand': cigar.brand,
+            'brand_cn': brand_cn,
+            'name': cigar.name or cigar.english_name,
+            'english_name': cigar.english_name,
+            'vitola': cigar.vitola or '—',
+            'box_size': cp.box_size,
+            'wholesale_price': cp.wholesale_price,
+            'per_stick_price': cp.per_stick_price,
+            'thumb_url': thumb_url,
+            'in_stock': in_stock,
+        })
+
+    return JsonResponse({'products': products})
+
+
 # ═══════════════ PAYMENT METHODS API ═══════════════
 
 def list_payment_methods(request):
@@ -529,6 +667,13 @@ def api_privnote(request, token):
     # 收款类型：实时渲染
     if note.note_type == 'payment' and note.sales_order:
         data = _build_payment_data(note.sales_order)
+    elif note.note_type == 'quote':
+        cfg = note.data_json or {}
+        data = _build_quote_data(
+            quote_mode=cfg.get('quote_mode', 'full'),
+            selected_ids=cfg.get('selected_ids', []),
+            shipping_included=cfg.get('shipping_included', False),
+        )
     else:
         data = note.data_json
 

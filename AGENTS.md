@@ -118,9 +118,9 @@ cigardomtabaka/                     # Django 项目根目录
 │   │   └── lcdh_nyon.py          # LCDH Nyon
 │   └── management/commands/      # 爬虫/导入/汇率命令
 │
-├── privnote/                     # 【阅后即焚】应用 — 三类型: inventory/payment/message
+├── privnote/                     # 【阅后即焚】应用 — 四类型: inventory/payment/message/quote
 │   ├── models.py                 # Privnote + PaymentMethod（含 remark 字段）
-│   ├── views.py                  # create / api_privnote / search-cigars / search-customers / payment-methods
+│   ├── views.py                  # create / api_privnote / search-cigars / search-customers / payment-methods / quote-products
 │   └── migrations/               # DB 迁移（已删除 template/ 目录，前端走 React SPA）
 │
 ├── frontend/                     # React 前端（Vite + Tailwind + DaisyUI）
@@ -168,8 +168,9 @@ cigardomtabaka/                     # Django 项目根目录
 | `/admin/` | Django Admin |
 | `/cigars/` | 雪茄目录 |
 | `/api/prices/` | 价格 API |
-| `/privnote/` | 阅后即焚 — 库存/收款/消息 (React SPA) |
+| `/privnote/` | 阅后即焚 — 库存/收款/消息/报价 (React SPA) |
 | `/p/<token>/` | 客户查看 privnote 链接 |
+| `/privnote/api/quote-products/` | 批发价雪茄列表（供创建 quote 时筛选） |
 
 ---
 
@@ -184,10 +185,12 @@ cigardomtabaka/                     # Django 项目根目录
 ## Privnote 关键规则
 
 - **全部 React SPA**：创建页 `/privnote/`，查看页 `/p/:token/`，后端仅 JSON API
-- **三类型**：`inventory` 库存 / `payment` 收款 / `message` 消息
+- **四类型**：`inventory` 库存 / `payment` 收款 / `message` 消息 / `quote` 批发报价
+- **inventory vs quote**：`inventory`=现货（实际库存，实时计算零售价），`quote`=预售（批发价目表，从 CigarPrice 模型读取）
 - **PaymentMethod.remark**：收款备注绑定到收款方式本身（Django Admin 配置），不是创建 privnote 时填
 - **搜索**：`search-cigars` 用 RapidFuzz + 拆词 OR + stock_only=0 全目录
 - **查看页**：Light 主题，StoreHeader（地址+电话+微信），QR 放大，不显示 PaymentMethod label
 - **额外费用**：运费/人肉费 checkbox + 自定义添加
+- **quote 实时构建**：查看时从 `CigarPrice` + `PurchaseBatch` 实时构建，价格/库存变动自动反映
 - **主入口**：`django-privnote` 技能（`~/.hermes/skills/software-development/django-privnote/SKILL.md`）
 3. 系统默认提示

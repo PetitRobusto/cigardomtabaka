@@ -301,11 +301,12 @@ export interface InventoryResponse {
 export interface PrivnoteResponse {
   title: string;
   note_type?: string;
-  data?: InventoryViewData | PaymentData | MessageData;
+  data?: InventoryViewData | PaymentData | MessageData | QuoteData;
   has_password?: boolean;
   requires_password?: boolean;
   burn_after_read?: boolean;
   is_destroyed?: boolean;
+  created_at?: string;
   expires_at?: string;
   url?: string;
   token?: string;

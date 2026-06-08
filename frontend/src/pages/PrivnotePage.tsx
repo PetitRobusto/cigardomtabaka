@@ -262,6 +262,11 @@ export default function PrivnotePage() {
     setAttachments([]);
     setSearchQ('');
     setSearchResults([]);
+    setSubMode('inventory');
+    setQuoteMode('full');
+    setShippingIncluded(false);
+    setQuoteSearchQ('');
+    setSelectedIds([]);
   };
 
   const canSubmit = () => {
@@ -476,7 +481,7 @@ export default function PrivnotePage() {
                             <button
                               type="button"
                               onClick={() => {
-                                const allIds = (quoteProducts || []).map(p => p.cigar_id);
+                                const allIds = [...new Set((quoteProducts || []).map(p => p.cigar_id))];
                                 setSelectedIds(allIds);
                               }}
                               className="text-xs text-accent hover:underline"

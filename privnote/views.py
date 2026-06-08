@@ -564,24 +564,31 @@ def list_quote_products(request):
     qs = CigarPrice.objects.filter(is_active=True).select_related('cigar')
     products = []
 
+    # 批量查询品牌信息，避免 N+1
+    brand_map = {}
+    for b in Brand.objects.all():
+        brand_map[b.english_name] = b.name or b.english_name
+
+    # 批量查询库存状态
+    in_stock_ids = set(
+        PurchaseBatch.objects.filter(remaining__gt=0)
+        .values_list('cigar_id', flat=True)
+        .distinct()
+    )
+
     for cp in qs:
         cigar = cp.cigar
-        in_stock = PurchaseBatch.objects.filter(cigar=cigar, remaining__gt=0).exists()
+        in_stock = cigar.id in in_stock_ids
 
         thumb_url = ''
         primary = cigar.primary_image
         if primary and primary.thumbnail:
             thumb_url = primary.thumbnail.url
 
-        brand_cn = cigar.brand
-        brand_obj = Brand.objects.filter(english_name=cigar.brand).first()
-        if brand_obj:
-            brand_cn = brand_obj.name or brand_obj.english_name
-
         products.append({
             'cigar_id': cigar.id,
             'brand': cigar.brand,
-            'brand_cn': brand_cn,
+            'brand_cn': brand_map.get(cigar.brand, cigar.brand),
             'name': cigar.name or cigar.english_name,
             'english_name': cigar.english_name,
             'vitola': cigar.vitola or '—',
@@ -683,6 +690,7 @@ def api_privnote(request, token):
         'data': data,
         'burn_after_read': note.burn_after_read,
         'is_destroyed': note.is_destroyed,
+        'created_at': note.created_at.isoformat(),
         'expires_at': note.expires_at.isoformat(),
     })
 

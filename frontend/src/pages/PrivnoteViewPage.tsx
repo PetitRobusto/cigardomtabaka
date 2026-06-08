@@ -161,7 +161,7 @@ export default function PrivnoteViewPage() {
         {mode === 'message' && noteData && <MessageView data={noteData as MessageData} />}
 
         {/* QUOTE VIEW */}
-        {mode === 'quote' && noteData && <QuoteView data={noteData as QuoteData} createdAt={displayData?.expires_at} />}
+        {mode === 'quote' && noteData && <QuoteView data={noteData as QuoteData} createdAt={displayData?.created_at} />}
       </div>
     </div>
   );

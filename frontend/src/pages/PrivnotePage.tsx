@@ -286,7 +286,11 @@ export default function PrivnotePage() {
       batch_id: batchId || batch?.batch_id,
       name: cigar.name,
       english_name: cigar.english_name,
+      brand: cigar.brand,
+      brand_cn: cigar.brand_cn,
       vitola: cigar.vitola,
+      length: cigar.length,
+      ring_gauge: cigar.ring_gauge,
       thumb_url: cigar.thumb_url,
       quantity: 1,
       unit_price: unitPrice,
@@ -302,7 +306,11 @@ export default function PrivnotePage() {
       cigar_id: 0,
       name: manualName.trim(),
       english_name: '',
+      brand: '',
+      brand_cn: '',
       vitola: '',
+      length: null,
+      ring_gauge: null,
       thumb_url: null,
       quantity: manualQty,
       unit_price: manualPrice,
@@ -765,38 +773,47 @@ export default function PrivnotePage() {
                         </div>
                         {searching && <p className="text-xs text-muted mb-2">搜索中…</p>}
                         {Array.isArray(searchResults) && searchResults.length > 0 && (
-                          <div className="border border-border rounded-sm bg-white max-h-48 overflow-y-auto">
+                          <div className="border border-border rounded-sm bg-white max-h-72 overflow-y-auto">
                             {searchResults.map(c => (
                               <div
                                 key={c.id}
-                                className="px-4 py-3 hover:bg-accent-light cursor-pointer border-b border-border last:border-0 flex items-center gap-3"
+                                className="px-4 py-3 hover:bg-accent-light cursor-pointer border-b border-border last:border-0"
                                 onClick={() => addPaymentItem(c)}
                               >
-                                <div className="w-10 h-10 rounded-sm bg-accent-light flex items-center justify-center shrink-0 overflow-hidden">
-                                  {c.thumb_url ? (
-                                    <img src={c.thumb_url} alt={c.name} className="w-full h-full object-contain p-0.5" />
-                                  ) : (
-                                    <Package className="w-4 h-4 text-muted" />
+                                {/* 品牌 · 名称 */}
+                                <div className="text-sm font-medium">
+                                  {c.brand_cn ? `${c.brand_cn} · ${c.name}` : `${c.brand} · ${c.name}`}
+                                </div>
+                                {/* 品型 · 尺寸 */}
+                                <div className="text-xs text-muted mt-0.5">
+                                  {c.vitola}
+                                  {c.length && c.ring_gauge ? ` · ${c.length}mm × ${c.ring_gauge}环径` : ''}
+                                  {' · '}库存 {c.stock_qty} 支
+                                </div>
+                                {/* 图片 + 批次按钮 */}
+                                <div className="flex items-start gap-3 mt-2">
+                                  <div className="w-12 h-12 rounded-sm bg-accent-light flex items-center justify-center shrink-0 overflow-hidden">
+                                    {c.thumb_url ? (
+                                      <img src={c.thumb_url} alt={c.name} className="w-full h-full object-contain p-0.5" />
+                                    ) : (
+                                      <Package className="w-5 h-5 text-muted" />
+                                    )}
+                                  </div>
+                                  {c.batches.length > 1 && (
+                                    <div className="flex gap-1 flex-wrap flex-1">
+                                      {c.batches.map(b => (
+                                        <button
+                                          key={b.batch_id}
+                                          type="button"
+                                          onClick={ev => { ev.stopPropagation(); addPaymentItem(c, b.batch_id); }}
+                                          className="text-[10px] px-2 py-1 rounded-sm bg-accent/10 text-accent hover:bg-accent/20"
+                                        >
+                                          {b.box_size}支/盒 · 余{b.remaining}
+                                        </button>
+                                      ))}
+                                    </div>
                                   )}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-sm font-medium">{c.name}</div>
-                                  <div className="text-xs text-muted">{c.brand} · {c.vitola} · 库存 {c.stock_qty} 支</div>
-                                </div>
-                                {c.batches.length > 1 && (
-                                  <div className="flex gap-1 flex-wrap justify-end">
-                                    {c.batches.map(b => (
-                                      <button
-                                        key={b.batch_id}
-                                        type="button"
-                                        onClick={ev => { ev.stopPropagation(); addPaymentItem(c, b.batch_id); }}
-                                        className="text-[10px] px-2 py-1 rounded-sm bg-accent/10 text-accent hover:bg-accent/20"
-                                      >
-                                        {b.box_size}支/盒 · 余{b.remaining}
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
                               </div>
                             ))}
                           </div>
@@ -872,18 +889,21 @@ export default function PrivnotePage() {
                           {paymentItems.map((item, idx) => (
                             <tr key={`${item.cigar_id}-${item.batch_id}-${idx}`} className="border-b border-border hover:bg-accent-light/30">
                               <td className="px-4 py-3">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 rounded-sm bg-accent-light flex items-center justify-center shrink-0 overflow-hidden">
-                                    {item.thumb_url ? (
-                                      <img src={item.thumb_url} alt={item.name} className="w-full h-full object-contain p-0.5" />
-                                    ) : (
+                                <div className="flex flex-col gap-1">
+                                  <div className="text-sm font-medium">
+                                    {item.brand_cn ? `${item.brand_cn} · ${item.name}` : (item.brand ? `${item.brand} · ${item.name}` : item.name)}
+                                  </div>
+                                  <div className="text-xs text-muted">
+                                    {item.vitola}
+                                    {item.length && item.ring_gauge ? ` · ${item.length}mm × ${item.ring_gauge}环径` : ''}
+                                  </div>
+                                  {item.thumb_url ? (
+                                    <img src={item.thumb_url} alt={item.name} className="w-12 h-12 object-contain rounded-sm bg-accent-light p-0.5 mt-0.5" />
+                                  ) : (
+                                    <div className="w-12 h-12 rounded-sm bg-accent-light flex items-center justify-center mt-0.5">
                                       <Package className="w-4 h-4 text-muted" />
-                                    )}
-                                  </div>
-                                  <div>
-                                    <div className="text-sm font-medium">{item.name}</div>
-                                    <div className="text-xs text-muted">{item.vitola}</div>
-                                  </div>
+                                    </div>
+                                  )}
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-right">

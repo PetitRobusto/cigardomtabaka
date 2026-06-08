@@ -6,7 +6,14 @@ from django.shortcuts import render
 
 from cigars import views
 from cigars.auth_views import api_login, api_logout, api_me
-from privnote.views import api_privnote, create as privnote_create, search_cigars as privnote_search_cigars, list_payment_methods as privnote_payment_methods, search_customers as privnote_search_customers
+from privnote.views import (
+    api_privnote, create as privnote_create,
+    search_cigars as privnote_search_cigars,
+    list_payment_methods as privnote_payment_methods,
+    search_customers as privnote_search_customers,
+    list_quote_products as privnote_quote_products,
+    upload_image as privnote_upload_image,
+)
 
 
 def spa_index(request):
@@ -31,6 +38,8 @@ urlpatterns = [
     path('privnote/api/search-cigars/', privnote_search_cigars, name='privnote_search_cigars'),
     path('privnote/api/payment-methods/', privnote_payment_methods, name='privnote_payment_methods'),
     path('privnote/api/search-customers/', privnote_search_customers, name='privnote_search_customers'),
+    path('privnote/api/quote-products/', privnote_quote_products, name='privnote_quote_products'),
+    path('privnote/api/upload-image/', privnote_upload_image, name='privnote_upload_image'),
     # SPA catch-all (must be last)
     re_path(r'^(?!admin/|api/|static/|media/).*$', spa_index, name='spa_index'),
 ]

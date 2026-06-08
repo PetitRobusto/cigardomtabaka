@@ -7,6 +7,8 @@ from datetime import timedelta
 from django.utils import timezone
 import uuid
 import json
+import os
+from datetime import datetime
 
 from cigars.models import Brand, Cigar, PurchaseBatch, User, SalesOrder, SalesOrderItem, Customer, CigarPrice
 from .models import Privnote, PaymentMethod
@@ -16,6 +18,12 @@ try:
     HAS_RAPIDFUZZ = True
 except ImportError:
     HAS_RAPIDFUZZ = False
+
+try:
+    from price_tracker.matcher import normalize as _matcher_normalize, _basic_normalize
+    HAS_MATCHER = True
+except ImportError:
+    HAS_MATCHER = False
 
 
 DURATION_CHOICES = [
@@ -177,6 +185,9 @@ def _build_payment_data(sales_order):
                 'qr_url': manual.get('qr_url'),
             })
 
+    # 备注图片
+    images = sales_order.payment_manual.get('images', []) if sales_order.payment_manual else []
+
     return {
         'mode': 'payment',
         'items': items,
@@ -187,12 +198,13 @@ def _build_payment_data(sales_order):
         'payment_methods': payment_methods,
         'customer_name': sales_order.customer_name or '',
         'remark': sales_order.payment_manual.get('remark', '') if sales_order.payment_manual else '',
+        'images': images,
     }
 
 
 # ═══════════════ Quote ═══════════════
 
-def _build_quote_data(quote_mode='full', selected_ids=None, shipping_included=False):
+def _build_quote_data(quote_mode='full', selected_ids=None, shipping_included=False, customer_name=None, custom_prices=None, shipping_fee_per_stick=None):
     """从 CigarPrice 构建报价单结构化数据"""
     qs = CigarPrice.objects.filter(is_active=True).select_related('cigar')
 
@@ -201,6 +213,8 @@ def _build_quote_data(quote_mode='full', selected_ids=None, shipping_included=Fa
 
     brand_groups = {}
     total_items = 0
+    custom_prices = custom_prices or {}
+    shipping_fee_per_stick = shipping_fee_per_stick or (20 if shipping_included else 0)
 
     for cp in qs:
         cigar = cp.cigar
@@ -215,6 +229,18 @@ def _build_quote_data(quote_mode='full', selected_ids=None, shipping_included=Fa
         if primary and primary.thumbnail:
             thumb_url = primary.thumbnail.url
 
+        # 应用自定义价格覆盖
+        wholesale_price = cp.wholesale_price
+        per_stick_price = cp.per_stick_price
+        if cigar.id in custom_prices:
+            try:
+                custom_price = int(custom_prices[cigar.id])
+                if custom_price > 0:
+                    wholesale_price = custom_price
+                    per_stick_price = round(custom_price / cp.box_size) if cp.box_size else cp.per_stick_price
+            except (ValueError, TypeError):
+                pass
+
         item = {
             'cigar_id': cigar.id,
             'brand': brand,
@@ -223,8 +249,8 @@ def _build_quote_data(quote_mode='full', selected_ids=None, shipping_included=Fa
             'english_name': cigar.english_name,
             'vitola': cigar.vitola or '—',
             'box_size': cp.box_size,
-            'wholesale_price': cp.wholesale_price,
-            'per_stick_price': cp.per_stick_price,
+            'wholesale_price': wholesale_price,
+            'per_stick_price': per_stick_price,
             'thumb_url': thumb_url,
             'in_stock': in_stock,
         }
@@ -261,6 +287,8 @@ def _build_quote_data(quote_mode='full', selected_ids=None, shipping_included=Fa
         'brand_groups': groups,
         'total_items': total_items,
         'shipping_included': shipping_included,
+        'shipping_fee_per_stick': shipping_fee_per_stick,
+        'customer_name': customer_name,
     }
 
 
@@ -319,6 +347,7 @@ def create(request):
         payment_manual_raw = request.POST.get('payment_manual', '{}')
         extra_fees_raw = request.POST.get('extra_fees', '[]')
         remark = request.POST.get('remark', '').strip()
+        images_raw = request.POST.get('images', '[]')
 
         try:
             payment_manual = json.loads(payment_manual_raw) if payment_manual_raw else {}
@@ -330,6 +359,11 @@ def create(request):
         except json.JSONDecodeError:
             extra_fees = []
 
+        try:
+            images = json.loads(images_raw)
+        except json.JSONDecodeError:
+            images = []
+
         total_extra = round(sum(float(f.get('amount', 0)) for f in extra_fees), 2)
 
         # 创建 SalesOrder
@@ -338,7 +372,7 @@ def create(request):
             operator=None,
             status='draft',
             payment_method_id=int(payment_method_id) if payment_method_id else None,
-            payment_manual=dict(payment_manual, extra_fees=extra_fees, remark=remark),
+            payment_manual=dict(payment_manual, extra_fees=extra_fees, remark=remark, images=images),
         )
 
         total_revenue = 0
@@ -387,16 +421,22 @@ def create(request):
     elif note_type == 'message':
         text = request.POST.get('text', '').strip()
         attachments_raw = request.POST.get('attachments', '[]')
+        images_raw = request.POST.get('images', '[]')
         try:
             attachments = json.loads(attachments_raw)
         except json.JSONDecodeError:
             attachments = []
 
-        if not text and not attachments:
+        try:
+            images = json.loads(images_raw)
+        except json.JSONDecodeError:
+            images = []
+
+        if not text and not attachments and not images:
             return JsonResponse({'error': '消息内容和附件至少填一个'}, status=400)
 
         title = f'消息 · {timezone.now().strftime("%Y-%m-%d %H:%M")}{debug_tag}'
-        data = {'mode': 'message', 'text': text, 'attachments': attachments}
+        data = {'mode': 'message', 'text': text, 'attachments': attachments, 'images': images}
         sales_order = None
 
     # ── QUOTE ──
@@ -404,11 +444,24 @@ def create(request):
         quote_mode = request.POST.get('quote_mode', 'full')
         selected_ids_raw = request.POST.get('selected_ids', '[]')
         shipping_included = request.POST.get('shipping_included', 'false') == 'true'
+        quote_customer_name = request.POST.get('customer_name', '').strip()
+        custom_prices_raw = request.POST.get('custom_prices', '{}')
 
         try:
             selected_ids = json.loads(selected_ids_raw) if selected_ids_raw else []
         except json.JSONDecodeError:
             selected_ids = []
+
+        try:
+            custom_prices = json.loads(custom_prices_raw) if custom_prices_raw else {}
+        except json.JSONDecodeError:
+            custom_prices = {}
+
+        # 过滤非法值：只保留正整数
+        custom_prices = {
+            int(k): int(v) for k, v in custom_prices.items()
+            if isinstance(v, (int, float, str)) and int(v) > 0
+        }
 
         if quote_mode == 'custom' and not selected_ids:
             return JsonResponse({'error': '定制选择模式下至少选择一款雪茄'}, status=400)
@@ -419,6 +472,9 @@ def create(request):
             'quote_mode': quote_mode,
             'selected_ids': selected_ids,
             'shipping_included': shipping_included,
+            'shipping_fee_per_stick': 20 if shipping_included else 0,
+            'customer_name': quote_customer_name or None,
+            'custom_prices': custom_prices,
         }
         sales_order = None
 
@@ -470,20 +526,21 @@ def search_cigars(request):
         cigars = cigars.filter(id__in=in_stock_ids)
 
     if q:
-        # 多词查询：拆词 OR 搜，解决「品牌+型号」跨字段搜索
+        # 多词查询：拆词 OR 搜，确保召回率（每个词至少命中一个字段）
         terms = q.split()
         if len(terms) > 1:
             q_filter = models.Q()
             for term in terms:
                 q_filter |= models.Q(name__icontains=term) | models.Q(
                     english_name__icontains=term
-                ) | models.Q(brand__icontains=term)
+                ) | models.Q(brand__icontains=term) | models.Q(vitola__icontains=term)
             cigars = cigars.filter(q_filter)
         else:
             cigars = cigars.filter(
                 models.Q(name__icontains=q) |
                 models.Q(english_name__icontains=q) |
-                models.Q(brand__icontains=q)
+                models.Q(brand__icontains=q) |
+                models.Q(vitola__icontains=q)
             )
 
     cigars = list(cigars[:100])
@@ -491,18 +548,69 @@ def search_cigars(request):
     # ── RapidFuzz 精排 ──
     if HAS_RAPIDFUZZ and q and len(cigars) > 1:
         q_lower = q.lower().strip()
+        terms = q_lower.split()
+        is_multi_term = len(terms) > 1
         scored = []
+
         for c in cigars:
-            # 组合搜索字符串：品牌 + 中文名 + 英文名 + 型号
-            haystack = f"{c.brand} {c.name or ''} {c.english_name or ''} {c.vitola or ''}"
-            score = fuzz.token_sort_ratio(q_lower, haystack.lower())
-            # 中文也是 token_sort_ratio 能处理的（按空格/标点分词）
-            name_text = c.name or c.english_name
-            if q_lower in name_text.lower():
-                score += 15  # 精确子串加分
-            if q_lower in c.brand.lower():
-                score += 10
+            brand = c.brand or ''
+            name = c.name or ''
+            ename = c.english_name or ''
+            vitola = c.vitola or ''
+
+            full = f"{brand} {name} {ename} {vitola}"
+            full_lower = full.lower()
+
+            # 基础分：token_sort_ratio + partial_ratio
+            base_score = max(
+                fuzz.token_sort_ratio(q_lower, full_lower),
+                fuzz.partial_ratio(q_lower, full_lower) * 0.9,
+            )
+            score = base_score
+
+            # ── 多词查询 AND 语义加分 ──
+            if is_multi_term:
+                all_terms_hit = True
+                for term in terms:
+                    term_hit = False
+                    term_lower = term.lower()
+                    if term_lower in brand.lower():
+                        score += 20
+                        term_hit = True
+                    if term_lower in name.lower():
+                        score += 15
+                        term_hit = True
+                    if term_lower in vitola.lower():
+                        score += 15
+                        term_hit = True
+                    if term_lower in ename.lower():
+                        score += 10
+                        term_hit = True
+                    if not term_hit:
+                        all_terms_hit = False
+                if all_terms_hit:
+                    score += 25  # 全匹配奖励
+
+            # ── 缩写/编号特殊处理 ──
+            if HAS_MATCHER and vitola:
+                norm_vitola = _matcher_normalize(vitola)
+                norm_query = _matcher_normalize(q)
+                if norm_query and norm_vitola and norm_query in norm_vitola:
+                    score += 20
+
+            # ── 单查询词额外加分 ──
+            if not is_multi_term:
+                if q_lower in name.lower():
+                    score += 15
+                if q_lower in ename.lower():
+                    score += 15
+                if q_lower in vitola.lower():
+                    score += 15
+                if q_lower in brand.lower():
+                    score += 15
+
             scored.append((c, score))
+
         scored.sort(key=lambda x: -x[1])
         # 去重：保留同 (brand, english_name, vitola) 中最高分的
         seen = set()
@@ -639,6 +747,50 @@ def search_customers(request):
     return JsonResponse({'results': results})
 
 
+# ═══════════════ UPLOAD IMAGE ═══════════════
+
+@csrf_exempt
+def upload_image(request):
+    """POST /privnote/api/upload-image/ — 上传图片到 media/privnote/YYYYMMDD/"""
+    if not _is_staff(request):
+        return HttpResponseForbidden("仅限工作人员访问")
+
+    if request.method != 'POST':
+        return JsonResponse({'error': '仅支持 POST'}, status=405)
+
+    file = request.FILES.get('image')
+    if not file:
+        return JsonResponse({'error': '未提供图片文件'}, status=400)
+
+    # Validate file type
+    allowed_types = ('image/jpeg', 'image/png', 'image/gif', 'image/webp')
+    if file.content_type not in allowed_types:
+        return JsonResponse({'error': '仅支持 jpg/png/gif/webp 格式'}, status=400)
+
+    # Validate file size (max 10MB)
+    if file.size > 10 * 1024 * 1024:
+        return JsonResponse({'error': '图片大小不能超过 10MB'}, status=400)
+
+    # Build path: media/privnote/YYYYMMDD/filename
+    today = datetime.now().strftime('%Y%m%d')
+    upload_dir = os.path.join('privnote', today)
+    full_dir = os.path.join(settings.MEDIA_ROOT, upload_dir)
+    os.makedirs(full_dir, exist_ok=True)
+
+    # Generate unique filename
+    ext = os.path.splitext(file.name)[1].lower() or '.jpg'
+    unique_name = f"{uuid.uuid4().hex[:16]}{ext}"
+    rel_path = os.path.join(upload_dir, unique_name)
+    full_path = os.path.join(settings.MEDIA_ROOT, rel_path)
+
+    with open(full_path, 'wb+') as destination:
+        for chunk in file.chunks():
+            destination.write(chunk)
+
+    url = f"/media/{rel_path.replace(os.sep, '/')}"
+    return JsonResponse({'url': url, 'name': file.name})
+
+
 # ═══════════════ API: VIEW NOTE ═══════════════
 
 @csrf_exempt
@@ -680,6 +832,9 @@ def api_privnote(request, token):
             quote_mode=cfg.get('quote_mode', 'full'),
             selected_ids=cfg.get('selected_ids', []),
             shipping_included=cfg.get('shipping_included', False),
+            customer_name=cfg.get('customer_name'),
+            custom_prices=cfg.get('custom_prices'),
+            shipping_fee_per_stick=cfg.get('shipping_fee_per_stick'),
         )
     else:
         data = note.data_json

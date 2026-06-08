@@ -1,5 +1,5 @@
-"""LCDH DL scraper"""
-import re, json, logging, os, base64
+"""LCDH DL scraper — CDP 登录 + page.goto 分页导航"""
+import re, json, logging, os
 from typing import Optional
 from . import register_scraper
 from ..scraper import BaseScraper, ScrapedItem
@@ -12,6 +12,7 @@ LOGIN_EMAIL = '93tz91htf@mozmail.com'
 _PW = os.environ.get("LCDH_DL_PW") or "".join(chr(c) for c in [74,57,115,106,119,72,50,45,69,56,71,69,107,52,102])
 LOGIN_PASSWORD = _PW
 
+
 @register_scraper('lcdh_dl')
 class LCDHDLScraper(BaseScraper):
     """LCDH DL (Dominique London) scraper"""
@@ -21,14 +22,13 @@ class LCDHDLScraper(BaseScraper):
         from playwright.async_api import async_playwright
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage'])
+            browser = await p.chromium.connect_over_cdp('http://127.0.0.1:9222')
             ctx = await browser.new_context(
                 user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36',
                 viewport={'width':1920,'height':1080}, locale='en-US')
             page = await ctx.new_page()
 
+            # 登录
             logger.info('Logging in...')
             await page.goto(BASE_URL + '/web/login?redirect=%2Fmy%2Fhome%3F',
                            wait_until='domcontentloaded', timeout=30000)
@@ -46,19 +46,23 @@ class LCDHDLScraper(BaseScraper):
             await page.wait_for_timeout(3000)
             if '/web/login' in page.url:
                 logger.error('Login failed')
-                await browser.close()
+                await ctx.close()
                 return []
             logger.info('Login OK')
 
             all_items = []
             for pn in range(1, 10):
-                items = await self._scrape_page(page, pn)
-                if not items:
+                try:
+                    items = await self._scrape_page(page, pn)
+                    if not items:
+                        break
+                    all_items.extend(items)
+                    logger.info('Page %d: %d products' % (pn, len(items)))
+                except Exception as e:
+                    logger.warning('Page %d: %s — stop pagination' % (pn, e))
                     break
-                all_items.extend(items)
-                logger.info('Page %d: %d products' % (pn, len(items)))
 
-            await browser.close()
+            await ctx.close()
 
         seen = set()
         unique = [i for i in all_items if not (i.url in seen or seen.add(i.url))]
@@ -70,44 +74,42 @@ class LCDHDLScraper(BaseScraper):
         if page_num > 1:
             url += '/page/%d' % page_num
 
-        js_lines = [
-            'async () => {',
-            "const r = await fetch('%s');",
-            'const h = await r.text();',
-            "const d = document.createElement('div');",
-            'd.innerHTML = h;',
-            'const items = [];',
-            'const seen = new Set();',
-            'd.querySelectorAll(\'.oe_product_cart, [class*="oe_product"], form[action*="/shop/cart/update"]\').forEach(c => {',
-            'const t = c.querySelector(\'h6 a, h5 a, [class*="product-title"] a\');',
-            'if (!t) return;',
-            "const href = t.getAttribute('href') || '';",
-            'if (seen.has(href)) return;',
-            'seen.add(href);',
-            'const title = t.textContent.trim();',
-            "const brand = (c.querySelector('h3') || {}).textContent || '';",
-            'const br = brand.trim();',
-            'const txt = c.textContent || "";',
-            'const pm = txt.match(/CHF\\s*([\\d.,]+)/);',
-            "const price = pm ? pm[1] : '';",
-            "const img = c.querySelector('img');",
-            'const notOk = /(?:NOT AVAILABLE|OUT OF STOCK)/i;',
-            'const inStock = !notOk.test(txt);',
-            'const sk = txt.match(/\\[(\\d+)\\]/);',
-            "items.push({title,brand:br,price,url:href,image_url:img?img.getAttribute('src')||'':'',in_stock:inStock,sku:sk?sk[1]:''});",
-            '});',
-            'return JSON.stringify(items);',
-            '}'
-        ]
-        js = '\n'.join(js_lines) % url
+        # 用 page.goto 直导航，不用 fetch
+        await page.goto(url, wait_until='domcontentloaded', timeout=15000)
+        await page.wait_for_timeout(2000)
 
-        try:
-            result = await page.evaluate(js)
-            data = json.loads(result)
-            return [x for x in (self._parse(p) for p in data) if x]
-        except Exception as e:
-            logger.error('Page %d: %s' % (page_num, e))
-            return []
+        # 直接从页面 DOM 解析
+        items_json = await page.evaluate('''() => {
+            const items = [];
+            const seen = new Set();
+            document.querySelectorAll('.oe_product_cart, [class*="oe_product"], form[action*="/shop/cart/update"]').forEach(c => {
+                const t = c.querySelector('h6 a, h5 a, [class*="product-title"] a');
+                if (!t) return;
+                const href = t.getAttribute('href') || '';
+                if (seen.has(href)) return;
+                seen.add(href);
+                const title = t.textContent.trim();
+                const br = (c.querySelector('h3') || {}).textContent || '';
+                const txt = c.textContent || "";
+                const pm = txt.match(/CHF\\s*([\\d.,]+)/);
+                const price = pm ? pm[1] : '';
+                const img = c.querySelector('img');
+                const notOk = /(?:NOT AVAILABLE|OUT OF STOCK)/i;
+                const inStock = !notOk.test(txt);
+                const sk = txt.match(/\\[(\\d+)\\]/);
+                items.push({
+                    title, brand: br.trim(), price,
+                    url: href,
+                    image_url: img ? img.getAttribute('src') || '' : '',
+                    in_stock: inStock,
+                    sku: sk ? sk[1] : ''
+                });
+            });
+            return JSON.stringify(items);
+        }''')
+
+        data = json.loads(items_json)
+        return [x for x in (self._parse(p) for p in data) if x]
 
     def _parse(self, raw):
         t, p, u = raw.get('title',''), raw.get('price',''), raw.get('url','')
@@ -118,12 +120,10 @@ class LCDHDLScraper(BaseScraper):
             price = float(p.replace(',',''))
         except (ValueError, AttributeError):
             return None
-        # 清洗品名：剥掉变体后缀方便匹配
         clean_t = t
         clean_t = re.sub(r'\s*-\s*(Single|Pack\s+Of\s+\d+|Box\s+Of\s+\d+)\s*Cigars?', '', clean_t, flags=re.IGNORECASE)
         clean_t = re.sub(r'\s+Aged\s+\d{4}', '', clean_t, flags=re.IGNORECASE)
         clean_t = re.sub(r'\s+A\.T\.?$', '', clean_t, flags=re.IGNORECASE)
-        # 修正常见拼写差异
         clean_t = re.sub(r'\bEspecial\s+No\.', 'Especiales No.', clean_t)
         clean_t = clean_t.strip()
         
@@ -139,7 +139,6 @@ class LCDHDLScraper(BaseScraper):
         if fi and not fi.startswith('http'):
             fi = BASE_URL + fi
         
-        # 检测 Aged 老款
         aged_match = re.search(r'Aged\s+(\d{4})', t, re.IGNORECASE)
         
         return ScrapedItem(

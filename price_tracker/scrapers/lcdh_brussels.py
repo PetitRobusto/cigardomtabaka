@@ -81,7 +81,7 @@ class LcdhBrusselsScraper(BaseScraper):
         all_items = []
         
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.connect_over_cdp('http://127.0.0.1:9222')
             page = await browser.new_page()
             
             # 先过年龄验证
@@ -120,7 +120,7 @@ class LcdhBrusselsScraper(BaseScraper):
                     if item:
                         all_items.append(item)
             
-            await browser.close()
+            await page.close()
         
         logger.info(f'LCDH Brussels total: {len(all_items)} unique products')
         return all_items

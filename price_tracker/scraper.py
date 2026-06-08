@@ -307,6 +307,8 @@ def run_scrape_sync(source_slug: str) -> dict:
                 box_price=item.box_price,
                 url=item.url,
                 in_stock=item.in_stock,
+                scraped_date=timezone.now().date(),
+                scraped_at=timezone.now(),
                 raw_data=raw_data,
             )
             created += 1

@@ -94,6 +94,8 @@ def detect_delistings(source, scraped_combos):
             box_price=last_active.box_price,
             in_stock=False,
             url=last_active.url,
+            scraped_date=today,
+            scraped_at=timezone.now(),
             raw_data={
                 'delisted': True,
                 'delisted_at': timezone.now().isoformat(),

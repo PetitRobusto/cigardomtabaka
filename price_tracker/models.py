@@ -1,6 +1,7 @@
 """价格跟踪系统 — 数据模型"""
 from django.db import models
 from django.db.models import Index
+from django.utils import timezone
 
 
 class PriceSource(models.Model):
@@ -64,7 +65,7 @@ class PriceSnapshot(models.Model):
     in_stock = models.BooleanField('有货', default=True)
     raw_data = models.JSONField('原始数据', default=dict, blank=True)
     scraped_at = models.DateTimeField('抓取时间', auto_now_add=True)
-    scraped_date = models.DateField('抓取日期', auto_now_add=True)
+    scraped_date = models.DateField('抓取日期', default=timezone.now)
     is_anomalous = models.BooleanField('价格异常', default=False,
         help_text='IQR异常检测标记：价格超出同组(cigar_id,box_size)的Q1-3*IQR~Q3+3*IQR范围')
 

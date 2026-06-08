@@ -4,7 +4,7 @@ from .models import (
     Cigar, CigarImage, Customer, User, Brand,
     PurchaseOrder, PurchaseOrderItem, PurchaseBatch,
     SalesOrder, SalesOrderItem,
-    AdjustmentRecord,
+    AdjustmentRecord, CigarPrice,
 )
 
 
@@ -109,3 +109,16 @@ class BrandAdmin(admin.ModelAdmin):
         return '—'
     logo_preview.allow_tags = True
     logo_preview.short_description = '预览'
+
+
+@admin.register(CigarPrice)
+class CigarPriceAdmin(admin.ModelAdmin):
+    list_display = ['cigar', 'box_size', 'wholesale_price', 'retail_price', 'per_stick_price_display', 'sort_order', 'is_active', 'updated_at']
+    list_editable = ['wholesale_price', 'retail_price', 'sort_order', 'is_active']
+    list_filter = ['is_active', 'cigar__brand']
+    search_fields = ['cigar__brand', 'cigar__name', 'cigar__english_name']
+    autocomplete_fields = ['cigar']
+
+    def per_stick_price_display(self, obj):
+        return f'¥{obj.per_stick_price}'
+    per_stick_price_display.short_description = '折算单价/支'

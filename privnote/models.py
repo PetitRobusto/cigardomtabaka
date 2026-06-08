@@ -11,6 +11,7 @@ class Privnote(models.Model):
         INVENTORY = 'inventory', '库存展示'
         PAYMENT   = 'payment',   '收款'
         MESSAGE   = 'message',   '消息'
+        QUOTE     = 'quote',     '批发报价'
 
     token = models.CharField(max_length=12, unique=True, db_index=True)
     note_type = models.CharField('类型', max_length=10, choices=NoteType.choices, default='inventory')

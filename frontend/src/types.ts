@@ -416,3 +416,33 @@ export interface InventoryViewData {
   total_loose: number;
   empty: boolean;
 }
+
+// =================== QUOTE TYPES ===================
+
+export interface QuoteProduct {
+  cigar_id: number;
+  brand: string;
+  brand_cn: string;
+  name: string;
+  english_name: string;
+  vitola: string;
+  box_size: number;
+  wholesale_price: number;
+  per_stick_price: number;
+  thumb_url: string | null;
+  in_stock: boolean;
+}
+
+export interface QuoteBrandGroup {
+  brand: string;
+  brand_cn: string;
+  logo_url: string | null;
+  items: QuoteProduct[];
+}
+
+export interface QuoteData {
+  mode: 'quote';
+  brand_groups: QuoteBrandGroup[];
+  total_items: number;
+  shipping_included: boolean;
+}

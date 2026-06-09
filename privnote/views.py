@@ -271,7 +271,17 @@ def _build_payment_data(sales_order):
 
 def _build_quote_data(quote_mode='full', selected_ids=None, shipping_included=False, customer_name=None, custom_prices=None, shipping_fee_per_stick=None):
     """从 CigarPrice 构建报价单结构化数据"""
-    qs = CigarPrice.objects.filter(is_active=True).select_related('cigar')
+    in_stock_cigar_ids = set(
+        PurchaseBatch.objects.filter(remaining__gt=0)
+        .values_list('cigar_id', flat=True)
+        .distinct()
+    )
+
+    qs = CigarPrice.objects.filter(
+        is_active=True
+    ).filter(
+        models.Q(can_preorder=True) | models.Q(cigar_id__in=in_stock_cigar_ids)
+    ).select_related('cigar')
 
     if quote_mode == 'custom' and selected_ids:
         qs = qs.filter(cigar_id__in=selected_ids)
@@ -325,6 +335,7 @@ def _build_quote_data(quote_mode='full', selected_ids=None, shipping_included=Fa
             'per_stick_price': per_stick_price,
             'thumb_url': thumb_url,
             'in_stock': in_stock,
+            'can_preorder': cp.can_preorder,
         }
 
         if brand not in brand_groups:
@@ -745,11 +756,22 @@ def search_cigars(request):
 # ═══════════════ QUOTE PRODUCTS API ═══════════════
 
 def list_quote_products(request):
-    """GET /privnote/api/quote-products/ — 返回全部有批发价的雪茄"""
+    """GET /privnote/api/quote-products/ — 返回可预购或有现货的雪茄"""
     if not _is_staff(request):
         return HttpResponseForbidden("仅限工作人员访问")
 
-    qs = CigarPrice.objects.filter(is_active=True).select_related('cigar')
+    in_stock_cigar_ids = set(
+        PurchaseBatch.objects.filter(remaining__gt=0)
+        .values_list('cigar_id', flat=True)
+        .distinct()
+    )
+
+    qs = CigarPrice.objects.filter(
+        is_active=True
+    ).filter(
+        models.Q(can_preorder=True) | models.Q(cigar_id__in=in_stock_cigar_ids)
+    ).select_related('cigar')
+
     products = []
 
     # 批量查询品牌信息，避免 N+1
@@ -757,16 +779,9 @@ def list_quote_products(request):
     for b in Brand.objects.all():
         brand_map[b.english_name] = b.name or b.english_name
 
-    # 批量查询库存状态
-    in_stock_ids = set(
-        PurchaseBatch.objects.filter(remaining__gt=0)
-        .values_list('cigar_id', flat=True)
-        .distinct()
-    )
-
     for cp in qs:
         cigar = cp.cigar
-        in_stock = cigar.id in in_stock_ids
+        in_stock = cigar.id in in_stock_cigar_ids
 
         thumb_url = ''
         primary = cigar.primary_image
@@ -785,6 +800,7 @@ def list_quote_products(request):
             'per_stick_price': cp.per_stick_price,
             'thumb_url': thumb_url,
             'in_stock': in_stock,
+            'can_preorder': cp.can_preorder,
         })
 
     return JsonResponse({'products': products})

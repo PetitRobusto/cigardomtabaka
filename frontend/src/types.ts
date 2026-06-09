@@ -446,6 +446,7 @@ export interface QuoteProduct {
   per_stick_price: number;
   thumb_url: string | null;
   in_stock: boolean;
+  can_preorder: boolean;
 }
 
 export interface QuoteBrandGroup {

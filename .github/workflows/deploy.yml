@@ -23,6 +23,9 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          timeout: 60s
+          command_timeout: 10m
+          retry: 3
           script: |
             set -e
             cd /opt/cigardomtabaka

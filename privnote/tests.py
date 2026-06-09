@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.contrib.auth.hashers import check_password
 
 from privnote.models import Privnote, PaymentMethod
-from cigars.models import User, Brand, Cigar, SalesOrder, SalesOrderItem, PurchaseBatch, PurchaseOrder, PurchaseOrderItem
+from cigars.models import User, Brand, Cigar, SalesOrder, SalesOrderItem, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, CigarPrice
 
 
 # ═══════════════════════════════════════════════════
@@ -856,3 +856,138 @@ class RealTimeRenderingTestCase(TestCase):
         resp = self.client.get(f'/api/privnote/{self.token}/')
         self.assertEqual(resp.json()['data']['total'], 4000)
         self.assertEqual(resp.json()['data']['items'][0]['quantity'], 10)
+
+
+# ═══════════════════════════════════════════════════
+# QUOTE 自定义价格测试 — 修复 int("1:10") ValueError
+# ═══════════════════════════════════════════════════
+
+class QuoteCustomPricesTestCase(TestCase):
+    """报价单自定义价格：cigar_id:box_size 作为 key"""
+
+    def setUp(self):
+        self.client = Client()
+        self.staff, self.staff_pass = _create_staff_user()
+        self.client.login(username=self.staff.username, password=self.staff_pass)
+
+        # 创建一款雪茄，两个包装规格
+        brand = Brand.objects.create(english_name='TestBrand', name='测试品牌')
+        self.cigar = Cigar.objects.create(
+            brand=brand.english_name, english_name='Test Cigar',
+            name='测试雪茄', vitola='Robusto'
+        )
+        # 10支/盒 批发价 1000
+        self.cp10 = CigarPrice.objects.create(
+            cigar=self.cigar, box_size=10, wholesale_price=1000, is_active=True
+        )
+        # 25支/盒 批发价 2500
+        self.cp25 = CigarPrice.objects.create(
+            cigar=self.cigar, box_size=25, wholesale_price=2500, is_active=True
+        )
+
+    def test_create_quote_with_custom_prices_string_keys(self):
+        """custom_prices key 为 'cigar_id:box_size' 字符串时不应 500"""
+        custom_prices = {
+            f"{self.cigar.id}:10": 1500,   # 10支装改 1500
+            f"{self.cigar.id}:25": 3000,   # 25支装改 3000
+        }
+        resp = self.client.post('/privnote/create/', {
+            'note_type': 'quote',
+            'duration': 24,
+            'quote_mode': 'custom',
+            'selected_ids': json.dumps([self.cigar.id]),
+            'custom_prices': json.dumps(custom_prices),
+            'shipping_included': 'false',
+        })
+        self.assertEqual(resp.status_code, 200, f"Expected 200, got {resp.status_code}: {resp.content}")
+        data = resp.json()
+        self.assertIn('url', data)
+        self.assertIn('token', data)
+
+    def test_custom_price_per_box_size_independent(self):
+        """同一款式不同包装，自定义价格互不影响"""
+        custom_prices = {
+            f"{self.cigar.id}:10": 1200,   # 只改 10支装
+        }
+        resp = self.client.post('/privnote/create/', {
+            'note_type': 'quote',
+            'duration': 24,
+            'quote_mode': 'custom',
+            'selected_ids': json.dumps([self.cigar.id]),
+            'custom_prices': json.dumps(custom_prices),
+            'shipping_included': 'false',
+        })
+        self.assertEqual(resp.status_code, 200)
+        token = resp.json()['token']
+
+        # 查看渲染结果
+        view_resp = self.client.get(f'/api/privnote/{token}/')
+        self.assertEqual(view_resp.status_code, 200)
+        quote_data = view_resp.json()['data']
+
+        items = []
+        for g in quote_data['brand_groups']:
+            items.extend(g['items'])
+
+        # 找到两个包装
+        item10 = next(i for i in items if i['box_size'] == 10)
+        item25 = next(i for i in items if i['box_size'] == 25)
+
+        self.assertEqual(item10['wholesale_price'], 1200, "10支装应被自定义为1200")
+        self.assertEqual(item25['wholesale_price'], 2500, "25支装应保持原价2500")
+
+    def test_custom_price_applies_correctly(self):
+        """自定义价格正确覆盖并计算单价"""
+        custom_prices = {
+            f"{self.cigar.id}:10": 1500,   # 10支装改 1500 → 单价 150
+        }
+        resp = self.client.post('/privnote/create/', {
+            'note_type': 'quote',
+            'duration': 24,
+            'quote_mode': 'custom',
+            'selected_ids': json.dumps([self.cigar.id]),
+            'custom_prices': json.dumps(custom_prices),
+            'shipping_included': 'false',
+        })
+        self.assertEqual(resp.status_code, 200)
+        token = resp.json()['token']
+
+        view_resp = self.client.get(f'/api/privnote/{token}/')
+        quote_data = view_resp.json()['data']
+
+        items = []
+        for g in quote_data['brand_groups']:
+            items.extend(g['items'])
+
+        item10 = next(i for i in items if i['box_size'] == 10)
+        self.assertEqual(item10['wholesale_price'], 1500)
+        self.assertEqual(item10['per_stick_price'], 150)  # 1500 / 10 = 150
+
+    def test_custom_price_with_shipping_fee(self):
+        """自定义价格 + 运费正确叠加"""
+        custom_prices = {
+            f"{self.cigar.id}:10": 1000,
+        }
+        resp = self.client.post('/privnote/create/', {
+            'note_type': 'quote',
+            'duration': 24,
+            'quote_mode': 'custom',
+            'selected_ids': json.dumps([self.cigar.id]),
+            'custom_prices': json.dumps(custom_prices),
+            'shipping_included': 'true',
+        })
+        self.assertEqual(resp.status_code, 200)
+        token = resp.json()['token']
+
+        view_resp = self.client.get(f'/api/privnote/{token}/')
+        quote_data = view_resp.json()['data']
+
+        items = []
+        for g in quote_data['brand_groups']:
+            items.extend(g['items'])
+
+        item10 = next(i for i in items if i['box_size'] == 10)
+        # 批发价 1000 + 运费 20*10 = 1200
+        self.assertEqual(item10['wholesale_price'], 1200)
+        # 单价 100 + 20 = 120
+        self.assertEqual(item10['per_stick_price'], 120)

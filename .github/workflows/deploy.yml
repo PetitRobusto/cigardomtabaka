@@ -35,9 +35,6 @@ jobs:
             source venv/bin/activate
             pip install -r requirements.txt
 
-            echo "=== collectstatic ==="
-            python manage.py collectstatic --noinput
-
             echo "=== cleanup orphan FK ==="
             sqlite3 cigars.db "DELETE FROM cigars_cigarimage WHERE cigar_id NOT IN (SELECT id FROM cigars_cigar);"
 
@@ -49,6 +46,9 @@ jobs:
             npm ci
             npm run build
             cd ..
+
+            echo "=== collectstatic ==="
+            python manage.py collectstatic --noinput
 
             echo "=== restart gunicorn ==="
             sudo systemctl restart gunicorn

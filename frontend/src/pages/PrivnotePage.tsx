@@ -195,8 +195,8 @@ export default function PrivnotePage() {
   // Default select all when switching to custom mode
   useEffect(() => {
     if (quoteMode === 'custom' && quoteProducts && quoteProducts.length > 0) {
-      const allIds = [...new Set(quoteProducts.map(p => p.cigar_id))];
-      setSelectedIds(allIds);
+      const preorderIds = [...new Set(quoteProducts.filter(p => p.can_preorder).map(p => p.cigar_id))];
+      setSelectedIds(preorderIds);
     }
   }, [quoteMode, quoteProducts]);
 
@@ -633,13 +633,13 @@ export default function PrivnotePage() {
                         {quoteProducts && quoteProducts.length > 0 && (
                           <div className="border border-border rounded-sm bg-white max-h-[480px] overflow-y-auto">
                             {(() => {
-                              const filtered = quoteSearchQ.trim()
+                              const filtered = (quoteSearchQ.trim()
                                 ? quoteProducts.filter(p =>
                                     p.brand.toLowerCase().includes(quoteSearchQ.toLowerCase()) ||
                                     p.name.toLowerCase().includes(quoteSearchQ.toLowerCase()) ||
                                     p.english_name.toLowerCase().includes(quoteSearchQ.toLowerCase())
                                   )
-                                : quoteProducts;
+                                : quoteProducts).filter(p => p.can_preorder || p.in_stock);
                               const byBrand: Record<string, QuoteProduct[]> = {};
                               filtered.forEach(p => {
                                 if (!byBrand[p.brand]) byBrand[p.brand] = [];
@@ -703,8 +703,8 @@ export default function PrivnotePage() {
                             <button
                               type="button"
                               onClick={() => {
-                                const allIds = [...new Set((quoteProducts || []).map(p => p.cigar_id))];
-                                setSelectedIds(allIds);
+                                const preorderIds = [...new Set((quoteProducts || []).filter(p => p.can_preorder).map(p => p.cigar_id))];
+                                setSelectedIds(preorderIds);
                               }}
                               className="text-xs text-accent hover:underline"
                             >

@@ -113,9 +113,9 @@ class BrandAdmin(admin.ModelAdmin):
 
 @admin.register(CigarPrice)
 class CigarPriceAdmin(admin.ModelAdmin):
-    list_display = ['cigar', 'box_size', 'wholesale_price', 'retail_price', 'per_stick_price_display', 'sort_order', 'is_active', 'updated_at']
-    list_editable = ['wholesale_price', 'retail_price', 'sort_order', 'is_active']
-    list_filter = ['is_active', 'cigar__brand']
+    list_display = ['cigar', 'box_size', 'wholesale_price', 'retail_price', 'can_preorder', 'per_stick_price_display', 'sort_order', 'is_active', 'updated_at']
+    list_editable = ['wholesale_price', 'retail_price', 'can_preorder', 'sort_order', 'is_active']
+    list_filter = ['is_active', 'can_preorder', 'cigar__brand']
     search_fields = ['cigar__brand', 'cigar__name', 'cigar__english_name']
     autocomplete_fields = ['cigar']
 

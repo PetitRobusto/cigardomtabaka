@@ -454,6 +454,7 @@ class CigarPrice(models.Model):
     retail_price = models.IntegerField('零售价/盒(CNY)', null=True, blank=True)
     sort_order = models.IntegerField('排序', default=0)
     is_active = models.BooleanField('启用', default=True)
+    can_preorder = models.BooleanField('可预购', default=False)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     updated_at = models.DateTimeField('更新时间', auto_now=True)
 

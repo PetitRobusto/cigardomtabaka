@@ -529,9 +529,9 @@ def create(request):
         except json.JSONDecodeError:
             custom_prices = {}
 
-        # 过滤非法值：只保留正整数
+        # 过滤非法值：只保留正整数（key 为 cigar_id:box_size 字符串）
         custom_prices = {
-            int(k): int(v) for k, v in custom_prices.items()
+            k: int(v) for k, v in custom_prices.items()
             if isinstance(v, (int, float, str)) and int(v) > 0
         }
 

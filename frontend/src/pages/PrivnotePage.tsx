@@ -183,7 +183,7 @@ export default function PrivnotePage() {
   const [shippingIncluded, setShippingIncluded] = useState(false);
   const [quoteSearchQ, setQuoteSearchQ] = useState('');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [customPrices, setCustomPrices] = useState<Record<number, number>>({});
+  const [customPrices, setCustomPrices] = useState<Record<string, number>>({});
   const [quoteCustomerName, setQuoteCustomerName] = useState('');
 
   const { data: quoteProducts } = useQuery({
@@ -675,17 +675,17 @@ export default function PrivnotePage() {
                                         <input
                                           type="number"
                                           min={1}
-                                          value={customPrices[p.cigar_id] ?? p.wholesale_price}
+                                          value={customPrices[`${p.cigar_id}:${p.box_size}`] ?? p.wholesale_price}
                                           onChange={e => {
                                             const val = parseInt(e.target.value) || p.wholesale_price;
-                                            setCustomPrices(prev => ({ ...prev, [p.cigar_id]: val }));
+                                            setCustomPrices(prev => ({ ...prev, [`${p.cigar_id}:${p.box_size}`]: val }));
                                           }}
                                           onClick={e => e.stopPropagation()}
                                           className="w-20 px-2 py-1 border border-border rounded-sm text-sm text-right focus:outline-none focus:border-accent"
                                           title="自定义批发价"
                                         />
                                         <div className="text-right shrink-0 w-24">
-                                          <div className="text-sm font-mono font-semibold text-accent">¥{(customPrices[p.cigar_id] ?? p.wholesale_price).toLocaleString()}</div>
+                                          <div className="text-sm font-mono font-semibold text-accent">¥{(customPrices[`${p.cigar_id}:${p.box_size}`] ?? p.wholesale_price).toLocaleString()}</div>
                                           <div className="text-xs text-muted">{p.box_size}支/盒</div>
                                         </div>
                                       </div>

@@ -2,8 +2,10 @@
 """将本地价格数据推送到生产服务器 API
 
 用法:
-  python3 tools/push_prices.py --all          # 全量推送所有活跃 source
-  python3 tools/push_prices.py -s coh_china   # 推送指定 source
+  python3 tools/push_prices.py                 # 全量推送所有活跃 source
+  python3 tools/push_prices.py -s coh_china    # 推送指定 source
+  python3 tools/push_prices.py -a              # 同上（全量）
+  python3 tools/push_prices.py -a --after-scrape  # 只推爬取成功的源
 """
 import os
 import sys
@@ -27,6 +29,7 @@ from django.db.models import Max
 
 API_URL = "https://cigardomtabaka.com/api/prices/push-bulk/"
 API_KEY = os.environ.get('PRICE_PUSH_API_KEY', '')
+STATUS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.scrape_status.json')
 
 
 def push_source(source_slug: str) -> dict:
@@ -47,9 +50,6 @@ def push_source(source_slug: str) -> dict:
 
     items = []
     for snap in snapshots.iterator():
-        # 用 raw_data 里的原始标题（含 GR/EL/RE 等关键词），
-        # 确保生产端匹配器能正确区分特别款。
-        # Fallback: cigar.english_name（无 raw_data 时兜底）
         name_for_push = (
             snap.raw_data.get('title_original')
             or snap.raw_data.get('product_name')
@@ -80,7 +80,7 @@ def push_source(source_slug: str) -> dict:
         json={'source_slug': source_slug, 'items': items},
         headers={'X-API-Key': API_KEY, 'Content-Type': 'application/json'},
         timeout=120,
-        proxies={'http': None, 'https': None},  # 不走代理 — 直连生产服
+        proxies={'http': None, 'https': None},
     )
     resp.raise_for_status()
     result = resp.json()
@@ -90,11 +90,14 @@ def push_source(source_slug: str) -> dict:
     return result
 
 
-def push_all() -> dict:
-    """推送所有活跃 source 的全量数据（跳过空壳）"""
+def push_all(skip_slugs: set = None) -> dict:
+    """推送所有活跃 source，跳过 skip_slugs 中的源"""
     results = {}
-    skip_slugs = {'egm', 'ihavanas'}
-    for source in PriceSource.objects.filter(active=True).exclude(slug__in=skip_slugs):
+    base_skip = {'egm', 'ihavanas'}
+    if skip_slugs:
+        base_skip |= skip_slugs
+
+    for source in PriceSource.objects.filter(active=True).exclude(slug__in=base_skip):
         try:
             results[source.slug] = push_source(source.slug)
         except Exception as e:
@@ -107,19 +110,40 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Push price data to production')
     parser.add_argument('--source', '-s', help='Source slug (omit for all)')
     parser.add_argument('--all', '-a', action='store_true', help='Push all active sources')
+    parser.add_argument('--after-scrape', action='store_true',
+                        help='Only push sources that just scraped successfully (reads .scrape_status.json)')
     args = parser.parse_args()
 
     if not API_KEY:
         print('ERROR: PRICE_PUSH_API_KEY environment variable not set')
         sys.exit(1)
 
+    # 读取 scrape 状态，过滤失败源
+    skip_slugs = set()
+    if args.after_scrape:
+        try:
+            with open(STATUS_FILE) as f:
+                status = json.load(f)
+            skip_slugs = {slug for slug, s in status.items() if not s.get('success')}
+            if skip_slugs:
+                print(f'Skip failed sources: {", ".join(sorted(skip_slugs))}')
+            ok_slugs = {slug for slug, s in status.items() if s.get('success')}
+            print(f'OK sources: {len(ok_slugs)}')
+        except FileNotFoundError:
+            print('WARNING: .scrape_status.json not found, pushing all')
+        except Exception as e:
+            print(f'WARNING: failed to read status file: {e}, pushing all')
+
     if args.source:
+        if args.source in skip_slugs:
+            print(f'ERROR: {args.source} scrape failed, skipping push')
+            sys.exit(1)
         result = push_source(args.source)
         if 'error' in result:
             print(f'ERROR: {result["error"]}')
             sys.exit(1)
     elif args.all or (not args.source and not args.all):
-        results = push_all()
+        results = push_all(skip_slugs=skip_slugs)
         errors = sum(1 for r in results.values() if 'error' in r)
         total_created = sum(r.get('created', 0) for r in results.values())
         print(f'\n=== DONE: {len(results)} sources, {total_created} new, {errors} errors ===')

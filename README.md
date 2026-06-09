@@ -68,34 +68,3 @@ python manage.py runserver
 | `/cigar/<id>/` | 雪茄详情 |
 | `/api/prices/` | 价格 API |
 | `/privnote/` | 阅后即焚 |
-
-## 开发规范
-
-### 修 Bug / 改功能的标准流程（禁止先 push 后测试）
-
-```
-1. 本地复现问题 → 2. 写测试（先失败） → 3. 修复代码 → 4. 跑测试通过 → 5. git commit → 6. git push
-```
-
-违反顺序会导致：代码已经部署到生产，但测试还没跑，出问题无法回滚。
-
-### 运行测试
-
-```bash
-# 后端测试
-DJANGO_SETTINGS_MODULE=cigardomtabaka_backend.settings \
-DJANGO_DEBUG=True DJANGO_SECRET_KEY=test-key \
-python3 -m pytest privnote/tests.py -v --tb=short
-
-# 全部测试
-DJANGO_SETTINGS_MODULE=cigardomtabaka_backend.settings \
-DJANGO_DEBUG=True DJANGO_SECRET_KEY=test-key \
-python3 -m pytest --tb=short -p no:warnings --no-header -q
-```
-
-### 提交前检查清单
-
-- [ ] 测试通过：`pytest`
-- [ ] 前端构建成功：`cd frontend && npm run build`
-- [ ] `collectstatic` 在 `npm run build` **之后**（`deploy.yml` 已配置）
-- [ ] 没有暴露服务器 IP / 密钥等敏感信息

@@ -24,6 +24,7 @@ brainstorming → writing-plans → [实现阶段技能] → verification-before
 
 ## 禁忌
 
+- **绝不先 push 后测试** — 修 bug/改功能必须：本地复现 → 写测试（先失败）→ 修复代码 → 跑测试通过 → git commit → git push
 - 绝不擅自改用户密码调试登录
 - 绝不 git stash 用户未提交的改动（必须先 commit 再切分支）
 - 不使用运行时 slugify 处理品牌重音字符（Partagás/Bolívar/Ramón Allones），必须用硬编码映射表 BRAND_LOGO_LOCAL

@@ -54,10 +54,16 @@ class LCDHNyonScraper(BaseScraper):
     async def scrape_catalog(self) -> list[ScrapedItem]:
         from playwright.async_api import async_playwright
         from playwright_stealth import Stealth
+        from asgiref.sync import sync_to_async
         
         all_items = []
         brand_list = list(BRAND_CATEGORIES.items())
         batch_size = 10
+        
+        # Prefetch exchange rates safely via sync_to_async
+        from price_tracker.models import ExchangeRate
+        self._eur_rate = await sync_to_async(ExchangeRate.get_rate)("EUR")
+        self._chf_rate = await sync_to_async(ExchangeRate.get_rate)("CHF")
         
         async with async_playwright() as p:  # 单次启动 driver
             for batch_start in range(0, len(brand_list), batch_size):
@@ -219,13 +225,10 @@ class LCDHNyonScraper(BaseScraper):
         if m_price:
             raw_price = float(m_price.group().replace(',', ''))
             if detected_currency == 'EUR':
-                from price_tracker.models import ExchangeRate
-                eur_rate = ExchangeRate.get_rate('EUR')
-                chf_rate = ExchangeRate.get_rate('CHF')
-                if eur_rate and chf_rate:
-                    price_chf = round(raw_price * eur_rate / chf_rate, 2)
-                else:
+                if not hasattr(self, '_eur_rate') or not self._eur_rate or not self._chf_rate:
                     price_chf = round(raw_price * 1.10, 2)
+                else:
+                    price_chf = round(raw_price * self._eur_rate / self._chf_rate, 2)
             else:
                 price_chf = raw_price
         

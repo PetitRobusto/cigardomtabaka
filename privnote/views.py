@@ -297,9 +297,10 @@ def _build_quote_data(quote_mode='full', selected_ids=None, shipping_included=Fa
         # 应用自定义价格覆盖
         wholesale_price = cp.wholesale_price
         per_stick_price = cp.per_stick_price
-        if cigar.id in custom_prices:
+        price_key = f"{cigar.id}:{cp.box_size}"
+        if price_key in custom_prices:
             try:
-                custom_price = int(custom_prices[cigar.id])
+                custom_price = int(custom_prices[price_key])
                 if custom_price > 0:
                     wholesale_price = custom_price
                     per_stick_price = round(custom_price / cp.box_size) if cp.box_size else cp.per_stick_price

@@ -509,28 +509,28 @@ function QuoteView({ data, createdAt, expiresAt, onZoom }: { data: QuoteData; cr
                   {group.items.map(item => (
                     <tr key={`${item.cigar_id}-${item.box_size}`} className="border-b border-border hover:bg-accent-light/30">
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{item.english_name}</span>
+                            {item.in_stock && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-accent bg-accent-light px-2 py-0.5 rounded-full">
+                                <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                现货
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted font-display italic">{item.vitola}</div>
                           <div
                             className="rounded-sm bg-accent-light inline-block shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
                             onClick={() => item.thumb_url && onZoom?.(item.thumb_url)}
                           >
                             {item.thumb_url ? (
-                              <img src={item.thumb_url} alt={item.name} className="!h-8 !inline-block w-auto object-contain p-0.5" />
+                              <img src={item.thumb_url} alt={item.name} className="h-12 inline-block w-auto object-contain p-1" />
                             ) : (
-                              <Cigarette className="w-4 h-4 text-border m-1.5" />
+                              <div className="h-12 flex items-center px-3">
+                                <Cigarette className="w-5 h-5 text-border" />
+                              </div>
                             )}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{item.english_name}</span>
-                              {item.in_stock && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-accent bg-accent-light px-2 py-0.5 rounded-full">
-                                  <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                                  现货
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-xs text-muted font-display italic mt-0.5">{item.vitola}</div>
                           </div>
                         </div>
                       </td>

@@ -306,6 +306,12 @@ def _build_quote_data(quote_mode='full', selected_ids=None, shipping_included=Fa
             except (ValueError, TypeError):
                 pass
 
+        # 应用运费（含运费模式下，每支加运费，整盒再加整盒运费）
+        if shipping_included and shipping_fee_per_stick > 0:
+            box_size = cp.box_size or 1
+            wholesale_price = round(wholesale_price + shipping_fee_per_stick * box_size)
+            per_stick_price = round(per_stick_price + shipping_fee_per_stick)
+
         item = {
             'cigar_id': cigar.id,
             'brand': brand,

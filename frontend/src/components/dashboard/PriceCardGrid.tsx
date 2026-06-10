@@ -4,7 +4,7 @@ import type { CigarListItem } from '../../types';
 
 interface PriceCardGridProps {
   cigars: CigarListItem[];
-  onCardClick: (cigarId: number) => void;
+  onCardClick: (cigar: CigarListItem) => void;
 }
 
 export function PriceCardGrid({ cigars, onCardClick }: PriceCardGridProps) {
@@ -19,7 +19,7 @@ export function PriceCardGrid({ cigars, onCardClick }: PriceCardGridProps) {
             key={cigar.cigar_id}
             cigar={cigar}
             index={i}
-            onClick={() => onCardClick(cigar.cigar_id)}
+            onClick={() => onCardClick(cigar)}
           />
         ))}
       </AnimatePresence>

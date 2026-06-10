@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { usePageMeta } from '../hooks/usePageMeta';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Plus, Trash2, Power, PowerOff, AlertTriangle, TrendingDown, TrendingUp, Activity } from 'lucide-react';
 import { fetchAlerts, createAlert, updateAlert, deleteAlert, fetchSources } from '../api';
@@ -28,6 +29,19 @@ const CONDITION_OPTIONS = [
 ];
 
 export default function Alerts() {
+  const { setMeta } = usePageMeta();
+
+  useEffect(() => {
+    setMeta({
+      title: '价格提醒',
+      breadcrumbs: [
+        { label: '首页', to: '/' },
+        { label: '价格追踪', to: '/prices' },
+        { label: '价格提醒' },
+      ],
+    });
+  }, [setMeta]);
+
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);

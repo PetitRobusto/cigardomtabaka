@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { usePriceHistory } from '../hooks/usePriceHistory';
 import { useUIStore } from '../store/uiStore';
 import { BackButton } from '../components/shared/BackButton';
@@ -10,12 +11,27 @@ import { LoadingState } from '../components/shared/LoadingState';
 import { EmptyState } from '../components/shared/EmptyState';
 import { ErrorState } from '../components/shared/ErrorState';
 import { PageTransition } from '../components/animations/PageTransition';
+import { usePageMeta } from '../hooks/usePageMeta';
 
 export default function CigarDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { daysFilter, setDaysFilter } = useUIStore();
   const { data, isLoading, error, refetch } = usePriceHistory(id, daysFilter);
+  const { setMeta } = usePageMeta();
+
+  useEffect(() => {
+    if (data) {
+      setMeta({
+        title: `${data.cigar_name} - 价格追踪`,
+        breadcrumbs: [
+          { label: '首页', to: '/' },
+          { label: '价格追踪', to: '/prices' },
+          { label: data.cigar_name },
+        ],
+      });
+    }
+  }, [data, setMeta]);
 
   if (isLoading) return <LoadingState text="加载雪茄详情…" />;
   if (error) return <ErrorState message="数据加载失败，请刷新重试" onRetry={() => refetch()} />;

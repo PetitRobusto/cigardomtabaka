@@ -1,15 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Package, Boxes, Hash, DollarSign } from 'lucide-react';
 import { fetchInventory } from '../api';
 import { LoadingState } from '../components/shared/LoadingState';
 import { ErrorState } from '../components/shared/ErrorState';
 import { EmptyState } from '../components/shared/EmptyState';
+import { usePageMeta } from '../hooks/usePageMeta';
 import type { InventoryItem } from '../types';
 
 export default function InventoryPage() {
   const [brandFilter, setBrandFilter] = useState('');
   const [search, setSearch] = useState('');
+  const { setMeta } = usePageMeta();
+
+  useEffect(() => {
+    setMeta({
+      title: '库存管理',
+      breadcrumbs: [
+        { label: '首页', to: '/' },
+        { label: '库存管理' },
+      ],
+    });
+  }, [setMeta]);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['inventory', brandFilter, search],

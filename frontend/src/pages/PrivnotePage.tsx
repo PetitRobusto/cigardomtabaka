@@ -10,6 +10,7 @@ import {
   fetchQuoteProducts, uploadPrivnoteImage
 } from '../api';
 import { useAuthStore } from '../store/authStore';
+import { usePageMeta } from '../hooks/usePageMeta';
 import type { SearchCigarResult, PaymentItem, CustomerResult, ExtraFee, QuoteProduct } from '../types';
 
 const DURATIONS = [
@@ -128,7 +129,18 @@ function FileUploadArea({
 
 export default function PrivnotePage() {
   const { user } = useAuthStore();
+  const { setMeta } = usePageMeta();
   const [activeTab, setActiveTab] = useState<TabKey>('quote');
+
+  useEffect(() => {
+    setMeta({
+      title: '创建链接',
+      breadcrumbs: [
+        { label: '首页', to: '/' },
+        { label: '创建链接' },
+      ],
+    });
+  }, [setMeta]);
 
   // Common config
   const [duration, setDuration] = useState('24');

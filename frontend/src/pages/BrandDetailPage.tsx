@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Cigarette } from 'lucide-react';
@@ -6,6 +6,8 @@ import { fetchBrandDetail } from '../api';
 import { LoadingState } from '../components/shared/LoadingState';
 import { ErrorState } from '../components/shared/ErrorState';
 import { EmptyState } from '../components/shared/EmptyState';
+import { usePageMeta } from '../hooks/usePageMeta';
+import { generateCigarSlugFromParts } from '../utils/slug';
 import type { CigarSummary } from '../types';
 
 const FILTER_OPTIONS = [
@@ -19,12 +21,25 @@ export default function BrandDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
+  const { setMeta } = usePageMeta();
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['brand', slug],
     queryFn: () => fetchBrandDetail(slug!),
     enabled: !!slug,
   });
+
+  useEffect(() => {
+    if (data?.brand) {
+      setMeta({
+        title: data.brand.name,
+        breadcrumbs: [
+          { label: '首页', to: '/' },
+          { label: data.brand.name },
+        ],
+      });
+    }
+  }, [data?.brand, setMeta]);
 
   if (isLoading) return <LoadingState text="加载品牌详情…" />;
   if (error) return <ErrorState message="数据加载失败" onRetry={() => refetch()} />;
@@ -77,13 +92,6 @@ export default function BrandDetailPage() {
 
   return (
     <div className="animate-fade-in">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-[13px] text-muted mb-6">
-        <Link to="/" className="hover:text-accent transition-colors">所有品牌</Link>
-        <span className="text-border">/</span>
-        <span className="text-fg font-medium">{brand.name}</span>
-      </div>
-
       {/* Brand Hero */}
       <div className="bg-white border border-border rounded p-6 sm:p-8 flex flex-col sm:flex-row gap-6 sm:gap-8 items-center sm:items-center mb-8">
         <div className="w-24 h-24 sm:w-[120px] sm:h-[120px] rounded bg-accent-3 flex items-center justify-center overflow-hidden shrink-0">
@@ -171,7 +179,7 @@ export default function BrandDetailPage() {
                     return (
                       <Link
                         key={cigar.id}
-                        to={`/cigar/${cigar.id}`}
+                        to={`/cigar/${cigar.id}/${generateCigarSlugFromParts(brand.name, cigar.english_name, cigar.release_type)}`}
                         className={`group bg-white border border-border rounded overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 border-l-[3px] ${borderLeft}`}
                       >
                         {/* Header */}

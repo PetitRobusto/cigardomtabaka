@@ -45,6 +45,13 @@ tools/
 
 # 本地计划/文档
 docs/
+.hermes/
+
+# 环境配置模板
+.env.example
+
+# 根目录 lock 文件（各子项目自有 lock）
+/package-lock.json
 
 # 业务文档
 *.xlsx

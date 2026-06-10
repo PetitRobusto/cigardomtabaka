@@ -17,11 +17,6 @@ class Privnote(models.Model):
     note_type = models.CharField('类型', max_length=10, choices=NoteType.choices, default='inventory')
     title = models.CharField('标题', max_length=200, default='Untitled')
 
-    brand = models.ForeignKey(
-        'cigars.Brand', on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='privnotes'
-    )
-
     html = models.TextField('预渲染HTML', blank=True)
     sales_order = models.ForeignKey(
         'cigars.SalesOrder', on_delete=models.SET_NULL,

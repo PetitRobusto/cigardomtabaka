@@ -43,6 +43,7 @@ master → git checkout -b feature/xxx → 开发 → commit → merge 回 maste
 ```
 
 ⚠️ 切分支前先 `git commit` 所有未提交改动，禁止 stash。
+⚠️ Commit message 全部使用中文。
 
 ---
 

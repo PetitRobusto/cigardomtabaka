@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Search } from 'lucide-react';
@@ -6,10 +6,20 @@ import { fetchBrandList } from '../api';
 import { LoadingState } from '../components/shared/LoadingState';
 import { ErrorState } from '../components/shared/ErrorState';
 import { EmptyState } from '../components/shared/EmptyState';
+import { usePageMeta } from '../hooks/usePageMeta';
 import type { BrandItem } from '../types';
 
 export default function BrandListPage() {
   const [search, setSearch] = useState('');
+  const { setMeta } = usePageMeta();
+
+  useEffect(() => {
+    setMeta({
+      title: '古巴雪茄目录',
+      breadcrumbs: [{ label: '首页' }],
+    });
+  }, [setMeta]);
+
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['brands'],
     queryFn: fetchBrandList,

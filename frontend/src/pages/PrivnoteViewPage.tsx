@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -8,7 +8,10 @@ import {
 } from 'lucide-react';
 import { fetchPrivnote, verifyPrivnotePassword } from '../api';
 import { LoadingState } from '../components/shared/LoadingState';
+import { usePageMeta } from '../hooks/usePageMeta';
 import type { InventoryViewData, PaymentData, MessageData, QuoteData } from '../types';
+
+const base = import.meta.env.BASE_URL;
 
 /* ── Contact Strip ── */
 function ContactStrip() {
@@ -36,22 +39,23 @@ function ContactStrip() {
 /* ── Store Header (for payment/inventory/quote) ── */
 function StoreHeader() {
   return (
-    <div className="bg-accent text-white px-5 py-5 rounded-sm mb-6">
-      <h2 className="text-lg font-bold tracking-wide mb-2">
+    <div className="bg-accent-light border border-accent/20 rounded-sm px-5 py-5 mb-6 text-center">
+      <img src={`${base}logo-120.png`} alt="CigarDomTabaka" className="w-[120px] h-[120px] mx-auto mb-3 object-contain" />
+      <h2 className="text-lg font-bold tracking-wide text-fg mb-2">
         莫斯科烟草之家<br />
-        <span className="font-normal text-sm opacity-90">Москва Сигар дом табака</span>
+        <span className="font-normal text-sm text-muted">Москва Сигар дом табака</span>
       </h2>
-      <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs opacity-90">
+      <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted justify-center">
         <span className="flex items-center gap-1">
-          <MapPin className="w-3.5 h-3.5" />
+          <MapPin className="w-3.5 h-3.5 text-accent" />
           Москва, Молодёжная ул. 3
         </span>
         <span className="flex items-center gap-1">
-          <Phone className="w-3.5 h-3.5" />
+          <Phone className="w-3.5 h-3.5 text-accent" />
           +7 929 638-48-78
         </span>
         <span className="flex items-center gap-1">
-          <MessageCircle className="w-3.5 h-3.5" />
+          <MessageCircle className="w-3.5 h-3.5 text-accent" />
           WeChat: cigardomtabaka
         </span>
       </div>
@@ -65,6 +69,7 @@ export default function PrivnoteViewPage() {
   const [passwordError, setPasswordError] = useState('');
   const [verifiedData, setVerifiedData] = useState<any>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const { setMeta } = usePageMeta();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['privnote', token],
@@ -87,6 +92,19 @@ export default function PrivnoteViewPage() {
       setPasswordError('验证失败');
     }
   };
+
+  useEffect(() => {
+    const displayData = verifiedData || data;
+    if (displayData?.title) {
+      setMeta({
+        title: displayData.title,
+        breadcrumbs: [
+          { label: '首页', to: '/' },
+          { label: displayData.title },
+        ],
+      });
+    }
+  }, [data, verifiedData, setMeta]);
 
   if (isLoading) return <LoadingState text="加载中…" />;
 
@@ -117,8 +135,8 @@ export default function PrivnoteViewPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-cream px-4">
         <div className="bg-white border border-border rounded-sm p-10 text-center w-full max-w-md">
-          <div className="w-14 h-14 bg-accent rounded-sm flex items-center justify-center mx-auto mb-6 text-white font-display text-xl font-semibold">
-            PN
+          <div className="flex items-center justify-center mx-auto mb-6 bg-accent-light">
+            <img src={`${base}logo-120.png`} alt="CigarDomTabaka" className="w-[120px] h-[120px] object-contain" />
           </div>
           <h1 className="text-xl font-display font-semibold text-fg mb-2">{displayData.title}</h1>
           <p className="text-sm text-muted mb-8">此内容受密码保护</p>

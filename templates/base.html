@@ -143,7 +143,9 @@ body {
 <!-- ===== TOPBAR ===== -->
 <header class="topbar">
   <div class="topbar-left">
-    <div class="logo-mark">CDT</div>
+    <div class="logo-mark">
+      <img src="{% static 'logo-32.png' %}" alt="CigarDomTabaka" width="28" height="28" style="display:block;">
+    </div>
     <span>CigarDomTabaka</span>
     {% block navbar_title %}{% endblock %}
   </div>
@@ -210,9 +212,14 @@ body {
 <!-- ===== SHARED FOOTER ===== -->
 <footer class="site-footer">
   <div class="site-footer-inner">
-    <div class="site-footer-top">
+    <div class="site-footer-top" style="align-items:center;">
       <div class="site-footer-brand-col">
-        <div class="site-footer-brand">CigarDomTabaka</div>
+        <div class="site-footer-brand" style="display:flex;align-items:center;gap:20px;">
+          <img src="{% static 'logo-120.png' %}" alt="CigarDomTabaka" width="120" height="120" style="display:block;object-fit:contain;margin-right:16px;">
+          <div>
+            <div>CigarDomTabaka</div>
+          </div>
+        </div>
         <div class="site-footer-tagline">Премиум сигары · Прямые поставки из Москвы</div>
       </div>
       <div class="site-footer-info">

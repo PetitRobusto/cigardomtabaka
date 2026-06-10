@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Cigarette, Image as ImageIcon, X } from 'lucide-react';
@@ -6,16 +6,32 @@ import { fetchCigarDetail } from '../api';
 import { LoadingState } from '../components/shared/LoadingState';
 import { ErrorState } from '../components/shared/ErrorState';
 import { EmptyState } from '../components/shared/EmptyState';
+import { usePageMeta } from '../hooks/usePageMeta';
+import { generateCigarSlugFromParts } from '../utils/slug';
 
 export default function CigarCatalogDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const { setMeta } = usePageMeta();
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['cigar', id],
     queryFn: () => fetchCigarDetail(id!),
     enabled: !!id,
   });
+
+  useEffect(() => {
+    if (data?.cigar) {
+      setMeta({
+        title: `${data.cigar.name || data.cigar.english_name} · ${data.brand?.name || data.cigar.brand}`,
+        breadcrumbs: [
+          { label: '首页', to: '/' },
+          { label: data.brand?.name || data.cigar.brand, to: data.brand ? `/brand/${data.brand.slug}` : undefined },
+          { label: data.cigar.name || data.cigar.english_name },
+        ],
+      });
+    }
+  }, [data, setMeta]);
 
   if (isLoading) return <LoadingState text="加载雪茄详情…" />;
   if (error) return <ErrorState message="数据加载失败" onRetry={() => refetch()} />;
@@ -61,19 +77,6 @@ export default function CigarCatalogDetailPage() {
 
   return (
     <div className="animate-fade-in">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-muted mb-2">
-        <Link to="/" className="hover:text-accent transition-colors">所有品牌</Link>
-        <span>/</span>
-        {brand && (
-          <>
-            <Link to={`/brand/${brand.slug}`} className="hover:text-accent transition-colors">{brand.name}</Link>
-            <span>/</span>
-          </>
-        )}
-        <span className="text-fg truncate">{cigar.name || cigar.english_name}</span>
-      </div>
-
       {/* Title Section */}
       <section className="py-6 sm:py-8">
         <h1 className="font-display text-[28px] sm:text-4xl font-semibold tracking-tight text-fg mb-1.5">
@@ -219,7 +222,7 @@ export default function CigarCatalogDetailPage() {
                 {children.map(child => (
                   <Link
                     key={child.id}
-                    to={`/cigar/${child.id}`}
+                    to={`/cigar/${child.id}/${generateCigarSlugFromParts(cigar.brand, child.english_name, child.release_type)}`}
                     className="flex items-center gap-3 bg-white border border-border rounded-md p-3 hover:border-accent transition-colors"
                   >
                     <div className="w-12 h-12 rounded bg-accent-light flex items-center justify-center shrink-0 overflow-hidden">
@@ -317,7 +320,7 @@ export default function CigarCatalogDetailPage() {
                 {related.map((r, idx) => (
                   <Link
                     key={r.id}
-                    to={`/cigar/${r.id}`}
+                    to={`/cigar/${r.id}/${generateCigarSlugFromParts(cigar.brand, r.english_name)}`}
                     className={`flex items-center gap-3 py-3 transition-colors hover:bg-accent-light -mx-5 px-5 ${
                       idx < related.length - 1 ? 'border-b border-border' : ''
                     }`}

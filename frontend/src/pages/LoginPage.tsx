@@ -1,9 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { Flame, Lock, User } from 'lucide-react';
+import { Lock, User } from 'lucide-react';
+import { usePageMeta } from '../hooks/usePageMeta';
+
+const base = import.meta.env.BASE_URL;
 
 export default function LoginPage() {
+  const { setMeta } = usePageMeta();
+
+  useEffect(() => {
+    setMeta({
+      title: '登录',
+      breadcrumbs: [{ label: '登录' }],
+    });
+  }, [setMeta]);
+
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -29,9 +41,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm mx-4">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-lg bg-accent flex items-center justify-center mb-4">
-            <Flame className="w-6 h-6 text-white" />
-          </div>
+          <img src={`${base}logo-120.png`} alt="CigarDomTabaka" className="w-[120px] h-[120px] mb-4 object-contain" />
           <h1 className="text-xl font-display font-semibold text-fg">CigarDomTabaka</h1>
           <p className="text-sm text-muted mt-1">内部管理系统</p>
         </div>

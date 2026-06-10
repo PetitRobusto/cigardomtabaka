@@ -56,6 +56,7 @@ master → git checkout -b feature/xxx → 开发 → commit → merge 回 maste
 - 前端源码在 `frontend/`（React + Vite + Tailwind + DaisyUI）
 - 修改 base.html 导航栏 → 必须同时改桌面端和手机端底部导航（BOTTOM NAV）
 - privnote 前端 → React SPA 路由 `/privnote/` 和 `/p/:token/`，不走 Django 模板
+- ⚠️ **前端改动先走 OpenDesign**：所有 UI/Layout/样式改动先在 OpenDesign 原型（`.opendesign/` 目录）中做好，验证通过后应用到项目代码。禁止跳过原型直接改生产代码
 
 ---
 

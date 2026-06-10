@@ -1,21 +1,32 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
+import { usePageMetaContext } from '../../contexts/PageMetaContext';
+import Breadcrumb from './Breadcrumb';
 import {
-  Flame, LayoutGrid, Package, TrendingUp, Link2, Settings, LogIn, LogOut, User, Menu, X,
+  LayoutGrid, Package, TrendingUp, Link2, Settings, LogIn, LogOut, User, Menu, X,
   MapPin, Phone, MessageCircle
 } from 'lucide-react';
 import { useState } from 'react';
+
+const base = import.meta.env.BASE_URL;
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading, logout } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { meta } = usePageMetaContext();
 
   useEffect(() => {
     useAuthStore.getState().checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (meta.title) {
+      document.title = meta.title;
+    }
+  }, [meta.title]);
 
   const navItems = [
     { to: '/', label: '品牌', icon: LayoutGrid, public: true },
@@ -48,12 +59,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-between h-14">
             {/* Logo */}
             <div className="flex items-center gap-3">
-              <div
-                className="w-8 h-8 rounded bg-accent flex items-center justify-center cursor-pointer"
+              <img
+                src={`${base}logo-32.png`}
+                alt="CigarDomTabaka"
+                className="w-8 h-8 cursor-pointer object-contain"
                 onClick={() => navigate('/')}
-              >
-                <Flame className="w-4 h-4 text-white" />
-              </div>
+              />
               <span className="font-display text-lg font-semibold text-fg tracking-tight hidden sm:inline">
                 CigarDomTabaka
               </span>
@@ -171,6 +182,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* ===== MAIN CONTENT ===== */}
       <main className="flex-1">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-24 md:pb-6">
+          <Breadcrumb />
           {children}
         </div>
       </main>
@@ -179,14 +191,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <footer className="bg-accent-light border-t-2 border-accent mt-auto">
         <div className="max-w-7xl mx-auto px-6 sm:px-8 py-10 md:py-12">
           {/* Top row */}
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5 md:gap-8 pb-8 border-b border-border">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 md:gap-8 pb-8 border-b border-border">
             {/* Brand */}
-            <div>
-              <div className="font-display text-[22px] font-semibold tracking-wide text-fg mb-1">
-                CigarDomTabaka
-              </div>
-              <div className="text-[13px] text-muted italic font-display">
-                Премиум сигары · Прямые поставки из Москвы
+            <div className="flex items-center gap-4">
+              <img src={`${base}logo-120.png`} alt="CigarDomTabaka" className="w-[120px] h-[120px] object-contain shrink-0 mr-4" />
+              <div>
+                <div className="font-display text-[22px] font-semibold tracking-wide text-fg">
+                  CigarDomTabaka
+                </div>
+                <div className="text-[13px] text-muted italic font-display mt-1">
+                  Премиум сигары · Прямые поставки из Москвы
+                </div>
               </div>
             </div>
 

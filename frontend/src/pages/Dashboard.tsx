@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLatestPrices } from '../hooks/useLatestPrices';
 import { useUIStore } from '../store/uiStore';
@@ -9,6 +9,8 @@ import { LoadingState } from '../components/shared/LoadingState';
 import { EmptyState } from '../components/shared/EmptyState';
 import { ErrorState } from '../components/shared/ErrorState';
 import { PageTransition } from '../components/animations/PageTransition';
+import { usePageMeta } from '../hooks/usePageMeta';
+import { generateCigarSlugFromParts } from '../utils/slug';
 import type { CigarListItem, BrandInfo } from '../types';
 
 function extractBrands(cigars: CigarListItem[]): BrandInfo[] {
@@ -43,6 +45,17 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { activeBrand, setActiveBrand } = useUIStore();
   const { data: cigars = [], isLoading, error, refetch } = useLatestPrices();
+  const { setMeta } = usePageMeta();
+
+  useEffect(() => {
+    setMeta({
+      title: '价格追踪',
+      breadcrumbs: [
+        { label: '首页', to: '/' },
+        { label: '价格追踪' },
+      ],
+    });
+  }, [setMeta]);
 
   const brands = useMemo(() => extractBrands(cigars), [cigars]);
   const filtered = useMemo(
@@ -64,7 +77,13 @@ export default function Dashboard() {
           sourceCount={[...new Set(cigars.flatMap(c => c.sources.map(s => s.source_slug)))].length}
         />
         <BrandTabs brands={brands} activeBrand={activeBrand} onSelect={setActiveBrand} />
-        <PriceCardGrid cigars={filtered} onCardClick={(id) => navigate(`/prices/cigar/${id}`)} />
+        <PriceCardGrid
+          cigars={filtered}
+          onCardClick={(cigar) => {
+            const slug = generateCigarSlugFromParts(cigar.cigar_brand, cigar.cigar_name_en || cigar.cigar_name);
+            navigate(`/prices/cigar/${cigar.cigar_id}/${slug}`);
+          }}
+        />
       </div>
     </PageTransition>
   );

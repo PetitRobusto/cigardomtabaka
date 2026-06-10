@@ -46,6 +46,7 @@ tools/
 # 本地计划/文档
 docs/
 .hermes/
+.worktrees/
 
 # 环境配置模板
 .env.example

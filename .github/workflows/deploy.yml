@@ -32,7 +32,8 @@ jobs:
 
             echo "=== git pull ==="
             git config --global --add safe.directory /opt/cigardomtabaka 2>/dev/null || true
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
 
             echo "=== pip install ==="
             source venv/bin/activate

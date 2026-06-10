@@ -54,6 +54,9 @@ docs/
 # 根目录 lock 文件（各子项目自有 lock）
 /package-lock.json
 
+# Logo 源文件（中文名资源文件）
+资源*.png
+
 # 业务文档
 *.xlsx
 *.xls

@@ -58,63 +58,85 @@ class LCDHNyonScraper(BaseScraper):
         
         all_items = []
         brand_list = list(BRAND_CATEGORIES.items())
-        batch_size = 10
         
         # Prefetch exchange rates safely via sync_to_async
         from price_tracker.models import ExchangeRate
         self._eur_rate = await sync_to_async(ExchangeRate.get_rate)("EUR")
         self._chf_rate = await sync_to_async(ExchangeRate.get_rate)("CHF")
         
-        async with async_playwright() as p:  # 单次启动 driver
-            for batch_start in range(0, len(brand_list), batch_size):
-                batch = brand_list[batch_start:batch_start + batch_size]
-                
-                browser = await p.chromium.launch(
-                    headless=True,
-                    args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-                )
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+            )
+            try:
                 context = await browser.new_context(
                     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
                                '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
                     viewport={'width': 1920, 'height': 1080},
                     locale='en-US'
                 )
-                page = await context.new_page()
                 stealth = Stealth()
-                await stealth.apply_stealth_async(page)
                 
+                page = await context.new_page()
+                await stealth.apply_stealth_async(page)
+                await page.goto(f'{BASE_URL}/en/?currency=CHF',
+                               wait_until='domcontentloaded', timeout=30000)
+                await page.wait_for_timeout(3000)
+                
+                body = await page.locator('body').inner_text()
+                if '安全验证' in body or 'challenge' in body.lower():
+                    logger.warning('Nyon CF 封锁')
+                    return []
+                
+                await page.evaluate('''() => {
+                    document.cookie = "woocs=CHF;path=/;max-age=86400";
+                    document.cookie = "currency=CHF;path=/;max-age=86400";
+                }''')
+                
+                consecutive_failures = 0
+                for cat_slug, brand_name in brand_list:
+                    try:
+                        items = await self._scrape_brand(page, brand_name, cat_slug)
+                        all_items.extend(items)
+                        consecutive_failures = 0
+                        logger.info(f'  {brand_name}: {len(items)} products')
+                    except Exception as e:
+                        err_msg = str(e)
+                        consecutive_failures += 1
+                        
+                        # 上下文被销毁 or 连续3个失败 → 重建 page
+                        if 'Execution context was destroyed' in err_msg or consecutive_failures >= 3:
+                            logger.warning(f'  {brand_name}: page dead, rebuilding ({err_msg[:60]})')
+                            try:
+                                await page.close()
+                            except Exception:
+                                pass
+                            page = await context.new_page()
+                            await stealth.apply_stealth_async(page)
+                            await page.goto(f'{BASE_URL}/en/?currency=CHF',
+                                           wait_until='domcontentloaded', timeout=30000)
+                            await page.wait_for_timeout(2000)
+                            consecutive_failures = 0
+                            # 重试
+                            try:
+                                items = await self._scrape_brand(page, brand_name, cat_slug)
+                                all_items.extend(items)
+                                logger.info(f'  {brand_name}: {len(items)} products (retry)')
+                            except Exception as e2:
+                                logger.warning(f'  {brand_name} retry failed: {str(e2)[:80]}')
+                        else:
+                            logger.warning(f'  {brand_name}: {err_msg[:80]}')
+                        
+            finally:
                 try:
-                    await page.goto(f'{BASE_URL}/en/?currency=CHF',
-                                   wait_until='domcontentloaded', timeout=30000)
-                    await page.wait_for_timeout(3000)
-                    
-                    body = await page.locator('body').inner_text()
-                    if '安全验证' in body or 'challenge' in body.lower():
-                        logger.warning(f'Nyon CF 封锁 (batch {batch_start//batch_size+1})')
-                        continue
-                    
-                    await page.evaluate('''() => {
-                        document.cookie = "woocs=CHF;path=/;max-age=86400";
-                        document.cookie = "currency=CHF;path=/;max-age=86400";
-                    }''')
-                    
-                    for cat_slug, brand_name in batch:
-                        try:
-                            items = await self._scrape_brand(page, brand_name, cat_slug)
-                            all_items.extend(items)
-                            logger.info(f'  {brand_name}: {len(items)} products')
-                        except Exception as e:
-                            logger.warning(f'  {brand_name}: {e}')
-                    
-                finally:
-                    try:
-                        await context.close()
-                    except Exception:
-                        pass
-                    try:
-                        await browser.close()
-                    except Exception:
-                        pass
+                    await context.close()
+                except Exception:
+                    pass
+                try:
+                    await browser.close()
+                except Exception:
+                    pass
         
         # 去重
         seen = set()

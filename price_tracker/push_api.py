@@ -68,6 +68,7 @@ def push_bulk(request):
     created = 0
     skipped = 0
     errors = 0
+    error_samples = []  # 临时调试：收集错误详情
     scraped_combos = set()
     anomaly_groups = set()  # 本次创建的 (cigar_id, box_size)，用于异常重算
 
@@ -183,8 +184,11 @@ def push_bulk(request):
             created += 1
             anomaly_groups.add((cigar.id, box_key))
 
-        except Exception:
-            logger.exception('Error processing item: %s', item_data.get('name', '?'))
+        except Exception as e:
+            err_msg = f'{type(e).__name__}: {e}'
+            logger.exception('Error processing item: %s — %s', item_data.get('name', '?'), err_msg)
+            if len(error_samples) < 5:
+                error_samples.append({'item': item_data.get('name', '?'), 'error': err_msg})
             errors += 1
 
     # 下架检测 — 只对比上次爬取
@@ -242,6 +246,7 @@ def push_bulk(request):
         'skipped': skipped,
         'delisted': delisted,
         'errors': errors,
+        'error_samples': error_samples,  # 临时调试
         'cache_hits': cache_hits,
         'cache_misses': cache_misses,
     })

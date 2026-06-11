@@ -81,7 +81,6 @@ class BaseScraper:
 # --- 名字匹配（委托给独立匹配模块） ---
 
 from price_tracker.matcher import match_cigar as _match_cigar, extract_brand_hint
-from .models import ExchangeRate
 
 
 def match_cigar_by_name(
@@ -146,12 +145,6 @@ def run_scrape_sync(source_slug: str) -> dict:
     matched = 0
     created = 0
     skipped = 0
-
-    exchange_rate = source.exchange_rate or None
-    if exchange_rate is None:
-        # 用实时汇率表（优先）→ 兜底
-        rate_obj = ExchangeRate.get_rate(source.currency)
-        exchange_rate = rate_obj if rate_obj else 7.0
 
     from django.utils import timezone
     scraped_combos = set()
@@ -285,11 +278,9 @@ def run_scrape_sync(source_slug: str) -> dict:
         if should_create:
             # 币种：优先 item 自带的 → source 默认
             item_currency = getattr(item, 'currency', None) or source.currency or 'USD'
-            # CNY 换算：用最新汇率表
-            cny_rate = ExchangeRate.get_rate(item_currency)
-            if cny_rate is None:
-                cny_rate = exchange_rate  # fallback
-            price_cny = round(item.price * cny_rate, 2) if item.price else None
+            # CNY 换算：使用共享定价模块
+            from .pricing import convert_to_cny
+            price_cny = convert_to_cny(item.price, item_currency) if item.price else None
 
             # Skip if price is None (OOS with no price) — avoid NOT NULL constraint
             if item.price is None:

@@ -14,6 +14,8 @@ from .serializers import (
     LatestPriceSerializer,
     AggregatedCigarSerializer,
 )
+from .pricing import per_stick, avg_per_stick, convert_to_cny
+from .helpers import resolve_brand_cn, get_cigar_image_url
 
 from django.db.models import Max, OuterRef, Subquery
 
@@ -187,11 +189,8 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                 v['in_stock'] = latest_point.get('in_stock', True)
                 v['delisted'] = latest_point.get('delisted', False)
                 v['scraped_at'] = latest_point.get('date')
-                # 每支单价 = 整盒人民币价 / 支数
-                if v['current_price_cny'] and v['box_size']:
-                    v['price_per_stick'] = round(v['current_price_cny'] / v['box_size'], 2)
-                else:
-                    v['price_per_stick'] = None
+                # 每支单价 = 整盒人民币价 / 支数（使用共享定价模块）
+                v['price_per_stick'] = per_stick(v['current_price_cny'], v['box_size'])
 
         release_type_cn = cigar.release_type_cn if cigar else None
 
@@ -209,7 +208,6 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     def changes(self, request):
         """返回最近48小时内的价格变动和补货事件"""
         from datetime import timedelta
-        from cigars.models import Brand
 
         cutoff = timezone.now() - timedelta(hours=48)
 
@@ -260,20 +258,8 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                     change_pct = max(-99.9, min(change_pct, 999.9))
                 direction = 'up' if latest.price > prev.price else 'down'
 
-                brand_obj = Brand.objects.filter(english_name=latest.cigar.brand).first()
-                if not brand_obj:
-                    brand_obj = Brand.objects.filter(english_name__startswith=latest.cigar.brand).first()
-                if not brand_obj:
-                    brand_obj = Brand.objects.filter(english_name__icontains=latest.cigar.brand).first()
-                brand_cn = brand_obj.name if brand_obj else latest.cigar.brand
-
-                img_url = ''
-                img = latest.cigar.primary_image
-                if img and img.image:
-                    try:
-                        img_url = img.image.url
-                    except Exception:
-                        pass
+                brand_cn = resolve_brand_cn(latest.cigar.brand)
+                img_url = get_cigar_image_url(latest.cigar)
 
                 price_changes.append({
                     'cigar_id': latest.cigar_id,
@@ -296,20 +282,8 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                 })
 
             if not prev.in_stock and latest.in_stock:
-                brand_obj = Brand.objects.filter(english_name=latest.cigar.brand).first()
-                if not brand_obj:
-                    brand_obj = Brand.objects.filter(english_name__startswith=latest.cigar.brand).first()
-                if not brand_obj:
-                    brand_obj = Brand.objects.filter(english_name__icontains=latest.cigar.brand).first()
-                brand_cn = brand_obj.name if brand_obj else latest.cigar.brand
-
-                img_url = ''
-                img = latest.cigar.primary_image
-                if img and img.image:
-                    try:
-                        img_url = img.image.url
-                    except Exception:
-                        pass
+                brand_cn = resolve_brand_cn(latest.cigar.brand)
+                img_url = get_cigar_image_url(latest.cigar)
 
                 restocks.append({
                     'cigar_id': latest.cigar_id,
@@ -339,8 +313,6 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     def list_aggregated(self, request):
         """Dashboard列表页聚合数据 — 每款雪茄一条，带均价/主图/来源"""
         from django.db.models import Max as DMax
-        from cigars.models import Brand
-        from .models import ExchangeRate
 
         # 1. 取每个(cigar, source, box_size)的最新快照（排除异常+售罄）
         latest_ids = (
@@ -363,36 +335,14 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         if brand:
             snapshots = snapshots.filter(cigar__brand=brand)
 
-        def _cny_convert(price: float, currency: str) -> float | None:
-            """优先用DB汇率，fallback到保守估值"""
-            result = ExchangeRate.cny_convert(price, currency)
-            if result is not None:
-                return result
-            # 最后兜底：保守估算
-            fallback = {'USD': 7.0, 'CHF': 8.0, 'EUR': 7.8}
-            rate = fallback.get(currency.upper(), 7.0)
-            return round(price * rate, 2)
-
         # 2. 按雪茄聚合
         cigars_map = {}
         for snap in snapshots:
             cid = snap.cigar_id
             if cid not in cigars_map:
                 brand_name = snap.cigar.brand
-                brand_obj = Brand.objects.filter(english_name=brand_name).first()
-                if not brand_obj:
-                    brand_obj = Brand.objects.filter(english_name__startswith=brand_name).first()
-                if not brand_obj:
-                    brand_obj = Brand.objects.filter(english_name__icontains=brand_name).first()
-                brand_cn = brand_obj.name if brand_obj else brand_name
-
-                img_url = ''
-                img = snap.cigar.primary_image
-                if img and img.image:
-                    try:
-                        img_url = img.image.url
-                    except Exception:
-                        pass
+                brand_cn = resolve_brand_cn(brand_name)
+                img_url = get_cigar_image_url(snap.cigar)
 
                 rt = snap.cigar.release_type_cn or ''
                 cigars_map[cid] = {
@@ -412,11 +362,11 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             entry = cigars_map[cid]
             currency = (snap.currency or snap.source.currency or 'USD').strip()
 
-            # CNY 换算：已存的 price_cny > DB 汇率 > 保守估算
+            # CNY 换算：已存的 price_cny > 共享汇率换算
             if snap.price_cny is not None:
                 price_cny = snap.price_cny
             elif snap.price:
-                price_cny = _cny_convert(snap.price, currency)
+                price_cny = convert_to_cny(snap.price, currency)
             else:
                 price_cny = None
 
@@ -446,12 +396,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         ]
         result = list(cigars_map.values())
         for entry in result:
-            per_stick = []
-            for s in entry['sources']:
-                if s['price_cny'] and s['box_size'] and s['box_size'] > 0:
-                    per_stick.append(round(s['price_cny'] / s['box_size'], 2))
-            if per_stick:
-                entry['avg_per_stick_cny'] = round(sum(per_stick) / len(per_stick), 2)
+            entry['avg_per_stick_cny'] = avg_per_stick(entry['sources'])
         def _sort_key(entry):
             brand_order = BRANDS_ORDER.index(entry['cigar_brand_cn']) if entry['cigar_brand_cn'] in BRANDS_ORDER else 999
             # 非常规款判断：机制雪茄 或 有特别款类型
@@ -554,11 +499,9 @@ def import_coh_bulk(request):
                     scraped_date=now.date()
                 ).first()
                 if not existing:
-                    from price_tracker.models import ExchangeRate
-                    usd_rate = ExchangeRate.get_rate('USD') or 7.0
                     PriceSnapshot.objects.create(
                         cigar=cigar, source=source, price=price,
-                        currency='USD', price_cny=round(price * usd_rate, 2),
+                        currency='USD', price_cny=convert_to_cny(price, 'USD'),
                         box_size=box_size, box_price=price,
                         in_stock=True, scraped_at=now,
                         raw_data={'coh_name': prod.get('name',''), 'box_info': box_info},

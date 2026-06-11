@@ -10,7 +10,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 
-from price_tracker.models import PriceSource, PriceSnapshot, ExchangeRate
+from price_tracker.models import PriceSource, PriceSnapshot
 from price_tracker.scraper import BaseScraper, ScrapedItem
 from cigars.models import Cigar
 
@@ -134,10 +134,8 @@ def push_bulk(request):
             # 人民币价格：优先用推送方算好的（避免生产端汇率缺失）
             price_cny = item_data.get('price_cny')
             if price_cny is None and item.price is not None:
-                rate = ExchangeRate.get_rate(item.currency) if item.currency else None
-                if rate is None:
-                    rate = 7.0
-                price_cny = round(item.price * rate, 2)
+                from .pricing import convert_to_cny
+                price_cny = convert_to_cny(item.price, item.currency)
 
             # 价格去重（浮点容差 0.01）
             box_key = item.box_size  # 保持 None 语义

@@ -11,6 +11,7 @@ django.setup()
 
 from price_tracker.models import PriceSource, PriceSnapshot
 from price_tracker.scraper import match_cigar_by_name
+from price_tracker.pricing import convert_to_cny
 from cigars.models import Cigar
 from django.utils import timezone
 
@@ -87,7 +88,7 @@ def main(json_file):
                         source=source,
                         price=price,
                         currency='USD',
-                        price_cny=round(price * 7.25, 2),
+                        price_cny=convert_to_cny(price, 'USD'),
                         in_stock=True,
                         scraped_at=now,
                     )

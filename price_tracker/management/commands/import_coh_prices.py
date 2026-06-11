@@ -5,6 +5,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from price_tracker.models import PriceSource, PriceSnapshot
 from price_tracker.scraper import match_cigar_by_name
+from price_tracker.pricing import convert_to_cny
 from cigars.models import Cigar
 
 
@@ -24,7 +25,6 @@ class Command(BaseCommand):
         with open(options['json_file']) as f:
             data = json.load(f)
 
-        exchange_rate = source.exchange_rate or 7.25
         dry_run = options.get('dry_run', False)
         total_matched = 0
         total_created = 0
@@ -55,7 +55,7 @@ class Command(BaseCommand):
                     self.stdout.write(f'  ✅ {cigar.brand} {cigar.english_name}: ${price}')
                     continue
 
-                price_cny = round(price * exchange_rate, 2)
+                price_cny = convert_to_cny(price, 'USD')
 
                 # Upsert today's price
                 today = timezone.now().date()

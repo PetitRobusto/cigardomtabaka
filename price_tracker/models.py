@@ -85,6 +85,12 @@ class PriceSnapshot(models.Model):
     def __str__(self):
         return f'{self.cigar} @ {self.source.name} — {self.price} {self.currency}'
 
+    @property
+    def per_stick_cny(self) -> float | None:
+        """单支人民币价格（从 price_cny / box_size 计算）"""
+        from .pricing import per_stick
+        return per_stick(self.price_cny, self.box_size)
+
     def save(self, *args, **kwargs):
         """保存时如果 cigar_id 变更，自动重算新旧两组的异常标记"""
         is_new = self._state.adding

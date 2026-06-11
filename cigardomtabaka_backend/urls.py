@@ -2,7 +2,8 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from urllib.parse import urlencode
 
 from cigars import views
 from cigars.auth_views import api_login, api_logout, api_me
@@ -16,12 +17,25 @@ from privnote.views import (
 )
 
 
+def admin_login_redirect(request):
+    if request.user.is_authenticated:
+        if request.user.is_staff:
+            return redirect('/admin/')
+        return redirect('/')
+    next_url = request.GET.get('next', '/admin/')
+    # 防止循环：next 指向 /admin/login/ 时纠正为 /admin/
+    if next_url.startswith('/admin/login'):
+        next_url = '/admin/'
+    return redirect(f'/login/?{urlencode({"next": next_url})}')
+
+
 def spa_index(request):
     """Catch-all SPA entry point"""
     return render(request, 'spa_index.html')
 
 
 urlpatterns = [
+    path('admin/login/', admin_login_redirect),
     path('admin/', admin.site.urls),
     # API endpoints
     path('api/login/', api_login, name='api_login'),

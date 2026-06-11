@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { Lock, User } from 'lucide-react';
 import { usePageMeta } from '../hooks/usePageMeta';
@@ -21,7 +21,17 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { login } = useAuthStore();
+  const location = useLocation();
+  const { login, isAuthenticated } = useAuthStore();
+
+  // 已登录自动跳转
+  useEffect(() => {
+    if (isAuthenticated) {
+      const params = new URLSearchParams(location.search);
+      const next = params.get('next');
+      navigate(next?.startsWith('/') ? next : '/');
+    }
+  }, [isAuthenticated, location.search, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +40,9 @@ export default function LoginPage() {
     const result = await login(username, password);
     setLoading(false);
     if (result.ok) {
-      navigate('/');
+      const params = new URLSearchParams(location.search);
+      const next = params.get('next');
+      navigate(next?.startsWith('/') ? next : '/');
     } else {
       setError(result.error || '登录失败');
     }

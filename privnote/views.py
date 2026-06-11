@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from django.conf import settings
 from django.db.models import Q
 from django.http import JsonResponse, HttpResponseForbidden
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
@@ -369,16 +369,4 @@ def create_note(request):
     return create(request)
 
 
-# ═══════════════ PAGES ═══════════════
 
-@staff_required
-def index(request):
-    """GET /privnote/ — 创建页面 (仅 staff)"""
-    return render(request, 'privnote/index.html')
-
-
-# ═══════════════ VIEW NOTE PAGE ═══════════════
-
-def view_note(request, token):
-    """GET /p/<token>/ — 客户查看页面 (JS 渲染版)"""
-    return render(request, 'privnote/view.html', {'token': token})

@@ -4,7 +4,7 @@ import type {
   BrandListResponse, BrandDetailResponse, CigarDetailResponse,
   InventoryResponse, PrivnoteResponse,
   PaymentMethod, SearchCigarResult, InventoryViewData,
-  CustomerResult, QuoteProduct,
+  CustomerResult, QuoteProduct, RecentChangesResponse,
 } from './types';
 
 function getCSRFToken(): string {
@@ -36,6 +36,9 @@ export const deleteAlert = (id: number) => api.delete(`/prices/alerts/${id}/`).t
 
 export const fetchAggregatedPrices = (params = {} as Record<string, string>): Promise<AggregatedCigar[]> =>
   api.get('/prices/snapshots/aggregated/', { params }).then(r => r.data || r.data.results);
+
+export const fetchRecentChanges = (): Promise<RecentChangesResponse> =>
+  api.get('/prices/snapshots/changes/').then(r => r.data);
 
 // Catalog APIs
 export const fetchBrandList = (): Promise<BrandListResponse> =>

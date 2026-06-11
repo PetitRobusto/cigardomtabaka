@@ -55,6 +55,7 @@ export interface Variant {
   max_price?: number | null;
   record_count?: number;
   in_stock?: boolean;
+  delisted?: boolean;
   scraped_at?: string;
 }
 
@@ -464,4 +465,45 @@ export interface QuoteData {
   shipping_fee_per_stick?: number;
   customer_name?: string;
   custom_prices?: Record<number, number>;
+}
+
+export interface RecentPriceChange {
+  cigar_id: number;
+  cigar_name: string;
+  cigar_brand: string;
+  cigar_brand_cn: string;
+  cigar_image_url: string;
+  source_name: string;
+  source_short_name: string;
+  source_slug: string;
+  box_size: number | null;
+  old_price: number;
+  new_price: number;
+  old_price_cny: number | null;
+  new_price_cny: number | null;
+  currency: string;
+  change_pct: number;
+  change_direction: 'up' | 'down';
+  changed_at: string;
+}
+
+export interface RecentRestock {
+  cigar_id: number;
+  cigar_name: string;
+  cigar_brand: string;
+  cigar_brand_cn: string;
+  cigar_image_url: string;
+  source_name: string;
+  source_short_name: string;
+  source_slug: string;
+  box_size: number | null;
+  price: number | null;
+  price_cny: number | null;
+  currency: string;
+  restocked_at: string;
+}
+
+export interface RecentChangesResponse {
+  price_changes: RecentPriceChange[];
+  restocks: RecentRestock[];
 }

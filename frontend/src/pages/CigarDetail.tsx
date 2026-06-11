@@ -1,10 +1,14 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { usePriceHistory } from '../hooks/usePriceHistory';
 import { useUIStore } from '../store/uiStore';
 import { BackButton } from '../components/shared/BackButton';
 import { DetailHeader } from '../components/detail/DetailHeader';
 import { VariantGrid } from '../components/detail/VariantGrid';
+import { VariantTable } from '../components/detail/VariantTable';
+import { VariantAccordion } from '../components/detail/VariantAccordion';
 import { DaysFilter } from '../components/detail/DaysFilter';
 import { PriceChart } from '../components/detail/PriceChart';
 import { LoadingState } from '../components/shared/LoadingState';
@@ -19,6 +23,7 @@ export default function CigarDetail() {
   const { daysFilter, setDaysFilter } = useUIStore();
   const { data, isLoading, error, refetch } = usePriceHistory(id, daysFilter);
   const { setMeta } = usePageMeta();
+  const [showCardGrid, setShowCardGrid] = useState(false);
 
   useEffect(() => {
     if (data) {
@@ -63,7 +68,43 @@ export default function CigarDetail() {
         {variants.length > 0 && (
           <>
             <DaysFilter days={daysFilter} onChange={setDaysFilter} />
-            <VariantGrid variants={sortedVariants} />
+
+            {/* Card Grid — collapsed by default */}
+            <button
+              onClick={() => setShowCardGrid(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 mb-1
+                bg-cream border border-border rounded-xl text-fg font-medium text-sm
+                hover:border-accent/40 transition-colors"
+            >
+              <span>
+                卡片视图
+                <span className="text-muted font-normal ml-2 text-xs">
+                  ({sortedVariants.length} 款)
+                </span>
+              </span>
+              {showCardGrid
+                ? <ChevronUp className="w-4 h-4 text-muted" />
+                : <ChevronDown className="w-4 h-4 text-muted" />
+              }
+            </button>
+
+            <AnimatePresence initial={false}>
+              {showCardGrid && (
+                <motion.div
+                  key="card-grid"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                  className="overflow-hidden"
+                >
+                  <VariantGrid variants={sortedVariants} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <VariantTable variants={sortedVariants} />
+            <VariantAccordion variants={sortedVariants} />
             <PriceChart variants={sortedVariants} />
           </>
         )}

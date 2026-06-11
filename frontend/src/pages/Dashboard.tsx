@@ -1,10 +1,12 @@
 import { useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLatestPrices } from '../hooks/useLatestPrices';
+import { useRecentChanges } from '../hooks/useRecentChanges';
 import { useUIStore } from '../store/uiStore';
 import { StatsBar } from '../components/dashboard/StatsBar';
 import { BrandTabs } from '../components/dashboard/BrandTabs';
 import { PriceCardGrid } from '../components/dashboard/PriceCardGrid';
+import { RecentChangesCarousel } from '../components/dashboard/RecentChangesCarousel';
 import { LoadingState } from '../components/shared/LoadingState';
 import { EmptyState } from '../components/shared/EmptyState';
 import { ErrorState } from '../components/shared/ErrorState';
@@ -45,6 +47,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { activeBrand, setActiveBrand } = useUIStore();
   const { data: cigars = [], isLoading, error, refetch } = useLatestPrices();
+  const { data: changesData } = useRecentChanges();
   const { setMeta } = usePageMeta();
 
   useEffect(() => {
@@ -76,6 +79,13 @@ export default function Dashboard() {
           brandCount={brands.length}
           sourceCount={[...new Set(cigars.flatMap(c => c.sources.map(s => s.source_slug)))].length}
         />
+        {changesData && (
+          <RecentChangesCarousel
+            priceChanges={changesData.price_changes}
+            restocks={changesData.restocks}
+            onItemClick={(id) => navigate(`/prices/cigar/${id}`)}
+          />
+        )}
         <BrandTabs brands={brands} activeBrand={activeBrand} onSelect={setActiveBrand} />
         <PriceCardGrid
           cigars={filtered}

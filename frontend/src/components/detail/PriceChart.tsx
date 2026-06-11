@@ -1,7 +1,20 @@
+import { useState, useEffect } from 'react';
 import { BarChart, Bar, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { motion } from 'framer-motion';
 import type { Variant } from '../../types';
 import { buildChartData, variantLabel } from '../../utils/priceData';
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => setIsMobile(e.matches);
+    handler(mq);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return isMobile;
+}
 
 const COLORS = [
   '#A16207', '#c0392b', '#2c3e50', '#27ae60', '#8e44ad',
@@ -88,6 +101,15 @@ function buildBarData(variants: Variant[]): BarDatum[] {
 }
 
 export function PriceChart({ variants }: PriceChartProps) {
+  const isMobile = useIsMobile();
+  const barHeight = isMobile ? 240 : 380;
+  const lineHeight = isMobile ? 200 : 280;
+  const chartMargin = isMobile
+    ? { top: 32, right: 4, bottom: 40, left: 4 }
+    : { top: 40, right: 20, bottom: 60, left: 20 };
+  const tickFontSize = isMobile ? 9 : 11;
+  const maxBarSize = isMobile ? 40 : 64;
+
   const barData = buildBarData(variants);
   const originalData = buildChartData(variants, 'original');
 
@@ -106,26 +128,27 @@ export function PriceChart({ variants }: PriceChartProps) {
           <h3 className="text-sm font-bold text-accent uppercase tracking-widest mb-4">
             单支价格对比 · ¥
           </h3>
-          <ResponsiveContainer width="100%" height={380}>
-            <BarChart data={barData} margin={{ top: 24, right: 20, bottom: 60, left: 20 }}>
+          <ResponsiveContainer width="100%" height={barHeight}>
+            <BarChart data={barData} margin={chartMargin}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F0EDE8" vertical={false} />
               <XAxis
                 dataKey="name"
                 stroke="#A8A29E"
-                tick={{ fontSize: 11, fill: '#78716C' }}
+                tick={{ fontSize: tickFontSize, fill: '#78716C' }}
                 tickLine={false}
                 axisLine={{ stroke: '#E8E4DF' }}
-                angle={-20}
+                angle={isMobile ? -45 : -20}
                 textAnchor="end"
-                interval={0}
+                interval={isMobile ? 'preserveStartEnd' : 0}
+                height={isMobile ? 50 : 60}
               />
               <YAxis
                 stroke="#A8A29E"
-                tick={{ fontSize: 12, fill: '#A8A29E' }}
+                tick={{ fontSize: isMobile ? 9 : 12, fill: '#A8A29E' }}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(v: number) => `¥${v}`}
-                width={55}
+                tickFormatter={(v: number) => (isMobile ? `¥${Math.round(v)}` : `¥${v}`)}
+                width={isMobile ? 35 : 55}
               />
               <Tooltip
                 contentStyle={{
@@ -138,7 +161,7 @@ export function PriceChart({ variants }: PriceChartProps) {
                 itemStyle={{ fontSize: 13 }}
                 formatter={(value: number) => [`¥${value.toLocaleString()}`, '单支价格']}
               />
-              <Bar dataKey="price" radius={[6, 6, 0, 0]} maxBarSize={64}
+              <Bar dataKey="price" radius={[isMobile ? 3 : 6, isMobile ? 3 : 6, 0, 0]} maxBarSize={maxBarSize}
                 label={({ x, y, width, value, index }) => {
                   const tag = barData[index]?.tag;
                   if (!tag) return null as any;
@@ -181,23 +204,23 @@ export function PriceChart({ variants }: PriceChartProps) {
           <h3 className="text-sm font-bold text-fg uppercase tracking-widest mb-4">
             原币种走势
           </h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={originalData}>
+          <ResponsiveContainer width="100%" height={lineHeight}>
+            <LineChart data={originalData} margin={chartMargin}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F0EDE8" />
               <XAxis
                 dataKey="date"
                 stroke="#A8A29E"
-                tick={{ fontSize: 12, fill: '#A8A29E' }}
+                tick={{ fontSize: isMobile ? 9 : 12, fill: '#A8A29E' }}
                 tickLine={false}
                 axisLine={{ stroke: '#E8E4DF' }}
               />
               <YAxis
                 stroke="#A8A29E"
-                tick={{ fontSize: 12, fill: '#A8A29E' }}
+                tick={{ fontSize: isMobile ? 9 : 12, fill: '#A8A29E' }}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={(v: number) => v.toLocaleString()}
-                width={55}
+                width={isMobile ? 35 : 55}
               />
               <Tooltip
                 contentStyle={{
@@ -216,9 +239,9 @@ export function PriceChart({ variants }: PriceChartProps) {
                   type="monotone"
                   dataKey={variantLabel(v, 'original')}
                   stroke={COLORS[i % COLORS.length]}
-                  strokeWidth={2.5}
-                  dot={{ r: 3, strokeWidth: 1.5, fill: '#fff' }}
-                  activeDot={{ r: 5, strokeWidth: 2.5 }}
+                  strokeWidth={isMobile ? 1.5 : 2.5}
+                  dot={isMobile ? false : { r: 3, strokeWidth: 1.5, fill: '#fff' }}
+                  activeDot={isMobile ? { r: 4 } : { r: 5, strokeWidth: 2.5 }}
                   connectNulls
                   name={variantLabel(v, 'original')}
                 />

@@ -205,6 +205,136 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             'variants': list(variants.values()),
         })
 
+    @action(detail=False, methods=['get'])
+    def changes(self, request):
+        """返回最近48小时内的价格变动和补货事件"""
+        from datetime import timedelta
+        from cigars.models import Brand
+
+        cutoff = timezone.now() - timedelta(hours=48)
+
+        snapshots = (
+            PriceSnapshot.objects
+            .select_related('cigar', 'source')
+            .prefetch_related('cigar__images')
+            .filter(scraped_at__gte=cutoff, is_anomalous=False)
+            .order_by('cigar_id', 'source_id', 'box_size', '-scraped_at')
+        )
+
+        # Group into scrape cycles: snapshots within 5s of each other are same-cycle
+        # (COH/EGM scrapers produce multiple entries per scrape — box vs stick pricing)
+        groups = {}
+        for snap in snapshots:
+            key = (snap.cigar_id, snap.source_id, snap.box_size)
+            if key not in groups:
+                groups[key] = []
+            # Skip if this snapshot belongs to a scrape cycle already represented
+            is_same_cycle = False
+            for existing in groups[key]:
+                if abs((snap.scraped_at - existing.scraped_at).total_seconds()) < 5:
+                    is_same_cycle = True
+                    break
+            if not is_same_cycle:
+                groups[key].append(snap)
+            # Keep latest 2 cycles only (ordered by -scraped_at)
+            if len(groups[key]) > 2:
+                groups[key] = groups[key][:2]
+
+        price_changes = []
+        restocks = []
+
+        for key, snaps in groups.items():
+            if len(snaps) < 2:
+                continue
+            latest, prev = snaps[0], snaps[1]
+
+            # Safety: both prices must be positive, and old price must be meaningful
+            price_ok = (latest.price is not None and prev.price is not None
+                        and latest.price > 0 and prev.price > 0
+                        and latest.price != prev.price
+                        and prev.price >= 0.1)  # avoid division-by-near-zero inflation
+            if price_ok:
+                change_pct = round((latest.price - prev.price) / prev.price * 100, 1)
+                # Clamp extreme values: beyond ±99.9% is almost certainly a data error
+                if abs(change_pct) > 99.9:
+                    change_pct = max(-99.9, min(change_pct, 999.9))
+                direction = 'up' if latest.price > prev.price else 'down'
+
+                brand_obj = Brand.objects.filter(english_name=latest.cigar.brand).first()
+                if not brand_obj:
+                    brand_obj = Brand.objects.filter(english_name__startswith=latest.cigar.brand).first()
+                if not brand_obj:
+                    brand_obj = Brand.objects.filter(english_name__icontains=latest.cigar.brand).first()
+                brand_cn = brand_obj.name if brand_obj else latest.cigar.brand
+
+                img_url = ''
+                img = latest.cigar.primary_image
+                if img and img.image:
+                    try:
+                        img_url = img.image.url
+                    except Exception:
+                        pass
+
+                price_changes.append({
+                    'cigar_id': latest.cigar_id,
+                    'cigar_name': latest.cigar.name or latest.cigar.english_name or '',
+                    'cigar_brand': latest.cigar.brand,
+                    'cigar_brand_cn': brand_cn,
+                    'cigar_image_url': img_url,
+                    'source_name': latest.source.name,
+                    'source_short_name': latest.source.short_name or latest.source.name,
+                    'source_slug': latest.source.slug,
+                    'box_size': latest.box_size,
+                    'old_price': prev.price,
+                    'new_price': latest.price,
+                    'old_price_cny': prev.price_cny,
+                    'new_price_cny': latest.price_cny,
+                    'currency': latest.currency or latest.source.currency,
+                    'change_pct': change_pct,
+                    'change_direction': direction,
+                    'changed_at': latest.scraped_at.isoformat(),
+                })
+
+            if not prev.in_stock and latest.in_stock:
+                brand_obj = Brand.objects.filter(english_name=latest.cigar.brand).first()
+                if not brand_obj:
+                    brand_obj = Brand.objects.filter(english_name__startswith=latest.cigar.brand).first()
+                if not brand_obj:
+                    brand_obj = Brand.objects.filter(english_name__icontains=latest.cigar.brand).first()
+                brand_cn = brand_obj.name if brand_obj else latest.cigar.brand
+
+                img_url = ''
+                img = latest.cigar.primary_image
+                if img and img.image:
+                    try:
+                        img_url = img.image.url
+                    except Exception:
+                        pass
+
+                restocks.append({
+                    'cigar_id': latest.cigar_id,
+                    'cigar_name': latest.cigar.name or latest.cigar.english_name or '',
+                    'cigar_brand': latest.cigar.brand,
+                    'cigar_brand_cn': brand_cn,
+                    'cigar_image_url': img_url,
+                    'source_name': latest.source.name,
+                    'source_short_name': latest.source.short_name or latest.source.name,
+                    'source_slug': latest.source.slug,
+                    'box_size': latest.box_size,
+                    'price': latest.price,
+                    'price_cny': latest.price_cny,
+                    'currency': latest.currency or latest.source.currency,
+                    'restocked_at': latest.scraped_at.isoformat(),
+                })
+
+        price_changes.sort(key=lambda x: x['changed_at'], reverse=True)
+        restocks.sort(key=lambda x: x['restocked_at'], reverse=True)
+
+        return Response({
+            'price_changes': price_changes[:20],
+            'restocks': restocks[:20],
+        })
+
     @action(detail=False, methods=['get'], url_path='list')
     def list_aggregated(self, request):
         """Dashboard列表页聚合数据 — 每款雪茄一条，带均价/主图/来源"""

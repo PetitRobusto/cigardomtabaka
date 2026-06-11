@@ -57,6 +57,8 @@ master → git checkout -b feature/xxx → 开发 → commit → merge 回 maste
 - 修改 base.html 导航栏 → 必须同时改桌面端和手机端底部导航（BOTTOM NAV）
 - privnote 前端 → React SPA 路由 `/privnote/` 和 `/p/:token/`，不走 Django 模板
 - ⚠️ **前端改动先走 OpenDesign**：所有 UI/Layout/样式改动先在 OpenDesign 原型（`.opendesign/` 目录）中做好，验证通过后应用到项目代码。禁止跳过原型直接改生产代码
+- 📖 [OpenDesign MCP 使用指南 →](.kilo/opendesign-mcp.md) — MCP 工具、工作流、设计 Token
+- 🎨 **OD 项目**: `CigarDomTabaka` (`570372ce-21b8-4752-a21a-bd254f061568`) ↔ 本 Django 项目
 
 ---
 

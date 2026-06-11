@@ -40,7 +40,7 @@ function ContactStrip() {
 function StoreHeader() {
   return (
     <div className="bg-accent-light border border-accent/20 rounded-sm px-5 py-5 mb-6 text-center">
-      <img src={`${base}logo-120.png`} alt="CigarDomTabaka" className="w-[120px] h-[120px] mx-auto mb-3 object-contain" />
+      <img src={`${base}logo-512.png`} alt="CigarDomTabaka" className="w-[120px] h-[120px] mx-auto mb-3 object-contain" />
       <h2 className="text-lg font-bold tracking-wide text-fg mb-2">
         莫斯科烟草之家<br />
         <span className="font-normal text-sm text-muted">Москва Сигар дом табака</span>
@@ -136,7 +136,7 @@ export default function PrivnoteViewPage() {
       <div className="min-h-screen flex items-center justify-center bg-cream px-4">
         <div className="bg-white border border-border rounded-sm p-10 text-center w-full max-w-md">
           <div className="flex items-center justify-center mx-auto mb-6 bg-accent-light">
-            <img src={`${base}logo-120.png`} alt="CigarDomTabaka" className="w-[120px] h-[120px] object-contain" />
+            <img src={`${base}logo-512.png`} alt="CigarDomTabaka" className="w-[120px] h-[120px] object-contain" />
           </div>
           <h1 className="text-xl font-display font-semibold text-fg mb-2">{displayData.title}</h1>
           <p className="text-sm text-muted mb-8">此内容受密码保护</p>

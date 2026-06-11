@@ -56,13 +56,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* ===== TOPBAR ===== */}
       <header className="sticky top-0 z-50 bg-cream/90 backdrop-blur-sm border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center justify-between h-14">
+          <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex items-center gap-3">
               <img
-                src={`${base}logo-32.png`}
+                src={`${base}logo-512.png`}
                 alt="CigarDomTabaka"
-                className="w-8 h-8 cursor-pointer object-contain"
+                className="w-[45px] h-[45px] cursor-pointer object-contain"
                 onClick={() => navigate('/')}
               />
               <span className="font-display text-lg font-semibold text-fg tracking-tight hidden sm:inline">
@@ -194,7 +194,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 md:gap-8 pb-8 border-b border-border">
             {/* Brand */}
             <div className="flex items-center gap-4">
-              <img src={`${base}logo-120.png`} alt="CigarDomTabaka" className="w-[120px] h-[120px] object-contain shrink-0 mr-4" />
+              <img src={`${base}logo-512.png`} alt="CigarDomTabaka" className="w-[120px] h-[120px] object-contain shrink-0 mr-4" />
               <div>
                 <div className="font-display text-[22px] font-semibold tracking-wide text-fg">
                   CigarDomTabaka

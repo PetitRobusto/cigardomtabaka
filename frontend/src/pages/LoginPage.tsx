@@ -53,7 +53,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm mx-4">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <img src={`${base}logo-120.png`} alt="CigarDomTabaka" className="w-[120px] h-[120px] mb-4 object-contain" />
+          <img src={`${base}logo-512.png`} alt="CigarDomTabaka" className="w-[120px] h-[120px] mb-4 object-contain" />
           <h1 className="text-xl font-display font-semibold text-fg">CigarDomTabaka</h1>
           <p className="text-sm text-muted mt-1">内部管理系统</p>
         </div>

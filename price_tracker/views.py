@@ -437,7 +437,8 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             if snap.in_stock:
                 entry['in_stock'] = True
 
-        # 3. 计算平均单支价 + 排序
+        # 3. 计算平均单支价（与详情页算法一致：
+        #   取 round(price_cny/box_size, 2) 的算术平均，保留两位小数）
         # 排序规则：品牌 → 常规款 > 非常规款（机制小雪茄/特别款）
         BRANDS_ORDER = [
             '高希霸', '蒙特', '罗密欧与朱丽叶', '帕特加斯',
@@ -448,9 +449,9 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             per_stick = []
             for s in entry['sources']:
                 if s['price_cny'] and s['box_size'] and s['box_size'] > 0:
-                    per_stick.append(s['price_cny'] / s['box_size'])
+                    per_stick.append(round(s['price_cny'] / s['box_size'], 2))
             if per_stick:
-                entry['avg_per_stick_cny'] = round(sum(per_stick) / len(per_stick), 0)
+                entry['avg_per_stick_cny'] = round(sum(per_stick) / len(per_stick), 2)
         def _sort_key(entry):
             brand_order = BRANDS_ORDER.index(entry['cigar_brand_cn']) if entry['cigar_brand_cn'] in BRANDS_ORDER else 999
             # 非常规款判断：机制雪茄 或 有特别款类型

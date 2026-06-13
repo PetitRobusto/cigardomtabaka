@@ -43,3 +43,6 @@ BASE_RATIO_FACTOR = 0.85
 
 # 默认返回结果数
 DEFAULT_RESULT_LIMIT = 30
+
+# 最低相关性分数，避免无关查询也返回最高分结果
+MIN_SEARCH_SCORE = 45

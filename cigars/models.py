@@ -254,9 +254,9 @@ class PurchaseOrder(models.Model):
     supplier = models.ForeignKey(
         Supplier, on_delete=models.PROTECT, verbose_name='供应商'
     )
-    rub_total = models.FloatField('卢布总额')
-    exchange_rate = models.FloatField('汇率 (RUB→CNY)')
-    cny_total = models.FloatField('人民币总额')
+    rub_total = models.DecimalField('卢布总额', max_digits=12, decimal_places=2)
+    exchange_rate = models.DecimalField('汇率 (RUB→CNY)', max_digits=10, decimal_places=4)
+    cny_total = models.DecimalField('人民币总额', max_digits=12, decimal_places=2)
     operator = models.ForeignKey(
         User, on_delete=models.PROTECT, related_name='purchase_orders',
         verbose_name='操作人'
@@ -297,8 +297,8 @@ class PurchaseOrderItem(models.Model):
     quantity = models.IntegerField('数量')
     box_size = models.IntegerField('包装支数', null=True, blank=True,
         help_text='如25=木盒25支, 15=铝管15支, 从Cigar.packagings可查盒型')
-    unit_price_rub = models.FloatField('卢布单价')
-    unit_price_cny = models.FloatField('人民币单价')
+    unit_price_rub = models.DecimalField('卢布单价', max_digits=12, decimal_places=2)
+    unit_price_cny = models.DecimalField('人民币单价', max_digits=12, decimal_places=2)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
     class Meta:
@@ -320,7 +320,7 @@ class PurchaseBatch(models.Model):
     )
     quantity = models.IntegerField('原始数量')
     remaining = models.IntegerField('剩余数量')
-    unit_cost_cny = models.FloatField('人民币成本单价')
+    unit_cost_cny = models.DecimalField('人民币成本单价', max_digits=12, decimal_places=2)
     purchased_at = models.DateTimeField('进货日期', auto_now_add=True)
 
     class Meta:
@@ -342,9 +342,9 @@ class SalesOrder(models.Model):
         verbose_name='客户'
     )
     customer_name = models.CharField('散客名', max_length=200, blank=True)
-    total_revenue = models.FloatField('收入合计', default=0)
-    total_cost = models.FloatField('成本合计', default=0)
-    total_profit = models.FloatField('利润合计', default=0)
+    total_revenue = models.DecimalField('收入合计', max_digits=12, decimal_places=2, default=0)
+    total_cost = models.DecimalField('成本合计', max_digits=12, decimal_places=2, default=0)
+    total_profit = models.DecimalField('利润合计', max_digits=12, decimal_places=2, default=0)
     operator = models.ForeignKey(
         User, on_delete=models.PROTECT, related_name='sales_orders',
         null=True, blank=True,
@@ -400,11 +400,11 @@ class SalesOrderItem(models.Model):
         Cigar, on_delete=models.PROTECT, verbose_name='雪茄'
     )
     quantity = models.IntegerField('数量')
-    unit_price = models.FloatField('售价/支 (CNY)')
-    unit_cost = models.FloatField('成本/支 (CNY)')
-    revenue = models.FloatField('收入')
-    cost = models.FloatField('成本')
-    profit = models.FloatField('利润')
+    unit_price = models.DecimalField('售价/支 (CNY)', max_digits=12, decimal_places=2)
+    unit_cost = models.DecimalField('成本/支 (CNY)', max_digits=12, decimal_places=2)
+    revenue = models.DecimalField('收入', max_digits=12, decimal_places=2)
+    cost = models.DecimalField('成本', max_digits=12, decimal_places=2)
+    profit = models.DecimalField('利润', max_digits=12, decimal_places=2)
 
     class Meta:
         verbose_name = '销售明细'
@@ -430,7 +430,7 @@ class AdjustmentRecord(models.Model):
     )
     type = models.CharField('类型', max_length=20, choices=AdjustType.choices)
     quantity = models.IntegerField('数量')
-    unit_cost_cny = models.FloatField('成本/支 (CNY)')
+    unit_cost_cny = models.DecimalField('成本/支 (CNY)', max_digits=12, decimal_places=2)
     operator = models.ForeignKey(
         User, on_delete=models.PROTECT, related_name='adjustments',
         verbose_name='操作人'

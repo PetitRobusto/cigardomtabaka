@@ -1,6 +1,7 @@
 """privnote 通用工具函数 — 零业务逻辑，纯数据转换"""
 import json
 import re
+from decimal import Decimal
 
 from cigars.models import Brand, Cigar, PurchaseBatch
 
@@ -59,6 +60,17 @@ def safe_json_loads(raw, default=None):
         return default
 
 
+def decimal_to_number(value):
+    """将 Decimal 转为前端友好的 int/float。"""
+    if value is None:
+        return None
+    if not isinstance(value, Decimal):
+        return value
+    if value == value.to_integral_value():
+        return int(value)
+    return float(value)
+
+
 # ── 搜索词拆分 ──
 
 def split_search_terms(q):
@@ -115,7 +127,7 @@ def serialize_cigar_minimal(cigar, include_batches=False, stock_only=False):
                     'batch_id': b.id,
                     'box_size': box_size,
                     'remaining': b.remaining,
-                    'unit_cost_cny': b.unit_cost_cny,
+                    'unit_cost_cny': decimal_to_number(b.unit_cost_cny),
                 })
                 total_stock += b.remaining
         else:

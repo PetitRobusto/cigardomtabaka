@@ -3,6 +3,7 @@ Privnote v3 测试套件
 覆盖: Models / Views (创建/查看/搜索/收款方式) / 权限 / 实时渲染
 """
 import json
+from decimal import Decimal
 from datetime import timedelta
 from django.test import TestCase, Client
 from django.utils import timezone
@@ -365,14 +366,14 @@ class CreatePaymentTestCase(TestCase):
         self.assertEqual(so.status, 'draft')
         self.assertEqual(so.customer_name, '张三')
         self.assertEqual(so.payment_method_id, self.pm.id)
-        self.assertEqual(so.total_revenue, 3500)
+        self.assertEqual(so.total_revenue, Decimal('3500.00'))
 
         # 验证 SalesOrderItem 创建
         items_qs = so.items.all()
         self.assertEqual(items_qs.count(), 1)
         self.assertEqual(items_qs[0].cigar.id, self.cigar.id)
         self.assertEqual(items_qs[0].quantity, 10)
-        self.assertEqual(items_qs[0].unit_price, 350)
+        self.assertEqual(items_qs[0].unit_price, Decimal('350.00'))
 
         # 验证 Privnote 关联
         note = Privnote.objects.get(token=data['token'])
@@ -397,7 +398,7 @@ class CreatePaymentTestCase(TestCase):
         data = resp.json()
         so = SalesOrder.objects.get(id=data['sales_order_id'])
         self.assertEqual(so.items.count(), 2)
-        self.assertEqual(so.total_revenue, 5 * 350 + 3 * 200)  # 2350
+        self.assertEqual(so.total_revenue, Decimal('2350.00'))
 
     def test_create_payment_with_batch_cost(self):
         """关联 batch 自动填成本"""
@@ -411,8 +412,8 @@ class CreatePaymentTestCase(TestCase):
         data = resp.json()
         so = SalesOrder.objects.get(id=data['sales_order_id'])
         item = so.items.first()
-        self.assertEqual(item.unit_cost, 280.0)
-        self.assertEqual(item.cost, 2800.0)
+        self.assertEqual(item.unit_cost, Decimal('280.00'))
+        self.assertEqual(item.cost, Decimal('2800.00'))
 
     def test_create_payment_without_sales_order(self):
         """可以不绑定 SalesOrder（但当前 create 总是创建一个）"""
@@ -465,7 +466,31 @@ class CreatePaymentTestCase(TestCase):
             'duration': 24,
             'items': json.dumps(items),
         })
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('商品不存在', resp.json()['error'])
+
+    def test_create_payment_rejects_negative_price(self):
+        items = [{'cigar_id': self.cigar.id, 'quantity': 1, 'unit_price': -100}]
+        resp = self.client.post('/privnote/create/', {
+            'note_type': 'payment',
+            'duration': 24,
+            'items': json.dumps(items),
+        })
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('不能为负数', resp.json()['error'])
+
+    def test_create_payment_rejects_mismatched_batch(self):
+        cigar2 = Cigar.objects.create(
+            brand='TestBrand', english_name='Other Cigar', name='其他雪茄'
+        )
+        items = [{'cigar_id': cigar2.id, 'quantity': 1, 'unit_price': 100, 'batch_id': self.batch.id}]
+        resp = self.client.post('/privnote/create/', {
+            'note_type': 'payment',
+            'duration': 24,
+            'items': json.dumps(items),
+        })
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('批次不存在或不匹配', resp.json()['error'])
 
 
 class CreateMessageTestCase(TestCase):
@@ -832,7 +857,7 @@ class RealTimeRenderingTestCase(TestCase):
         so = SalesOrder.objects.get(id=self.so_id)
         item = so.items.first()
         item.unit_price = 500
-        item.revenue = item.quantity * 500
+        item.revenue = item.quantity * Decimal('500.00')
         item.profit = item.revenue - item.cost
         item.save()
         so.total_revenue = item.revenue

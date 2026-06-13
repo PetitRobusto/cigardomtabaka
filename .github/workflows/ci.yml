@@ -42,7 +42,7 @@ jobs:
           DJANGO_DEBUG: "True"
           DJANGO_SECRET_KEY: ci-test-key
         run: |
-          python3 -m pytest --tb=short -p no:warnings --no-header -q
+          python3 manage.py test cigars privnote --verbosity=1
 
   frontend:
     runs-on: ubuntu-latest
@@ -65,4 +65,5 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
+          npm run lint
           npm run build

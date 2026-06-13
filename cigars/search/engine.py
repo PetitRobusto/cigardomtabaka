@@ -1,6 +1,6 @@
 """雪茄搜索引擎 — 零 HTTP 依赖，纯算法层"""
 from cigars.search.scoring import score_cigar
-from cigars.search.constants import DEFAULT_RESULT_LIMIT
+from cigars.search.constants import DEFAULT_RESULT_LIMIT, MIN_SEARCH_SCORE
 
 
 def split_search_terms(q):
@@ -44,7 +44,8 @@ class CigarSearchEngine:
         scored = []
         for cigar in cigars:
             score = score_cigar(cigar, q_lower, terms, is_multi_term)
-            scored.append((cigar, score))
+            if score >= MIN_SEARCH_SCORE:
+                scored.append((cigar, score))
 
         # 按分数降序排序
         scored.sort(key=lambda x: -x[1])

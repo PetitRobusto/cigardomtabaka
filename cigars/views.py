@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 
 from .models import Brand, Cigar, PurchaseBatch
+from privnote.helpers import decimal_to_number
 
 
 PACKAGING_TRANSLATIONS = [
@@ -350,7 +351,7 @@ def api_inventory(request):
         stock_data[row['cigar_id']] = {
             'total_stock': row['total_stock'],
             'total_cost': row['total_cost'],
-            'avg_cost': round(row['total_cost'] / row['total_stock'], 2) if row['total_stock'] else 0,
+            'avg_cost': (row['total_cost'] / row['total_stock']) if row['total_stock'] else 0,
             'latest_date': row['latest_date'].isoformat() if row['latest_date'] else None,
         }
 
@@ -367,8 +368,8 @@ def api_inventory(request):
             'release_type_cn': c.release_type_cn,
             'release_type': c.release_type,
             'total_stock': sd['total_stock'],
-            'total_cost': sd['total_cost'],
-            'avg_cost': sd['avg_cost'],
+            'total_cost': decimal_to_number(sd['total_cost']),
+            'avg_cost': decimal_to_number(sd['avg_cost']),
             'latest_date': sd['latest_date'],
         })
 

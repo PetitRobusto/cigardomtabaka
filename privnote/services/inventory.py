@@ -1,5 +1,6 @@
 """Inventory 业务逻辑 — 从 PurchaseBatch 构建盒装库存结构化数据"""
 from collections import OrderedDict
+from decimal import Decimal, ROUND_HALF_UP
 
 from cigars.models import PurchaseBatch
 from privnote.helpers import get_thumb_url, get_brand_info_map
@@ -29,12 +30,14 @@ def build_inventory_data():
         box_size = b.purchase_order_item.box_size or 25
         key = (b.cigar.brand, b.cigar.english_name, box_size)
         if key not in keyed:
-            keyed[key] = {'cigar': b.cigar, 'box_size': box_size, 'remaining': 0, 'cost': 0}
+            keyed[key] = {'cigar': b.cigar, 'box_size': box_size, 'remaining': 0, 'cost': Decimal('0.00')}
+        previous_remaining = keyed[key]['remaining']
+        previous_cost = keyed[key]['cost']
         keyed[key]['remaining'] += b.remaining
-        keyed[key]['cost'] = round(
-            (keyed[key]['cost'] * (keyed[key]['remaining'] - b.remaining) + b.unit_cost_cny * b.remaining)
-            / keyed[key]['remaining'], 2
-        ) if keyed[key]['remaining'] > 0 else b.unit_cost_cny
+        keyed[key]['cost'] = (
+            (previous_cost * previous_remaining + b.unit_cost_cny * b.remaining)
+            / keyed[key]['remaining']
+        ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) if keyed[key]['remaining'] > 0 else b.unit_cost_cny
 
     brand_groups = OrderedDict()
     for (brand, ename, bs), entry in keyed.items():

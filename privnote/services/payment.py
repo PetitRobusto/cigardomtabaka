@@ -1,9 +1,87 @@
 """Payment 业务逻辑 — 收款单数据构建、SalesOrder 创建"""
-from django.shortcuts import get_object_or_404
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+
+from django.db import transaction
 
 from cigars.models import Cigar, PurchaseBatch, SalesOrder, SalesOrderItem
 from privnote.models import PaymentMethod
-from privnote.helpers import get_thumb_url, serialize_payment_method
+from privnote.helpers import decimal_to_number, get_thumb_url, serialize_payment_method
+
+
+MONEY_PLACES = Decimal('0.01')
+
+
+class PaymentValidationError(ValueError):
+    """收款单输入校验错误。"""
+
+
+def _to_money(raw, field_name):
+    try:
+        value = Decimal(str(raw)).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
+    except (InvalidOperation, TypeError, ValueError):
+        raise PaymentValidationError(f'{field_name}必须是有效金额')
+    if value < 0:
+        raise PaymentValidationError(f'{field_name}不能为负数')
+    return value
+
+
+def _to_positive_int(raw, field_name):
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise PaymentValidationError(f'{field_name}必须是正整数')
+    if value <= 0:
+        raise PaymentValidationError(f'{field_name}必须是正整数')
+    return value
+
+
+def _normalize_extra_fees(extra_fees):
+    if not extra_fees:
+        return []
+    if not isinstance(extra_fees, list):
+        raise PaymentValidationError('额外费用格式错误')
+
+    normalized = []
+    for idx, fee in enumerate(extra_fees, start=1):
+        if not isinstance(fee, dict):
+            raise PaymentValidationError(f'第{idx}项额外费用格式错误')
+        name = str(fee.get('name', '')).strip()
+        amount = _to_money(fee.get('amount', 0), f'第{idx}项额外费用金额')
+        if not name and amount == 0:
+            continue
+        if not name:
+            raise PaymentValidationError(f'第{idx}项额外费用名称不能为空')
+        normalized.append({'name': name, 'amount': decimal_to_number(amount)})
+    return normalized
+
+
+def _normalize_manual_payment(payment_manual):
+    if not payment_manual:
+        return {}
+    if not isinstance(payment_manual, dict):
+        raise PaymentValidationError('手动收款信息格式错误')
+    allowed_keys = ('bank_name', 'card_number', 'card_holder', 'qr_url')
+    return {
+        key: str(payment_manual.get(key, '')).strip()
+        for key in allowed_keys
+        if payment_manual.get(key)
+    }
+
+
+def _normalize_images(images):
+    if not images:
+        return []
+    if not isinstance(images, list):
+        raise PaymentValidationError('图片数据格式错误')
+    normalized = []
+    for image in images:
+        if not isinstance(image, dict):
+            continue
+        url = str(image.get('url', '')).strip()
+        name = str(image.get('name', '')).strip()
+        if url:
+            normalized.append({'url': url, 'name': name})
+    return normalized
 
 
 def build_payment_data(sales_order):
@@ -16,16 +94,19 @@ def build_payment_data(sales_order):
             'english_name': cigar.english_name,
             'vitola': cigar.vitola or '—',
             'quantity': item.quantity,
-            'unit_price': item.unit_price,
-            'subtotal': round(item.quantity * item.unit_price, 2),
+            'unit_price': decimal_to_number(item.unit_price),
+            'subtotal': decimal_to_number((item.quantity * item.unit_price).quantize(MONEY_PLACES)),
             'thumb_url': get_thumb_url(cigar),
         })
 
-    total = round(sum(it['subtotal'] for it in items), 2)
+    total = sum(Decimal(str(it['subtotal'])) for it in items).quantize(MONEY_PLACES)
 
     # 额外费用
     extra_fees = sales_order.payment_manual.get('extra_fees', []) if sales_order.payment_manual else []
-    extra_total = round(sum(float(f.get('amount', 0)) for f in extra_fees), 2)
+    extra_total = sum(
+        (_to_money(f.get('amount', 0), '额外费用金额') for f in extra_fees),
+        Decimal('0.00'),
+    ).quantize(MONEY_PLACES)
 
     payment_methods = []
     if sales_order.payment_method_id:
@@ -53,10 +134,10 @@ def build_payment_data(sales_order):
     return {
         'mode': 'payment',
         'items': items,
-        'total': total,
+        'total': decimal_to_number(total),
         'extra_fees': extra_fees,
-        'extra_total': extra_total,
-        'grand_total': round(total + extra_total, 2),
+        'extra_total': decimal_to_number(extra_total),
+        'grand_total': decimal_to_number((total + extra_total).quantize(MONEY_PLACES)),
         'payment_methods': payment_methods,
         'customer_name': sales_order.customer_name or '',
         'remark': sales_order.payment_manual.get('remark', '') if sales_order.payment_manual else '',
@@ -70,50 +151,75 @@ def create_sales_order_from_items(items_raw, customer_name, payment_method_id,
     从商品列表创建 SalesOrder + SalesOrderItem。
     返回创建好的 SalesOrder 实例。
     """
-    order = SalesOrder.objects.create(
-        customer_name=customer_name or '',
-        operator=None,
-        status='draft',
-        payment_method_id=int(payment_method_id) if payment_method_id else None,
-        payment_manual=dict(payment_manual, extra_fees=extra_fees, remark=remark, images=images),
-    )
+    if not isinstance(items_raw, list):
+        raise PaymentValidationError('商品数据格式错误')
+    normalized_manual = _normalize_manual_payment(payment_manual)
+    normalized_extra_fees = _normalize_extra_fees(extra_fees)
+    normalized_images = _normalize_images(images)
 
-    total_revenue = 0
-    total_cost = 0
-    for it in items_raw:
-        cigar_id = it.get('cigar_id')
-        quantity = int(it.get('quantity', 1))
-        unit_price = float(it.get('unit_price', 0))
+    selected_payment_method_id = None
+    if payment_method_id:
+        selected_payment_method_id = _to_positive_int(payment_method_id, '收款方式ID')
+        if not PaymentMethod.objects.filter(id=selected_payment_method_id, is_active=True).exists():
+            raise PaymentValidationError('收款方式不存在或未启用')
 
-        cigar = get_object_or_404(Cigar, id=cigar_id)
-
-        # 如果关联库存，自动填成本
-        unit_cost = 0
-        purchase_batch_id = it.get('batch_id')
-        if purchase_batch_id:
-            batch = PurchaseBatch.objects.filter(id=purchase_batch_id).first()
-            if batch:
-                unit_cost = batch.unit_cost_cny or 0
-
-        revenue = round(quantity * unit_price, 2)
-        cost = round(quantity * unit_cost, 2)
-        total_revenue += revenue
-        total_cost += cost
-
-        SalesOrderItem.objects.create(
-            sales_order=order,
-            cigar=cigar,
-            quantity=quantity,
-            unit_price=unit_price,
-            unit_cost=unit_cost,
-            revenue=revenue,
-            cost=cost,
-            profit=round(revenue - cost, 2),
+    with transaction.atomic():
+        order = SalesOrder.objects.create(
+            customer_name=customer_name or '',
+            operator=None,
+            status='draft',
+            payment_method_id=selected_payment_method_id,
+            payment_manual=dict(
+                normalized_manual,
+                extra_fees=normalized_extra_fees,
+                remark=remark,
+                images=normalized_images,
+            ),
         )
 
-    order.total_revenue = round(total_revenue, 2)
-    order.total_cost = round(total_cost, 2)
-    order.total_profit = round(total_revenue - total_cost, 2)
-    order.save(update_fields=['total_revenue', 'total_cost', 'total_profit'])
+        total_revenue = Decimal('0.00')
+        total_cost = Decimal('0.00')
+        for idx, it in enumerate(items_raw, start=1):
+            if not isinstance(it, dict):
+                raise PaymentValidationError(f'第{idx}个商品格式错误')
+            cigar_id = _to_positive_int(it.get('cigar_id'), f'第{idx}个商品ID')
+            quantity = _to_positive_int(it.get('quantity', 1), f'第{idx}个商品数量')
+            unit_price = _to_money(it.get('unit_price', 0), f'第{idx}个商品单价')
+
+            try:
+                cigar = Cigar.objects.get(id=cigar_id)
+            except Cigar.DoesNotExist:
+                raise PaymentValidationError(f'第{idx}个商品不存在')
+
+            # 如果关联库存，自动填成本
+            unit_cost = Decimal('0.00')
+            purchase_batch_id = it.get('batch_id')
+            if purchase_batch_id:
+                batch_id = _to_positive_int(purchase_batch_id, f'第{idx}个商品批次ID')
+                batch = PurchaseBatch.objects.filter(id=batch_id, cigar=cigar).first()
+                if not batch:
+                    raise PaymentValidationError(f'第{idx}个商品批次不存在或不匹配')
+                unit_cost = batch.unit_cost_cny or Decimal('0.00')
+
+            revenue = (quantity * unit_price).quantize(MONEY_PLACES)
+            cost = (quantity * unit_cost).quantize(MONEY_PLACES)
+            total_revenue += revenue
+            total_cost += cost
+
+            SalesOrderItem.objects.create(
+                sales_order=order,
+                cigar=cigar,
+                quantity=quantity,
+                unit_price=unit_price,
+                unit_cost=unit_cost,
+                revenue=revenue,
+                cost=cost,
+                profit=(revenue - cost).quantize(MONEY_PLACES),
+            )
+
+        order.total_revenue = total_revenue.quantize(MONEY_PLACES)
+        order.total_cost = total_cost.quantize(MONEY_PLACES)
+        order.total_profit = (total_revenue - total_cost).quantize(MONEY_PLACES)
+        order.save(update_fields=['total_revenue', 'total_cost', 'total_profit'])
 
     return order

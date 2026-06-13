@@ -28,6 +28,7 @@ from .services import (
     build_quote_data,
     create_sales_order_from_items,
 )
+from .services.payment import PaymentValidationError
 
 
 # ── 常量 ──
@@ -87,15 +88,18 @@ def create(request):
         remark = request.POST.get('remark', '').strip()
         images = safe_json_loads(request.POST.get('images', '[]'), [])
 
-        order = create_sales_order_from_items(
-            items_raw=items_raw,
-            customer_name=customer_name,
-            payment_method_id=payment_method_id,
-            payment_manual=payment_manual,
-            extra_fees=extra_fees,
-            remark=remark,
-            images=images,
-        )
+        try:
+            order = create_sales_order_from_items(
+                items_raw=items_raw,
+                customer_name=customer_name,
+                payment_method_id=payment_method_id,
+                payment_manual=payment_manual,
+                extra_fees=extra_fees,
+                remark=remark,
+                images=images,
+            )
+        except PaymentValidationError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
 
         title = f'收款单 · {order.order_number}{debug_tag}'
         data = build_payment_data(order)
@@ -106,6 +110,10 @@ def create(request):
         text = request.POST.get('text', '').strip()
         attachments = safe_json_loads(request.POST.get('attachments', '[]'), [])
         images = safe_json_loads(request.POST.get('images', '[]'), [])
+        if not isinstance(attachments, list):
+            attachments = []
+        if not isinstance(images, list):
+            images = []
 
         if not text and not attachments and not images:
             return JsonResponse({'error': '消息内容和附件至少填一个'}, status=400)
@@ -120,12 +128,21 @@ def create(request):
         shipping_included = request.POST.get('shipping_included', 'false') == 'true'
         quote_customer_name = request.POST.get('customer_name', '').strip()
         custom_prices = safe_json_loads(request.POST.get('custom_prices', '{}'), {})
+        if not isinstance(custom_prices, dict):
+            custom_prices = {}
 
         # 过滤非法值：只保留正整数
-        custom_prices = {
-            k: int(v) for k, v in custom_prices.items()
-            if isinstance(v, (int, float, str)) and int(v) > 0
-        }
+        filtered_custom_prices = {}
+        for k, v in custom_prices.items():
+            if not isinstance(v, (int, float, str)):
+                continue
+            try:
+                price = int(v)
+            except (TypeError, ValueError):
+                continue
+            if price > 0:
+                filtered_custom_prices[str(k)] = price
+        custom_prices = filtered_custom_prices
 
         if quote_mode == 'custom' and not selected_ids:
             return JsonResponse({'error': '定制选择模式下至少选择一款雪茄'}, status=400)
@@ -367,6 +384,5 @@ def api_privnote(request, token):
 # Compatibility alias
 def create_note(request):
     return create(request)
-
 
 

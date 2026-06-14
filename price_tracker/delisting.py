@@ -17,7 +17,7 @@ def detect_delistings(source, scraped_combos):
     Returns:
         {'newly_delisted': int, 'already_delisted': int}
     """
-    today = timezone.now().date()
+    today = timezone.localdate()
 
     # 1. 找到上一次爬取中仍在售的 combo（不是全部历史！）
     #    只对比 "上次有 → 这次无" 的才标记下架，避免历史累积导致每天重复标记

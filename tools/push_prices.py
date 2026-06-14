@@ -84,9 +84,12 @@ def push_source(source_slug: str) -> dict:
     )
     resp.raise_for_status()
     result = resp.json()
+    err_summary = result.get('error_summary', {})
+    err_str = ', '.join(f'{k}:{v}' for k, v in err_summary.items()) if err_summary else 'none'
     print(f'[{source_slug}] OK: received={result.get("received")} '
           f'matched={result.get("matched")} created={result.get("created")} '
-          f'skipped={result.get("skipped")} delisted={result.get("delisted")}')
+          f'skipped={result.get("skipped")} delisted={result.get("delisted")} '
+          f'errors={result.get("errors", 0)} [{err_str}]')
     return result
 
 

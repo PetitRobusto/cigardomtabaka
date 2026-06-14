@@ -72,6 +72,24 @@ class TestSnapshotDedup:
         result = run_scrape_sync('dedup-test')
         assert result['created'] == 1
 
+    def test_price_change_under_one_cent_skips(self):
+        """Price delta <= 0.01 -> skips as duplicate"""
+        self._make_historical_snapshot(self.cigar, price=100.0, in_stock=True)
+        before = PriceSnapshot.objects.count()
+        items = [ScrapedItem(name='Dedup Cigar', price=100.009, box_size=25, currency='USD')]
+        self._register_mock_scraper(items)
+        result = run_scrape_sync('dedup-test')
+        assert result['created'] == 0
+        assert PriceSnapshot.objects.count() == before
+
+    def test_price_change_over_one_cent_creates(self):
+        """Price delta > 0.01 -> creates a new snapshot"""
+        self._make_historical_snapshot(self.cigar, price=100.0, in_stock=True)
+        items = [ScrapedItem(name='Dedup Cigar', price=100.011, box_size=25, currency='USD')]
+        self._register_mock_scraper(items)
+        result = run_scrape_sync('dedup-test')
+        assert result['created'] == 1
+
     def test_relisted_creates(self):
         """Was delisted, now reappears -> creates relisted snapshot"""
         self._make_historical_snapshot(

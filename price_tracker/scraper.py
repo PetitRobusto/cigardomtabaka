@@ -257,8 +257,8 @@ def run_scrape_sync(source_slug: str) -> dict:
             else:
                 raw_data['relisted'] = True
                 raw_data['relisted_at'] = timezone.now().isoformat()
-        elif item.price is not None and abs(latest.price - item.price) > 0.001:
-            # Price changed (1/1000 tolerance for float rounding)
+        elif item.price is not None and abs(latest.price - item.price) > 0.01:
+            # Price changed (> 0.01 tolerance — 低于1分钱的变化忽略，与生产端一致)
             should_create = True
         # else: price unchanged → skip (dedup!)
 

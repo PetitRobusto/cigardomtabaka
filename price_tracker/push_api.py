@@ -237,6 +237,15 @@ def push_bulk(request):
         for cid, bs in anomaly_groups:
             detect_and_mark_group(cid, bs)
 
+    # --- error_summary: 按错误类型分组，方便客户端展示失败原因 ---
+    error_summary = {}
+    for es in error_samples:
+        err_type = es.get('error', 'Unknown').split(':')[0].strip()
+        error_summary[err_type] = error_summary.get(err_type, 0) + 1
+    remaining = errors - sum(error_summary.values())
+    if remaining > 0:
+        error_summary['other'] = remaining
+
     return JsonResponse({
         'ok': True,
         'source': source_slug,
@@ -246,7 +255,7 @@ def push_bulk(request):
         'skipped': skipped,
         'delisted': delisted,
         'errors': errors,
-        'error_samples': error_samples,  # 临时调试
+        'error_summary': error_summary,
         'cache_hits': cache_hits,
         'cache_misses': cache_misses,
     })

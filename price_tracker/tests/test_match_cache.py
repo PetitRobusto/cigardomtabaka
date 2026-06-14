@@ -94,6 +94,16 @@ class TestMatchCache:
         assert cache.hits == 0
         assert cache.misses == 1
 
+    def test_item_without_url_counts_as_miss(self):
+        """items without URL do not attempt cache lookup"""
+        from price_tracker.match_cache import MatchCache
+
+        cache = MatchCache.for_source(self.source)
+
+        assert cache.get(ScrapedItem(name='No URL')) is None
+        assert cache.hits == 0
+        assert cache.misses == 1
+
     def test_legacy_url_cache_only_hits_when_unambiguous(self):
         """legacy rows without product use URL only when one cigar is possible"""
         from price_tracker.match_cache import MatchCache

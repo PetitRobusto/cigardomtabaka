@@ -99,6 +99,52 @@ class TestPushBulk:
         }
 
     @override_settings(DEBUG=False)
+    def test_uses_fallback_cny_when_payload_does_not_include_price_cny(self, monkeypatch):
+        """push fills price_cny from local conversion when caller omits it"""
+        monkeypatch.setenv('PRICE_PUSH_API_KEY', 'secret')
+        item = {
+            'name': 'Known Cigar',
+            'price': 120,
+            'box_size': 25,
+            'currency': 'USD',
+            'url': 'https://push.example/known-cigar',
+            'raw_data': {'product': 'Known Cigar'},
+        }
+
+        response = push_bulk(self._post_push([item]))
+        payload = json.loads(response.content)
+
+        assert response.status_code == 200
+        assert payload['created'] == 1
+        snap = PriceSnapshot.objects.filter(
+            source=self.source,
+            cigar=self.cigar,
+        ).order_by('-scraped_at').first()
+        assert snap is not None
+        assert snap.price_cny == 840
+
+    @override_settings(DEBUG=False)
+    def test_error_summary_rolls_extra_error_types_into_other(self, monkeypatch):
+        """push keeps only five classified error buckets and rolls the rest into other"""
+        monkeypatch.setenv('PRICE_PUSH_API_KEY', 'secret')
+
+        items = [
+            {'name': '', 'price': 100, 'box_size': 25, 'currency': 'USD', 'raw_data': {}},
+            {'name': '', 'price': 100, 'box_size': 25, 'currency': 'USD', 'raw_data': {}},
+            {'name': '', 'price': 100, 'box_size': 25, 'currency': 'USD', 'raw_data': {}},
+            {'name': '', 'price': 100, 'box_size': 25, 'currency': 'USD', 'raw_data': {}},
+            {'name': '', 'price': 100, 'box_size': 25, 'currency': 'USD', 'raw_data': {}},
+            {'name': '', 'price': 100, 'box_size': 25, 'currency': 'USD', 'raw_data': {}},
+        ]
+
+        response = push_bulk(self._post_push(items))
+        payload = json.loads(response.content)
+
+        assert response.status_code == 200
+        assert payload['errors'] == 6
+        assert payload['error_summary'] == {'missing_name': 5, 'other': 1}
+
+    @override_settings(DEBUG=False)
     def test_error_summary_groups_processing_errors_and_remaining_samples(self, monkeypatch):
         """push response includes grouped error counts and sampled overflow as other"""
         monkeypatch.setenv('PRICE_PUSH_API_KEY', 'secret')

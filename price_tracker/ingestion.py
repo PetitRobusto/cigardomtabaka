@@ -29,6 +29,7 @@ class IngestionResult:
     error_summary: dict[str, int] = field(default_factory=dict)
     cache_hits: int = 0
     cache_misses: int = 0
+    unmatched: list[str] = field(default_factory=list)
 
 
 def ingest_items(
@@ -56,6 +57,7 @@ def ingest_items(
 
             if cigar is None:
                 result.skipped += 1
+                result.unmatched.append(_item_label(item))
                 _record_error(result, 'unmatched')
                 continue
 
@@ -238,3 +240,11 @@ def _increment_error(result: IngestionResult, error_type: str) -> None:
         return
 
     result.error_summary[error_type] = result.error_summary.get(error_type, 0) + 1
+
+
+def _item_label(item: ScrapedItem) -> str:
+    if isinstance(item.raw_data, dict):
+        brand = item.raw_data.get('brand')
+        if brand:
+            return f'{brand}: {item.name}'
+    return item.name

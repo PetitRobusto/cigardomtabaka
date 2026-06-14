@@ -426,8 +426,8 @@ class PriceAlertViewSet(viewsets.ModelViewSet):
 import json, re
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view, permission_classes
-from cigars.models import Cigar
-from price_tracker.scraper import match_cigar_by_name
+from price_tracker.ingestion import ingest_items
+from price_tracker.scraper import ScrapedItem
 
 COH_SLUG_BRAND_MAP = {
     'belinda': 'Belinda', 'bolivar': 'Bolívar', 'cohiba': 'Cohiba',
@@ -455,6 +455,26 @@ def _clean_name(name):
     return name.strip()
 
 
+def _clean_coh_import_name(name):
+    name = _clean_name(name)
+    return re.sub(
+        r'\s*(Travel Humidor|Gift Box|Humidor|Limited Edition|Year of the \w+|Anejados)\s*',
+        '',
+        name,
+        flags=re.I,
+    ).strip()
+
+
+def _parse_coh_box_size(box_info):
+    if not box_info:
+        return None
+    m = re.match(r'(\d+)(?:x(\d+))?\s*(?:Box|Pack|Bundle|Single)', box_info)
+    if not m:
+        return None
+    a, b = int(m.group(1)), m.group(2)
+    return a * int(b) if b else a
+
+
 @csrf_exempt
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])  # Restored
@@ -462,60 +482,44 @@ def import_coh_bulk(request):
     """接收浏览器直接 POST 的 COH 全站数据"""
     data = request.data
     source = PriceSource.objects.get(slug='coh')
-    now = timezone.now()
 
-    stats = {'total': 0, 'matched': 0, 'created': 0, 'skipped': 0, 'unmatched': []}
+    total = 0
+    skipped = 0
+    items = []
 
     for slug, products in data.items():
         brand = COH_SLUG_BRAND_MAP.get(slug, slug)
         for prod in products:
-            stats['total'] += 1
-            name = _clean_name(prod.get('name', ''))
+            total += 1
+            name = _clean_coh_import_name(prod.get('name', ''))
             price = prod.get('price')
             if not price:
-                stats['skipped'] += 1
+                skipped += 1
                 continue
 
-            cigar = match_cigar_by_name(name, brand_hint=brand)
-            if not cigar:
-                name2 = re.sub(r'\s*(Travel Humidor|Gift Box|Humidor|Limited Edition|Year of the \w+|Anejados)\s*', '', name, flags=re.I).strip()
-                if name2 != name:
-                    cigar = match_cigar_by_name(name2, brand_hint=brand)
+            box_info = prod.get('box_info', '')
+            items.append(ScrapedItem(
+                name=name,
+                price=price,
+                currency='USD',
+                box_size=_parse_coh_box_size(box_info),
+                box_price=price,
+                in_stock=True,
+                raw_data={
+                    'brand': brand,
+                    'coh_name': prod.get('name', ''),
+                    'box_info': box_info,
+                },
+            ))
 
-            if cigar:
-                stats['matched'] += 1
-                # Parse box info: "25 Box" → box_size=25, "3x2 Box" → box_size=6
-                box_info = prod.get('box_info', '')
-                box_size = None
-                if box_info:
-                    m = re.match(r'(\d+)(?:x(\d+))?\s*(?:Box|Pack|Bundle|Single)', box_info)
-                    if m:
-                        a, b = int(m.group(1)), m.group(2)
-                        box_size = a * int(b) if b else a
-
-                # Dedup by cigar + source + box_size + date (allow multiple packagings)
-                existing = PriceSnapshot.objects.filter(
-                    cigar=cigar, source=source, box_size=box_size,
-                    scraped_date=now.date()
-                ).first()
-                if not existing:
-                    PriceSnapshot.objects.create(
-                        cigar=cigar, source=source, price=price,
-                        currency='USD', price_cny=convert_to_cny(price, 'USD'),
-                        box_size=box_size, box_price=price,
-                        in_stock=True, scraped_at=now,
-                        raw_data={'coh_name': prod.get('name',''), 'box_info': box_info},
-                    )
-                    stats['created'] += 1
-            else:
-                stats['unmatched'].append(f'{brand}: {name}')
+    result = ingest_items(source, items, mode='import', run_delisting=False)
 
     return Response({
         'ok': True,
-        'total': stats['total'],
-        'matched': stats['matched'],
-        'created': stats['created'],
-        'skipped': stats['skipped'],
-        'unmatched_count': len(stats['unmatched']),
-        'unmatched': stats['unmatched'][:20],
+        'total': total,
+        'matched': result.matched,
+        'created': result.created,
+        'skipped': skipped + result.skipped,
+        'unmatched_count': len(result.unmatched),
+        'unmatched': result.unmatched[:20],
     })

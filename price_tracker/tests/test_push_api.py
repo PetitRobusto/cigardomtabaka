@@ -28,10 +28,75 @@ class TestPushBulk:
             cigar=self.cigar,
             price=100,
             currency='USD',
+            price_cny=700,
             box_size=25,
             url='https://push.example/known-cigar',
             raw_data={'product': 'Known Cigar'},
         )
+
+    def _post_push(self, items):
+        return self.factory.post(
+            '/api/prices/push-bulk/',
+            data=json.dumps({'source_slug': self.source.slug, 'items': items}),
+            content_type='application/json',
+            HTTP_X_API_KEY='secret',
+        )
+
+    @override_settings(DEBUG=False)
+    def test_uses_pushed_price_cny_without_reconverting(self, monkeypatch):
+        """push preserves caller-provided price_cny when creating a snapshot"""
+        monkeypatch.setenv('PRICE_PUSH_API_KEY', 'secret')
+        item = {
+            'name': 'Known Cigar',
+            'price': 100,
+            'price_cny': 777,
+            'box_size': 25,
+            'currency': 'USD',
+            'url': 'https://push.example/known-cigar',
+            'raw_data': {'product': 'Known Cigar'},
+        }
+
+        response = push_bulk(self._post_push([item]))
+        payload = json.loads(response.content)
+
+        assert response.status_code == 200
+        assert payload['created'] == 1
+        latest = PriceSnapshot.objects.filter(
+            source=self.source, cigar=self.cigar, price_cny=777
+        ).order_by('-scraped_at').first()
+        assert latest is not None
+
+    @override_settings(DEBUG=False)
+    def test_success_response_shape_stays_compatible(self, monkeypatch):
+        """push response keeps the public API field set stable"""
+        monkeypatch.setenv('PRICE_PUSH_API_KEY', 'secret')
+        item = {
+            'name': 'Known Cigar',
+            'price': 100,
+            'price_cny': 700,
+            'box_size': 25,
+            'currency': 'USD',
+            'url': 'https://push.example/known-cigar',
+            'raw_data': {'product': 'Known Cigar'},
+        }
+
+        response = push_bulk(self._post_push([item]))
+        payload = json.loads(response.content)
+
+        assert response.status_code == 200
+        assert set(payload) == {
+            'ok',
+            'source',
+            'received',
+            'matched',
+            'created',
+            'skipped',
+            'delisted',
+            'errors',
+            'error_summary',
+            'cache_hits',
+            'cache_misses',
+        }
 
     @override_settings(DEBUG=False)
     def test_error_summary_groups_processing_errors_and_remaining_samples(self, monkeypatch):
@@ -47,14 +112,8 @@ class TestPushBulk:
             'raw_data': {'product': 'Known Cigar'},
         }
         items = [bad_item.copy() for _ in range(6)]
-        request = self.factory.post(
-            '/api/prices/push-bulk/',
-            data=json.dumps({'source_slug': self.source.slug, 'items': items}),
-            content_type='application/json',
-            HTTP_X_API_KEY='secret',
-        )
 
-        response = push_bulk(request)
+        response = push_bulk(self._post_push(items))
         payload = json.loads(response.content)
 
         assert response.status_code == 200

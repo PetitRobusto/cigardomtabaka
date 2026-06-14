@@ -106,6 +106,59 @@ class TestSnapshotDedup:
         assert snap is not None
         assert snap.raw_data.get('relisted') is True
 
+    def test_went_oos_creates(self):
+        """Was in stock, now unavailable -> creates went_oos snapshot"""
+        self._make_historical_snapshot(self.cigar, price=100, in_stock=True)
+        items = [
+            ScrapedItem(
+                name='Dedup Cigar',
+                price=100,
+                box_size=25,
+                currency='USD',
+                in_stock=False,
+            )
+        ]
+        self._register_mock_scraper(items)
+
+        result = run_scrape_sync('dedup-test')
+
+        assert result['created'] == 1
+        snap = PriceSnapshot.objects.filter(
+            source=self.source, cigar=self.cigar, in_stock=False
+        ).order_by('-scraped_at').first()
+        assert snap is not None
+        assert snap.raw_data.get('went_oos') is True
+
+    def test_missing_box_size_infers_unique_historical_size(self):
+        """box_size=None with one historical size -> infer and create"""
+        self._make_historical_snapshot(self.cigar, price=100, box_size=10, in_stock=True)
+        items = [ScrapedItem(name='Dedup Cigar', price=120, box_size=None, currency='USD')]
+        self._register_mock_scraper(items)
+
+        result = run_scrape_sync('dedup-test')
+
+        assert result['created'] == 1
+        snap = PriceSnapshot.objects.filter(
+            source=self.source, cigar=self.cigar, price=120
+        ).order_by('-scraped_at').first()
+        assert snap is not None
+        assert snap.box_size == 10
+
+    def test_missing_box_size_with_multiple_historical_sizes_skips(self):
+        """box_size=None with multiple historical sizes -> skip as ambiguous"""
+        self._make_historical_snapshot(self.cigar, price=100, box_size=10, in_stock=True)
+        self._make_historical_snapshot(self.cigar, price=100, box_size=25, in_stock=True)
+        items = [ScrapedItem(name='Dedup Cigar', price=120, box_size=None, currency='USD')]
+        self._register_mock_scraper(items)
+
+        result = run_scrape_sync('dedup-test')
+
+        assert result['created'] == 0
+        assert result['skipped'] >= 1
+        assert not PriceSnapshot.objects.filter(
+            source=self.source, cigar=self.cigar, price=120
+        ).exists()
+
     def test_delisting_detection_integration(self):
         """Old product not in today's scrape -> marked OOS"""
         # Create an old in-stock snapshot for a DIFFERENT cigar

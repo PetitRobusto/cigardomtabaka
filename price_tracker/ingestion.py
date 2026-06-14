@@ -51,6 +51,11 @@ def ingest_items(
 
     for item in item_list:
         try:
+            if not item.name:
+                result.skipped += 1
+                _record_error(result, 'missing_name')
+                continue
+
             cigar = match_cache.get(item)
             if cigar is None:
                 cigar = matcher.match_cigar(item)

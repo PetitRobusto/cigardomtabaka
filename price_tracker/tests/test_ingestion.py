@@ -172,6 +172,58 @@ class TestIngestItems:
             box_size=10,
         ).exists()
 
+    def test_push_mode_keeps_missing_box_size_uninferred(self, monkeypatch):
+        """push mode preserves None box_size instead of inferring from history"""
+        from price_tracker.ingestion import ingest_items
+
+        self._patch_matcher(monkeypatch)
+        self._snapshot(price=100, price_cny=700, box_size=10)
+
+        result = ingest_items(
+            self.source,
+            [ScrapedItem(name='Ingestion Cigar', price=120, box_size=None, currency='USD')],
+            mode='push',
+            run_delisting=False,
+        )
+
+        assert result.created == 1
+        snap = PriceSnapshot.objects.filter(
+            source=self.source,
+            cigar=self.cigar,
+            price=120,
+        ).order_by('-scraped_at').first()
+        assert snap is not None
+        assert snap.box_size is None
+
+    def test_price_cny_from_raw_data_creates_snapshot(self, monkeypatch):
+        """ingestion uses raw_data price_cny when item attribute is absent"""
+        from price_tracker.ingestion import ingest_items
+
+        self._patch_matcher(monkeypatch)
+
+        item = ScrapedItem(
+            name='Ingestion Cigar',
+            price=120,
+            box_size=25,
+            currency='USD',
+            raw_data={'price_cny': 888},
+        )
+
+        result = ingest_items(
+            self.source,
+            [item],
+            mode='push',
+            run_delisting=False,
+        )
+
+        assert result.created == 1
+        snap = PriceSnapshot.objects.filter(
+            source=self.source,
+            cigar=self.cigar,
+            price_cny=888,
+        ).first()
+        assert snap is not None
+
     def test_delisting_compares_only_last_scrape_date(self, monkeypatch):
         """delisting compares today with the latest previous scrape only"""
         from price_tracker.ingestion import ingest_items
@@ -212,6 +264,24 @@ class TestIngestItems:
             cigar=old_only,
             in_stock=False,
         ).exists()
+
+    def test_error_summary_records_unmatched_items(self, monkeypatch):
+        """unmatched items are counted and surfaced in result.unmatched"""
+        from price_tracker.ingestion import ingest_items
+
+        monkeypatch.setattr(BaseScraper, 'match_cigar', lambda scraper, item: None)
+
+        result = ingest_items(
+            self.source,
+            [ScrapedItem(name='Unknown Cigar', price=120, box_size=25, currency='USD')],
+            mode='scrape',
+            run_delisting=False,
+        )
+
+        assert result.created == 0
+        assert result.errors == 1
+        assert result.error_summary == {'unmatched': 1}
+        assert result.unmatched == ['Unknown Cigar']
 
     def test_anomaly_detection_runs_for_created_groups_only(self, monkeypatch):
         """created groups are sent to IQR anomaly recalculation"""

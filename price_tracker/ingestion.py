@@ -108,7 +108,7 @@ def ingest_items(
             result.errors += 1
             _increment_error(result, type(exc).__name__)
 
-    if run_delisting:
+    if run_delisting and (mode != 'push' or scraped_combos):
         from .delisting import detect_delistings
 
         delisting_result = detect_delistings(source, scraped_combos)
@@ -229,4 +229,12 @@ def _record_error(result: IngestionResult, error_type: str) -> None:
 
 
 def _increment_error(result: IngestionResult, error_type: str) -> None:
+    classified = sum(
+        count for key, count in result.error_summary.items()
+        if key != 'other'
+    )
+    if classified >= 5:
+        result.error_summary['other'] = result.error_summary.get('other', 0) + 1
+        return
+
     result.error_summary[error_type] = result.error_summary.get(error_type, 0) + 1

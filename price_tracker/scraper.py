@@ -4,7 +4,7 @@ from typing import Optional
 from dataclasses import dataclass, field
 
 from cigars.models import Cigar
-from .models import PriceSource, PriceSnapshot
+from .models import PriceSource
 
 logger = logging.getLogger(__name__)
 
@@ -142,195 +142,17 @@ def run_scrape_sync(source_slug: str) -> dict:
         logger.exception(f'Scrape failed for {source_slug}')
         return {'error': str(e), 'source': source_slug}
 
-    matched = 0
-    created = 0
-    skipped = 0
+    from .ingestion import ingest_items
 
-    from django.utils import timezone
-    scraped_combos = set()
-
-    # --- URL 匹配缓存：已见过的商品不重复匹配 ---
-    # ⚠️ 缓存 key 是 (url, product_name)，不是纯 url
-    #    COH 等站点 URL 是品牌页级别（所有 Cohiba 共享 /cigars-cohiba），
-    #    纯 url 会导致同一品牌所有产品匹配到同一个 cigar！
-    url_cache: dict[tuple, int] = {}
-    for snap in PriceSnapshot.objects.filter(source=source, url__gt='').values('url', 'raw_data', 'cigar_id'):
-        url = snap['url']
-        product = snap['raw_data'].get('product', '') if isinstance(snap['raw_data'], dict) else ''
-        key = (url, product) if product else (url, str(snap['cigar_id']))
-        url_cache[key] = snap['cigar_id']
-    logger.info(f'[url-cache] loaded {len(url_cache)} cached (url,product)→cigar mappings for {source.slug}')
-
-    cache_hits = 0
-    cache_misses = 0
-    anomaly_groups = set()  # 本次爬取涉及的 (cigar_id, box_size)，用于批量重算异常
-
-    for item in items:
-        # 优先走 URL 缓存（双键：url + product name）
-        cigar = None
-        if item.url:
-            product_hint = item.raw_data.get('product', '') if isinstance(item.raw_data, dict) else ''
-            cache_key = (item.url, product_hint) if product_hint else (item.url, '')
-            # 也尝试不带 product 的 fallback（兼容旧缓存）
-            if cache_key in url_cache:
-                cigar_id = url_cache[cache_key]
-                try:
-                    cigar = Cigar.objects.get(id=cigar_id)
-                    cache_hits += 1
-                except Cigar.DoesNotExist:
-                    del url_cache[cache_key]
-                    logger.debug(f'[url-cache] stale cache (cigar {cigar_id} deleted) for {cache_key}')
-            elif product_hint and (item.url, '') in url_cache:
-                # 新格式没命中，试旧格式（纯 url）
-                pass  # 不走缓存，让 matcher 重新匹配并更新缓存
-
-        if not cigar:
-            cigar = scraper.match_cigar(item)
-            if cigar:
-                cache_misses += 1
-
-        if not cigar:
-            skipped += 1
-            continue
-        matched += 1
-
-        box_size = item.box_size
-        
-        # 无盒装数 → 从历史数据推断唯一包装规格
-        if box_size is None:
-            from django.db.models import Count
-            known_sizes = (
-                PriceSnapshot.objects
-                .filter(cigar=cigar, box_size__isnull=False)
-                .values('box_size')
-                .annotate(cnt=Count('id'))
-                .order_by('-cnt')
-            )
-            unique_sizes = [s['box_size'] for s in known_sizes]
-            if len(unique_sizes) == 1:
-                box_size = unique_sizes[0]
-                logger.info(f'[boxsize-infer] {item.name} → {cigar.english_name} '
-                           f'box_size={box_size} (inferred from DB)')
-            elif len(unique_sizes) == 0:
-                logger.debug(f'[boxsize-skip] {item.name}: no known box_size in DB, skip')
-                skipped += 1
-                continue
-            else:
-                logger.debug(f'[boxsize-skip] {item.name}: multiple box_size {unique_sizes}, skip')
-                skipped += 1
-                continue
-        
-        combo = (cigar.id, box_size)
-        scraped_combos.add(combo)
-
-        # Get latest snapshot for this (cigar, box_size, URL) combo
-        # ⚠️ CRITICAL: 同一个 (cigar_id, box_size) 可能有不同产品变体
-        #   (如 Nyon: Gran Reserva vs Tubos, Vintage vs 普通 SLB)
-        #   不加 URL 过滤会导致对比基准漂移，产生 ±1000% 的假波动
-        base_qs = PriceSnapshot.objects.filter(
-            source=source, cigar=cigar, box_size=box_size
-        )
-        if item.url:
-            url_match = base_qs.filter(url=item.url).order_by('-scraped_at').first()
-            if url_match:
-                latest = url_match
-            else:
-                # 新 URL（首次出现）→ 当新品处理，不对比旧数据
-                logger.info(f'[url-new] {item.name} → {cigar.english_name} '
-                           f'(url={item.url[:60]}) — 首次出现，跳过价格对比')
-                latest = None
-        else:
-            latest = base_qs.order_by('-scraped_at').first()
-
-        should_create = False
-        raw_data = dict(item.raw_data) if item.raw_data else {}
-
-        if latest is None:
-            # New product → create
-            should_create = True
-        elif latest.in_stock != item.in_stock:
-            # Stock status changed → create
-            should_create = True
-            if not item.in_stock:
-                raw_data['went_oos'] = True
-                raw_data['went_oos_at'] = timezone.now().isoformat()
-            else:
-                raw_data['relisted'] = True
-                raw_data['relisted_at'] = timezone.now().isoformat()
-        elif item.price is not None and abs(latest.price - item.price) > 0.01:
-            # Price changed (> 0.01 tolerance — 低于1分钱的变化忽略，与生产端一致)
-            should_create = True
-        # else: price unchanged → skip (dedup!)
-
-        # ⚠️ Time-window dedup guard: if latest snapshot was created within the
-        # scrape interval AND nothing changed, skip even if comparison missed it.
-        # This prevents silent duplicates from float edge cases or race conditions.
-        if not should_create and latest is not None:
-            gap_minutes = (timezone.now() - latest.scraped_at).total_seconds() / 60
-            scrape_interval_hours = source.scrape_interval_hours or 24
-            if gap_minutes < (scrape_interval_hours * 60 * 0.8):
-                # Within the scrape window — keep dedup decision
-                pass
-            else:
-                logger.debug(f'[dedup-skip] {item.name}: last snapshot {gap_minutes:.0f}min ago '
-                           f'(price={item.price}, stock={item.in_stock}) — unchanged, skipping')
-
-        if should_create:
-            # 币种：优先 item 自带的 → source 默认
-            item_currency = getattr(item, 'currency', None) or source.currency or 'USD'
-            # CNY 换算：使用共享定价模块
-            from .pricing import convert_to_cny
-            price_cny = convert_to_cny(item.price, item_currency) if item.price else None
-
-            # Skip if price is None (OOS with no price) — avoid NOT NULL constraint
-            if item.price is None:
-                skipped += 1
-                continue
-
-            PriceSnapshot.objects.create(
-                source=source,
-                cigar=cigar,
-                price=item.price,
-                original_price=item.original_price,
-                currency=item_currency,
-                price_cny=price_cny,
-                box_size=box_size,
-                box_price=item.box_price,
-                url=item.url,
-                in_stock=item.in_stock,
-                scraped_date=timezone.now().date(),
-                scraped_at=timezone.now(),
-                raw_data=raw_data,
-            )
-            created += 1
-            # 记录需要重算异常的 (cigar_id, box_size) 组合
-            anomaly_groups.add((cigar.id, box_size))
-
-    # --- 下架检测 ---
-    from .delisting import detect_delistings
-
-    delisting_result = detect_delistings(source, scraped_combos)
-    oos_count = delisting_result['newly_delisted']
-
-    # --- 异常检测：批量重算受影响的 (cigar_id, box_size) 组 ---
-    if anomaly_groups:
-        from .anomaly import detect_and_mark_group
-        for cid, bs in anomaly_groups:
-            detect_and_mark_group(cid, bs)
-
-    source.last_scraped = timezone.now()
-    source.save(update_fields=['last_scraped'])
-
-    logger.info(f'[url-cache] {source_slug}: {cache_hits} hits / {cache_misses} misses '
-                f'(cache={len(url_cache)}, items={len(items)})')
+    result = ingest_items(source, items, mode='scrape')
 
     return {
         'source': source_slug,
         'total_items': len(items),
-        'matched': matched,
-        'created': created,
-        'skipped': skipped,
-        'marked_oos': oos_count,
-        'cache_hits': cache_hits,
-        'cache_misses': cache_misses,
+        'matched': result.matched,
+        'created': result.created,
+        'skipped': result.skipped,
+        'marked_oos': result.delisted,
+        'cache_hits': result.cache_hits,
+        'cache_misses': result.cache_misses,
     }

@@ -1,0 +1,237 @@
+"""Price Snapshot ingestion module tests."""
+from datetime import timedelta
+
+import pytest
+from django.utils import timezone
+
+from cigars.models import Brand, Cigar
+from price_tracker.models import PriceSnapshot, PriceSource
+from price_tracker.scraper import BaseScraper, ScrapedItem
+
+
+@pytest.mark.django_db
+class TestIngestItems:
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        Brand.objects.create(name='Ingestion Brand', english_name='Ingestion Brand')
+        self.source = PriceSource.objects.create(
+            name='Ingestion Source',
+            slug='ingestion-test',
+            base_url='https://ingestion.example',
+            scraper_class='ingestion_test',
+            currency='USD',
+        )
+        self.cigar = Cigar.objects.create(
+            brand='Ingestion Brand',
+            english_name='Ingestion Cigar',
+        )
+
+    def _patch_matcher(self, monkeypatch):
+        def fake_match(scraper, item):
+            return Cigar.objects.filter(english_name=item.name).first()
+
+        monkeypatch.setattr(BaseScraper, 'match_cigar', fake_match)
+
+    def _snapshot(self, cigar=None, days_ago=1, **kwargs):
+        cigar = cigar or self.cigar
+        scraped_at = timezone.now() - timedelta(days=days_ago)
+        defaults = {
+            'source': self.source,
+            'cigar': cigar,
+            'price': 100,
+            'currency': 'USD',
+            'price_cny': 700,
+            'box_size': 25,
+            'in_stock': True,
+            'scraped_at': scraped_at,
+            'scraped_date': scraped_at.date(),
+        }
+        defaults.update(kwargs)
+        snap = PriceSnapshot.objects.create(**defaults)
+        PriceSnapshot.objects.filter(pk=snap.pk).update(
+            scraped_at=scraped_at,
+            scraped_date=scraped_at.date(),
+        )
+        return PriceSnapshot.objects.get(pk=snap.pk)
+
+    def test_new_item_creates_snapshot(self, monkeypatch):
+        """new matched item creates a PriceSnapshot"""
+        from price_tracker.ingestion import ingest_items
+
+        self._patch_matcher(monkeypatch)
+
+        result = ingest_items(
+            self.source,
+            [ScrapedItem(name='Ingestion Cigar', price=100, box_size=25, currency='USD')],
+            mode='scrape',
+            run_delisting=False,
+        )
+
+        assert result.total_items == 1
+        assert result.matched == 1
+        assert result.created == 1
+        snap = PriceSnapshot.objects.get(source=self.source, cigar=self.cigar)
+        assert snap.price == 100
+        assert snap.price_cny == 700
+
+    def test_duplicate_price_skips(self, monkeypatch):
+        """same original price, CNY price and stock state skips"""
+        from price_tracker.ingestion import ingest_items
+
+        self._patch_matcher(monkeypatch)
+        self._snapshot()
+
+        result = ingest_items(
+            self.source,
+            [ScrapedItem(name='Ingestion Cigar', price=100, box_size=25, currency='USD')],
+            mode='scrape',
+            run_delisting=False,
+        )
+
+        assert result.created == 0
+        assert result.skipped == 1
+        assert PriceSnapshot.objects.filter(source=self.source, cigar=self.cigar).count() == 1
+
+    def test_price_cny_change_creates_snapshot(self, monkeypatch):
+        """same original price creates when pushed CNY price changes"""
+        from price_tracker.ingestion import ingest_items
+
+        self._patch_matcher(monkeypatch)
+        self._snapshot()
+        item = ScrapedItem(name='Ingestion Cigar', price=100, box_size=25, currency='USD')
+        item.price_cny = 777
+
+        result = ingest_items(
+            self.source,
+            [item],
+            mode='push',
+            run_delisting=False,
+        )
+
+        assert result.created == 1
+        assert PriceSnapshot.objects.filter(
+            source=self.source,
+            cigar=self.cigar,
+            price_cny=777,
+        ).exists()
+
+    def test_url_cache_hit_skips_matcher(self, monkeypatch):
+        """cached URL/product match avoids calling the matcher"""
+        from price_tracker.ingestion import ingest_items
+
+        self._snapshot(
+            url='https://ingestion.example/cached',
+            raw_data={'product': 'Cached Product'},
+        )
+
+        def fail_match(scraper, item):
+            raise AssertionError('matcher should not run on cache hit')
+
+        monkeypatch.setattr(BaseScraper, 'match_cigar', fail_match)
+
+        result = ingest_items(
+            self.source,
+            [
+                ScrapedItem(
+                    name='Unmatched Name',
+                    price=120,
+                    box_size=25,
+                    currency='USD',
+                    url='https://ingestion.example/cached',
+                    raw_data={'product': 'Cached Product'},
+                )
+            ],
+            mode='scrape',
+            run_delisting=False,
+        )
+
+        assert result.matched == 1
+        assert result.created == 1
+        assert result.cache_hits == 1
+        assert result.cache_misses == 0
+
+    def test_missing_box_size_infers_unique_historical_size(self, monkeypatch):
+        """scrape mode infers a missing box_size from one historical size"""
+        from price_tracker.ingestion import ingest_items
+
+        self._patch_matcher(monkeypatch)
+        self._snapshot(price=100, price_cny=700, box_size=10)
+
+        result = ingest_items(
+            self.source,
+            [ScrapedItem(name='Ingestion Cigar', price=120, box_size=None, currency='USD')],
+            mode='scrape',
+            run_delisting=False,
+        )
+
+        assert result.created == 1
+        assert PriceSnapshot.objects.filter(
+            source=self.source,
+            cigar=self.cigar,
+            price=120,
+            box_size=10,
+        ).exists()
+
+    def test_delisting_compares_only_last_scrape_date(self, monkeypatch):
+        """delisting compares today with the latest previous scrape only"""
+        from price_tracker.ingestion import ingest_items
+
+        self._patch_matcher(monkeypatch)
+        old_only = Cigar.objects.create(
+            brand='Ingestion Brand',
+            english_name='Older Only Cigar',
+        )
+        missing = Cigar.objects.create(
+            brand='Ingestion Brand',
+            english_name='Missing Cigar',
+        )
+        present = Cigar.objects.create(
+            brand='Ingestion Brand',
+            english_name='Present Cigar',
+        )
+        self._snapshot(cigar=old_only, days_ago=2, box_size=25)
+        self._snapshot(cigar=missing, days_ago=1, box_size=25)
+        self._snapshot(cigar=present, days_ago=1, box_size=25)
+
+        result = ingest_items(
+            self.source,
+            [ScrapedItem(name='Present Cigar', price=100, box_size=25, currency='USD')],
+            mode='scrape',
+            run_delisting=True,
+        )
+
+        assert result.delisted == 1
+        assert PriceSnapshot.objects.filter(
+            source=self.source,
+            cigar=missing,
+            in_stock=False,
+            raw_data__delisted=True,
+        ).exists()
+        assert not PriceSnapshot.objects.filter(
+            source=self.source,
+            cigar=old_only,
+            in_stock=False,
+        ).exists()
+
+    def test_anomaly_detection_runs_for_created_groups_only(self, monkeypatch):
+        """created groups are sent to IQR anomaly recalculation"""
+        from price_tracker.ingestion import ingest_items
+
+        self._patch_matcher(monkeypatch)
+        calls = []
+
+        def fake_detect(cigar_id, box_size):
+            calls.append((cigar_id, box_size))
+            return 0
+
+        monkeypatch.setattr('price_tracker.anomaly.detect_and_mark_group', fake_detect)
+
+        result = ingest_items(
+            self.source,
+            [ScrapedItem(name='Ingestion Cigar', price=100, box_size=25, currency='USD')],
+            mode='scrape',
+            run_delisting=False,
+        )
+
+        assert result.created == 1
+        assert calls == [(self.cigar.id, 25)]

@@ -74,7 +74,7 @@ class TestDetectDelistings:
         # 验证创建了 in_stock=False 快照
         oos = PriceSnapshot.objects.filter(
             source=source, cigar=cigar, box_size=box_size,
-            in_stock=False, scraped_date=timezone.now().date(),
+            in_stock=False, scraped_date=timezone.localdate(),
         )
         assert oos.exists()
         snap = oos.first()
@@ -93,7 +93,7 @@ class TestDetectDelistings:
         self._make_snapshot(source, cigar, box_size=box_size, in_stock=True, days_ago=1)
 
         # 今天已标记为下架（模拟之前已跑过 detect_delistings）
-        today = timezone.now().date()
+        today = timezone.localdate()
         snap = PriceSnapshot.objects.create(
             source=source, cigar=cigar, price=100.0,
             box_size=box_size, in_stock=False,

@@ -2,6 +2,7 @@
 from datetime import timedelta
 
 import pytest
+from django.test import override_settings
 from django.utils import timezone
 
 from cigars.models import Brand, Cigar
@@ -263,6 +264,34 @@ class TestIngestItems:
             source=self.source,
             cigar=old_only,
             in_stock=False,
+        ).exists()
+
+    @override_settings(USE_TZ=True, TIME_ZONE='Asia/Shanghai')
+    def test_delisting_uses_local_scrape_date(self, monkeypatch):
+        """delisting compares against the same local date ingestion writes."""
+        from price_tracker.ingestion import ingest_items
+
+        self._patch_matcher(monkeypatch)
+        missing = Cigar.objects.create(
+            brand='Ingestion Brand',
+            english_name='Missing Local Date Cigar',
+        )
+        self._snapshot(cigar=missing, days_ago=1, box_size=25)
+
+        result = ingest_items(
+            self.source,
+            [ScrapedItem(name='Ingestion Cigar', price=100, box_size=25, currency='USD')],
+            mode='scrape',
+            run_delisting=True,
+        )
+
+        assert result.delisted == 1
+        assert PriceSnapshot.objects.filter(
+            source=self.source,
+            cigar=missing,
+            in_stock=False,
+            scraped_date=timezone.localdate(),
+            raw_data__delisted=True,
         ).exists()
 
     def test_error_summary_records_unmatched_items(self, monkeypatch):

@@ -423,56 +423,10 @@ class PriceAlertViewSet(viewsets.ModelViewSet):
 
 # --- COH Bulk Import ---
 
-import json, re
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view, permission_classes
+from price_tracker.coh_import import iter_coh_items
 from price_tracker.ingestion import ingest_items
-from price_tracker.scraper import ScrapedItem
-
-COH_SLUG_BRAND_MAP = {
-    'belinda': 'Belinda', 'bolivar': 'Bolívar', 'cohiba': 'Cohiba',
-    'combinaciones': 'Combinaciones', 'cuaba': 'Cuaba',
-    'diplomaticos': 'Diplomáticos', 'el-rey-del-mundo': 'El Rey del Mundo',
-    'fonseca': 'Fonseca', 'guantanamera': 'Guantanamera',
-    'h.upmann': 'H. Upmann', 'hoyo-de-monterrey': 'Hoyo de Monterrey',
-    'jose-l.-piedra': 'José L. Piedra', 'juan-lopez': 'Juan López',
-    'la-flor-de-cano': 'La Flor de Cano', 'la-gloria-cubana': 'La Gloria Cubana',
-    'montecristo': 'Montecristo', 'partagas': 'Partagás',
-    'por-larranaga': 'Por Larrañaga', 'punch': 'Punch',
-    'quai-dorsay': "Quai d'Orsay", 'quintero-y-hermano': 'Quintero',
-    'rafael-gonzalez': 'Rafael González', 'ramon-allones': 'Ramón Allones',
-    'romeo-y-julieta': 'Romeo y Julieta', 'saint-luis-rey': 'Saint Luis Rey',
-    'san-cristobal-de-la-habana': 'San Cristóbal', 'sancho-panza': 'Sancho Panza',
-    'trinidad': 'Trinidad', 'troya': 'Troya',
-    'vegas-robaina': 'Vegas Robaina', 'vegueros': 'Vegueros', 'vintage': 'Vintage',
-}
-
-
-def _clean_name(name):
-    name = name.strip()
-    name = re.sub(r'\s*[-–]\s*\d{4}\s*$', '', name)
-    name = re.sub(r'^\d+\s*Packs?-\s*', '', name)
-    return name.strip()
-
-
-def _clean_coh_import_name(name):
-    name = _clean_name(name)
-    return re.sub(
-        r'\s*(Travel Humidor|Gift Box|Humidor|Limited Edition|Year of the \w+|Anejados)\s*',
-        '',
-        name,
-        flags=re.I,
-    ).strip()
-
-
-def _parse_coh_box_size(box_info):
-    if not box_info:
-        return None
-    m = re.match(r'(\d+)(?:x(\d+))?\s*(?:Box|Pack|Bundle|Single)', box_info)
-    if not m:
-        return None
-    a, b = int(m.group(1)), m.group(2)
-    return a * int(b) if b else a
 
 
 @csrf_exempt
@@ -483,43 +437,15 @@ def import_coh_bulk(request):
     data = request.data
     source = PriceSource.objects.get(slug='coh')
 
-    total = 0
-    skipped = 0
-    items = []
-
-    for slug, products in data.items():
-        brand = COH_SLUG_BRAND_MAP.get(slug, slug)
-        for prod in products:
-            total += 1
-            name = _clean_coh_import_name(prod.get('name', ''))
-            price = prod.get('price')
-            if not price:
-                skipped += 1
-                continue
-
-            box_info = prod.get('box_info', '')
-            items.append(ScrapedItem(
-                name=name,
-                price=price,
-                currency='USD',
-                box_size=_parse_coh_box_size(box_info),
-                box_price=price,
-                in_stock=True,
-                raw_data={
-                    'brand': brand,
-                    'coh_name': prod.get('name', ''),
-                    'box_info': box_info,
-                },
-            ))
-
+    items, stats = iter_coh_items(data)
     result = ingest_items(source, items, mode='import', run_delisting=False)
 
     return Response({
         'ok': True,
-        'total': total,
+        'total': stats['total'],
         'matched': result.matched,
         'created': result.created,
-        'skipped': skipped + result.skipped,
+        'skipped': stats['skipped_no_price'] + result.skipped,
         'unmatched_count': len(result.unmatched),
         'unmatched': result.unmatched[:20],
     })

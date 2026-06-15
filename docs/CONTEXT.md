@@ -44,12 +44,31 @@
 
 | 术语 | 定义 |
 |------|------|
-| **Purchase Order** | 采购单。从供应商进货的订单。 |
+| **Purchase Order** | 采购单。从供应商进货的订单；可以先作为待确认草稿存在，确认后才形成正式入库事实。 |
+| **Purchase Receiving** | 采购入库。确认采购货品实际到货，并形成 Purchase Batch 的业务动作。 |
 | **Purchase Batch** | 采购批次。一次采购的实际入库记录，关联到 PurchaseOrder。 |
 | **Sales Order** | 销售单。卖给客户的订单。 |
-| **Supplier** | 供应商，供货方。 |
+| **Sales Order Item** | 销售明细。客户视角的一行商品，表示某款雪茄、数量和销售单价。 |
+| **Order Event** | 订单事件。围绕销售单发生的一次操作或备注记录，保留时间、操作人和上下文。 |
+| **Fulfillment Type** | 履约类型。销售明细如何履约，分为现货销售和预售。 |
+| **In-stock Sale** | 现货销售。只销售 Available Stock 中已有的库存，不允许造成负库存。 |
+| **Preorder** | 预售。客户购买尚未入库或尚不可分配的商品，不占用 Purchase Batch。 |
+| **Stock Reservation** | 库存预留。待付款销售单占用的库存，尚未从在手库存中正式出库。 |
+| **Stock Movement** | 库存流水。一次库存数量变化的事实记录，包括入库、预留、出库、释放预留和库存修正。 |
+| **Stock Allocation** | 库存分配。销售明细与采购批次之间的对应关系，用于记录某个销售明细占用或消耗了哪些批次。 |
+| **Stock Adjustment** | 库存修正。用于盘点、损耗、临时补录等非标准采购/销售原因造成的库存变化；不等同于正式采购入库。 |
+| **Supplier** | 供应商，预先登记的供货方。正式采购入库只能引用已有 Supplier。 |
+| **Dealer** | 经销商。业务口语中常指供货方；结构化进货记录里不作为独立概念，统一归口为 Supplier。 |
 | **Customer** | 客户，买方。 |
-| **Stock** | 库存。通过 PurchaseBatch（入库）和 SalesOrder（出库）计算。 |
+| **Operator** | 操作人。创建或确认采购、销售、库存修正等业务动作的人。 |
+| **Agent** | 代理执行者。代替 Operator 调用系统命令的自动化助手，不是业务责任人。 |
+| **Agent Command** | Agent 可调用的命令式业务接口。只能表达业务动作，不开放模型通用 CRUD。 |
+| **Idempotency Key** | 幂等键。Agent 写命令必须携带的业务动作唯一键；同一动作重试复用同一个 key。 |
+| **Idempotency Record** | 幂等记录。保存 Agent 写命令第一次请求摘要和响应，用于重试重放和冲突检测。 |
+| **On-hand Stock** | 在手库存。已经入库、尚未正式出库或修正扣减的库存数量。 |
+| **Reserved Stock** | 预留库存。已被待付款销售单占用、不能再卖给其他客户的库存数量。 |
+| **Available Stock** | 可售库存。可继续销售的库存数量，等于 On-hand Stock 减去 Reserved Stock。 |
+| **Stock** | 库存。库存讨论中的总称；需要精确表达时使用 On-hand Stock、Reserved Stock 或 Available Stock。 |
 
 ## Privnote
 

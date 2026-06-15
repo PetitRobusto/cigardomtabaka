@@ -363,7 +363,7 @@ class CreatePaymentTestCase(TestCase):
 
         # 验证 SalesOrder 创建
         so = SalesOrder.objects.get(id=data['sales_order_id'])
-        self.assertEqual(so.status, 'draft')
+        self.assertEqual(so.status, 'pending_payment')
         self.assertEqual(so.customer_name, '张三')
         self.assertEqual(so.payment_method_id, self.pm.id)
         self.assertEqual(so.total_revenue, Decimal('3500.00'))

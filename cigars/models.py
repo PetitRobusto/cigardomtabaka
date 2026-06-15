@@ -392,6 +392,10 @@ class SalesOrder(models.Model):
 
 class SalesOrderItem(models.Model):
     """销售明细"""
+    class FulfillmentType(models.TextChoices):
+        IN_STOCK = 'in_stock', '现货'
+        PREORDER = 'preorder', '预售'
+
     sales_order = models.ForeignKey(
         SalesOrder, on_delete=models.CASCADE, related_name='items',
         verbose_name='销售单'
@@ -405,6 +409,10 @@ class SalesOrderItem(models.Model):
     revenue = models.DecimalField('收入', max_digits=12, decimal_places=2)
     cost = models.DecimalField('成本', max_digits=12, decimal_places=2)
     profit = models.DecimalField('利润', max_digits=12, decimal_places=2)
+    fulfillment_type = models.CharField(
+        '履约类型', max_length=20, choices=FulfillmentType.choices,
+        default=FulfillmentType.IN_STOCK,
+    )
 
     class Meta:
         verbose_name = '销售明细'
@@ -412,6 +420,154 @@ class SalesOrderItem(models.Model):
 
     def __str__(self):
         return f'{self.cigar} ×{self.quantity} ¥{self.revenue}'
+
+
+class StockAllocation(models.Model):
+    """销售明细与采购批次之间的库存分配"""
+    class Status(models.TextChoices):
+        RESERVED = 'reserved', '已预留'
+        FULFILLED = 'fulfilled', '已出库'
+        RELEASED = 'released', '已释放'
+
+    sales_order_item = models.ForeignKey(
+        SalesOrderItem, on_delete=models.CASCADE, related_name='allocations',
+        verbose_name='销售明细'
+    )
+    purchase_batch = models.ForeignKey(
+        PurchaseBatch, on_delete=models.PROTECT, related_name='stock_allocations',
+        verbose_name='采购批次'
+    )
+    quantity = models.IntegerField('数量')
+    status = models.CharField('状态', max_length=20, choices=Status.choices, default=Status.RESERVED)
+    reserved_at = models.DateTimeField('预留时间', auto_now_add=True)
+    fulfilled_at = models.DateTimeField('出库时间', null=True, blank=True)
+    released_at = models.DateTimeField('释放时间', null=True, blank=True)
+
+    class Meta:
+        ordering = ['id']
+        indexes = [
+            models.Index(fields=['sales_order_item', 'status']),
+            models.Index(fields=['purchase_batch', 'status']),
+        ]
+        verbose_name = '库存分配'
+        verbose_name_plural = '库存分配'
+
+    def __str__(self):
+        return f'{self.sales_order_item_id} -> batch#{self.purchase_batch_id} ×{self.quantity}'
+
+
+class StockMovement(models.Model):
+    """库存流水事实记录"""
+    class MovementType(models.TextChoices):
+        RECEIVE = 'receive', '入库'
+        RESERVE = 'reserve', '预留'
+        RELEASE_RESERVATION = 'release_reservation', '释放预留'
+        SHIP = 'ship', '出库'
+        ADJUSTMENT = 'adjustment', '库存修正'
+
+    movement_type = models.CharField('类型', max_length=30, choices=MovementType.choices)
+    cigar = models.ForeignKey(Cigar, on_delete=models.PROTECT, verbose_name='雪茄')
+    purchase_batch = models.ForeignKey(
+        PurchaseBatch, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='stock_movements', verbose_name='采购批次'
+    )
+    sales_order = models.ForeignKey(
+        SalesOrder, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='stock_movements', verbose_name='销售单'
+    )
+    sales_order_item = models.ForeignKey(
+        SalesOrderItem, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='stock_movements', verbose_name='销售明细'
+    )
+    quantity = models.IntegerField('数量')
+    operator = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name='stock_movements',
+        verbose_name='操作人'
+    )
+    agent_name = models.CharField('Agent 名称', max_length=100, blank=True)
+    agent_run_id = models.CharField('Agent Run ID', max_length=200, blank=True)
+    agent_request_id = models.CharField('Agent Request ID', max_length=200, blank=True)
+    command_name = models.CharField('命令', max_length=100, blank=True)
+    idempotency_key = models.CharField('幂等键', max_length=255, blank=True)
+    note = models.TextField('备注', blank=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(fields=['cigar', 'created_at']),
+            models.Index(fields=['purchase_batch', 'created_at']),
+            models.Index(fields=['sales_order', 'created_at']),
+            models.Index(fields=['movement_type', 'created_at']),
+            models.Index(fields=['idempotency_key']),
+        ]
+        verbose_name = '库存流水'
+        verbose_name_plural = '库存流水'
+
+    def __str__(self):
+        return f'{self.get_movement_type_display()} {self.cigar} ×{self.quantity}'
+
+
+class OrderEvent(models.Model):
+    """销售单操作和备注日志"""
+    sales_order = models.ForeignKey(
+        SalesOrder, on_delete=models.CASCADE, related_name='events',
+        verbose_name='销售单'
+    )
+    operator = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name='order_events',
+        verbose_name='操作人'
+    )
+    agent_name = models.CharField('Agent 名称', max_length=100, blank=True)
+    agent_run_id = models.CharField('Agent Run ID', max_length=200, blank=True)
+    agent_request_id = models.CharField('Agent Request ID', max_length=200, blank=True)
+    command_name = models.CharField('命令', max_length=100)
+    note = models.TextField('备注', blank=True)
+    metadata = models.JSONField('上下文', default=dict, blank=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+        indexes = [
+            models.Index(fields=['sales_order', 'created_at']),
+            models.Index(fields=['command_name', 'created_at']),
+        ]
+        verbose_name = '订单事件'
+        verbose_name_plural = '订单事件'
+
+    def __str__(self):
+        return f'{self.sales_order.order_number} {self.command_name}'
+
+
+class IdempotencyRecord(models.Model):
+    """Agent 写命令幂等记录"""
+    key = models.CharField('幂等键', max_length=255, unique=True)
+    command_name = models.CharField('命令', max_length=100)
+    request_hash = models.CharField('请求摘要', max_length=64)
+    request_body = models.JSONField('请求体', default=dict)
+    response_body = models.JSONField('首次响应', default=dict)
+    status_code = models.IntegerField('HTTP 状态码', default=200)
+    operator = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name='idempotency_records',
+        verbose_name='操作人'
+    )
+    agent_name = models.CharField('Agent 名称', max_length=100)
+    agent_run_id = models.CharField('Agent Run ID', max_length=200, blank=True)
+    agent_request_id = models.CharField('Agent Request ID', max_length=200, blank=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['command_name', 'created_at']),
+            models.Index(fields=['agent_name', 'created_at']),
+        ]
+        verbose_name = '幂等记录'
+        verbose_name_plural = '幂等记录'
+
+    def __str__(self):
+        return f'{self.command_name}:{self.key}'
 
 
 class AdjustmentRecord(models.Model):

@@ -6,6 +6,7 @@ from django.shortcuts import render, redirect
 from urllib.parse import urlencode
 
 from cigars import views
+from cigars import agent_api
 from cigars.auth_views import api_login, api_logout, api_me
 from privnote.views import (
     api_privnote, create as privnote_create,
@@ -45,6 +46,13 @@ urlpatterns = [
     path('api/brands/<slug:slug>/', views.api_brand_detail, name='api_brand_detail'),
     path('api/cigars/<int:cigar_id>/', views.api_cigar_detail, name='api_cigar_detail'),
     path('api/inventory/', views.api_inventory, name='api_inventory'),
+    path('api/agent/search/', agent_api.search_inventory, name='agent_search_inventory'),
+    path('api/agent/stock/', agent_api.stock_query, name='agent_stock_query'),
+    path('api/agent/orders/create/', agent_api.create_sales_order_command, name='agent_create_sales_order'),
+    path('api/agent/orders/confirm-payment/', agent_api.confirm_payment_command, name='agent_confirm_payment'),
+    path('api/agent/orders/cancel/', agent_api.cancel_sales_order_command, name='agent_cancel_sales_order'),
+    path('api/agent/stock/adjust/', agent_api.adjust_stock_command, name='agent_adjust_stock'),
+    path('api/agent/reports/basic/', agent_api.business_report, name='agent_business_report'),
     path('api/prices/', include('price_tracker.urls')),
     # Privnote — JSON API + customer view API (frontend handled by React SPA)
     path('api/privnote/<str:token>/', api_privnote, name='api_privnote'),

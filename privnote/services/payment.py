@@ -1,9 +1,13 @@
 """Payment 业务逻辑 — 收款单数据构建、SalesOrder 创建"""
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
-from django.db import transaction
-
-from cigars.models import Cigar, PurchaseBatch, SalesOrder, SalesOrderItem
+from cigars.models import PurchaseBatch, SalesOrderItem
+from cigars.services import (
+    AgentContext,
+    InsufficientStockError,
+    OrderServiceError,
+    create_sales_order,
+)
 from privnote.models import PaymentMethod
 from privnote.helpers import decimal_to_number, get_thumb_url, serialize_payment_method
 
@@ -146,7 +150,8 @@ def build_payment_data(sales_order):
 
 
 def create_sales_order_from_items(items_raw, customer_name, payment_method_id,
-                                   payment_manual, extra_fees, remark, images):
+                                   payment_manual, extra_fees, remark, images,
+                                   operator=None, customer=None):
     """
     从商品列表创建 SalesOrder + SalesOrderItem。
     返回创建好的 SalesOrder 实例。
@@ -163,11 +168,29 @@ def create_sales_order_from_items(items_raw, customer_name, payment_method_id,
         if not PaymentMethod.objects.filter(id=selected_payment_method_id, is_active=True).exists():
             raise PaymentValidationError('收款方式不存在或未启用')
 
-    with transaction.atomic():
-        order = SalesOrder.objects.create(
+    normalized_items = []
+    for idx, it in enumerate(items_raw, start=1):
+        if not isinstance(it, dict):
+            raise PaymentValidationError(f'第{idx}个商品格式错误')
+        cigar_id = _to_positive_int(it.get('cigar_id'), f'第{idx}个商品ID')
+        purchase_batch_id = it.get('batch_id')
+        if purchase_batch_id:
+            batch_id = _to_positive_int(purchase_batch_id, f'第{idx}个商品批次ID')
+            if not PurchaseBatch.objects.filter(id=batch_id, cigar_id=cigar_id).exists():
+                raise PaymentValidationError(f'第{idx}个商品批次不存在或不匹配')
+        normalized_items.append({
+            'cigar_id': cigar_id,
+            'quantity': _to_positive_int(it.get('quantity', 1), f'第{idx}个商品数量'),
+            'unit_price': _to_money(it.get('unit_price', 0), f'第{idx}个商品单价'),
+            'fulfillment_type': it.get('fulfillment_type') or SalesOrderItem.FulfillmentType.IN_STOCK,
+        })
+
+    try:
+        return create_sales_order(
+            items=normalized_items,
+            operator=operator,
+            customer=customer,
             customer_name=customer_name or '',
-            operator=None,
-            status='draft',
             payment_method_id=selected_payment_method_id,
             payment_manual=dict(
                 normalized_manual,
@@ -175,51 +198,10 @@ def create_sales_order_from_items(items_raw, customer_name, payment_method_id,
                 remark=remark,
                 images=normalized_images,
             ),
+            note=remark,
+            agent_context=AgentContext(command_name='privnote_create_payment'),
         )
-
-        total_revenue = Decimal('0.00')
-        total_cost = Decimal('0.00')
-        for idx, it in enumerate(items_raw, start=1):
-            if not isinstance(it, dict):
-                raise PaymentValidationError(f'第{idx}个商品格式错误')
-            cigar_id = _to_positive_int(it.get('cigar_id'), f'第{idx}个商品ID')
-            quantity = _to_positive_int(it.get('quantity', 1), f'第{idx}个商品数量')
-            unit_price = _to_money(it.get('unit_price', 0), f'第{idx}个商品单价')
-
-            try:
-                cigar = Cigar.objects.get(id=cigar_id)
-            except Cigar.DoesNotExist:
-                raise PaymentValidationError(f'第{idx}个商品不存在')
-
-            # 如果关联库存，自动填成本
-            unit_cost = Decimal('0.00')
-            purchase_batch_id = it.get('batch_id')
-            if purchase_batch_id:
-                batch_id = _to_positive_int(purchase_batch_id, f'第{idx}个商品批次ID')
-                batch = PurchaseBatch.objects.filter(id=batch_id, cigar=cigar).first()
-                if not batch:
-                    raise PaymentValidationError(f'第{idx}个商品批次不存在或不匹配')
-                unit_cost = batch.unit_cost_cny or Decimal('0.00')
-
-            revenue = (quantity * unit_price).quantize(MONEY_PLACES)
-            cost = (quantity * unit_cost).quantize(MONEY_PLACES)
-            total_revenue += revenue
-            total_cost += cost
-
-            SalesOrderItem.objects.create(
-                sales_order=order,
-                cigar=cigar,
-                quantity=quantity,
-                unit_price=unit_price,
-                unit_cost=unit_cost,
-                revenue=revenue,
-                cost=cost,
-                profit=(revenue - cost).quantize(MONEY_PLACES),
-            )
-
-        order.total_revenue = total_revenue.quantize(MONEY_PLACES)
-        order.total_cost = total_cost.quantize(MONEY_PLACES)
-        order.total_profit = (total_revenue - total_cost).quantize(MONEY_PLACES)
-        order.save(update_fields=['total_revenue', 'total_cost', 'total_profit'])
-
-    return order
+    except InsufficientStockError as exc:
+        raise PaymentValidationError(str(exc))
+    except OrderServiceError as exc:
+        raise PaymentValidationError(str(exc))

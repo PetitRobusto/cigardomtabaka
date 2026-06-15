@@ -4,6 +4,7 @@ from .models import (
     Cigar, CigarImage, Customer, User, Brand,
     PurchaseOrder, PurchaseOrderItem, PurchaseBatch,
     SalesOrder, SalesOrderItem,
+    StockAllocation, StockMovement, OrderEvent, IdempotencyRecord,
     AdjustmentRecord, CigarPrice,
 )
 
@@ -89,6 +90,48 @@ class PurchaseBatchAdmin(admin.ModelAdmin):
 class AdjustmentRecordAdmin(admin.ModelAdmin):
     list_display = ['type', 'cigar', 'quantity', 'unit_cost_cny', 'operator', 'created_at']
     list_filter = ['type']
+
+
+@admin.register(StockAllocation)
+class StockAllocationAdmin(admin.ModelAdmin):
+    list_display = ['sales_order_item', 'purchase_batch', 'quantity', 'status', 'reserved_at']
+    list_filter = ['status']
+    search_fields = ['sales_order_item__sales_order__customer_name', 'purchase_batch__cigar__english_name']
+
+
+@admin.register(StockMovement)
+class StockMovementAdmin(admin.ModelAdmin):
+    list_display = ['movement_type', 'cigar', 'purchase_batch', 'sales_order', 'quantity',
+                    'operator', 'agent_name', 'command_name', 'created_at']
+    list_filter = ['movement_type', 'agent_name', 'command_name']
+    search_fields = ['cigar__brand', 'cigar__english_name', 'sales_order__customer_name',
+                     'operator__username', 'agent_name', 'idempotency_key', 'note']
+    date_hierarchy = 'created_at'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(OrderEvent)
+class OrderEventAdmin(admin.ModelAdmin):
+    list_display = ['sales_order', 'command_name', 'operator', 'agent_name', 'created_at']
+    list_filter = ['command_name', 'agent_name']
+    search_fields = ['sales_order__customer_name', 'operator__username', 'agent_name', 'note']
+    date_hierarchy = 'created_at'
+
+
+@admin.register(IdempotencyRecord)
+class IdempotencyRecordAdmin(admin.ModelAdmin):
+    list_display = ['key', 'command_name', 'operator', 'agent_name', 'status_code', 'created_at']
+    list_filter = ['command_name', 'agent_name', 'status_code']
+    search_fields = ['key', 'command_name', 'operator__username', 'agent_name', 'agent_run_id']
+    date_hierarchy = 'created_at'
 
 
 @admin.register(Brand)

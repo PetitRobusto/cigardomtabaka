@@ -39,6 +39,18 @@ NOTE_TYPE_BACKWARD_COMPAT = {
 }
 
 
+def _request_operator(request):
+    if request.user.is_authenticated and request.user.is_staff:
+        return request.user
+    tg_id = request.headers.get('X-Telegram-ID', '').strip()
+    if tg_id:
+        try:
+            return User.objects.get(telegram_id=tg_id, is_staff=True)
+        except User.DoesNotExist:
+            pass
+    return None
+
+
 # ═══════════════ CREATE ═══════════════
 
 @csrf_exempt
@@ -54,6 +66,7 @@ def create(request):
     is_debug = settings.DEBUG
     debug_tag = ' [测试数据]' if is_debug else ''
     sales_order = None
+    operator = _request_operator(request)
 
     # ── INVENTORY ──
     if note_type == 'inventory':
@@ -75,6 +88,7 @@ def create(request):
 
         customer_name = request.POST.get('customer_name', '').strip()
         customer_id = request.POST.get('customer_id', '').strip()
+        customer = None
         if customer_id:
             try:
                 customer = Customer.objects.get(id=int(customer_id))
@@ -97,6 +111,8 @@ def create(request):
                 extra_fees=extra_fees,
                 remark=remark,
                 images=images,
+                operator=operator,
+                customer=customer,
             )
         except PaymentValidationError as exc:
             return JsonResponse({'error': str(exc)}, status=400)
@@ -384,5 +400,3 @@ def api_privnote(request, token):
 # Compatibility alias
 def create_note(request):
     return create(request)
-
-

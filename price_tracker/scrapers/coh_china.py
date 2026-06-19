@@ -243,7 +243,7 @@ def _parse_text_lines(lines: list[str], brand_name: str) -> list[ScrapedItem]:
                 elif re.match(r'Ring Gauge', nl, re.I):
                     ring_val = nl
                 elif re.search(r'(\d+)\s*(Box|Pack|Bundle|Single)', nl, re.I):
-                    box_info = nl
+                    box_info = _clean_box_info(nl)
                 elif re.search(r'\$\s*[\d,]+', nl):
                     continue  # 价格行，后面统一收集
                 i += 1
@@ -315,8 +315,8 @@ def _extract_product_details(text: str) -> tuple:
             length_val = line
         elif re.match(r'Ring Gauge', line, re.I):
             ring_val = line
-        elif re.search(r'(\d+)\s*(Box|Pack|Bundle|Single)', line, re.I):
-            box_info = line
+        elif re.search(r'(\d+)\s*(?:Box|Pack|Bundle|Single)', line, re.I):
+            box_info = _clean_box_info(line)
             prices = re.findall(r'\$\s*([\d,]+\.?\d*)', line)
             price_str, orig_price_str = _capture_prices(prices, price_str, orig_price_str)
 
@@ -358,6 +358,18 @@ def _parse_size_price(box_info: str, price_str: str) -> tuple:
             pass
 
     return box_size, price
+
+
+def _clean_box_info(text: str) -> str:
+    """清理 box_info：剥离价格，保留纯包装描述。
+
+    "3 Singles  $240.00" → "3 Singles"
+    "5x5 Box"            → "5x5 Box"
+    """
+    # 去掉 $ 和后面的数字
+    text = re.sub(r'\$\s*[\d,]+\.?\d*', '', text)
+    # 合并空白
+    return ' '.join(text.split())
 
 
 def _brand_matches(brand: str) -> bool:

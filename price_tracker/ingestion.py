@@ -1,6 +1,7 @@
 """Unified Price Snapshot ingestion pipeline."""
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import date
@@ -196,13 +197,64 @@ def _latest_snapshot(
     box_size: int | None,
     item: ScrapedItem,
 ) -> PriceSnapshot | None:
+    """匹配 ScrapedItem 到它的历史快照。
+
+    用 raw_data.box_info 区分同一 cigar+box_size 下的不同包装变体。
+    例如 "5x5 Box" vs "25 Box" — 同一 cigar 同一 box_size，不同包装。
+    """
     base_qs = PriceSnapshot.objects.filter(source=source, cigar=cigar, box_size=box_size)
-    if item.url:
-        latest_for_url = base_qs.filter(url=item.url).order_by('-scraped_at').first()
-        if latest_for_url:
-            return latest_for_url
+    if not base_qs.exists():
         return None
+
+    # ① 主键：用 box_info 精确定位包装变体
+    box_info = _extract_box_info(item)
+    if box_info:
+        match = _find_by_box_info(base_qs, box_info)
+        if match:
+            return match
+
+    # ② 兜底：URL 匹配（没有 box_info 的爬虫如 Nyon/CigarOne）
+    if item.url:
+        match = base_qs.filter(url=item.url).order_by('-scraped_at').first()
+        if match:
+            return match
+
+    # ③ 最终兜底：最近一条（保持向后兼容）
     return base_qs.order_by('-scraped_at').first()
+
+
+def _extract_box_info(item: ScrapedItem) -> str | None:
+    """从 ScrapedItem 提取包装标识（box_info）"""
+    rd = item.raw_data if isinstance(item.raw_data, dict) else {}
+    return rd.get('box_info') or None
+
+
+def _normalize_bi(text: str) -> str:
+    """归一化 box_info 字符串：去空白、小写"""
+    return ' '.join(text.lower().split())
+
+
+def _extract_box_info_from_snapshot(snap: PriceSnapshot) -> str | None:
+    """从 PriceSnapshot 的 raw_data 中提取 box_info"""
+    rd = snap.raw_data
+    if isinstance(rd, str):
+        try:
+            rd = json.loads(rd)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    if isinstance(rd, dict):
+        return rd.get('box_info') or None
+    return None
+
+
+def _find_by_box_info(base_qs, box_info: str) -> PriceSnapshot | None:
+    """在历史快照中找 raw_data.box_info 相同的最近一条"""
+    target = _normalize_bi(box_info)
+    for snap in base_qs.order_by('-scraped_at')[:60]:
+        snap_bi = _extract_box_info_from_snapshot(snap)
+        if snap_bi and _normalize_bi(snap_bi) == target:
+            return snap
+    return None
 
 
 def _should_create_snapshot(
@@ -225,6 +277,15 @@ def _should_create_snapshot(
         return True
 
     price_same = _same_money(latest.price, item.price)
+
+    # price_cny 只在显式指定时比较（push 模式），汇率浮动不算
+    explicit_cny = getattr(item, 'price_cny', None)
+    if explicit_cny is None and isinstance(item.raw_data, dict):
+        explicit_cny = item.raw_data.get('price_cny')
+    if explicit_cny is not None:
+        cny_same = _same_money(latest.price_cny, price_cny)
+        return not (price_same and cny_same)
+
     return not price_same
 
 

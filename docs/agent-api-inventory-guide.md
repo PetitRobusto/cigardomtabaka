@@ -247,19 +247,110 @@ GET /api/agent/reports/basic/
 - 后续利润能追溯到这次进货。
 - 有采购单号或入库单号。
 
-当前第一版 Agent API 还没有正式 `create_purchase_order` / `receive_purchase_order` HTTP 接口。遇到正式入库需求时，应先明确告诉用户：当前可以临时补库存，但正式入库单需要先补采购入库命令接口。
+正式采购入库必须走两步命令：
 
-可对用户这样说：
+0. `GET /api/agent/suppliers/?q=habanos`
+   - 查询已有 `Supplier` 的 ID。
+   - 返回 `supplier_id` 和 `name`。
 
-```text
-当前 Agent API 还没有正式采购入库单接口。
-我可以先用库存修正把这批货补进可售库存，并在 reason 里标记“经销商入库临时补录，待补正式采购单”；
-但这样不会结构化记录供应商、采购总额、币种、汇率和采购单号。
-如果你要正式入库单，我们应该先实现 purchase order / receiving 的 Agent API。
-你要先临时补库存，还是先做正式采购入库接口？
+1. `POST /api/agent/purchase-orders/create/`
+   - 创建 `PurchaseOrder` 草稿和 `PurchaseOrderItem`。
+   - 不创建 `PurchaseBatch`，不写 `StockMovement`，不增加可售库存。
+   - `Supplier` 必须已存在，通过 `supplier_id` 引用；第一版不自动创建供应商。
+   - 金额以行级 `unit_price_rub` 和整单 `exchange_rate` 为输入，CNY 单价和总额由系统计算。
+
+2. `POST /api/agent/purchase-orders/receive/`
+   - agent 二次确认后调用。
+   - 只允许整单一次性确认入库。
+   - 创建 `PurchaseBatch`，写 `receive` 类型 `StockMovement`，并把采购单状态变为 `received`。
+
+草稿不可修改。如果确认前发现供应商、雪茄、数量、成本或汇率错了，不要改原草稿；应作废或忽略原草稿，用新的 `idempotency_key` 重新创建采购单。
+
+### 创建采购单草稿
+
+先查询供应商：
+
+```http
+GET /api/agent/suppliers/?q=habanos
 ```
 
-如果用户明确说“先能卖就行”，才使用 `adjust_stock`。每款雪茄单独调用一次，`reason` 必须包含经销商、到货日期、数量、成本和“临时补录，待补正式采购单”。
+示例返回：
+
+```json
+{
+  "results": [
+    {
+      "supplier_id": 1,
+      "name": "Habanos"
+    }
+  ]
+}
+```
+
+```http
+POST /api/agent/purchase-orders/create/
+Content-Type: application/json
+```
+
+```json
+{
+  "idempotency_key": "run_001:create_purchase_order:dealer_lot_01",
+  "operator_id": 1,
+  "agent": {
+    "agent_name": "codex",
+    "agent_run_id": "run_001",
+    "agent_request_id": "req_po_create_001"
+  },
+  "supplier_id": 1,
+  "exchange_rate": "0.0800",
+  "note": "Habanos 到货，待二次确认",
+  "items": [
+    {
+      "cigar_id": 12,
+      "quantity": 25,
+      "box_size": 25,
+      "unit_price_rub": "1000.00"
+    },
+    {
+      "cigar_id": 33,
+      "quantity": 10,
+      "box_size": 10,
+      "unit_price_rub": "1200.00"
+    }
+  ]
+}
+```
+
+返回 `purchase_order.status = draft`。此时库存没有增加。
+
+### 确认采购入库
+
+```http
+POST /api/agent/purchase-orders/receive/
+Content-Type: application/json
+```
+
+```json
+{
+  "idempotency_key": "run_001:receive_purchase_order:dealer_lot_01",
+  "operator_id": 1,
+  "agent": {
+    "agent_name": "codex",
+    "agent_run_id": "run_001",
+    "agent_request_id": "req_po_receive_001"
+  },
+  "purchase_order_id": 1001,
+  "note": "已二次确认，正式入库"
+}
+```
+
+幂等规则是整单级：
+
+- 同 key + 同请求体：返回首次结果，不重复创建批次或流水。
+- 同 key + 不同请求体：返回 `409`。
+- `create_purchase_order` 和 `receive_purchase_order` 应分别使用不同的 `idempotency_key`。
+
+如果用户明确说“先能卖就行”，且接受不是正式入库单，才使用 `adjust_stock`。每款雪茄单独调用一次，`reason` 必须包含经销商、到货日期、数量、成本和“临时补录，非正式采购入库”。
 
 示例：
 
@@ -275,13 +366,6 @@ GET /api/agent/reports/basic/
   "cigar_id": 12,
   "quantity_delta": 25,
   "unit_cost_cny": 180,
-  "reason": "临时入库补录：经销商 Ivan，2026-06-15 到货 Cohiba Robustos 25 支，成本 180 CNY/支；待补正式采购单"
+  "reason": "临时入库补录：经销商 Habanos，2026-06-15 到货 Cohiba Robustos 25 支，成本 180 CNY/支；非正式采购入库"
 }
 ```
-
-正式方案后续应补两个命令：
-
-- `POST /api/agent/purchase-orders/create/`
-- `POST /api/agent/purchase-orders/receive/`
-
-设计这两个命令前，需要先确认 Supplier/Dealer 术语、是否一阶段创建并入库、是否支持部分到货、成本币种和汇率、幂等粒度以及是否新增 Purchase Event。

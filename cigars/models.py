@@ -251,6 +251,11 @@ class CigarImage(models.Model):
 
 class PurchaseOrder(models.Model):
     """进货单"""
+    class Status(models.TextChoices):
+        DRAFT = 'draft', '草稿'
+        RECEIVED = 'received', '已入库'
+        CANCELLED = 'cancelled', '已取消'
+
     supplier = models.ForeignKey(
         Supplier, on_delete=models.PROTECT, verbose_name='供应商'
     )
@@ -262,6 +267,9 @@ class PurchaseOrder(models.Model):
         verbose_name='操作人'
     )
     note = models.TextField('备注', blank=True)
+    status = models.CharField(
+        '状态', max_length=20, choices=Status.choices, default=Status.DRAFT
+    )
     locked = models.BooleanField('已锁定', default=False)
     locked_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True,

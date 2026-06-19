@@ -48,6 +48,7 @@ def ingest_items(
     match_cache = MatchCache.for_source(source)
     scraped_combos: set[tuple[int, int | None]] = set()
     anomaly_groups: set[tuple[int, int | None]] = set()
+    seen_this_run: set[tuple[int, int | None, float | None]] = set()
 
     for item in item_list:
         try:
@@ -87,6 +88,13 @@ def ingest_items(
             if not should_create:
                 result.skipped += 1
                 continue
+
+            # 本轮去重：同 (cigar, box, price) 只入库一次
+            run_combo = (cigar.id, box_size, item.price)
+            if run_combo in seen_this_run:
+                result.skipped += 1
+                continue
+            seen_this_run.add(run_combo)
 
             if item.price is None and item.in_stock:
                 result.skipped += 1
@@ -217,11 +225,7 @@ def _should_create_snapshot(
         return True
 
     price_same = _same_money(latest.price, item.price)
-    cny_same = True
-    if latest.price_cny is not None and price_cny is not None:
-        cny_same = _same_money(latest.price_cny, price_cny)
-
-    return not (price_same and cny_same)
+    return not price_same
 
 
 def _same_money(left, right) -> bool:

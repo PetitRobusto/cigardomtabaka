@@ -59,11 +59,6 @@ class LCDHNyonScraper(BaseScraper):
         all_items = []
         brand_list = list(BRAND_CATEGORIES.items())
         
-        # Prefetch exchange rates safely via sync_to_async
-        from price_tracker.models import ExchangeRate
-        self._eur_rate = await sync_to_async(ExchangeRate.get_rate)("EUR")
-        self._chf_rate = await sync_to_async(ExchangeRate.get_rate)("CHF")
-        
         async with async_playwright() as p:
             browser = await p.chromium.launch(
                 headless=True,
@@ -80,7 +75,7 @@ class LCDHNyonScraper(BaseScraper):
                 
                 page = await context.new_page()
                 await stealth.apply_stealth_async(page)
-                await page.goto(f'{BASE_URL}/en/?currency=CHF',
+                await page.goto(f'{BASE_URL}/en/',
                                wait_until='domcontentloaded', timeout=30000)
                 await page.wait_for_timeout(3000)
                 
@@ -227,40 +222,32 @@ class LCDHNyonScraper(BaseScraper):
                 box_size = int(m.group(1))
                 name = re.sub(r'\s*\(\d+\)', '', name).strip()
         
-        # 解析价格 + 货币检测
-        price_chf = None
-        detected_currency = 'CHF'
-        if '€' in price_str or 'EUR' in price_str.upper():
-            detected_currency = 'EUR'
-        elif 'CHF' in price_str.upper() or 'swiss' in price_str.lower() or 'franc' in price_str.lower():
+        # 检测网站实际标价货币
+        detected_currency = 'EUR'  # Nyon 以 EUR 为基准定价
+        if 'CHF' in price_str.upper() or 'swiss' in price_str.lower() or 'franc' in price_str.lower():
             detected_currency = 'CHF'
         
-        # 提取原价（折扣时的划线价）
-        orig_price_chf = None
+        # 解析价格 — 存网站实际标价货币，不做任何换算
+        item_price = None
+        item_currency = detected_currency
+        item_original_price = None
         orig_price_str = raw.get('originalPrice', '')
         if orig_price_str:
             m_orig = re.search(r'[\d,]+\.?\d*', orig_price_str.replace("'", ''))
             if m_orig:
-                orig_price_chf = float(m_orig.group().replace(',', ''))
+                item_original_price = float(m_orig.group().replace(',', ''))
         
         m_price = re.search(r'[\d,]+\.?\d*', price_str.replace("'", ''))
         if m_price:
-            raw_price = float(m_price.group().replace(',', ''))
-            if detected_currency == 'EUR':
-                if not hasattr(self, '_eur_rate') or not self._eur_rate or not self._chf_rate:
-                    price_chf = round(raw_price * 1.10, 2)
-                else:
-                    price_chf = round(raw_price * self._eur_rate / self._chf_rate, 2)
-            else:
-                price_chf = raw_price
+            item_price = float(m_price.group().replace(',', ''))
         
         full_name = f'{brand} {name}'
         
         return ScrapedItem(
             name=full_name,
-            price=price_chf,
-            original_price=orig_price_chf,
-            currency='CHF',
+            price=item_price,
+            original_price=item_original_price,
+            currency=item_currency,
             url=url,
             box_size=box_size,
             in_stock=in_stock,

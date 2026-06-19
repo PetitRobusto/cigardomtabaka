@@ -863,8 +863,16 @@ def match_cigar(
                 candidates.append((cigar, score, rpf_score_typed))
 
         if candidates:
-            # 排序：总分 > 带类型的原始分（区分度更高） > 名字更短（更精确）
-            candidates.sort(key=lambda x: (-x[1], -x[2], len(x[0].english_name)))
+            # 排序：总分 > 带类型的原始分（区分度更高） > 共同词数（更精确） > 名字更短（兜底）
+            # 共同词数优先防止 "Mini" 覆盖 "Open Mini" / "Serie Mini"
+            def _word_overlap_tok(a, b):
+                return len(set(a.split()) & set(b.split()))
+            candidates.sort(key=lambda x: (
+                -x[1],
+                -x[2],
+                -_word_overlap_tok(clean_norm, normalize(x[0].english_name)),
+                len(x[0].english_name)
+            ))
             best, best_score, _ = candidates[0]
             logger.debug(f'[rpf-main] {clean_norm[:30]} → {best.english_name} '
                          f'(score={best_score}, hints={release_hints})')

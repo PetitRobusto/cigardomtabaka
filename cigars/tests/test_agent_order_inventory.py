@@ -20,9 +20,12 @@ from cigars.models import (
 from cigars.services import (
     AgentContext,
     InsufficientStockError,
+    OrderServiceError,
     cancel_sales_order,
     confirm_payment,
+    create_purchase_order,
     create_sales_order,
+    receive_purchase_order,
 )
 
 
@@ -219,6 +222,79 @@ class OrderInventoryServiceTest(TestCase):
         self.assertEqual(event.command_name, 'create_sales_order')
 
 
+class PurchaseReceivingServiceTest(TestCase):
+    def setUp(self):
+        self.operator = create_operator()
+        self.supplier = Supplier.objects.get(name='Habanos')
+        self.cigar = create_cigar()
+
+    def test_create_purchase_order_draft_does_not_receive_stock(self):
+        order = create_purchase_order(
+            supplier_id=self.supplier.id,
+            exchange_rate='0.0800',
+            operator=self.operator,
+            agent_context=context(command='create_purchase_order', key='po-create'),
+            note='待二次确认',
+            items=[{
+                'cigar_id': self.cigar.id,
+                'quantity': 25,
+                'box_size': 25,
+                'unit_price_rub': '1000.00',
+            }],
+        )
+
+        self.assertEqual(order.status, PurchaseOrder.Status.DRAFT)
+        self.assertEqual(order.supplier, self.supplier)
+        self.assertEqual(order.items.count(), 1)
+        self.assertEqual(order.rub_total, Decimal('25000.00'))
+        self.assertEqual(order.cny_total, Decimal('2000.00'))
+        self.assertFalse(PurchaseBatch.objects.exists())
+        self.assertFalse(StockMovement.objects.filter(movement_type='receive').exists())
+
+    def test_receive_purchase_order_creates_batches_and_movements(self):
+        order = create_purchase_order(
+            supplier_id=self.supplier.id,
+            exchange_rate='0.0800',
+            operator=self.operator,
+            agent_context=context(command='create_purchase_order', key='po-create'),
+            items=[
+                {'cigar_id': self.cigar.id, 'quantity': 25, 'box_size': 25, 'unit_price_rub': '1000.00'},
+                {'cigar_id': self.cigar.id, 'quantity': 10, 'box_size': 10, 'unit_price_rub': '1200.00'},
+            ],
+        )
+
+        batches = receive_purchase_order(
+            purchase_order_id=order.id,
+            operator=self.operator,
+            agent_context=context(command='receive_purchase_order', key='po-receive'),
+            note='确认到货',
+        )
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, PurchaseOrder.Status.RECEIVED)
+        self.assertEqual(len(batches), 2)
+        self.assertEqual(
+            list(PurchaseBatch.objects.order_by('id').values_list('quantity', 'remaining')),
+            [(25, 25), (10, 10)],
+        )
+        self.assertEqual(StockMovement.objects.filter(movement_type='receive').count(), 2)
+        movement = StockMovement.objects.filter(movement_type='receive').first()
+        self.assertEqual(movement.operator, self.operator)
+        self.assertEqual(movement.agent_name, 'codex')
+        self.assertEqual(movement.command_name, 'receive_purchase_order')
+        self.assertEqual(movement.idempotency_key, 'po-receive')
+
+    def test_missing_supplier_is_rejected(self):
+        with self.assertRaisesMessage(OrderServiceError, '供应商不存在'):
+            create_purchase_order(
+                supplier_id=99999,
+                exchange_rate='0.0800',
+                operator=self.operator,
+                agent_context=context(command='create_purchase_order', key='po-create'),
+                items=[{'cigar_id': self.cigar.id, 'quantity': 1, 'unit_price_rub': '1000.00'}],
+            )
+
+
 class AgentCommandApiTest(TestCase):
     def setUp(self):
         self.client = Client()
@@ -278,3 +354,123 @@ class AgentCommandApiTest(TestCase):
         self.assertEqual(first.json(), second.json())
         self.assertFalse(StockAllocation.objects.exists())
         self.assertEqual(IdempotencyRecord.objects.get(key='idem-error').status_code, 400)
+
+
+class AgentPurchaseReceivingApiTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.operator = create_operator()
+        self.client.login(username=self.operator.username, password='pass')
+        self.supplier = Supplier.objects.get(name='Habanos')
+        self.cigar = create_cigar()
+
+    def post_json(self, path, body):
+        return self.client.post(path, data=json.dumps(body), content_type='application/json')
+
+    def agent(self, request_id='req-po'):
+        return {
+            'agent_name': 'codex',
+            'agent_run_id': 'run-po',
+            'agent_request_id': request_id,
+        }
+
+    def create_body(self, key='po-create-api', quantity=25):
+        return {
+            'idempotency_key': key,
+            'operator_id': self.operator.id,
+            'agent': self.agent('req-create'),
+            'supplier_id': self.supplier.id,
+            'exchange_rate': '0.0800',
+            'note': 'Habanos 到货草稿',
+            'items': [{
+                'cigar_id': self.cigar.id,
+                'quantity': quantity,
+                'box_size': 25,
+                'unit_price_rub': '1000.00',
+            }],
+        }
+
+    def test_create_and_receive_purchase_order_via_agent_api(self):
+        create_response = self.post_json('/api/agent/purchase-orders/create/', self.create_body())
+        self.assertEqual(create_response.status_code, 200)
+        purchase_order_id = create_response.json()['purchase_order']['id']
+
+        self.assertEqual(PurchaseOrder.objects.get(id=purchase_order_id).status, PurchaseOrder.Status.DRAFT)
+        self.assertFalse(PurchaseBatch.objects.exists())
+
+        receive_body = {
+            'idempotency_key': 'po-receive-api',
+            'operator_id': self.operator.id,
+            'agent': self.agent('req-receive'),
+            'purchase_order_id': purchase_order_id,
+            'note': '二次确认后正式入库',
+        }
+        receive_response = self.post_json('/api/agent/purchase-orders/receive/', receive_body)
+
+        self.assertEqual(receive_response.status_code, 200)
+        payload = receive_response.json()['purchase_order']
+        self.assertEqual(payload['status'], 'received')
+        self.assertEqual(payload['supplier_name'], 'Habanos')
+        self.assertEqual(len(payload['items'][0]['batches']), 1)
+        batch = PurchaseBatch.objects.get()
+        self.assertEqual(batch.quantity, 25)
+        self.assertEqual(batch.remaining, 25)
+        movement = StockMovement.objects.get(movement_type='receive')
+        self.assertEqual(movement.quantity, 25)
+        self.assertEqual(movement.operator, self.operator)
+        self.assertEqual(movement.agent_name, 'codex')
+        self.assertEqual(movement.agent_request_id, 'req-receive')
+        create_record = IdempotencyRecord.objects.get(command_name='create_purchase_order')
+        receive_record = IdempotencyRecord.objects.get(command_name='receive_purchase_order')
+        self.assertEqual(create_record.operator, self.operator)
+        self.assertEqual(create_record.agent_name, 'codex')
+        self.assertEqual(receive_record.operator, self.operator)
+        self.assertEqual(receive_record.agent_name, 'codex')
+
+    def test_supplier_list_exposes_seeded_habanos_id(self):
+        response = self.client.get('/api/agent/suppliers/?q=habanos')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['results'], [{
+            'supplier_id': self.supplier.id,
+            'name': 'Habanos',
+        }])
+
+    def test_receive_retry_does_not_receive_twice(self):
+        purchase_order_id = self.post_json('/api/agent/purchase-orders/create/', self.create_body()).json()['purchase_order']['id']
+        body = {
+            'idempotency_key': 'po-receive-retry',
+            'operator_id': self.operator.id,
+            'agent': self.agent('req-receive'),
+            'purchase_order_id': purchase_order_id,
+            'note': '确认到货',
+        }
+
+        first = self.post_json('/api/agent/purchase-orders/receive/', body)
+        second = self.post_json('/api/agent/purchase-orders/receive/', body)
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(first.json(), second.json())
+        self.assertEqual(PurchaseBatch.objects.count(), 1)
+        self.assertEqual(StockMovement.objects.filter(movement_type='receive').count(), 1)
+
+    def test_same_idempotency_key_different_body_returns_409(self):
+        first = self.post_json('/api/agent/purchase-orders/create/', self.create_body(key='po-conflict', quantity=25))
+        second = self.post_json('/api/agent/purchase-orders/create/', self.create_body(key='po-conflict', quantity=10))
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 409)
+        self.assertEqual(PurchaseOrder.objects.count(), 1)
+        self.assertFalse(PurchaseBatch.objects.exists())
+
+    def test_missing_supplier_returns_400(self):
+        body = self.create_body()
+        body['idempotency_key'] = 'po-missing-supplier'
+        body['supplier_id'] = 99999
+
+        response = self.post_json('/api/agent/purchase-orders/create/', body)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['error'], '供应商不存在')
+        self.assertFalse(PurchaseOrder.objects.exists())

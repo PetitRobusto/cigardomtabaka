@@ -22,6 +22,7 @@ from .models import (
     SalesOrder,
     SalesOrderItem,
     StockMovement,
+    Supplier,
     User,
 )
 from .search import CigarSearchEngine
@@ -32,8 +33,11 @@ from .services import (
     adjust_stock,
     cancel_sales_order,
     confirm_payment,
+    create_purchase_order,
     create_sales_order,
     get_stock_summary,
+    receive_purchase_order,
+    serialize_purchase_order,
     serialize_sales_order,
 )
 
@@ -184,6 +188,63 @@ def search_inventory(request):
 def stock_query(request):
     """GET /api/agent/stock/?q=..."""
     return _json_response({'results': get_stock_summary(query=request.GET.get('q', '').strip(), limit=_parse_limit(request))})
+
+
+@staff_required
+def supplier_list(request):
+    """GET /api/agent/suppliers/?q=..."""
+    query = request.GET.get('q', '').strip()
+    suppliers = Supplier.objects.filter(deleted_at__isnull=True).order_by('name')
+    if query:
+        suppliers = suppliers.filter(name__icontains=query)
+    return _json_response({
+        'results': [
+            {
+                'supplier_id': supplier.id,
+                'name': supplier.name,
+            }
+            for supplier in suppliers[:_parse_limit(request, default=50, maximum=100)]
+        ]
+    })
+
+
+@csrf_exempt
+@staff_required
+def create_purchase_order_command(request):
+    if request.method != 'POST':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+
+    def handler(body, operator, context):
+        purchase_order = create_purchase_order(
+            supplier_id=body.get('supplier_id'),
+            items=body.get('items'),
+            exchange_rate=body.get('exchange_rate'),
+            operator=operator,
+            note=str(body.get('note') or '').strip(),
+            agent_context=context,
+        )
+        return {'purchase_order': serialize_purchase_order(purchase_order)}
+
+    return _idempotent_command(request, 'create_purchase_order', handler)
+
+
+@csrf_exempt
+@staff_required
+def receive_purchase_order_command(request):
+    if request.method != 'POST':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+
+    def handler(body, operator, context):
+        batches = receive_purchase_order(
+            purchase_order_id=body.get('purchase_order_id'),
+            operator=operator,
+            note=str(body.get('note') or '').strip(),
+            agent_context=context,
+        )
+        purchase_order = batches[0].purchase_order_item.purchase_order if batches else None
+        return {'purchase_order': serialize_purchase_order(purchase_order)}
+
+    return _idempotent_command(request, 'receive_purchase_order', handler)
 
 
 @csrf_exempt

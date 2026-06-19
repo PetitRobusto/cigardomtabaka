@@ -30,6 +30,7 @@ from .models import (
 
 
 MONEY_PLACES = Decimal('0.01')
+EXCHANGE_RATE_PLACES = Decimal('0.0001')
 
 
 class OrderServiceError(ValueError):
@@ -79,6 +80,16 @@ def _to_signed_money(raw, field_name):
         return Decimal(str(raw)).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
     except (InvalidOperation, TypeError, ValueError):
         raise OrderServiceError(f'{field_name}必须是有效金额')
+
+
+def _to_exchange_rate(raw, field_name):
+    try:
+        value = Decimal(str(raw)).quantize(EXCHANGE_RATE_PLACES, rounding=ROUND_HALF_UP)
+    except (InvalidOperation, TypeError, ValueError):
+        raise OrderServiceError(f'{field_name}必须是有效汇率')
+    if value <= 0:
+        raise OrderServiceError(f'{field_name}必须大于 0')
+    return value
 
 
 def _to_positive_int(raw, field_name):
@@ -188,6 +199,44 @@ def _decimal_to_json(value):
     return float(value)
 
 
+def serialize_purchase_order(order):
+    items = []
+    for item in order.items.select_related('cigar').prefetch_related('batches').all():
+        batches = [
+            {
+                'batch_id': batch.id,
+                'quantity': batch.quantity,
+                'remaining': batch.remaining,
+                'unit_cost_cny': _decimal_to_json(batch.unit_cost_cny),
+                'purchased_at': batch.purchased_at.isoformat(),
+            }
+            for batch in item.batches.all()
+        ]
+        items.append({
+            'id': item.id,
+            'cigar_id': item.cigar_id,
+            'cigar_name': item.cigar.name or item.cigar.english_name,
+            'quantity': item.quantity,
+            'box_size': item.box_size,
+            'unit_price_rub': _decimal_to_json(item.unit_price_rub),
+            'unit_price_cny': _decimal_to_json(item.unit_price_cny),
+            'batches': batches,
+        })
+    return {
+        'id': order.id,
+        'order_number': order.order_number,
+        'status': order.status,
+        'supplier_id': order.supplier_id,
+        'supplier_name': order.supplier.name,
+        'rub_total': _decimal_to_json(order.rub_total),
+        'exchange_rate': _decimal_to_json(order.exchange_rate),
+        'cny_total': _decimal_to_json(order.cny_total),
+        'operator_id': order.operator_id,
+        'note': order.note,
+        'items': items,
+    }
+
+
 def _get_customer(raw_customer_id):
     if not raw_customer_id:
         return None
@@ -196,6 +245,66 @@ def _get_customer(raw_customer_id):
         return Customer.objects.get(id=customer_id)
     except Customer.DoesNotExist:
         raise OrderServiceError('客户不存在')
+
+
+@transaction.atomic
+def create_purchase_order(*, supplier_id, items, exchange_rate, operator, note='',
+                          agent_context=None):
+    """Create an immutable purchase order draft. It does not receive stock."""
+    operator = _require_operator(operator)
+    context = agent_context or AgentContext(command_name='create_purchase_order')
+    if not isinstance(items, list) or not items:
+        raise OrderServiceError('至少需要一个采购明细')
+
+    supplier_pk = _to_positive_int(supplier_id, '供应商ID')
+    try:
+        supplier = Supplier.objects.get(id=supplier_pk, deleted_at__isnull=True)
+    except Supplier.DoesNotExist:
+        raise OrderServiceError('供应商不存在')
+
+    rate = _to_exchange_rate(exchange_rate, '汇率')
+    purchase_order = PurchaseOrder.objects.create(
+        supplier=supplier,
+        rub_total=Decimal('0.00'),
+        exchange_rate=rate,
+        cny_total=Decimal('0.00'),
+        operator=operator,
+        note=note or '',
+        status=PurchaseOrder.Status.DRAFT,
+    )
+
+    rub_total = Decimal('0.00')
+    cny_total = Decimal('0.00')
+    for idx, raw_item in enumerate(items, start=1):
+        if not isinstance(raw_item, dict):
+            raise OrderServiceError(f'第{idx}个采购明细格式错误')
+        cigar_id = _to_positive_int(raw_item.get('cigar_id'), f'第{idx}个采购明细雪茄ID')
+        quantity = _to_positive_int(raw_item.get('quantity'), f'第{idx}个采购明细数量')
+        unit_price_rub = _to_money(raw_item.get('unit_price_rub'), f'第{idx}个采购明细卢布单价')
+        raw_box_size = raw_item.get('box_size')
+        box_size = None if raw_box_size in (None, '') else _to_positive_int(raw_box_size, f'第{idx}个采购明细盒装支数')
+
+        try:
+            cigar = Cigar.objects.get(id=cigar_id)
+        except Cigar.DoesNotExist:
+            raise OrderServiceError(f'第{idx}个采购明细雪茄不存在')
+
+        unit_price_cny = (unit_price_rub * rate).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
+        PurchaseOrderItem.objects.create(
+            purchase_order=purchase_order,
+            cigar=cigar,
+            quantity=quantity,
+            box_size=box_size,
+            unit_price_rub=unit_price_rub,
+            unit_price_cny=unit_price_cny,
+        )
+        rub_total += (unit_price_rub * quantity)
+        cny_total += (unit_price_cny * quantity)
+
+    purchase_order.rub_total = rub_total.quantize(MONEY_PLACES)
+    purchase_order.cny_total = cny_total.quantize(MONEY_PLACES)
+    purchase_order.save(update_fields=['rub_total', 'cny_total'])
+    return purchase_order
 
 
 @transaction.atomic
@@ -530,6 +639,7 @@ def _get_or_create_adjustment_batch(*, cigar, quantity, operator, batch_id=None,
         exchange_rate=Decimal('1.0000'),
         cny_total=(unit_cost * quantity).quantize(MONEY_PLACES),
         operator=operator,
+        status=PurchaseOrder.Status.RECEIVED,
         note='库存修正自动建批次',
     )
     purchase_item = PurchaseOrderItem.objects.create(
@@ -561,12 +671,21 @@ def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, n
     except PurchaseOrder.DoesNotExist:
         raise OrderServiceError('进货单不存在')
 
+    if purchase_order.status == PurchaseOrder.Status.RECEIVED:
+        raise OrderServiceError('进货单已入库')
+    if purchase_order.status == PurchaseOrder.Status.CANCELLED:
+        raise OrderServiceError('已取消进货单不能入库')
+    if purchase_order.status != PurchaseOrder.Status.DRAFT:
+        raise OrderServiceError(f'当前状态不能入库: {purchase_order.status}')
+
+    items = list(purchase_order.items.select_related('cigar').order_by('id'))
+    if not items:
+        raise OrderServiceError('进货单没有明细')
+    if PurchaseBatch.objects.filter(purchase_order_item__purchase_order=purchase_order).exists():
+        raise OrderServiceError('进货单已存在入库批次')
+
     batches = []
-    for item in purchase_order.items.select_related('cigar').all():
-        existing = item.batches.first()
-        if existing:
-            batches.append(existing)
-            continue
+    for item in items:
         batch = PurchaseBatch.objects.create(
             purchase_order_item=item,
             cigar=item.cigar,
@@ -584,6 +703,8 @@ def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, n
             note=note,
         )
         batches.append(batch)
+    purchase_order.status = PurchaseOrder.Status.RECEIVED
+    purchase_order.save(update_fields=['status'])
     return batches
 
 

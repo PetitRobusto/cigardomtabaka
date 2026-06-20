@@ -225,6 +225,49 @@ class TestIngestItems:
         ).first()
         assert snap is not None
 
+    def test_normalized_same_url_display_currency_does_not_create_snapshot(self, monkeypatch):
+        """Same canonical URL/price skips even when raw display currency changed."""
+        from price_tracker.ingestion import ingest_items
+
+        self._patch_matcher(monkeypatch)
+        url = 'https://ingestion.example/nyon-product/'
+        self._snapshot(
+            price=2850.0,
+            currency='CHF',
+            price_cny=24000,
+            box_size=20,
+            url=url,
+            raw_data={
+                'display_currency': 'CHF',
+                'display_price': 2850.0,
+                'canonical_currency': 'CHF',
+            },
+        )
+
+        result = ingest_items(
+            self.source,
+            [
+                ScrapedItem(
+                    name='Ingestion Cigar',
+                    price=2850.0,
+                    box_size=20,
+                    currency='CHF',
+                    url=url,
+                    raw_data={
+                        'display_currency': 'EUR',
+                        'display_price': 3163.5,
+                        'canonical_currency': 'CHF',
+                    },
+                )
+            ],
+            mode='scrape',
+            run_delisting=False,
+        )
+
+        assert result.created == 0
+        assert result.skipped == 1
+        assert PriceSnapshot.objects.filter(source=self.source, cigar=self.cigar).count() == 1
+
     def test_delisting_compares_only_last_scrape_date(self, monkeypatch):
         """delisting compares today with the latest previous scrape only"""
         from price_tracker.ingestion import ingest_items
@@ -264,6 +307,28 @@ class TestIngestItems:
             source=self.source,
             cigar=old_only,
             in_stock=False,
+        ).exists()
+
+    def test_empty_scrape_does_not_mark_everything_delisted(self, monkeypatch):
+        """empty scrape results are treated as a failed/blocked run, not all-OOS."""
+        from price_tracker.ingestion import ingest_items
+
+        self._snapshot(cigar=self.cigar, days_ago=1, box_size=25)
+
+        result = ingest_items(
+            self.source,
+            [],
+            mode='scrape',
+            run_delisting=True,
+        )
+
+        assert result.total_items == 0
+        assert result.delisted == 0
+        assert not PriceSnapshot.objects.filter(
+            source=self.source,
+            cigar=self.cigar,
+            in_stock=False,
+            raw_data__delisted=True,
         ).exists()
 
     @override_settings(USE_TZ=True, TIME_ZONE='Asia/Shanghai')

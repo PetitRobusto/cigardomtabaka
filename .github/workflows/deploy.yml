@@ -28,7 +28,6 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           timeout: 60s
           command_timeout: 10m
-          retry: 3
           script: |
             set -e
             cd /opt/cigardomtabaka
@@ -43,7 +42,12 @@ jobs:
             pip install -r requirements.txt
 
             echo "=== cleanup orphan FK ==="
-            sqlite3 cigars.db "DELETE FROM cigars_cigarimage WHERE cigar_id NOT IN (SELECT id FROM cigars_cigar);"
+            sqlite3 cigars.db "
+              DELETE FROM cigars_cigarimage
+              WHERE cigar_id IS NULL OR cigar_id NOT IN (SELECT id FROM cigars_cigar);
+              DELETE FROM cigars_cigarprice
+              WHERE cigar_id IS NULL OR cigar_id NOT IN (SELECT id FROM cigars_cigar);
+            "
 
             echo "=== database migrate ==="
             python manage.py migrate

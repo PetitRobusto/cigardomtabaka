@@ -2,7 +2,13 @@
 import pytest
 
 from price_tracker.models import PriceSource
-from price_tracker.scrapers.lcdh_nyon import LCDHNyonScraper, _brand_parse_script
+from price_tracker.scrapers.lcdh_nyon import (
+    LCDHNyonScraper,
+    _brand_parse_from_html_script,
+    _brand_parse_script,
+    _is_blocked_response,
+    _nyon_delay_ms,
+)
 
 
 @pytest.fixture
@@ -60,3 +66,44 @@ def test_brand_parse_script_reads_rendered_product_cards():
     assert "document.querySelectorAll('.product-small, li.product')" in script
     assert 'JSON.stringify(products)' in script
     assert "a[href*=\"/boutique/\"]" in script
+
+
+def test_brand_parse_from_html_script_fetches_detached_document():
+    script = _brand_parse_from_html_script('cohiba')
+
+    assert 'fetch("/en/product-category/cigares-cubains/cohiba/")' in script
+    assert 'div.innerHTML = html' in script
+    assert "div.querySelectorAll('.product-small, li.product')" in script
+    assert 'JSON.stringify({' in script
+    assert 'products' in script
+
+
+def test_brand_parse_from_html_script_rejects_invalid_category_slug():
+    with pytest.raises(ValueError, match='invalid Nyon category slug'):
+        _brand_parse_from_html_script("cohiba'); throw new Error('boom")
+
+
+@pytest.mark.parametrize(
+    ('payload', 'expected'),
+    [
+        ({'status': 429, 'title': '', 'bodyHead': ''}, True),
+        ({'status': 200, 'title': '429 Too Many Requests', 'bodyHead': ''}, True),
+        ({'status': 200, 'title': '', 'bodyHead': 'Too many requests'}, True),
+        ({'status': 200, 'title': 'Just a moment...', 'bodyHead': ''}, True),
+        ({'status': 200, 'title': '', 'bodyHead': 'Security verification'}, True),
+        ({'status': 200, 'title': 'Cohiba - LCDH Nyon', 'bodyHead': 'Cohiba products'}, False),
+    ],
+)
+def test_blocked_response_detection(payload, expected):
+    assert _is_blocked_response(payload) is expected
+
+
+def test_nyon_delay_adds_bounded_jitter():
+    assert [_nyon_delay_ms(i) for i in range(6)] == [
+        8000,
+        9700,
+        11400,
+        13100,
+        14800,
+        8000,
+    ]

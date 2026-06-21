@@ -18,6 +18,8 @@ import sys
 import time
 import json
 import argparse
+import urllib.error
+import urllib.request
 import concurrent.futures
 
 BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
@@ -37,6 +39,67 @@ SKIP_SLUGS = {'egm', 'ihavanas'}
 SKIP_SCRAPERS = {'test'}  # 去掉测试源，防止拖慢全量爬取
 RETRY_COUNT = 1
 STATUS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.scrape_status.json')
+
+CDP_URL = 'http://127.0.0.1:9222'
+NYON_HOST = 'la-casa-del-habano-nyon.com'
+
+
+def _is_stale_nyon_target(target: dict) -> bool:
+    """Return True for old Nyon tabs that can make CDP attach sluggish."""
+    if target.get('type') != 'page':
+        return False
+    url = str(target.get('url') or '').lower()
+    title = str(target.get('title') or '').lower()
+    if not url or url == 'about:blank':
+        return False
+    return NYON_HOST in url or ('429' in title and NYON_HOST in url)
+
+
+def _cdp_json(path: str, timeout: float = 5):
+    with urllib.request.urlopen(f'{CDP_URL}{path}', timeout=timeout) as resp:
+        body = resp.read().decode('utf-8')
+    return json.loads(body) if body else None
+
+
+def _cleanup_stale_nyon_tabs() -> int:
+    """Close stale Nyon page targets before the cron scrape attaches Playwright."""
+    try:
+        targets = _cdp_json('/json/list') or []
+    except (OSError, urllib.error.URLError, TimeoutError) as e:
+        print(f'⚠️  CDP 9222 不可用，跳过 Nyon tab 清理: {e}')
+        return 0
+
+    closed = 0
+    for target in targets:
+        if not _is_stale_nyon_target(target):
+            continue
+        target_id = target.get('id')
+        if not target_id:
+            continue
+        try:
+            urllib.request.urlopen(f'{CDP_URL}/json/close/{target_id}', timeout=5).read()
+            closed += 1
+        except (OSError, urllib.error.URLError, TimeoutError) as e:
+            print(f'⚠️  关闭旧 Nyon tab 失败 {target_id}: {e}')
+    if closed:
+        print(f'🧹 已关闭 {closed} 个旧 Nyon CDP tab')
+        time.sleep(2)
+    return closed
+
+
+def _write_scrape_status(results: dict) -> None:
+    status = {}
+    for slug, r in results.items():
+        if isinstance(r, dict):
+            status[slug] = {
+                'success': 'error' not in r,
+                'time': time.strftime('%Y-%m-%dT%H:%M:%S'),
+                'new': r.get('created', 0),
+                'matched': r.get('matched', 0),
+                'skipped': r.get('skipped', 0),
+            }
+    with open(STATUS_FILE, 'w') as f:
+        json.dump(status, f, indent=2)
 
 
 def scrape_source(slug: str) -> dict:
@@ -72,8 +135,9 @@ def _check_disk():
         return None
 
 
-def scrape_all() -> dict:
+def scrape_all(exclude_sources: set[str] | None = None) -> dict:
     """Nyon 单独复用 CDP，其它活跃源继续并行爬取。"""
+    exclude_sources = exclude_sources or set()
     # ⛔ 磁盘防线：< 2G 直接退出，避免 Chromium EPIPE
     free_gb = _check_disk()
     if free_gb is not None and free_gb < MIN_FREE_GB:
@@ -103,6 +167,7 @@ def scrape_all() -> dict:
         .exclude(slug__in=SKIP_SLUGS)
         .exclude(scraper_class__in=SKIP_SCRAPERS)
     ]
+    sources = [slug for slug in sources if slug not in exclude_sources]
     if not sources:
         print('无活跃爬虫源')
         return {}, 0
@@ -116,6 +181,7 @@ def scrape_all() -> dict:
     if nyon_slug in sources:
         sources.remove(nyon_slug)
         print('=== 单独爬取 lcdh_nyon（CDP 复用） ===')
+        _cleanup_stale_nyon_tabs()
         r = scrape_source(nyon_slug)
         results[nyon_slug] = r
         elapsed = time.time() - start
@@ -157,19 +223,8 @@ def scrape_all() -> dict:
     )
 
     # 写状态文件
-    status = {}
-    for slug, r in results.items():
-        if isinstance(r, dict):
-            status[slug] = {
-                'success': 'error' not in r,
-                'time': time.strftime('%Y-%m-%dT%H:%M:%S'),
-                'new': r.get('created', 0),
-                'matched': r.get('matched', 0),
-                'skipped': r.get('skipped', 0),
-            }
     try:
-        with open(STATUS_FILE, 'w') as f:
-            json.dump(status, f, indent=2)
+        _write_scrape_status(results)
     except Exception as e:
         print(f'⚠️  写状态文件失败: {e}')
 
@@ -184,13 +239,18 @@ def scrape_all() -> dict:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='爬取价格数据到本地DB')
     parser.add_argument('--source', '-s', help='只爬指定源')
+    parser.add_argument('--exclude', action='append', default=[], help='排除指定源，可重复')
     args = parser.parse_args()
 
     if args.source:
         r = scrape_source(args.source)
         ok = 'error' not in r
+        try:
+            _write_scrape_status({args.source: r})
+        except Exception as e:
+            print(f'⚠️  写状态文件失败: {e}')
         print(f'{"OK" if ok else "FAIL"}: {r}')
         sys.exit(0 if ok else 1)
     else:
-        _, errors = scrape_all()
+        _, errors = scrape_all(exclude_sources=set(args.exclude))
         sys.exit(0 if errors == 0 else 1)

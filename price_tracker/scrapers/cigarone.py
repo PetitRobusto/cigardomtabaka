@@ -122,18 +122,27 @@ class CigarOneScraper(BaseScraper):
                     all_items.extend(result)
                     logger.info(f'{brand_name}: {len(result)} products')
 
-        # 去重：同 URL + 同 box_size 只保留有价格的那条
+        unique = self._dedupe_catalog_items(all_items)
+        logger.info(f'CigarOne total: {len(unique)} unique products (from {len(all_items)} raw rows)')
+        return unique
+
+    def _dedupe_catalog_items(self, items: list[ScrapedItem]) -> list[ScrapedItem]:
+        """Drop per-stick/reference rows when a real boxed SKU exists for the URL."""
+        urls_with_boxed_row = {
+            item.url for item in items
+            if item.url and item.box_size is not None
+        }
         seen = {}
-        for item in all_items:
+        for item in items:
+            if item.box_size is None and item.url in urls_with_boxed_row:
+                continue
             key = (item.url, item.box_size)
             if key not in seen:
                 seen[key] = item
             elif item.price is not None and seen[key].price is None:
                 seen[key] = item
 
-        unique = list(seen.values())
-        logger.info(f'CigarOne total: {len(unique)} unique products (from {len(all_items)} raw rows)')
-        return unique
+        return list(seen.values())
 
     async def _scrape_brand(self, client, brand_name: str, slug: str) -> list[ScrapedItem]:
         url = f'{BASE_URL}/habanos-and-more-brands/{slug}'

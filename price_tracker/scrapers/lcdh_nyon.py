@@ -82,42 +82,6 @@ def _brand_parse_script() -> str:
         '''
 
 
-def _brand_parse_from_html_script(cat_slug: str) -> str:
-    if not re.fullmatch(r'[a-z0-9-]+', cat_slug):
-        raise ValueError('invalid Nyon category slug')
-    category_path = json.dumps(f'/en/product-category/cigares-cubains/{cat_slug}/')
-    return f'''
-            async () => {{
-                const resp = await fetch({category_path});
-                const html = await resp.text();
-                const div = document.createElement('div');
-                div.innerHTML = html;
-{_product_cards_js('div')}
-                return JSON.stringify({{
-                    status: resp.status,
-                    title: div.querySelector('title')?.textContent || '',
-                    bodyHead: (div.textContent || '').slice(0, 800),
-                    count: products.length,
-                    products
-                }});
-            }}
-        '''
-
-
-def _is_blocked_response(payload: dict) -> bool:
-    status = payload.get('status')
-    title = str(payload.get('title') or '').lower()
-    body_head = str(payload.get('bodyHead') or '').lower()
-    if status == 429:
-        return True
-    blocked_text = f'{title} {body_head}'
-    return (
-        '429' in blocked_text
-        or 'too many requests' in blocked_text
-        or 'just a moment' in blocked_text
-        or 'security verification' in blocked_text
-        or 'challenge' in blocked_text
-    )
 
 
 def _nyon_delay_ms(index: int) -> int:

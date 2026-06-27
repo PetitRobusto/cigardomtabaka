@@ -33,13 +33,28 @@ class LCDHDLScraper(BaseScraper):
             await page.goto(BASE_URL + '/web/login?redirect=%2Fmy%2Fhome%3F',
                            wait_until='domcontentloaded', timeout=30000)
             await page.wait_for_timeout(2000)
+            # 登录前先关 CookieHub 弹窗
             try:
-                btn = page.locator('button:has-text("Allow all cookies")')
-                if await btn.is_visible(timeout=3000):
-                    await btn.click()
+                # Step 1: 打开 cookie 设置面板
+                cookie_btn = page.locator('button:has-text("Cookie settings"), button:has-text("Cookie settings")')
+                if await cookie_btn.first.is_visible(timeout=3000):
+                    await cookie_btn.first.click()
+                    await page.wait_for_timeout(1000)
+                # Step 2: 点击 "Allow all cookies"
+                allow_btn = page.locator('button:has-text("Allow all cookies")')
+                if await allow_btn.is_visible(timeout=3000):
+                    await allow_btn.click()
                     await page.wait_for_timeout(500)
             except Exception:
-                pass
+                logger.warning('Cookie popup not found, trying old method')
+                # Fallback to old text match
+                try:
+                    btn = page.locator('button:has-text("Allow all cookies")')
+                    if await btn.is_visible(timeout=3000):
+                        await btn.click()
+                        await page.wait_for_timeout(500)
+                except Exception:
+                    pass
             await page.fill('input[name="login"]', LOGIN_EMAIL)
             await page.fill('input[name="password"]', LOGIN_PASSWORD)
             await page.click('form[action*="/web/login"] button[type="submit"]')

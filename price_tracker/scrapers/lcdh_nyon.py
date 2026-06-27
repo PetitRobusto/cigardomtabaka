@@ -1,7 +1,7 @@
 """
 LCDH Nyon 爬虫 (la-casa-del-habano-nyon.com)
 瑞士雪茄店，WooCommerce + Flatsome主题
-Cloudflare防护 → 复用 9222 CDP 浏览器会话绕过
+Cloudflare防护 → 独立 headless Chromium + stealth 绕过
 """
 import re, json, logging
 from typing import Optional
@@ -157,33 +157,33 @@ BRAND_CATEGORIES = {
 
 @register_scraper('lcdh_nyon')
 class LCDHNyonScraper(BaseScraper):
-    """LCDH Nyon 爬虫 — 复用 9222 CDP 浏览器绕过 Cloudflare"""
+    """LCDH Nyon 爬虫 — 独立 Chromium + stealth 绕过 Cloudflare"""
     
     source_slug = 'lcdh_nyon'
     
     async def scrape_catalog(self) -> list[ScrapedItem]:
         from playwright.async_api import async_playwright
+        from playwright_stealth import Stealth
 
         all_items = []
         brand_list = list(BRAND_CATEGORIES.items())
-        page = None
-        created_context = False
 
         async with async_playwright() as p:
-            browser = await p.chromium.connect_over_cdp('http://127.0.0.1:9222')
-            if browser.contexts:
-                context = browser.contexts[0]
-            else:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+            )
+            try:
                 context = await browser.new_context(
                     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
                                '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
                     viewport={'width': 1920, 'height': 1080},
                     locale='en-US'
                 )
-                created_context = True
+                stealth = Stealth()
 
-            try:
                 page = await context.new_page()
+                await stealth.apply_stealth_async(page)
                 await page.goto(f'{BASE_URL}/en/',
                                wait_until='domcontentloaded', timeout=30000)
                 await page.wait_for_timeout(3000)
@@ -211,18 +211,15 @@ class LCDHNyonScraper(BaseScraper):
                             raise RuntimeError(err_msg) from e
                         logger.warning(f'  {brand_name}: {err_msg[:80]}')
 
-
             finally:
-                if page:
-                    try:
-                        await page.close()
-                    except Exception:
-                        pass
-                if created_context:
-                    try:
-                        await context.close()
-                    except Exception:
-                        pass
+                try:
+                    await context.close()
+                except Exception:
+                    pass
+                try:
+                    await browser.close()
+                except Exception:
+                    pass
 
         if not all_items:
             raise RuntimeError('Nyon returned no products; likely blocked or rate limited')

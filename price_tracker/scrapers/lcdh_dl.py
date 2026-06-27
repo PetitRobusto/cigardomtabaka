@@ -57,7 +57,8 @@ class LCDHDLScraper(BaseScraper):
                     pass
             await page.fill('input[name="login"]', LOGIN_EMAIL)
             await page.fill('input[name="password"]', LOGIN_PASSWORD)
-            await page.click('form[action*="/web/login"] button[type="submit"]')
+            # CookieHub ch2-container 遮罩层拦截 pointer events，用 JS 直接提交
+            await page.evaluate('document.querySelector(\'form[action*="/web/login"]\').submit()')
             await page.wait_for_timeout(3000)
             if '/web/login' in page.url:
                 logger.error('Login failed')

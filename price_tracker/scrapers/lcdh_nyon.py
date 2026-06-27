@@ -168,7 +168,22 @@ class LCDHNyonScraper(BaseScraper):
         all_items = []
         brand_list = list(BRAND_CATEGORIES.items())
 
-        async with async_playwright() as p:
+        stealth = Stealth(
+            navigator_webdriver=True,
+            navigator_plugins=True,
+            navigator_languages=True,
+            navigator_platform=True,
+            navigator_vendor=True,
+            webgl_vendor=True,
+            hairline=True,
+            sec_ch_ua=True,
+            navigator_user_agent_override=(
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+            ),
+        )
+
+        async with stealth.use_async(async_playwright()) as p:
             browser = await p.chromium.launch(
                 headless=True,
                 args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
@@ -180,10 +195,8 @@ class LCDHNyonScraper(BaseScraper):
                     viewport={'width': 1920, 'height': 1080},
                     locale='en-US'
                 )
-                stealth = Stealth()
 
                 page = await context.new_page()
-                await stealth.apply_stealth_async(page)
                 await page.goto(f'{BASE_URL}/en/',
                                wait_until='domcontentloaded', timeout=30000)
                 await page.wait_for_timeout(3000)

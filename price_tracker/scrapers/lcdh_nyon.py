@@ -234,18 +234,28 @@ class LCDHNyonScraper(BaseScraper):
         return unique
 
     async def _scrape_brand(self, page, brand_name: str, cat_slug: str) -> list[ScrapedItem]:
-        """Fetch one brand page inside the warmed browser context and parse HTML off-DOM."""
-        result = await page.evaluate(_brand_parse_from_html_script(cat_slug))
-        payload = json.loads(result)
+        """Navigate to one brand page and parse the rendered DOM."""
+        url = f'{BASE_URL}/en/product-category/cigares-cubains/{cat_slug}/?currency=CHF'
+        await page.goto(url, wait_until='domcontentloaded', timeout=30000)
+        await page.wait_for_timeout(600)
+        try:
+            await page.wait_for_selector('.product-small, li.product', timeout=1000)
+        except Exception:
+            pass
 
-        if _is_blocked_response(payload):
-            status = payload.get('status')
-            title = payload.get('title') or ''
-            raise RuntimeError(f'Nyon rate limited or Cloudflare blocked (status={status}, title={title[:80]})')
+        title = await page.title()
+        body_head = (await page.locator('body').inner_text())[:800]
+        if '429' in title or 'too many requests' in body_head.lower():
+            raise RuntimeError('Nyon rate limited (429 Too Many Requests)')
+        if 'Just a moment' in title or 'security verification' in body_head.lower():
+            raise RuntimeError('Cloudflare security verification page')
 
+        result = await page.evaluate(_brand_parse_script())
+
+        data = json.loads(result)
         items = []
-        for product in payload.get('products', []):
-            item = self._parse_product(product, brand_name)
+        for p in data:
+            item = self._parse_product(p, brand_name)
             if item:
                 items.append(item)
         return items

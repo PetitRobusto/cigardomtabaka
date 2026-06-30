@@ -204,6 +204,8 @@ class LCDHNyonScraper(BaseScraper):
                 await page.wait_for_timeout(3000)
 
                 body = await page.locator('body').inner_text()
+                if '429' in body or 'too many requests' in body.lower():
+                    raise RuntimeError('Nyon rate limited on initial page (429)')
                 if '安全验证' in body or 'challenge' in body.lower() or 'security verification' in body.lower():
                     logger.warning('Nyon CF 封锁')
                     return []

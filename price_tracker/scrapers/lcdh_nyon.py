@@ -196,6 +196,7 @@ class LCDHNyonScraper(BaseScraper):
                                '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
                     viewport={'width': 1920, 'height': 1080},
                     locale='en-US',
+                    proxy={'server': 'socks5://127.0.0.1:1080'},
                 )
 
                 page = await context.new_page()

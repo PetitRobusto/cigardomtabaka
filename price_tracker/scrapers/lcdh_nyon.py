@@ -157,7 +157,8 @@ class LCDHNyonScraper(BaseScraper):
                     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
                                '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
                     viewport={'width': 1920, 'height': 1080},
-                    locale='en-US'
+                    locale='en-US',
+                    proxy={'server': 'http://192.168.0.44:7890'},
                 )
 
                 page = await context.new_page()

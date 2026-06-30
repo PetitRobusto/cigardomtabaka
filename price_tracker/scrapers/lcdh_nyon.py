@@ -179,16 +179,32 @@ class LCDHNyonScraper(BaseScraper):
             webgl_vendor=True,
             hairline=True,
             sec_ch_ua=True,
+            chrome_app=True,
+            chrome_csi=True,
+            chrome_load_times=True,
+            iframe_content_window=True,
+            media_codecs=True,
+            navigator_hardware_concurrency=True,
+            navigator_permissions=True,
+            navigator_user_agent_data=True,
+            error_prototype=True,
+            navigator_languages_override=('en-US', 'en'),
+            navigator_platform_override='Win32',
             navigator_user_agent_override=(
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
                 '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
             ),
+            navigator_vendor_override='Google Inc.',
+            webgl_vendor_override='Intel Inc.',
+            webgl_renderer_override='Intel Iris OpenGL Engine',
         )
 
         async with stealth.use_async(async_playwright()) as p:
             browser = await p.chromium.launch(
                 headless=True,
-                args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+                args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+                      '--disable-blink-features=AutomationControlled',
+                      '--disable-features=AutomationControlled,EnableAutomation'],
             )
             try:
                 context = await browser.new_context(
@@ -196,7 +212,6 @@ class LCDHNyonScraper(BaseScraper):
                                '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
                     viewport={'width': 1920, 'height': 1080},
                     locale='en-US',
-                    proxy={'server': 'socks5://127.0.0.1:1080'},
                 )
 
                 page = await context.new_page()

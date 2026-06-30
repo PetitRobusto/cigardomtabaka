@@ -87,6 +87,44 @@ def _brand_parse_script() -> str:
 def _nyon_delay_ms(index: int) -> int:
     return 15000 + (index % 5) * 3000
 
+
+def _brand_parse_from_html_script(cat_slug: str) -> str:
+    if not re.fullmatch(r'[a-z0-9-]+', cat_slug):
+        raise ValueError('invalid Nyon category slug')
+    category_path = json.dumps(f'/en/product-category/cigares-cubains/{cat_slug}/')
+    return f'''
+            async () => {{
+                const resp = await fetch({category_path});
+                const html = await resp.text();
+                const div = document.createElement('div');
+                div.innerHTML = html;
+{_product_cards_js('div')}
+                return JSON.stringify({{
+                    status: resp.status,
+                    title: div.querySelector('title')?.textContent || '',
+                    bodyHead: (div.textContent || '').slice(0, 800),
+                    count: products.length,
+                    products
+                }});
+            }}
+        '''
+
+
+def _is_blocked_response(payload: dict) -> bool:
+    status = payload.get('status')
+    title = str(payload.get('title') or '').lower()
+    body_head = str(payload.get('bodyHead') or '').lower()
+    if status == 429:
+        return True
+    blocked_text = f'{title} {body_head}'
+    return (
+        '429' in blocked_text
+        or 'too many requests' in blocked_text
+        or 'just a moment' in blocked_text
+        or 'security verification' in blocked_text
+        or 'challenge' in blocked_text
+    )
+
 BRAND_CATEGORIES = {
     'bolivar': 'Bolívar',
     'cohiba': 'Cohiba',
@@ -158,7 +196,6 @@ class LCDHNyonScraper(BaseScraper):
                                '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
                     viewport={'width': 1920, 'height': 1080},
                     locale='en-US',
-                    proxy={'server': 'http://192.168.0.44:7890'},
                 )
 
                 page = await context.new_page()
@@ -215,27 +252,17 @@ class LCDHNyonScraper(BaseScraper):
         return unique
 
     async def _scrape_brand(self, page, brand_name: str, cat_slug: str) -> list[ScrapedItem]:
-        """Navigate to one brand page and parse the rendered DOM."""
-        url = f'{BASE_URL}/en/product-category/cigares-cubains/{cat_slug}/?currency=CHF'
-        await page.goto(url, wait_until='domcontentloaded', timeout=30000)
-        await page.wait_for_timeout(600)
-        try:
-            await page.wait_for_selector('.product-small, li.product', timeout=1000)
-        except Exception:
-            pass
+        """Fetch brand page via JS fetch() from already-CF-authenticated page context."""
+        result = await page.evaluate(_brand_parse_from_html_script(cat_slug))
+        payload = json.loads(result)
 
-        title = await page.title()
-        body_head = (await page.locator('body').inner_text())[:800]
-        if '429' in title or 'too many requests' in body_head.lower():
-            raise RuntimeError('Nyon rate limited (429 Too Many Requests)')
-        if 'Just a moment' in title or 'security verification' in body_head.lower():
-            raise RuntimeError('Cloudflare security verification page')
+        if _is_blocked_response(payload):
+            status = payload.get('status')
+            title = payload.get('title') or ''
+            raise RuntimeError(f'Nyon blocked (status={status}, title={title[:80]})')
 
-        result = await page.evaluate(_brand_parse_script())
-
-        data = json.loads(result)
         items = []
-        for p in data:
+        for p in payload.get('products', []):
             item = self._parse_product(p, brand_name)
             if item:
                 items.append(item)

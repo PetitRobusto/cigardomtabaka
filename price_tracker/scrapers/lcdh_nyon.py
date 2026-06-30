@@ -85,7 +85,7 @@ def _brand_parse_script() -> str:
 
 
 def _nyon_delay_ms(index: int) -> int:
-    return 8000 + (index % 5) * 1700
+    return 15000 + (index % 5) * 3000
 
 BRAND_CATEGORIES = {
     'bolivar': 'Bolívar',
@@ -174,6 +174,9 @@ class LCDHNyonScraper(BaseScraper):
                     document.cookie = "woocs=CHF;path=/;max-age=86400";
                     document.cookie = "currency=CHF;path=/;max-age=86400";
                 }''')
+
+                # 首页后短暂冷却
+                await page.wait_for_timeout(5000)
 
                 for index, (cat_slug, brand_name) in enumerate(brand_list):
                     try:

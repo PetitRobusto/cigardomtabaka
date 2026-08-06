@@ -103,7 +103,10 @@ def _write_scrape_status(results: dict) -> None:
 
 
 def scrape_source(slug: str) -> dict:
-    """爬取单个源，带重试"""
+    """爬取单个源，带重试。Nyon 用独立 asyncio 避免死锁。"""
+    if slug == 'lcdh_nyon':
+        return _scrape_nyon()
+
     for attempt in range(RETRY_COUNT + 1):
         try:
             result = run_scrape_sync(slug)
@@ -121,6 +124,87 @@ def scrape_source(slug: str) -> dict:
             return result
 
     return {'error': 'unknown'}
+
+
+def _scrape_nyon() -> dict:
+    """Nyon 爬虫：用直接 asyncio.run 避免 run_scrape_sync 的 import 链死锁"""
+    import asyncio
+    from price_tracker.scrapers import get_scraper
+    from price_tracker.ingestion import ingest_items
+
+    source = PriceSource.objects.filter(slug='lcdh_nyon', active=True).first()
+    if not source:
+        return {'error': 'lcdh_nyon source not found'}
+
+    scraper_cls = get_scraper('lcdh_nyon')
+    scraper = scraper_cls(source)
+
+    try:
+        items = asyncio.run(scraper.scrape_catalog())
+    except Exception as e:
+        return {'error': str(e), 'source': 'lcdh_nyon'}
+
+    # 先入库本地
+    result = ingest_items(source, items, mode='scrape')
+
+    # 再推送到生产（仅本轮数据，不用缓存）
+    push_result = _push_nyon_direct(source, items)
+
+    return {
+        'source': 'lcdh_nyon',
+        'total_items': len(items),
+        'matched': result.matched,
+        'created': result.created,
+        'skipped': result.skipped,
+        'marked_oos': result.delisted,
+        'pushed': push_result.get('created', 0),
+    }
+
+
+def _push_nyon_direct(source, items: list) -> dict:
+    """直接推送本轮爬取的 items 到生产 API，不查 DB 缓存"""
+    import requests
+
+    api_url = 'https://cigardomtabaka.com/api/prices/push-bulk/'
+    api_key = os.environ.get('PRICE_PUSH_API_KEY', '')
+    if not api_key:
+        print('[push] ERROR: PRICE_PUSH_API_KEY not set')
+        return {'error': 'no api key'}
+
+    payload = []
+    for item in items:
+        payload.append({
+            'name': item.name,
+            'price': item.price,
+            'original_price': item.original_price,
+            'currency': item.currency,
+            'box_size': item.box_size if item.box_size != 0 else None,
+            'url': item.url or '',
+            'in_stock': item.in_stock,
+            'raw_data': item.raw_data or {},
+        })
+
+    if not payload:
+        print('[push] No items to push')
+        return {'created': 0}
+
+    print(f'[push] Pushing {len(payload)} items (direct from scrape)...')
+    try:
+        resp = requests.post(
+            api_url,
+            json={'source_slug': source.slug, 'items': payload},
+            headers={'X-API-Key': api_key, 'Content-Type': 'application/json'},
+            timeout=120,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        print(f'[push] OK: received={result.get("received")} '
+              f'matched={result.get("matched")} created={result.get("created")} '
+              f'skipped={result.get("skipped")}')
+        return result
+    except Exception as e:
+        print(f'[push] FAILED: {e}')
+        return {'error': str(e)}
 
 
 MIN_FREE_GB = 2

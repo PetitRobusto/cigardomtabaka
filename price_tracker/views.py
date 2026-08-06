@@ -314,10 +314,10 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         """Dashboard列表页聚合数据 — 每款雪茄一条，带均价/主图/来源"""
         from django.db.models import Max as DMax
 
-        # 1. 取每个(cigar, source, box_size)的最新快照（排除异常+售罄）
+        # 1. 取每个(cigar, source, box_size)的最新快照（排除异常，含售罄）
         latest_ids = (
             PriceSnapshot.objects
-            .filter(is_anomalous=False, in_stock=True)
+            .filter(is_anomalous=False)
             .values('cigar_id', 'source_id', 'box_size')
             .annotate(max_id=DMax('id'))
             .values_list('max_id', flat=True)

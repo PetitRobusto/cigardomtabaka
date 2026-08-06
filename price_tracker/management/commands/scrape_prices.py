@@ -27,7 +27,6 @@ class Command(BaseCommand):
         source_slug = options.get('source')
         dry_run = options.get('dry_run', False)
 
-        # ⚠️ 在 async 外预取 queryset，避免 SynchronousOnlyOperation
         if source_slug:
             sources = list(PriceSource.objects.filter(slug=source_slug, active=True))
             if not sources:
@@ -45,7 +44,6 @@ class Command(BaseCommand):
                 self.stdout.write(f'  · {s.name} ({s.slug}) — {s.base_url}')
             return
 
-        # 串行同步抓取（避免 async/SQLite 打架）
         total_items = 0
         total_matched = 0
         total_created = 0
@@ -66,16 +64,15 @@ class Command(BaseCommand):
                 self.stdout.write(
                     f'  ✅ {source.name}: {result["matched"]}/{result["total_items"]} '
                     f'匹配，{result["created"]} 新增'
-                    + (f'，{result["marked_oos"]} 缺货' if result.get('marked_oos') else '')
+                    + (f'，{result.get("marked_oos")} 缺货' if result.get('marked_oos') else '')
                 )
 
         self.stdout.write(self.style.SUCCESS(
             f'\n📊 抓取完成！'
-            f' 共 {len([s for s in sources])} 个来源，{total_items} 款雪茄'
+            f' 共 {len(sources)} 个来源，{total_items} 款雪茄'
             f'\n  ✅ 匹配: {total_matched}'
             f'\n  🆕 新增: {total_created}'
             f'\n  ⏭️  跳過: {total_skipped}'
-            + (f'\n  📦 歷史缺貨: {sum(r.get("marked_oos", 0) for r in errors)}' if errors else '')
             + (f'\n  ❌ 錯誤: {len(errors)}' if errors else '')
         ))
 

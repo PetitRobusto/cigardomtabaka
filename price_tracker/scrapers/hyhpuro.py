@@ -25,11 +25,13 @@ URL 模式：
 """
 import re
 import logging
+import asyncio
+import time
 from typing import Optional
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
-import httpx
+from curl_cffi import requests as cffi_requests
 
 from . import register_scraper
 from ..scraper import BaseScraper, ScrapedItem
@@ -39,7 +41,20 @@ logger = logging.getLogger(__name__)
 BASE_URL = 'https://hyhpuro.com'
 COLLECTION_URL = f'{BASE_URL}/collections/所有商品'
 
-MAX_PAGES = 30  # 安全上限（实际 ~22 页）
+MAX_PAGES = 30
+PAGE_DELAY_SEC = 4   # 分页间隔，防 429
+
+# 保证集/多品牌包关键词（非单款雪茄，跳过）
+_SAMPLER_PATTERNS = [
+    r'\b(?:Selection|Sampler|Taster|Assortment|Collection)\b',
+    r'\b(?:Classic|Flagship|Joyful|Tasting|Discover)\s+(?:Five|Pack|Set|Moment|Selection)\b',
+    r'\b(?:Quintet|Duo|Trio|Combo|Bundle)\b',
+    r'\b(?:Starter|Gift|Discovery|Intro)\s+(?:Pack|Set|Kit|Box)\b',
+    r'\d+/\d+/\d+',
+    r'(?:Combinaciones|Seleccion|Selección)\s+',
+    r'Cuba\s+Habanos\s+The\s+',  # HYHPURO sampler packs
+]
+_SAMPLER_RE = re.compile('|'.join(_SAMPLER_PATTERNS), re.IGNORECASE)
 
 
 def _extract_box_size(text: str) -> Optional[int]:
@@ -68,7 +83,7 @@ def _extract_stock(text: str) -> Optional[int]:
 
 
 def _clean_name(title: str) -> str:
-    """从双语标题中提取英文名（中文之前的部分），合并多余空格"""
+    """从双语标题中提取英文名（中文之前的部分），合并多余空格，去 Tubo 后缀"""
     cn_match = re.search(r'[\u4e00-\u9fff]', title)
     if cn_match:
         name = title[:cn_match.start()]
@@ -78,7 +93,14 @@ def _clean_name(title: str) -> str:
     name = re.sub(r'[\s\u3000]+', ' ', name).strip()
     # 清理特殊字符
     name = name.replace('–', '-').replace('—', '-')
+    # 去掉 Tubo/Tubos 后缀（盒装数已由 _extract_box_size 提取）
+    name = re.sub(r'\s+Tubos?\b', '', name, flags=re.IGNORECASE).strip()
     return name
+
+
+def _is_sampler(title: str) -> bool:
+    """检测是否为保证集/多品牌包（非单款雪茄）"""
+    return bool(_SAMPLER_RE.search(title))
 
 
 @register_scraper('hyhpuro')
@@ -94,20 +116,33 @@ class HYHPUROScraper(BaseScraper):
         seen_urls = set()
         consecutive_empty = 0
 
-        async with httpx.AsyncClient(
-            headers={
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-            },
-            timeout=30.0,
-            follow_redirects=True,
-        ) as client:
+        async with cffi_requests.AsyncSession(
+            impersonate='chrome131',
+            timeout=30,
+        ) as session:
             for page in range(1, MAX_PAGES + 1):
                 url = f'{COLLECTION_URL}?page={page}'
                 try:
-                    resp = await client.get(url)
-                    resp.raise_for_status()
+                    if page > 1:
+                        await asyncio.sleep(PAGE_DELAY_SEC)
+
+                    resp = await session.get(url)
+                    # 429 指数退避重试
+                    for retry in range(3):
+                        if resp.status_code != 429:
+                            break
+                        wait = 15 * (2 ** retry)
+                        logger.warning(f'Page {page}: 429 rate limited, waiting {wait}s (retry {retry+1}/3)')
+                        await asyncio.sleep(wait)
+                        resp = await session.get(url)
+                    if resp.status_code != 200:
+                        logger.error(f'Page {page}: {resp.status_code}')
+                        consecutive_empty += 1
+                        if consecutive_empty >= 2:
+                            break
+                        continue
+                    consecutive_empty = 0
+
                     items, new_urls = self._parse_list_html(resp.text)
 
                     if not items:
@@ -227,6 +262,11 @@ class HYHPUROScraper(BaseScraper):
         # 折扣标签
         discount_el = prod.find('div', class_='themes_sales')
         discount = discount_el.get_text(strip=True) if discount_el else None
+
+        # 跳过保证集/多品牌包
+        if _is_sampler(title):
+            logger.debug(f'Skip sampler: {title[:60]}')
+            return None, url
 
         # 提取英文名
         name_clean = _clean_name(title)

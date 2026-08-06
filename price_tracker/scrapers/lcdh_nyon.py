@@ -85,7 +85,7 @@ def _brand_parse_script() -> str:
 
 
 def _nyon_delay_ms(index: int) -> int:
-    return 15000 + (index % 5) * 3000
+    return 10000 + (index % 5) * 3000
 
 
 def _brand_parse_from_html_script(cat_slug: str) -> str:
@@ -159,17 +159,95 @@ BRAND_CATEGORIES = {
 
 @register_scraper('lcdh_nyon')
 class LCDHNyonScraper(BaseScraper):
-    """LCDH Nyon 爬虫 — 独立 Chromium + stealth 绕过 Cloudflare"""
-    
+    """LCDH Nyon 爬虫 — 优先 CDP（9222），超时则自起 Chromium + stealth"""
+
     source_slug = 'lcdh_nyon'
-    
+
     async def scrape_catalog(self) -> list[ScrapedItem]:
         from playwright.async_api import async_playwright
-        from playwright_stealth import Stealth
 
         all_items = []
         brand_list = list(BRAND_CATEGORIES.items())
 
+        async with async_playwright() as p:
+            browser, owns_browser = await self._get_browser(p)
+            context = await browser.new_context(
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                           '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+                viewport={'width': 1920, 'height': 1080},
+                locale='en-US',
+            )
+            try:
+                page = await context.new_page()
+                await page.goto(f'{BASE_URL}/en/',
+                               wait_until='domcontentloaded', timeout=30000)
+                await page.wait_for_timeout(3000)
+
+                body = await page.locator('body').inner_text()
+                if '429' in body or 'too many requests' in body.lower():
+                    raise RuntimeError('Nyon rate limited on initial page (429)')
+                if '安全验证' in body or 'challenge' in body.lower() or 'security verification' in body.lower():
+                    logger.warning('Nyon CF 封锁')
+                    return []
+
+                await page.evaluate('''() => {
+                    document.cookie = "woocs=CHF;path=/;max-age=86400";
+                    document.cookie = "currency=CHF;path=/;max-age=86400";
+                }''')
+
+                await page.wait_for_timeout(5000)
+
+                for index, (cat_slug, brand_name) in enumerate(brand_list):
+                    try:
+                        items = await self._scrape_brand(page, brand_name, cat_slug)
+                        all_items.extend(items)
+                        logger.info(f'  {brand_name}: {len(items)} products')
+                        if index < len(brand_list) - 1:
+                            await page.wait_for_timeout(_nyon_delay_ms(index))
+                    except Exception as e:
+                        err_msg = str(e)
+                        if 'rate limited' in err_msg.lower() or '429' in err_msg or 'cloudflare' in err_msg.lower():
+                            raise RuntimeError(err_msg) from e
+                        logger.warning(f'  {brand_name}: {err_msg[:80]}')
+            finally:
+                try:
+                    await context.close()
+                except Exception:
+                    pass
+                if owns_browser:
+                    try:
+                        await browser.close()
+                    except Exception:
+                        pass
+
+        if not all_items:
+            raise RuntimeError('Nyon returned no products; likely blocked or rate limited')
+
+        seen = set()
+        unique = []
+        for item in all_items:
+            if item.url not in seen:
+                seen.add(item.url)
+                unique.append(item)
+        return unique
+
+    async def _get_browser(self, p):
+        """获取浏览器 & 是否自管：先试 CDP（1s 超时），失败则自起 Chromium + stealth"""
+        import asyncio as aio
+
+        # 先试 CDP
+        try:
+            browser = await aio.wait_for(
+                p.chromium.connect_over_cdp('http://127.0.0.1:9222'),
+                timeout=1.0,
+            )
+            logger.info('Nyon: using CDP browser (9222)')
+            return browser, False
+        except Exception as e:
+            logger.info(f'Nyon: CDP unavailable ({e}), launching standalone Chromium')
+
+        # 回退：自起 Chromium + stealth
+        from playwright_stealth import Stealth
         stealth = Stealth(
             navigator_webdriver=True,
             navigator_plugins=True,
@@ -190,84 +268,19 @@ class LCDHNyonScraper(BaseScraper):
             error_prototype=True,
             navigator_languages_override=('en-US', 'en'),
             navigator_platform_override='Win32',
-            navigator_user_agent_override=(
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
-            ),
             navigator_vendor_override='Google Inc.',
             webgl_vendor_override='Intel Inc.',
             webgl_renderer_override='Intel Iris OpenGL Engine',
         )
-
-        async with stealth.use_async(async_playwright()) as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-                      '--disable-blink-features=AutomationControlled',
-                      '--disable-features=AutomationControlled,EnableAutomation'],
-            )
-            try:
-                context = await browser.new_context(
-                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                               '(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-                    viewport={'width': 1920, 'height': 1080},
-                    locale='en-US',
-                )
-
-                page = await context.new_page()
-                await page.goto(f'{BASE_URL}/en/',
-                               wait_until='domcontentloaded', timeout=30000)
-                await page.wait_for_timeout(3000)
-
-                body = await page.locator('body').inner_text()
-                if '429' in body or 'too many requests' in body.lower():
-                    raise RuntimeError('Nyon rate limited on initial page (429)')
-                if '安全验证' in body or 'challenge' in body.lower() or 'security verification' in body.lower():
-                    logger.warning('Nyon CF 封锁')
-                    return []
-
-                await page.evaluate('''() => {
-                    document.cookie = "woocs=CHF;path=/;max-age=86400";
-                    document.cookie = "currency=CHF;path=/;max-age=86400";
-                }''')
-
-                # 首页后短暂冷却
-                await page.wait_for_timeout(5000)
-
-                for index, (cat_slug, brand_name) in enumerate(brand_list):
-                    try:
-                        items = await self._scrape_brand(page, brand_name, cat_slug)
-                        all_items.extend(items)
-                        logger.info(f'  {brand_name}: {len(items)} products')
-                        if index < len(brand_list) - 1:
-                            await page.wait_for_timeout(_nyon_delay_ms(index))
-                    except Exception as e:
-                        err_msg = str(e)
-                        if 'rate limited' in err_msg.lower() or '429' in err_msg or 'cloudflare' in err_msg.lower():
-                            raise RuntimeError(err_msg) from e
-                        logger.warning(f'  {brand_name}: {err_msg[:80]}')
-
-            finally:
-                try:
-                    await context.close()
-                except Exception:
-                    pass
-                try:
-                    await browser.close()
-                except Exception:
-                    pass
-
-        if not all_items:
-            raise RuntimeError('Nyon returned no products; likely blocked or rate limited')
-
-        seen = set()
-        unique = []
-        for item in all_items:
-            if item.url not in seen:
-                seen.add(item.url)
-                unique.append(item)
-
-        return unique
+        await stealth.apply_async(p)
+        browser = await p.chromium.launch(
+            headless=True,
+            args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+                  '--disable-blink-features=AutomationControlled',
+                  '--disable-features=AutomationControlled,EnableAutomation'],
+        )
+        logger.info('Nyon: launched standalone Chromium + stealth')
+        return browser, True
 
     async def _scrape_brand(self, page, brand_name: str, cat_slug: str) -> list[ScrapedItem]:
         """Fetch brand page via JS fetch() from already-CF-authenticated page context."""

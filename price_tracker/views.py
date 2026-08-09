@@ -1,5 +1,5 @@
 """价格跟踪系统 — DRF Views"""
-from django.db.models import OuterRef, Subquery, Max
+from django.db.models import OuterRef, Subquery, Max, Q
 from django.utils import timezone
 from datetime import timedelta
 from rest_framework import viewsets, permissions, status
@@ -16,8 +16,6 @@ from .serializers import (
 )
 from .pricing import per_stick, avg_per_stick, convert_to_cny
 from .helpers import resolve_brand_cn, get_cigar_image_url
-
-from django.db.models import Max, OuterRef, Subquery
 
 
 # --- DRF ViewSets ---
@@ -124,10 +122,22 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         days = int(request.query_params.get('days', 30))
         cutoff = timezone.now() - timedelta(days=days)
 
+        # 始终保留每个 (source, box_size) 的最新快照（即使超过时间窗口）
+        latest_ids = (
+            PriceSnapshot.objects
+            .filter(cigar_id=cigar_id)
+            .values('source_id', 'box_size')
+            .annotate(max_id=Max('id'))
+            .values_list('max_id', flat=True)
+        )
+        # 取最新快照 + 时间窗口内的历史数据（取并集）
         snapshots = (
             PriceSnapshot.objects
             .select_related('source', 'cigar')
-            .filter(cigar_id=cigar_id, scraped_at__gte=cutoff)
+            .filter(cigar_id=cigar_id)
+            .filter(
+                Q(id__in=latest_ids) | Q(scraped_at__gte=cutoff)
+            )
             .order_by('source__name', 'box_size', 'scraped_at')
         )
 

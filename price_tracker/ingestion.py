@@ -86,6 +86,10 @@ def ingest_items(
 
             if not decision.should_create:
                 result.skipped += 1
+                # 刷新已有快照的 scraped_at，让前端显示「刚查过」而非旧日期
+                if decision.latest is not None:
+                    PriceSnapshot.objects.filter(pk=decision.latest.pk).update(
+                        scraped_at=timezone.now())
                 continue
 
             # 本轮去重：同 (cigar, box, price) 只入库一次

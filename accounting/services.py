@@ -6,11 +6,11 @@ import random
 import time
 
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError, OperationalError, connection, transaction
+from django.db import IntegrityError, OperationalError, connection, models, transaction
 from django.db.models import Sum
 from django.utils import timezone
 
-from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction, _post_draft_transaction
+from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
 from accounting.selectors import account_snapshot
 
 
@@ -289,7 +289,12 @@ def _post_transaction_once(*, transaction_type, business_date, postings, operato
                     amount=posting.amount,
                     cny_amount=posting.cny_amount,
                 )
-            _post_draft_transaction(ledger_transaction, effective_sequence)
+            ledger_transaction.effective_sequence = effective_sequence
+            ledger_transaction.status = LedgerTransaction.Status.POSTED
+            ledger_transaction.posted_at = timezone.now()
+            models.Model.save(
+                ledger_transaction, update_fields=['effective_sequence', 'status', 'posted_at'],
+            )
     except IntegrityError:
         existing = _existing_transaction(idempotency_key, transaction_type)
         if existing is not None:

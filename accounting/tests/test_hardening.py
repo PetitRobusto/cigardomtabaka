@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from accounting.models import FundAccount, LedgerPosting, LedgerTransaction, _post_draft_transaction
+from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
 from accounting.services import LedgerError, PostingInput, post_transaction
 from cigars.models import User
 
@@ -31,13 +31,20 @@ class LedgerHardeningTest(TestCase):
         with self.assertRaises(ValidationError):
             LedgerTransaction.objects.bulk_create([LedgerTransaction(**fields)])
 
-    def test_draft_transition_requires_complete_balanced_postings(self):
-        for sequence, amounts in ((1, ['100']), (2, ['100', '-99'])):
-            draft = LedgerTransaction.objects.create(transaction_type='transfer', business_date=date(2026, 8, 10), effective_sequence=sequence, operator=self.operator)
-            for amount in amounts:
-                LedgerPosting.objects.create(transaction=draft, account=self.account, currency='CNY', amount=Decimal(amount), cny_amount=Decimal(amount))
-            with self.subTest(amounts=amounts), self.assertRaises(ValidationError):
-                _post_draft_transaction(draft, sequence)
+    def test_public_post_rejects_single_and_unbalanced_postings(self):
+        cases = [
+            [PostingInput(account=self.account, currency='CNY', amount=Decimal('100'), cny_amount=Decimal('100'))],
+            [
+                PostingInput(account=self.account, currency='CNY', amount=Decimal('100'), cny_amount=Decimal('100')),
+                PostingInput(category='opening_capital', currency='CNY', amount=Decimal('-99'), cny_amount=Decimal('-99')),
+            ],
+        ]
+        for index, postings in enumerate(cases):
+            with self.subTest(postings=postings), self.assertRaises(LedgerError):
+                post_transaction(
+                    transaction_type='transfer', business_date=date(2026, 8, 10),
+                    postings=postings, operator=self.operator, idempotency_key=f'invalid-post-{index}',
+                )
 
     def test_posted_records_reject_instance_queryset_and_bulk_mutations(self):
         posted = self.post()
@@ -103,19 +110,11 @@ class LedgerHardeningTest(TestCase):
         with self.assertRaises(ValidationError):
             posting.delete()
 
-    def test_only_controlled_service_can_transition_a_valid_draft(self):
-        draft = LedgerTransaction.objects.create(
-            transaction_type='opening_balance', business_date=date(2026, 8, 10),
-            effective_sequence=1, operator=self.operator,
-        )
-        LedgerPosting.objects.create(
-            transaction=draft, account=self.account, currency='CNY', amount=Decimal('100'), cny_amount=Decimal('100'),
-        )
-        LedgerPosting.objects.create(
-            transaction=draft, category='opening_capital', currency='CNY', amount=Decimal('-100'), cny_amount=Decimal('-100'),
-        )
-        with self.assertRaises(ValidationError):
-            draft.transition_to_posted()
+    def test_no_direct_posting_capability_is_exposed(self):
+        import accounting.models as ledger_models
+
+        self.assertFalse(hasattr(ledger_models, '_post_draft_transaction'))
+        self.assertFalse(hasattr(LedgerTransaction, 'transition_to_posted'))
 
     def test_ordinary_callers_have_no_ledger_mutation_capabilities(self):
         import accounting.models as ledger_models
@@ -154,3 +153,18 @@ class LedgerHardeningTest(TestCase):
                     ],
                 )
         self.assertEqual(LedgerTransaction.objects.count(), 0)
+
+    def test_postings_cannot_be_rebound_to_a_posted_transaction(self):
+        posted = self.post("posted-target")
+        draft = LedgerTransaction.objects.create(transaction_type="transfer", business_date=date(2026, 8, 10), operator=self.operator)
+        draft_posting = LedgerPosting.objects.create(transaction=draft, account=self.account, currency="CNY", amount=Decimal("1"), cny_amount=Decimal("1"))
+        operations = [
+            lambda: LedgerPosting.objects.filter(pk=draft_posting.pk).update(transaction=posted),
+            lambda: LedgerPosting._base_manager.filter(pk=draft_posting.pk).update(transaction_id=posted.pk),
+            lambda: LedgerPosting.objects.bulk_update([draft_posting], ["transaction"]),
+            lambda: posted.postings.add(draft_posting, bulk=True),
+            lambda: posted.postings.add(draft_posting, bulk=False),
+        ]
+        for operation in operations:
+            with self.subTest(operation=operation), self.assertRaises(ValidationError):
+                operation()

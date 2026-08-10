@@ -77,6 +77,17 @@ class LedgerTransaction(models.Model):
         ordering = ['business_date', 'effective_sequence', 'id']
         verbose_name = '账务交易'
         verbose_name_plural = '账务交易'
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(idempotency_key__isnull=True) | ~Q(idempotency_key=''),
+                name='accounting_transaction_idempotency_key_not_empty',
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.idempotency_key == '':
+            self.idempotency_key = None
+        return super().save(*args, **kwargs)
 
 
 class LedgerPosting(models.Model):

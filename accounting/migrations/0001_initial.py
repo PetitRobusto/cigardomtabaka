@@ -64,6 +64,10 @@ class Migration(migrations.Migration):
                         condition=models.Q(idempotency_key__isnull=True) | ~models.Q(idempotency_key=''),
                         name='accounting_transaction_idempotency_key_not_empty',
                     ),
+                    models.CheckConstraint(
+                        condition=~models.Q(status='posted') | models.Q(effective_sequence__isnull=False),
+                        name='accounting_posted_transaction_requires_sequence',
+                    ),
                 ],
             },
         ),

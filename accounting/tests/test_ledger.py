@@ -7,10 +7,24 @@ from django.db import OperationalError, close_old_connections
 from django.test import TestCase, TransactionTestCase
 
 from accounting import services as ledger_services
-from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
+from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction, ledger_mutation
 from accounting.selectors import account_snapshot
 from accounting.services import LedgerError, PostingInput, post_transaction
 from cigars.models import User
+
+def create_posted_fixture(operator, account, sequence, amount, cny_amount):
+    with ledger_mutation():
+        ledger_transaction = LedgerTransaction.objects.create(
+            transaction_type=LedgerTransaction.TransactionType.TRANSFER,
+            status=LedgerTransaction.Status.POSTED, business_date=date(2026, 8, 10),
+            effective_sequence=sequence, operator=operator,
+        )
+        LedgerPosting.objects.create(
+            transaction=ledger_transaction, account=account, currency=account.currency,
+            amount=Decimal(amount), cny_amount=Decimal(cny_amount),
+        )
+    return ledger_transaction
+
 
 
 class LedgerServiceTest(TestCase):
@@ -45,7 +59,7 @@ class LedgerServiceTest(TestCase):
         )
 
     def post(self, *, business_date=date(2026, 8, 10), postings=None,
-             key='key-1', transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
+             key='key-1', transaction_type=LedgerTransaction.TransactionType.TRANSFER,
              operator=None):
         return post_transaction(
             transaction_type=transaction_type,
@@ -123,28 +137,15 @@ class LedgerServiceTest(TestCase):
         self.assertEqual(LedgerTransaction.objects.count(), 1)
 
     def test_replay_same_day_uses_effective_sequence(self):
-        LedgerTransaction.objects.create(
-            transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
-            status=LedgerTransaction.Status.POSTED,
-            business_date=date(2026, 8, 10),
-            effective_sequence=2,
-            operator=self.operator,
-        )
-        tx = LedgerTransaction.objects.get(effective_sequence=2)
-        LedgerPosting.objects.create(
-            transaction=tx, account=self.cny_account, currency='CNY',
-            amount=Decimal('100'), cny_amount=Decimal('100'),
-        )
+        create_posted_fixture(self.operator, self.cny_account, 2, 100, 100)
         with self.assertRaises(LedgerError):
             self.post(postings=[self.input(self.cny_account, '-100', '-100'), self.category('100')])
-
         self.assertEqual(LedgerTransaction.objects.count(), 1)
-
     def test_same_idempotency_key_returns_original_and_rejects_other_type(self):
         first = self.post(key='repeat')
         duplicate = self.post(key='repeat')
         with self.assertRaises(LedgerError):
-            self.post(key='repeat', transaction_type=LedgerTransaction.TransactionType.TRANSFER)
+            self.post(key='repeat', transaction_type=LedgerTransaction.TransactionType.EXCHANGE)
 
         self.assertEqual(duplicate.pk, first.pk)
         self.assertEqual(LedgerTransaction.objects.count(), 1)
@@ -279,7 +280,7 @@ class LedgerServiceTest(TestCase):
             (LedgerTransaction.Status.REVERSED, 99),
         ):
             transaction = LedgerTransaction.objects.create(
-                transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
+                transaction_type=LedgerTransaction.TransactionType.TRANSFER,
                 status=status,
                 business_date=date(2026, 8, 10),
                 effective_sequence=sequence,
@@ -350,7 +351,7 @@ class LedgerIdempotencyConcurrencyTest(TransactionTestCase):
 
     def post(self, *, key, postings=None):
         return post_transaction(
-            transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
+            transaction_type=LedgerTransaction.TransactionType.TRANSFER,
             business_date=date(2026, 8, 10),
             postings=postings or [self.input(self.cny_account, '100', '100'), self.category('-100')],
             operator=self.operator,
@@ -369,7 +370,7 @@ class LedgerIdempotencyConcurrencyTest(TransactionTestCase):
                 account = FundAccount.objects.get(pk=self.account.pk)
                 barrier.wait(timeout=10)
                 tx = post_transaction(
-                    transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
+                    transaction_type=LedgerTransaction.TransactionType.TRANSFER,
                     business_date=date(2026, 8, 10),
                     postings=[
                         PostingInput(account=account, currency='CNY', amount=Decimal('100'), cny_amount=Decimal('100')),
@@ -408,7 +409,7 @@ class LedgerIdempotencyConcurrencyTest(TransactionTestCase):
                 account = FundAccount.objects.get(pk=self.account.pk)
                 barrier.wait(timeout=10)
                 tx = post_transaction(
-                    transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
+                    transaction_type=LedgerTransaction.TransactionType.TRANSFER,
                     business_date=date(2026, 8, 10),
                     postings=[
                         PostingInput(account=account, currency='CNY', amount=Decimal('100'), cny_amount=Decimal('100')),
@@ -460,27 +461,14 @@ class LedgerIdempotencyConcurrencyTest(TransactionTestCase):
         self.assertEqual(transaction.postings.count(), 2)
         self.assertEqual(LedgerTransaction.objects.count(), 1)
 
-    def test_rejects_posted_history_without_effective_sequence(self):
-        malformed = LedgerTransaction.objects.create(
-            transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
-            status=LedgerTransaction.Status.POSTED,
-            business_date=date(2026, 8, 10),
-            operator=self.operator,
-        )
-        LedgerPosting.objects.create(
-            transaction=malformed,
-            account=self.cny_account,
-            currency='CNY',
-            amount=Decimal('100'),
-            cny_amount=Decimal('100'),
-        )
-
-        with self.assertRaisesRegex(LedgerError, '有效顺序'):
-            self.post(key='malformed-history')
-
-        self.assertEqual(LedgerTransaction.objects.count(), 1)
-        self.assertEqual(LedgerPosting.objects.count(), 1)
-        self.assertEqual(LedgerSequence.objects.count(), 0)
+    def test_direct_posted_history_without_sequence_is_rejected(self):
+        from django.core.exceptions import ValidationError
+        with self.assertRaises(ValidationError):
+            LedgerTransaction.objects.create(
+                transaction_type=LedgerTransaction.TransactionType.TRANSFER,
+                status=LedgerTransaction.Status.POSTED, business_date=date(2026, 8, 10),
+                operator=self.operator,
+            )
 
     def test_validates_decimal_field_boundaries_before_writing(self):
         original_bound = Decimal('999999999999.99')
@@ -497,19 +485,8 @@ class LedgerIdempotencyConcurrencyTest(TransactionTestCase):
             )
 
         reserve = self.make_account('人民币账面边界准备金', 'RUB', 'rub-cny-bound')
-        seed = LedgerTransaction.objects.create(
-            transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
-            status=LedgerTransaction.Status.POSTED,
-            business_date=date(2026, 8, 10),
-            effective_sequence=2,
-            operator=self.operator,
-        )
-        LedgerPosting.objects.create(
-            transaction=seed,
-            account=reserve,
-            currency='RUB',
-            amount=Decimal('1'),
-            cny_amount=Decimal('999999999999999999.99'),
+        seed = create_posted_fixture(
+            self.operator, reserve, 2, 1, 999999999999999999.99,
         )
         LedgerSequence.objects.filter(name='global').update(next_value=3)
         cny_bound = self.post(

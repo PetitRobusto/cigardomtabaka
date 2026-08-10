@@ -46,10 +46,14 @@ def _idempotency_key(request):
 def _required_id(payload, field_name):
     value = payload.get(field_name)
     if type(value) is int:
-        return value
-    if isinstance(value, str) and value.isdecimal():
-        return int(value)
-    raise ApiInputError(f'{field_name}无效')
+        parsed = value
+    elif isinstance(value, str) and value.isdecimal():
+        parsed = int(value)
+    else:
+        raise ApiInputError(f'{field_name}无效')
+    if not 1 <= parsed <= 9223372036854775807:
+        raise ApiInputError(f'{field_name}无效')
+    return parsed
 
 
 def _required_decimal_string(payload, field_name):

@@ -213,6 +213,15 @@ def _post_transaction_once(*, transaction_type, business_date, postings, operato
     prepared = _prepare_postings(raw_postings, account_map)
 
     sequence, _ = LedgerSequence.objects.select_for_update().get_or_create(name='global')
+    if (
+        transaction_type == LedgerTransaction.TransactionType.OPENING_BALANCE
+        and LedgerTransaction.objects.filter(
+            status=LedgerTransaction.Status.POSTED,
+        ).exclude(
+            transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
+        ).exists()
+    ):
+        raise LedgerError('日常业务开始后不能记录期初余额')
     effective_sequence = sequence.next_value
     _validate_historical_balances(account_map, prepared, business_date, effective_sequence)
 
@@ -275,8 +284,21 @@ def post_transaction(*, transaction_type, business_date, postings, operator,
                 raise
             time.sleep(0.02 * (attempt + 1))
 
+def _retry_sqlite_locked(operation):
+
+    def retrying_operation(*args, **kwargs):
+        for attempt in range(5):
+            try:
+                return operation(*args, **kwargs)
+            except OperationalError as error:
+                locked_sqlite = connection.vendor == 'sqlite' and 'locked' in str(error).lower()
+                if not locked_sqlite or attempt == 4:
+                    raise
+                time.sleep(0.02 * (attempt + 1))
+    return retrying_operation
 
 def _positive_amount(value, currency, field_name):
+
     if currency not in ORIGINAL_PLACES:
         raise LedgerError('原币无效')
     amount = _decimal(value, ORIGINAL_PLACES[currency], field_name)
@@ -333,6 +355,7 @@ def _outflow_cny_cost(account, amount):
     )
 
 
+@_retry_sqlite_locked
 @transaction.atomic
 def record_opening_balance(account, original_amount, cny_book_cost, equity_category,
                            business_date, operator, idempotency_key):
@@ -346,12 +369,6 @@ def record_opening_balance(account, original_amount, cny_book_cost, equity_categ
     )
     if existing is not None:
         return existing
-    if LedgerTransaction.objects.filter(
-        status=LedgerTransaction.Status.POSTED,
-    ).exclude(
-        transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
-    ).exists():
-        raise LedgerError('日常业务开始后不能记录期初余额')
     if equity_category not in (
         LedgerPosting.Category.OPENING_CAPITAL,
         LedgerPosting.Category.OPENING_RETAINED_EARNINGS,
@@ -381,6 +398,7 @@ def record_opening_balance(account, original_amount, cny_book_cost, equity_categ
     )
 
 
+@_retry_sqlite_locked
 @transaction.atomic
 def exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
                     business_date, operator, idempotency_key, description=''):
@@ -419,6 +437,7 @@ def exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
     )
 
 
+@_retry_sqlite_locked
 @transaction.atomic
 def transfer_same_currency(source_account, target_account, amount, business_date,
                            operator, idempotency_key, description=''):

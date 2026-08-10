@@ -1,7 +1,9 @@
 from datetime import date
 from decimal import Decimal
+import threading
 
-from django.test import TestCase
+from django.db import close_old_connections
+from django.test import TestCase, TransactionTestCase
 
 from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
 from accounting.selectors import account_snapshot
@@ -247,3 +249,83 @@ class AccountingOperationTest(TestCase):
             exchange_to_rub(self.cny, self.rub, '1', '1', self.business_date, User(username='unsaved', is_staff=True), 'repeat-exchange')
         with self.assertRaises(LedgerError):
             transfer_same_currency(self.rub, self.rub, '1', self.business_date, self.operator, 'repeat-exchange')
+
+
+class OpeningSequenceConcurrencyTest(TransactionTestCase):
+    reset_sequences = True
+    business_date = date(2026, 8, 10)
+
+    def setUp(self):
+        self.operator = User.objects.create_user('opening-sequence-operator', password='pass', is_staff=True)
+
+    def test_concurrent_opening_and_exchange_never_sequence_opening_after_normal_business(self):
+        for attempt in range(8):
+            with self.subTest(attempt=attempt):
+                LedgerPosting.objects.all().delete()
+                LedgerTransaction.objects.all().delete()
+                LedgerSequence.objects.all().delete()
+                cny = FundAccount.objects.create(
+                    name=f'concurrent CNY {attempt}', currency='CNY',
+                    creation_idempotency_key=f'concurrent-cny-{attempt}',
+                )
+                rub = FundAccount.objects.create(
+                    name=f'concurrent RUB {attempt}', currency='RUB',
+                    creation_idempotency_key=f'concurrent-rub-{attempt}',
+                )
+                opening = FundAccount.objects.create(
+                    name=f'concurrent opening {attempt}', currency='USDT',
+                    creation_idempotency_key=f'concurrent-opening-{attempt}',
+                )
+                record_opening_balance(
+                    cny, '100', '100', LedgerPosting.Category.OPENING_CAPITAL,
+                    self.business_date, self.operator, f'concurrent-seed-{attempt}',
+                )
+                barrier = threading.Barrier(2)
+                transactions = {}
+                errors = {}
+
+                def submit(name, operation):
+                    close_old_connections()
+                    try:
+                        barrier.wait(timeout=10)
+                        transactions[name] = operation()
+                    except Exception as error:  # assertions below surface all unexpected database errors
+                        errors[name] = error
+                    finally:
+                        close_old_connections()
+
+                def submit_opening():
+                    return record_opening_balance(
+                        FundAccount.objects.get(pk=opening.pk), '1', '1',
+                        LedgerPosting.Category.OPENING_CAPITAL, self.business_date,
+                        User.objects.get(pk=self.operator.pk), f'concurrent-opening-tx-{attempt}',
+                    )
+
+                def submit_exchange():
+                    return exchange_to_rub(
+                        FundAccount.objects.get(pk=cny.pk), FundAccount.objects.get(pk=rub.pk),
+                        '100', '1200', self.business_date, User.objects.get(pk=self.operator.pk),
+                        f'concurrent-exchange-tx-{attempt}',
+                    )
+
+                threads = [
+                    threading.Thread(target=submit, args=('opening', submit_opening)),
+                    threading.Thread(target=submit, args=('exchange', submit_exchange)),
+                ]
+                for thread in threads:
+                    thread.start()
+                for thread in threads:
+                    thread.join(timeout=15)
+
+                self.assertFalse(any(thread.is_alive() for thread in threads))
+                self.assertNotIn('exchange', errors)
+                self.assertIn('exchange', transactions)
+                self.assertTrue(
+                    'opening' in transactions or isinstance(errors.get('opening'), LedgerError),
+                    errors,
+                )
+                if 'opening' in transactions:
+                    self.assertLess(
+                        transactions['opening'].effective_sequence,
+                        transactions['exchange'].effective_sequence,
+                    )

@@ -9,6 +9,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
+from accounting.selectors import account_snapshot
 
 
 CUTOVER_DATE = date(2026, 8, 10)
@@ -273,3 +274,175 @@ def post_transaction(*, transaction_type, business_date, postings, operator,
             if not locked_sqlite or attempt == 4:
                 raise
             time.sleep(0.02 * (attempt + 1))
+
+
+def _positive_amount(value, currency, field_name):
+    if currency not in ORIGINAL_PLACES:
+        raise LedgerError('原币无效')
+    amount = _decimal(value, ORIGINAL_PLACES[currency], field_name)
+    if abs(amount) >= MAX_ORIGINAL_ABS:
+        raise LedgerError(f'{field_name}超出范围')
+    if amount <= 0:
+        raise LedgerError(f'{field_name}必须大于零')
+    return amount
+
+
+def _nonnegative_cny_amount(value, field_name):
+    amount = _decimal(value, CNY_PLACES, field_name)
+    if abs(amount) >= MAX_CNY_ABS:
+        raise LedgerError(f'{field_name}超出范围')
+    if amount < 0:
+        raise LedgerError(f'{field_name}不能为负')
+    return amount
+
+
+def _existing_operation(transaction_type, business_date, operator, idempotency_key):
+    _validate_metadata(transaction_type, business_date, idempotency_key)
+    persisted_operator = _require_operator(operator)
+    return persisted_operator, _existing_transaction(idempotency_key, transaction_type)
+
+
+def _lock_accounts(*accounts):
+    account_ids = set()
+    for account in accounts:
+        if (
+            not isinstance(account, FundAccount)
+            or not account.pk
+            or account._state.adding
+        ):
+            raise LedgerError('账户必须是已保存的资金账户')
+        account_ids.add(account.pk)
+
+    locked = FundAccount.objects.select_for_update().filter(pk__in=account_ids).order_by('pk')
+    account_map = {account.pk: account for account in locked}
+    if len(account_map) != len(account_ids):
+        raise LedgerError('账户不存在')
+    return account_map
+
+
+def _outflow_cny_cost(account, amount):
+    snapshot = account_snapshot(account)
+    if amount > snapshot.original_balance:
+        raise LedgerError('账户原币余额不足')
+    if account.currency == FundAccount.Currency.CNY:
+        return amount
+    if amount == snapshot.original_balance:
+        return snapshot.cny_book_cost
+    return (snapshot.cny_book_cost / snapshot.original_balance * amount).quantize(
+        CNY_PLACES, rounding=ROUND_HALF_UP,
+    )
+
+
+@transaction.atomic
+def record_opening_balance(account, original_amount, cny_book_cost, equity_category,
+                           business_date, operator, idempotency_key):
+    _validate_metadata(LedgerTransaction.TransactionType.OPENING_BALANCE, business_date, idempotency_key)
+    persisted_operator = _require_operator(operator)
+    if business_date != CUTOVER_DATE:
+        raise LedgerError('期初余额只能记录在账务切换日')
+    existing = _existing_transaction(
+        idempotency_key,
+        LedgerTransaction.TransactionType.OPENING_BALANCE,
+    )
+    if existing is not None:
+        return existing
+    if equity_category not in (
+        LedgerPosting.Category.OPENING_CAPITAL,
+        LedgerPosting.Category.OPENING_RETAINED_EARNINGS,
+    ):
+        raise LedgerError('期初余额内部分类无效')
+
+    account_map = _lock_accounts(account)
+    locked_account = account_map[account.pk]
+    original_amount = _positive_amount(original_amount, locked_account.currency, '期初原币金额')
+    cny_book_cost = _nonnegative_cny_amount(cny_book_cost, '期初人民币账面成本')
+    if locked_account.currency == FundAccount.Currency.CNY and cny_book_cost != original_amount:
+        raise LedgerError('人民币期初原币金额必须等于账面成本')
+    if LedgerPosting.objects.filter(account=locked_account).exists():
+        raise LedgerError('已有分录的账户不能记录期初余额')
+
+    return post_transaction(
+        transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
+        business_date=business_date,
+        postings=[
+            PostingInput(account=locked_account, currency=locked_account.currency,
+                         amount=original_amount, cny_amount=cny_book_cost),
+            PostingInput(category=equity_category, currency=FundAccount.Currency.CNY,
+                         amount=-cny_book_cost, cny_amount=-cny_book_cost),
+        ],
+        operator=persisted_operator,
+        idempotency_key=idempotency_key,
+    )
+
+
+@transaction.atomic
+def exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
+                    business_date, operator, idempotency_key, description=''):
+    persisted_operator, existing = _existing_operation(
+        LedgerTransaction.TransactionType.EXCHANGE, business_date, operator, idempotency_key,
+    )
+    if existing is not None:
+        return existing
+
+    account_map = _lock_accounts(source_account, rub_account)
+    source_account = account_map[source_account.pk]
+    rub_account = account_map[rub_account.pk]
+    if source_account.pk == rub_account.pk:
+        raise LedgerError('转出和转入账户不能相同')
+    if source_account.currency == FundAccount.Currency.RUB:
+        raise LedgerError('换汇转出账户不能为卢布')
+    if rub_account.currency != FundAccount.Currency.RUB:
+        raise LedgerError('换汇转入账户必须为卢布')
+
+    source_amount = _positive_amount(source_amount, source_account.currency, '换汇转出原币金额')
+    rub_amount = _positive_amount(rub_amount, FundAccount.Currency.RUB, '换汇转入卢布金额')
+    cny_cost = _outflow_cny_cost(source_account, source_amount)
+
+    return post_transaction(
+        transaction_type=LedgerTransaction.TransactionType.EXCHANGE,
+        business_date=business_date,
+        postings=[
+            PostingInput(account=source_account, currency=source_account.currency,
+                         amount=-source_amount, cny_amount=-cny_cost),
+            PostingInput(account=rub_account, currency=FundAccount.Currency.RUB,
+                         amount=rub_amount, cny_amount=cny_cost),
+        ],
+        operator=persisted_operator,
+        idempotency_key=idempotency_key,
+        description=description,
+    )
+
+
+@transaction.atomic
+def transfer_same_currency(source_account, target_account, amount, business_date,
+                           operator, idempotency_key, description=''):
+    persisted_operator, existing = _existing_operation(
+        LedgerTransaction.TransactionType.TRANSFER, business_date, operator, idempotency_key,
+    )
+    if existing is not None:
+        return existing
+
+    account_map = _lock_accounts(source_account, target_account)
+    source_account = account_map[source_account.pk]
+    target_account = account_map[target_account.pk]
+    if source_account.pk == target_account.pk:
+        raise LedgerError('转出和转入账户不能相同')
+    if source_account.currency != target_account.currency:
+        raise LedgerError('同币种转账账户币种必须一致')
+
+    amount = _positive_amount(amount, source_account.currency, '转账原币金额')
+    cny_cost = _outflow_cny_cost(source_account, amount)
+
+    return post_transaction(
+        transaction_type=LedgerTransaction.TransactionType.TRANSFER,
+        business_date=business_date,
+        postings=[
+            PostingInput(account=source_account, currency=source_account.currency,
+                         amount=-amount, cny_amount=-cny_cost),
+            PostingInput(account=target_account, currency=target_account.currency,
+                         amount=amount, cny_amount=cny_cost),
+        ],
+        operator=persisted_operator,
+        idempotency_key=idempotency_key,
+        description=description,
+    )

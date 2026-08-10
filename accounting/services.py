@@ -312,7 +312,7 @@ def post_transaction(*, transaction_type, business_date, postings, operator,
         postings = tuple(postings)
     except TypeError:
         raise LedgerError('postings必须是可迭代分录')
-    for attempt in range(5):
+    for attempt in range(8):
         try:
             return _post_transaction_once(
                 transaction_type=transaction_type,
@@ -326,7 +326,7 @@ def post_transaction(*, transaction_type, business_date, postings, operator,
             )
         except OperationalError as error:
             locked_sqlite = connection.vendor == 'sqlite' and 'locked' in str(error).lower()
-            if not locked_sqlite or attempt == 4:
+            if not locked_sqlite or attempt == 7:
                 raise
             time.sleep(_sqlite_retry_delay(attempt, 0.02))
 

@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from accounting.models import FundAccount, LedgerPosting, LedgerTransaction, ledger_posting_transition
+from accounting.models import FundAccount, LedgerPosting, LedgerTransaction, _post_draft_transaction
 from accounting.services import LedgerError, PostingInput, post_transaction
 from cigars.models import User
 
@@ -36,8 +36,8 @@ class LedgerHardeningTest(TestCase):
             draft = LedgerTransaction.objects.create(transaction_type='transfer', business_date=date(2026, 8, 10), effective_sequence=sequence, operator=self.operator)
             for amount in amounts:
                 LedgerPosting.objects.create(transaction=draft, account=self.account, currency='CNY', amount=Decimal(amount), cny_amount=Decimal(amount))
-            with self.subTest(amounts=amounts), ledger_posting_transition(), self.assertRaises(ValidationError):
-                draft.transition_to_posted()
+            with self.subTest(amounts=amounts), self.assertRaises(ValidationError):
+                _post_draft_transaction(draft, sequence)
 
     def test_posted_records_reject_instance_queryset_and_bulk_mutations(self):
         posted = self.post()
@@ -116,3 +116,41 @@ class LedgerHardeningTest(TestCase):
         )
         with self.assertRaises(ValidationError):
             draft.transition_to_posted()
+
+    def test_ordinary_callers_have_no_ledger_mutation_capabilities(self):
+        import accounting.models as ledger_models
+
+        self.assertFalse(hasattr(ledger_models, 'ledger_mutation'))
+        self.assertFalse(hasattr(ledger_models, 'ledger_posting_transition'))
+
+    def test_queryset_status_expression_and_base_manager_cannot_bypass_guards(self):
+        from django.db.models import Value
+
+        posted = self.post('manager-guard')
+        posting = posted.postings.get(account=self.account)
+        draft = LedgerTransaction.objects.create(
+            transaction_type='transfer', business_date=date(2026, 8, 10), operator=self.operator,
+        )
+        operations = [
+            lambda: LedgerTransaction.objects.filter(pk=draft.pk).update(status=Value('posted')),
+            lambda: LedgerTransaction._base_manager.filter(pk=posted.pk).update(description='tampered'),
+            lambda: LedgerTransaction._base_manager.filter(pk=posted.pk).delete(),
+            lambda: LedgerPosting._base_manager.filter(pk=posting.pk).update(amount=Decimal('99')),
+            lambda: LedgerPosting._base_manager.filter(pk=posting.pk).delete(),
+        ]
+        for operation in operations:
+            with self.subTest(operation=operation), self.assertRaises(ValidationError):
+                operation()
+
+    def test_public_opening_rejects_nonpositive_account_amounts(self):
+        for amount in ('0', '-1'):
+            with self.subTest(amount=amount), self.assertRaises(LedgerError):
+                post_transaction(
+                    transaction_type='opening_balance', business_date=date(2026, 8, 10),
+                    operator=self.operator, idempotency_key=f'opening-{amount}',
+                    postings=[
+                        PostingInput(account=self.account, currency='CNY', amount=Decimal(amount), cny_amount=Decimal(amount)),
+                        PostingInput(category='opening_capital', currency='CNY', amount=-Decimal(amount), cny_amount=-Decimal(amount)),
+                    ],
+                )
+        self.assertEqual(LedgerTransaction.objects.count(), 0)

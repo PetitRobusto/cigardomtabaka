@@ -532,3 +532,24 @@ class LedgerIdempotencyConcurrencyTest(TransactionTestCase):
 
         self.assertEqual(LedgerTransaction.objects.count(), 3)
         self.assertEqual(LedgerPosting.objects.count(), 5)
+
+    def test_public_post_rejects_non_finite_amounts_without_residue(self):
+        usdt_account = self.make_account('非有限 USDT', 'USDT', 'non-finite-usdt')
+        accounts = {'CNY': self.cny_account, 'RUB': self.rub_account, 'USDT': usdt_account}
+
+        for bad_value in (Decimal('NaN'), Decimal('Infinity')):
+            for currency, account in accounts.items():
+                for field_name in ('amount', 'cny_amount'):
+                    values = {'amount': Decimal('100'), 'cny_amount': Decimal('100')}
+                    values[field_name] = bad_value
+                    with self.subTest(value=bad_value, currency=currency, field=field_name), self.assertRaises(LedgerError):
+                        self.post(
+                            key=f'non-finite-{bad_value}-{currency}-{field_name}',
+                            postings=[
+                                PostingInput(account=account, currency=currency, **values),
+                                self.category('-100'),
+                            ],
+                        )
+                    self.assertEqual(LedgerTransaction.objects.count(), 0)
+                    self.assertEqual(LedgerPosting.objects.count(), 0)
+                    self.assertEqual(LedgerSequence.objects.count(), 0)

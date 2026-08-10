@@ -13,6 +13,8 @@ from accounting.models import FundAccount, LedgerPosting, LedgerSequence, Ledger
 
 CUTOVER_DATE = date(2026, 8, 10)
 CNY_PLACES = Decimal('0.01')
+MAX_ORIGINAL_ABS = Decimal('1000000000000')
+MAX_CNY_ABS = Decimal('1000000000000000000')
 ORIGINAL_PLACES = {
     FundAccount.Currency.CNY: Decimal('0.01'),
     FundAccount.Currency.RUB: Decimal('0.01'),
@@ -110,6 +112,10 @@ def _prepare_postings(postings, account_map):
             raise LedgerError('原币无效')
         amount = _decimal(raw.amount, ORIGINAL_PLACES[raw.currency], '原币金额')
         cny_amount = _decimal(raw.cny_amount, CNY_PLACES, '人民币账面金额')
+        if abs(amount) >= MAX_ORIGINAL_ABS:
+            raise LedgerError('原币金额超出范围')
+        if abs(cny_amount) >= MAX_CNY_ABS:
+            raise LedgerError('人民币账面金额超出范围')
         if raw.account is not None:
             if raw.category:
                 raise LedgerError('分录只能选择账户或内部分类之一')
@@ -158,10 +164,13 @@ def _validate_historical_balances(account_map, prepared, business_date, effectiv
         ).annotate(amount=Sum('amount'), cny_amount=Sum('cny_amount')).order_by(
             'transaction__business_date', 'transaction__effective_sequence',
         )
-        replay = [
-            (row['transaction__business_date'], row['transaction__effective_sequence'], row['amount'], row['cny_amount'])
-            for row in history
-        ]
+        replay = []
+        for row in history:
+            if row['transaction__effective_sequence'] is None:
+                raise LedgerError('已入账流水缺少有效顺序')
+            replay.append(
+                (row['transaction__business_date'], row['transaction__effective_sequence'], row['amount'], row['cny_amount'])
+            )
         replay.append((business_date, effective_sequence, candidate_amount, candidate_cny))
         replay.sort(key=lambda row: (row[0], row[1]))
 
@@ -240,6 +249,10 @@ def _post_transaction_once(*, transaction_type, business_date, postings, operato
 
 def post_transaction(*, transaction_type, business_date, postings, operator,
                      idempotency_key, description='', source_type='', source_id=''):
+    try:
+        postings = tuple(postings)
+    except TypeError:
+        raise LedgerError('postings必须是可迭代分录')
     for attempt in range(5):
         try:
             return _post_transaction_once(

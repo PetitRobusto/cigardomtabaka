@@ -1,10 +1,12 @@
 from datetime import date, datetime
 from decimal import Decimal
 import threading
+from unittest.mock import patch
 
-from django.db import close_old_connections
+from django.db import OperationalError, close_old_connections
 from django.test import TestCase, TransactionTestCase
 
+from accounting import services as ledger_services
 from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
 from accounting.selectors import account_snapshot
 from accounting.services import LedgerError, PostingInput, post_transaction
@@ -318,6 +320,42 @@ class LedgerIdempotencyConcurrencyTest(TransactionTestCase):
         self.account = FundAccount.objects.create(
             name='并发 CNY', currency='CNY', creation_idempotency_key='concurrent-cny',
         )
+        self.cny_account = self.account
+        self.rub_account = FundAccount.objects.create(
+            name='并发 RUB', currency='RUB', creation_idempotency_key='concurrent-rub',
+        )
+
+    def make_account(self, name, currency, key):
+        return FundAccount.objects.create(
+            name=name,
+            currency=currency,
+            creation_idempotency_key=key,
+        )
+
+    def input(self, account, amount, cny_amount):
+        return PostingInput(
+            account=account,
+            currency=account.currency,
+            amount=Decimal(amount),
+            cny_amount=Decimal(cny_amount),
+        )
+
+    def category(self, amount):
+        return PostingInput(
+            category=LedgerPosting.Category.OPENING_CAPITAL,
+            currency='CNY',
+            amount=Decimal(amount),
+            cny_amount=Decimal(amount),
+        )
+
+    def post(self, *, key, postings=None):
+        return post_transaction(
+            transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
+            business_date=date(2026, 8, 10),
+            postings=postings or [self.input(self.cny_account, '100', '100'), self.category('-100')],
+            operator=self.operator,
+            idempotency_key=key,
+        )
 
     def test_concurrent_identical_key_creates_one_transaction_and_posting_set(self):
         barrier = threading.Barrier(2)
@@ -399,3 +437,98 @@ class LedgerIdempotencyConcurrencyTest(TransactionTestCase):
         self.assertEqual(set(sequences), {1, 2})
         self.assertEqual(LedgerTransaction.objects.count(), 2)
         self.assertEqual(LedgerPosting.objects.count(), 4)
+
+    def test_retries_one_shot_generator_after_locked_error(self):
+        def postings():
+            yield self.input(self.cny_account, '100', '100')
+            yield self.category('-100')
+
+        original_validate = ledger_services._validate_historical_balances
+        attempts = 0
+
+        def lock_once(*args):
+            nonlocal attempts
+            original_validate(*args)
+            attempts += 1
+            if attempts == 1:
+                raise OperationalError('database is locked')
+
+        with patch.object(ledger_services, '_validate_historical_balances', side_effect=lock_once):
+            transaction = self.post(key='generator-retry', postings=postings())
+
+        self.assertEqual(attempts, 2)
+        self.assertEqual(transaction.postings.count(), 2)
+        self.assertEqual(LedgerTransaction.objects.count(), 1)
+
+    def test_rejects_posted_history_without_effective_sequence(self):
+        malformed = LedgerTransaction.objects.create(
+            transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
+            status=LedgerTransaction.Status.POSTED,
+            business_date=date(2026, 8, 10),
+            operator=self.operator,
+        )
+        LedgerPosting.objects.create(
+            transaction=malformed,
+            account=self.cny_account,
+            currency='CNY',
+            amount=Decimal('100'),
+            cny_amount=Decimal('100'),
+        )
+
+        with self.assertRaisesRegex(LedgerError, '有效顺序'):
+            self.post(key='malformed-history')
+
+        self.assertEqual(LedgerTransaction.objects.count(), 1)
+        self.assertEqual(LedgerPosting.objects.count(), 1)
+        self.assertEqual(LedgerSequence.objects.count(), 0)
+
+    def test_validates_decimal_field_boundaries_before_writing(self):
+        original_bound = Decimal('999999999999.99')
+        accepted = self.post(
+            key='original-bound',
+            postings=[self.input(self.cny_account, original_bound, original_bound), self.category(-original_bound)],
+        )
+        self.assertEqual(accepted.postings.get(account=self.cny_account).amount, original_bound)
+
+        with self.assertRaisesRegex(LedgerError, '原币金额超出范围'):
+            self.post(
+                key='original-overflow',
+                postings=[self.input(self.cny_account, '1000000000000', '1000000000000'), self.category('-1000000000000')],
+            )
+
+        reserve = self.make_account('人民币账面边界准备金', 'RUB', 'rub-cny-bound')
+        seed = LedgerTransaction.objects.create(
+            transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
+            status=LedgerTransaction.Status.POSTED,
+            business_date=date(2026, 8, 10),
+            effective_sequence=2,
+            operator=self.operator,
+        )
+        LedgerPosting.objects.create(
+            transaction=seed,
+            account=reserve,
+            currency='RUB',
+            amount=Decimal('1'),
+            cny_amount=Decimal('999999999999999999.99'),
+        )
+        LedgerSequence.objects.filter(name='global').update(next_value=3)
+        cny_bound = self.post(
+            key='cny-bound',
+            postings=[
+                self.input(self.rub_account, '1', '999999999999999999.99'),
+                self.input(reserve, '-1', '-999999999999999999.99'),
+            ],
+        )
+        self.assertIsNotNone(cny_bound.pk)
+
+        with self.assertRaisesRegex(LedgerError, '人民币账面金额超出范围'):
+            self.post(
+                key='cny-overflow',
+                postings=[
+                    self.input(self.rub_account, '1', '1000000000000000000'),
+                    self.input(reserve, '-1', '-1000000000000000000'),
+                ],
+            )
+
+        self.assertEqual(LedgerTransaction.objects.count(), 3)
+        self.assertEqual(LedgerPosting.objects.count(), 5)

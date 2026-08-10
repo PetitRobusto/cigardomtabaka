@@ -185,3 +185,33 @@ class LedgerHardeningTest(TestCase):
             LedgerTransaction.objects.bulk_create([
                 LedgerTransaction(status=Value('posted'), **fields),
             ])
+
+    def test_reversed_transactions_and_postings_are_immutable(self):
+        from django.db import connection
+
+        transaction = self.post('reversed-immutable')
+        with connection.cursor() as cursor:
+            cursor.execute(
+                'UPDATE accounting_ledgertransaction SET status = %s WHERE id = %s',
+                [LedgerTransaction.Status.REVERSED, transaction.pk],
+            )
+        transaction.refresh_from_db()
+        posting = transaction.postings.get(account=self.account)
+        transaction.description = 'tampered'
+        operations = [
+            lambda: transaction.save(),
+            lambda: transaction.delete(),
+            lambda: LedgerTransaction.objects.filter(pk=transaction.pk).update(description='tampered'),
+            lambda: LedgerTransaction._base_manager.filter(pk=transaction.pk).delete(),
+            lambda: posting.save(),
+            lambda: posting.delete(),
+            lambda: LedgerPosting.objects.filter(pk=posting.pk).update(amount=Decimal('99')),
+            lambda: LedgerPosting._base_manager.filter(pk=posting.pk).delete(),
+        ]
+        for operation in operations:
+            with self.subTest(operation=operation), self.assertRaises(ValidationError):
+                operation()
+
+        transaction.status = LedgerTransaction.Status.DRAFT
+        with self.assertRaises(ValidationError):
+            transaction.delete()

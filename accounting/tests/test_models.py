@@ -1,10 +1,18 @@
 from datetime import date
 from decimal import Decimal
 
+from django.contrib import admin
+from django.contrib.admin.sites import AdminSite
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 
-from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
+from accounting.admin import (
+    FundAccountAdmin,
+    LedgerPostingAdmin,
+    LedgerSequenceAdmin,
+    LedgerTransactionAdmin,
+)
+from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
 from cigars.models import User
 
 
@@ -160,3 +168,48 @@ class LedgerModelTest(TestCase):
             LedgerTransaction.objects.filter(pk=ledger_transaction.pk).update(
                 idempotency_key='',
             )
+
+
+class AccountingAdminTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('admin', password='pass', is_staff=True, is_superuser=True)
+        self.request = RequestFactory().get('/admin/accounting/')
+        self.request.user = self.user
+
+    def test_ledger_records_are_registered_as_read_only_and_cannot_be_added_or_deleted(self):
+        for model, admin_class in (
+            (LedgerTransaction, LedgerTransactionAdmin),
+            (LedgerPosting, LedgerPostingAdmin),
+            (LedgerSequence, LedgerSequenceAdmin),
+        ):
+            with self.subTest(model=model.__name__):
+                model_admin = admin_class(model, AdminSite())
+
+                self.assertFalse(model_admin.has_add_permission(self.request))
+                self.assertFalse(model_admin.has_delete_permission(self.request))
+                self.assertTrue(model_admin.has_change_permission(self.request))
+                self.assertTrue(
+                    set(field.name for field in model._meta.fields).issubset(
+                        set(model_admin.get_readonly_fields(self.request)),
+                    ),
+                )
+                self.assertEqual(
+                    model_admin.get_form(self.request).base_fields,
+                    {},
+                )
+
+        self.assertIsInstance(admin.site._registry[FundAccount], FundAccountAdmin)
+        self.assertIsInstance(admin.site._registry[LedgerTransaction], LedgerTransactionAdmin)
+        self.assertIsInstance(admin.site._registry[LedgerPosting], LedgerPostingAdmin)
+        self.assertIsInstance(admin.site._registry[LedgerSequence], LedgerSequenceAdmin)
+
+    def test_fund_account_admin_keeps_metadata_editable_and_displays_derived_balances(self):
+        model_admin = FundAccountAdmin(FundAccount, AdminSite())
+        editable_metadata = {'name', 'currency', 'custodian', 'creation_idempotency_key', 'is_active'}
+
+        self.assertTrue(editable_metadata.issubset(model_admin.get_form(self.request).base_fields))
+        self.assertTrue({'original_balance', 'cny_book_cost'}.issubset(model_admin.get_readonly_fields(self.request)))
+        self.assertTrue(
+            {'name', 'currency', 'custodian', 'is_active', 'original_balance', 'cny_book_cost'}
+            .issubset(model_admin.list_display),
+        )

@@ -286,7 +286,7 @@ class LedgerServiceTest(TestCase):
         ):
             transaction = LedgerTransaction.objects.create(
                 transaction_type=LedgerTransaction.TransactionType.TRANSFER,
-                status=status,
+                status=LedgerTransaction.Status.DRAFT,
                 business_date=date(2026, 8, 10),
                 effective_sequence=sequence,
                 operator=self.operator,
@@ -298,6 +298,12 @@ class LedgerServiceTest(TestCase):
                 amount=Decimal('999'),
                 cny_amount=Decimal('999'),
             )
+            if status == LedgerTransaction.Status.REVERSED:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE accounting_ledgertransaction SET status = %s WHERE id = %s",
+                        [status, transaction.pk],
+                    )
 
         snapshot = account_snapshot(self.cny_account)
         self.assertEqual(snapshot.original_balance, Decimal('0.00000000'))

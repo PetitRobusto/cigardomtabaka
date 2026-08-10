@@ -14,7 +14,7 @@ class LedgerMutationError(ValidationError):
 
 class LedgerTransactionQuerySet(models.QuerySet):
     def _reject_posted(self):
-        if self.filter(status='posted').exists():
+        if self.filter(status__in=('posted', 'reversed')).exists():
             raise LedgerMutationError('已入账流水不可修改或删除')
 
     def update(self, **kwargs):
@@ -46,7 +46,7 @@ class LedgerTransactionQuerySet(models.QuerySet):
 
 class LedgerPostingQuerySet(models.QuerySet):
     def _reject_posted(self):
-        if self.filter(transaction__status='posted').exists():
+        if self.filter(transaction__status__in=('posted', 'reversed')).exists():
             raise LedgerMutationError('已入账流水的分录不可修改或删除')
 
     def update(self, **kwargs):
@@ -156,8 +156,10 @@ class LedgerTransaction(models.Model):
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        if self.status == self.Status.POSTED:
-            raise LedgerMutationError('已入账流水不可修改或删除')
+        if self.pk and type(self).objects.filter(
+            pk=self.pk, status__in=(self.Status.POSTED, self.Status.REVERSED),
+        ).exists():
+            raise LedgerMutationError('终态流水不可修改或删除')
         return super().delete(*args, **kwargs)
 
 
@@ -182,25 +184,25 @@ class LedgerPosting(models.Model):
             models.CheckConstraint(condition=(Q(account__isnull=False, category='') | Q(account__isnull=True) & ~Q(category='')), name='accounting_posting_exactly_one_target'),
         ]
 
-    def _transaction_is_posted(self):
+    def _transaction_is_finalized(self):
         if self.pk:
             persisted_transaction_id = type(self).objects.filter(pk=self.pk).values_list('transaction_id', flat=True).first()
             if persisted_transaction_id and LedgerTransaction.objects.filter(
-                pk=persisted_transaction_id, status=LedgerTransaction.Status.POSTED,
+                pk=persisted_transaction_id, status__in=(LedgerTransaction.Status.POSTED, LedgerTransaction.Status.REVERSED),
             ).exists():
                 return True
         return self.transaction_id and LedgerTransaction.objects.filter(
-            pk=self.transaction_id, status=LedgerTransaction.Status.POSTED,
+            pk=self.transaction_id, status__in=(LedgerTransaction.Status.POSTED, LedgerTransaction.Status.REVERSED),
         ).exists()
 
     def save(self, *args, **kwargs):
-        if self._transaction_is_posted():
+        if self._transaction_is_finalized():
             if self._state.adding:
                 raise LedgerMutationError('不能向已入账流水新增分录')
             raise LedgerMutationError('已入账流水的分录不可修改或删除')
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        if self._transaction_is_posted():
+        if self._transaction_is_finalized():
             raise LedgerMutationError('已入账流水的分录不可修改或删除')
         return super().delete(*args, **kwargs)

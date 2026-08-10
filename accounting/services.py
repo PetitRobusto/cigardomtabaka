@@ -46,9 +46,12 @@ class _PreparedPosting:
 
 def _decimal(value, places, field_name):
     try:
-        return Decimal(str(value)).quantize(places, rounding=ROUND_HALF_UP)
+        decimal_value = Decimal(str(value)).quantize(places, rounding=ROUND_HALF_UP)
     except (InvalidOperation, TypeError, ValueError):
         raise LedgerError(f'{field_name}必须是有效金额')
+    if not decimal_value.is_finite():
+        raise LedgerError(f'{field_name}必须是有效金额')
+    return decimal_value
 
 
 def _require_operator(operator):

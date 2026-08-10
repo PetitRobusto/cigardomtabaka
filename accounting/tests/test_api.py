@@ -4,6 +4,7 @@ import threading
 from unittest.mock import patch
 
 from django.db import close_old_connections
+from django.conf import settings
 from django.test import Client, TestCase, TransactionTestCase
 
 from accounting import views as accounting_views
@@ -23,7 +24,7 @@ class AccountingApiPermissionTest(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json(), {'error': '仅限工作人员访问'})
 
-    def test_staff_can_list_active_accounts(self):
+    def test_staff_can_list_all_accounts_including_inactive(self):
         staff = User.objects.create_user('api-staff', password='pass', is_staff=True)
         second_staff = User.objects.create_user('api-staff-second', password='pass', is_staff=True)
         FundAccount.objects.create(
@@ -39,15 +40,22 @@ class AccountingApiPermissionTest(TestCase):
         response = self.client.get('/api/accounting/accounts/')
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {
-            'accounts': [{
+        self.assertEqual(response.json(), {'accounts': [
+            {
                 'id': 1,
                 'name': 'API 人民币现金',
                 'currency': 'CNY',
                 'custodian_id': staff.pk,
                 'is_active': True,
-            }],
-        })
+            },
+            {
+                'id': inactive.pk,
+                'name': '停用卢布账户',
+                'currency': 'RUB',
+                'custodian_id': None,
+                'is_active': False,
+            },
+        ]})
         self.client.force_login(second_staff)
         self.assertEqual(self.client.get('/api/accounting/accounts/').json(), response.json())
 
@@ -98,13 +106,20 @@ class AccountingApiPermissionTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.json()['transaction']['type'], 'opening_balance')
-        self.assertEqual(response.json()['transaction']['operator_id'], staff.pk)
-        self.assertEqual(response.json()['transaction']['date'], '2026-08-10')
-        self.assertEqual(response.json()['transaction']['postings'][0]['amount'], '1200.00000000')
+        transaction = response.json()['transaction']
+        self.assertIn('transaction_type', transaction)
+        self.assertNotIn('type', transaction)
+        self.assertEqual(transaction['transaction_type'], 'opening_balance')
+        self.assertEqual(transaction['operator_id'], staff.pk)
+        self.assertEqual(transaction['business_date'], '2026-08-10')
+        self.assertEqual(transaction['effective_sequence'], 1)
+        self.assertEqual(transaction['postings'][0]['amount'], '1200.00000000')
         self.assertEqual(response.json()['snapshots'], [{
-            'account_id': account.pk,
+            'id': account.pk,
+            'name': 'API 期初人民币',
             'currency': 'CNY',
+            'custodian_id': None,
+            'is_active': True,
             'original_balance': '1200.00000000',
             'cny_book_cost': '1200.00',
             'moving_average_cny': '1',
@@ -185,14 +200,16 @@ class AccountingApiPermissionTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.json()['transaction']['type'], 'transfer')
+        self.assertEqual(response.json()['transaction']['transaction_type'], 'transfer')
         self.assertEqual(response.json()['snapshots'], [
             {
-                'account_id': source.pk, 'currency': 'RUB', 'original_balance': '600.00000000',
+                'id': source.pk, 'name': 'API 转账源', 'currency': 'RUB',
+                'custodian_id': None, 'is_active': True, 'original_balance': '600.00000000',
                 'cny_book_cost': '50.00', 'moving_average_cny': str(Decimal('50') / Decimal('600')),
             },
             {
-                'account_id': target.pk, 'currency': 'RUB', 'original_balance': '600.00000000',
+                'id': target.pk, 'name': 'API 转账目标', 'currency': 'RUB',
+                'custodian_id': None, 'is_active': True, 'original_balance': '600.00000000',
                 'cny_book_cost': '50.00', 'moving_average_cny': str(Decimal('50') / Decimal('600')),
             },
         ])
@@ -222,19 +239,13 @@ class AccountingApiPermissionTest(TestCase):
             {
                 'id': cny.pk, 'name': 'API 总览人民币', 'currency': 'CNY',
                 'custodian_id': None, 'is_active': True,
-                'snapshot': {
-                    'account_id': cny.pk, 'currency': 'CNY',
-                    'original_balance': '100.00000000', 'cny_book_cost': '100.00',
-                    'moving_average_cny': '1',
-                },
+                'original_balance': '100.00000000', 'cny_book_cost': '100.00',
+                'moving_average_cny': '1',
             },
             {
                 'id': empty_usdt.pk, 'name': 'API 总览空 USDT', 'currency': 'USDT',
                 'custodian_id': None, 'is_active': True,
-                'snapshot': {
-                    'account_id': empty_usdt.pk, 'currency': 'USDT',
-                    'original_balance': '0.00000000', 'cny_book_cost': '0.00', 'moving_average_cny': None,
-                },
+                'original_balance': '0.00000000', 'cny_book_cost': '0.00', 'moving_average_cny': None,
             },
         ])
 
@@ -267,12 +278,18 @@ class AccountingApiPermissionTest(TestCase):
         inverted_dates = self.client.get('/api/accounting/transactions/?business_date_from=2026-08-11&business_date_to=2026-08-10')
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual([item['type'] for item in response.json()['transactions']], ['opening_balance', 'exchange'])
+        self.assertEqual(
+            [item['transaction_type'] for item in response.json()['transactions']],
+            ['opening_balance', 'exchange'],
+        )
         self.assertEqual(response.json()['transactions'][1]['postings'], [
             {'account_id': cny.pk, 'category': '', 'currency': 'CNY', 'amount': '-100.00000000', 'cny_amount': '-100.00'},
             {'account_id': rub.pk, 'category': '', 'currency': 'RUB', 'amount': '1200.00000000', 'cny_amount': '100.00'},
         ])
-        self.assertEqual([item['type'] for item in account_filtered.json()['transactions']], ['exchange'])
+        self.assertEqual(
+            [item['transaction_type'] for item in account_filtered.json()['transactions']],
+            ['exchange'],
+        )
         self.assertEqual(date_filtered.json(), response.json())
         self.assertEqual(invalid_filter.status_code, 400)
         self.assertEqual(inverted_dates.status_code, 400)
@@ -300,25 +317,105 @@ class AccountingApiPermissionTest(TestCase):
                     self.assertEqual(response.status_code, 403)
                     self.assertEqual(response.json(), {'error': '仅限工作人员访问'})
 
-    def test_telegram_staff_header_resolves_real_operator_for_write(self):
-        staff = User.objects.create_user(
+    def test_telegram_staff_header_is_not_accounting_authentication(self):
+        User.objects.create_user(
             'api-telegram-staff', password='pass', is_staff=True, telegram_id='api-telegram-42',
         )
-        account = FundAccount.objects.create(
-            name='API Telegram 账户', currency='CNY', creation_idempotency_key='api-telegram-account',
+
+        response = self.client.get('/api/accounting/accounts/', HTTP_X_TELEGRAM_ID='api-telegram-42')
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json(), {'error': '仅限工作人员访问'})
+
+    def test_staff_writes_require_csrf_token(self):
+        staff = User.objects.create_user('api-csrf-staff', password='pass', is_staff=True)
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(staff)
+        payload = {'name': 'CSRF 账户', 'currency': 'CNY'}
+
+        for path in (
+            '/api/accounting/accounts/',
+            '/api/accounting/opening-balances/',
+            '/api/accounting/exchanges/',
+            '/api/accounting/transfers/',
+        ):
+            with self.subTest(path=path):
+                missing_token = client.post(
+                    path, data=payload, content_type='application/json',
+                    HTTP_IDEMPOTENCY_KEY=f'csrf-{path}',
+                )
+                self.assertEqual(missing_token.status_code, 403)
+        token = 'a' * 32
+        client.cookies[settings.CSRF_COOKIE_NAME] = token
+        valid_token = client.post(
+            '/api/accounting/accounts/', data=payload, content_type='application/json',
+            HTTP_IDEMPOTENCY_KEY='csrf-account-valid', HTTP_X_CSRFTOKEN=token,
         )
+
+        self.assertEqual(valid_token.status_code, 201)
+
+    def test_writes_require_application_json_content_type(self):
+        staff = User.objects.create_user('api-content-type-staff', password='pass', is_staff=True)
+        self.client.force_login(staff)
+
+        response = self.client.post(
+            '/api/accounting/accounts/', data='{"name":"错误媒体类型","currency":"CNY"}',
+            content_type='text/plain', HTTP_IDEMPOTENCY_KEY='text-plain-account',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {'error': '请求体必须是 JSON 对象'})
+        self.assertEqual(FundAccount.objects.count(), 0)
+
+    def test_float_account_id_is_rejected_without_using_integer_account(self):
+        staff = User.objects.create_user('api-id-staff', password='pass', is_staff=True)
+        account = FundAccount.objects.create(
+            name='整数账户', currency='CNY', creation_idempotency_key='integer-account',
+        )
+        self.client.force_login(staff)
 
         response = self.client.post(
             '/api/accounting/opening-balances/',
             data={
-                'account_id': account.pk, 'original_amount': '1.00', 'cny_book_cost': '1.00',
+                'account_id': float(account.pk) + 0.5,
+                'original_amount': '100.00', 'cny_book_cost': '100.00',
                 'equity_category': 'opening_capital', 'business_date': '2026-08-10',
-            }, content_type='application/json', HTTP_IDEMPOTENCY_KEY='api-telegram-opening',
-            HTTP_X_TELEGRAM_ID='api-telegram-42',
+            }, content_type='application/json', HTTP_IDEMPOTENCY_KEY='float-account-id',
         )
 
-        self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.json()['transaction']['operator_id'], staff.pk)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(LedgerTransaction.objects.count(), 0)
+
+    def test_infinite_ids_are_rejected_and_numeric_string_custodian_is_supported(self):
+        staff = User.objects.create_user('api-infinite-id-staff', password='pass', is_staff=True)
+        account = FundAccount.objects.create(
+            name='Infinity 账户', currency='CNY', creation_idempotency_key='infinity-account',
+        )
+        self.client.force_login(staff)
+        invalid_account = self.client.post(
+            '/api/accounting/opening-balances/',
+            data={
+                'account_id': float('inf'),
+                'original_amount': '100.00', 'cny_book_cost': '100.00',
+                'equity_category': 'opening_capital', 'business_date': '2026-08-10',
+            }, content_type='application/json', HTTP_IDEMPOTENCY_KEY='infinite-account-id',
+        )
+        invalid_custodian = self.client.post(
+            '/api/accounting/accounts/',
+            data={'name': 'Infinity 保管人', 'currency': 'CNY', 'custodian_id': float('inf')},
+            content_type='application/json', HTTP_IDEMPOTENCY_KEY='infinite-custodian-id',
+        )
+        string_custodian = self.client.post(
+            '/api/accounting/accounts/',
+            data={'name': '字符串保管人', 'currency': 'CNY', 'custodian_id': str(staff.pk)},
+            content_type='application/json', HTTP_IDEMPOTENCY_KEY='string-custodian-id',
+        )
+
+        self.assertEqual(invalid_account.status_code, 400)
+        self.assertEqual(invalid_custodian.status_code, 400)
+        self.assertEqual(string_custodian.status_code, 201)
+        self.assertEqual(string_custodian.json()['account']['custodian_id'], staff.pk)
+        self.assertEqual(LedgerTransaction.objects.count(), 0)
 
     def test_writes_reject_invalid_json_or_missing_key_and_account_errors_as_json_400(self):
         staff = User.objects.create_user('api-input-staff', password='pass', is_staff=True)
@@ -384,6 +481,9 @@ class AccountingApiConcurrencyTest(TransactionTestCase):
             cny, '100.00', '100.00', 'opening_capital',
             date(2026, 8, 10), operator, 'api-concurrent-opening',
         )
+        authenticated_client = Client()
+        authenticated_client.force_login(operator)
+        session_cookie = authenticated_client.cookies[settings.SESSION_COOKIE_NAME].value
         entered_service = threading.Barrier(2)
         responses = []
         errors = []
@@ -403,10 +503,11 @@ class AccountingApiConcurrencyTest(TransactionTestCase):
         def submit():
             close_old_connections()
             try:
-                response = Client().post(
+                client = Client()
+                client.cookies[settings.SESSION_COOKIE_NAME] = session_cookie
+                response = client.post(
                     '/api/accounting/exchanges/', data=payload, content_type='application/json',
                     HTTP_IDEMPOTENCY_KEY='api-concurrent-exchange',
-                    HTTP_X_TELEGRAM_ID='api-concurrent-telegram',
                 )
                 responses.append(response)
             except Exception as error:

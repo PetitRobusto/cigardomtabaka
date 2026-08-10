@@ -47,6 +47,8 @@ class LedgerPostingQuerySet(models.QuerySet):
             raise LedgerMutationError('已入账流水的分录不可修改或删除')
 
     def update(self, **kwargs):
+        if {'transaction', 'transaction_id'} & kwargs.keys():
+            raise LedgerMutationError('分录不可重新绑定交易')
         self._reject_posted()
         return super().update(**kwargs)
 
@@ -58,6 +60,8 @@ class LedgerPostingQuerySet(models.QuerySet):
         raise LedgerMutationError('分录批量写入必须通过受控入账流程')
 
     def bulk_update(self, objs, fields, **kwargs):
+        if {'transaction', 'transaction_id'} & set(fields):
+            raise LedgerMutationError('分录不可重新绑定交易')
         pks = [obj.pk for obj in objs if obj.pk]
         if pks:
             self.model.objects.filter(pk__in=pks)._reject_posted()
@@ -151,41 +155,6 @@ class LedgerTransaction(models.Model):
             raise LedgerMutationError('已入账流水不可修改或删除')
         return super().delete(*args, **kwargs)
 
-    def transition_to_posted(self):
-        raise LedgerMutationError('已入账必须通过受控入账流程')
-
-    def _post_from_service(self, effective_sequence):
-        self.effective_sequence = effective_sequence
-        if self._state.adding or self.status != self.Status.DRAFT:
-            raise LedgerMutationError('只有草稿流水可以入账')
-        if self.effective_sequence is None:
-            raise LedgerMutationError('已入账流水必须具有有效顺序')
-        postings = list(self.postings.select_related('account').all())
-        if len(postings) < 2:
-            raise LedgerMutationError('一笔交易至少需要两条分录')
-        if sum((posting.cny_amount for posting in postings), Decimal('0.00')) != Decimal('0.00'):
-            raise LedgerMutationError('交易人民币账面金额必须平衡')
-        categories = LedgerPosting.Category.values
-        currencies = FundAccount.Currency.values
-        for posting in postings:
-            if posting.currency not in currencies:
-                raise LedgerMutationError('原币无效')
-            if posting.account_id is not None:
-                if posting.category or posting.account is None or posting.currency != posting.account.currency:
-                    raise LedgerMutationError('账户分录不符合币种或分类约束')
-                if posting.currency == FundAccount.Currency.CNY and posting.amount != posting.cny_amount:
-                    raise LedgerMutationError('人民币账户原币金额必须等于账面金额')
-            elif posting.category not in categories or posting.currency != FundAccount.Currency.CNY or posting.amount != posting.cny_amount:
-                raise LedgerMutationError('内部分类分录不符合币种或金额约束')
-        self.status = self.Status.POSTED
-        self.posted_at = timezone.now()
-        super().save(update_fields=['effective_sequence', 'status', 'posted_at'])
-        return self
-
-
-
-def _post_draft_transaction(ledger_transaction, effective_sequence):
-    return ledger_transaction._post_from_service(effective_sequence)
 
 class LedgerPosting(models.Model):
     class Category(models.TextChoices):

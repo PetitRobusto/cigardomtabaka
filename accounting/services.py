@@ -47,6 +47,12 @@ class _PreparedPosting:
     cny_amount: Decimal
 
 
+@dataclass(frozen=True)
+class _OperationResult:
+    transaction: LedgerTransaction
+    created: bool
+
+
 def _decimal(value, places, field_name):
     try:
         decimal_value = Decimal(str(value)).quantize(places, rounding=ROUND_HALF_UP)
@@ -198,6 +204,12 @@ def _existing_transaction(idempotency_key, transaction_type):
     return existing
 
 
+def _operation_result(ledger_transaction, created, return_result):
+    if return_result:
+        return _OperationResult(transaction=ledger_transaction, created=created)
+    return ledger_transaction
+
+
 def _sqlite_retry_delay(attempt, base_delay):
     """Decorrelate SQLite writers that start from the same retry boundary."""
     return base_delay * (attempt + 1) + random.uniform(0, base_delay / 2)
@@ -205,12 +217,12 @@ def _sqlite_retry_delay(attempt, base_delay):
 
 @transaction.atomic
 def _post_transaction_once(*, transaction_type, business_date, postings, operator,
-                           idempotency_key, description='', source_type='', source_id=''):
+                           idempotency_key, description='', source_type='', source_id='', return_result=False):
     _validate_metadata(transaction_type, business_date, idempotency_key)
     persisted_operator = _require_operator(operator)
     existing = _existing_transaction(idempotency_key, transaction_type)
     if existing is not None:
-        return existing
+        return _operation_result(existing, False, return_result)
 
     try:
         raw_postings = tuple(postings)
@@ -262,9 +274,9 @@ def _post_transaction_once(*, transaction_type, business_date, postings, operato
     except IntegrityError:
         existing = _existing_transaction(idempotency_key, transaction_type)
         if existing is not None:
-            return existing
+            return _operation_result(existing, False, return_result)
         raise LedgerError('创建账务交易失败')
-    return ledger_transaction
+    return _operation_result(ledger_transaction, True, return_result)
 
 
 def post_transaction(*, transaction_type, business_date, postings, operator,
@@ -367,6 +379,14 @@ def _outflow_cny_cost(account, amount):
 @transaction.atomic
 def record_opening_balance(account, original_amount, cny_book_cost, equity_category,
                            business_date, operator, idempotency_key):
+    return _record_opening_balance(
+        account, original_amount, cny_book_cost, equity_category,
+        business_date, operator, idempotency_key,
+    )
+
+
+def _record_opening_balance(account, original_amount, cny_book_cost, equity_category,
+                            business_date, operator, idempotency_key, return_result=False):
     _validate_metadata(LedgerTransaction.TransactionType.OPENING_BALANCE, business_date, idempotency_key)
     persisted_operator = _require_operator(operator)
     if business_date != CUTOVER_DATE:
@@ -376,7 +396,7 @@ def record_opening_balance(account, original_amount, cny_book_cost, equity_categ
         LedgerTransaction.TransactionType.OPENING_BALANCE,
     )
     if existing is not None:
-        return existing
+        return _operation_result(existing, False, return_result)
     if equity_category not in (
         LedgerPosting.Category.OPENING_CAPITAL,
         LedgerPosting.Category.OPENING_RETAINED_EARNINGS,
@@ -403,6 +423,17 @@ def record_opening_balance(account, original_amount, cny_book_cost, equity_categ
         ],
         operator=persisted_operator,
         idempotency_key=idempotency_key,
+        return_result=return_result,
+    )
+
+
+@_retry_sqlite_locked
+@transaction.atomic
+def _record_opening_balance_with_result(account, original_amount, cny_book_cost, equity_category,
+                                        business_date, operator, idempotency_key):
+    return _record_opening_balance(
+        account, original_amount, cny_book_cost, equity_category,
+        business_date, operator, idempotency_key, return_result=True,
     )
 
 
@@ -410,11 +441,19 @@ def record_opening_balance(account, original_amount, cny_book_cost, equity_categ
 @transaction.atomic
 def exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
                     business_date, operator, idempotency_key, description=''):
+    return _exchange_to_rub(
+        source_account, rub_account, source_amount, rub_amount,
+        business_date, operator, idempotency_key, description,
+    )
+
+
+def _exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
+                     business_date, operator, idempotency_key, description='', return_result=False):
     persisted_operator, existing = _existing_operation(
         LedgerTransaction.TransactionType.EXCHANGE, business_date, operator, idempotency_key,
     )
     if existing is not None:
-        return existing
+        return _operation_result(existing, False, return_result)
 
     account_map = _lock_accounts(source_account, rub_account)
     source_account = account_map[source_account.pk]
@@ -442,6 +481,17 @@ def exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
         operator=persisted_operator,
         idempotency_key=idempotency_key,
         description=description,
+        return_result=return_result,
+    )
+
+
+@_retry_sqlite_locked
+@transaction.atomic
+def _exchange_to_rub_with_result(source_account, rub_account, source_amount, rub_amount,
+                                 business_date, operator, idempotency_key, description=''):
+    return _exchange_to_rub(
+        source_account, rub_account, source_amount, rub_amount,
+        business_date, operator, idempotency_key, description, return_result=True,
     )
 
 
@@ -449,11 +499,19 @@ def exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
 @transaction.atomic
 def transfer_same_currency(source_account, target_account, amount, business_date,
                            operator, idempotency_key, description=''):
+    return _transfer_same_currency(
+        source_account, target_account, amount, business_date,
+        operator, idempotency_key, description,
+    )
+
+
+def _transfer_same_currency(source_account, target_account, amount, business_date,
+                            operator, idempotency_key, description='', return_result=False):
     persisted_operator, existing = _existing_operation(
         LedgerTransaction.TransactionType.TRANSFER, business_date, operator, idempotency_key,
     )
     if existing is not None:
-        return existing
+        return _operation_result(existing, False, return_result)
 
     account_map = _lock_accounts(source_account, target_account)
     source_account = account_map[source_account.pk]
@@ -478,4 +536,15 @@ def transfer_same_currency(source_account, target_account, amount, business_date
         operator=persisted_operator,
         idempotency_key=idempotency_key,
         description=description,
+        return_result=return_result,
+    )
+
+
+@_retry_sqlite_locked
+@transaction.atomic
+def _transfer_same_currency_with_result(source_account, target_account, amount, business_date,
+                                        operator, idempotency_key, description=''):
+    return _transfer_same_currency(
+        source_account, target_account, amount, business_date,
+        operator, idempotency_key, description, return_result=True,
     )

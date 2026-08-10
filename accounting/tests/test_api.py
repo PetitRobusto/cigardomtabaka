@@ -1,8 +1,15 @@
 from decimal import Decimal
+from datetime import date
+import threading
+from unittest.mock import patch
 
-from django.test import TestCase
+from django.db import close_old_connections
+from django.test import Client, TestCase, TransactionTestCase
 
-from accounting.models import FundAccount
+from accounting import views as accounting_views
+from accounting.models import FundAccount, LedgerTransaction
+from accounting.selectors import account_snapshot
+from accounting.services import record_opening_balance
 from cigars.models import User
 
 
@@ -358,3 +365,66 @@ class AccountingApiPermissionTest(TestCase):
         self.assertEqual(unknown_custodian.status_code, 400)
         self.assertEqual(first.status_code, 201)
         self.assertEqual(duplicate_name.status_code, 400)
+
+
+class AccountingApiConcurrencyTest(TransactionTestCase):
+    business_date = '2026-08-10'
+
+    def test_concurrent_same_key_exchange_returns_created_and_replayed_statuses_once(self):
+        operator = User.objects.create_user(
+            'api-concurrent-operator', password='pass', is_staff=True, telegram_id='api-concurrent-telegram',
+        )
+        cny = FundAccount.objects.create(
+            name='API 并发人民币', currency='CNY', creation_idempotency_key='api-concurrent-cny',
+        )
+        rub = FundAccount.objects.create(
+            name='API 并发卢布', currency='RUB', creation_idempotency_key='api-concurrent-rub',
+        )
+        record_opening_balance(
+            cny, '100.00', '100.00', 'opening_capital',
+            date(2026, 8, 10), operator, 'api-concurrent-opening',
+        )
+        entered_service = threading.Barrier(2)
+        responses = []
+        errors = []
+        payload = {
+            'source_account_id': cny.pk,
+            'rub_account_id': rub.pk,
+            'source_amount': '100.00',
+            'rub_amount': '1200.00',
+            'business_date': self.business_date,
+        }
+        original_exchange = accounting_views._exchange_to_rub_with_result
+
+        def synchronize_after_exists(*args, **kwargs):
+            entered_service.wait(timeout=10)
+            return original_exchange(*args, **kwargs)
+
+        def submit():
+            close_old_connections()
+            try:
+                response = Client().post(
+                    '/api/accounting/exchanges/', data=payload, content_type='application/json',
+                    HTTP_IDEMPOTENCY_KEY='api-concurrent-exchange',
+                    HTTP_X_TELEGRAM_ID='api-concurrent-telegram',
+                )
+                responses.append(response)
+            except Exception as error:
+                errors.append(error)
+            finally:
+                close_old_connections()
+
+        with patch('accounting.views._exchange_to_rub_with_result', side_effect=synchronize_after_exists):
+            threads = [threading.Thread(target=submit) for _ in range(2)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=15)
+
+        self.assertFalse(any(thread.is_alive() for thread in threads))
+        self.assertEqual(errors, [])
+        self.assertEqual(sorted(response.status_code for response in responses), [200, 201])
+        exchanges = list(LedgerTransaction.objects.filter(transaction_type='exchange'))
+        self.assertEqual(len(exchanges), 1)
+        self.assertEqual(exchanges[0].postings.count(), 2)
+        self.assertEqual(account_snapshot(rub).original_balance, Decimal('1200.00000000'))

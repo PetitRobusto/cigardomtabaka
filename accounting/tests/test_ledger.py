@@ -222,6 +222,94 @@ class LedgerServiceTest(TestCase):
             self.post(business_date=date(2026, 8, 9))
 
 
+    def test_rejects_transient_account_with_existing_primary_key(self):
+        transient = FundAccount(
+            id=self.cny_account.pk,
+            name=self.cny_account.name,
+            currency='CNY',
+            creation_idempotency_key=self.cny_account.creation_idempotency_key,
+        )
+
+        self.assertTrue(transient._state.adding)
+        with self.assertRaises(LedgerError):
+            self.post(postings=[self.input(transient, '100', '100'), self.category('-100')])
+
+        self.assertEqual(LedgerTransaction.objects.count(), 0)
+
+    def test_idempotency_hit_validates_operator_and_keeps_original_audit_operator(self):
+        original = self.post(key='operator-idempotency')
+        unsaved_operator = User(username='unsaved-operator', is_staff=True)
+        nonstaff_operator = User.objects.create_user('idempotency-nonstaff', password='pass')
+
+        for operator in (unsaved_operator, nonstaff_operator):
+            with self.subTest(operator=operator), self.assertRaises(LedgerError):
+                self.post(key='operator-idempotency', operator=operator)
+
+        persisted = LedgerTransaction.objects.get(pk=original.pk)
+        self.assertEqual(persisted.operator_id, self.operator.pk)
+        self.assertEqual(LedgerTransaction.objects.count(), 1)
+
+    def test_rounds_original_and_cny_amounts_with_currency_precision(self):
+        usdt_account = self.make_account('现金 USDT', 'USDT', 'cash-usdt')
+        cny = self.post(
+            key='round-cny',
+            postings=[self.input(self.cny_account, '100.005', '100.005'), self.category('-100.005')],
+        )
+        rub = self.post(
+            key='round-rub',
+            postings=[self.input(self.rub_account, '1.005', '1.005'), self.category('-1.005')],
+        )
+        usdt = self.post(
+            key='round-usdt',
+            postings=[self.input(usdt_account, '1.000000005', '0.005'), self.category('-0.005')],
+        )
+
+        self.assertEqual(cny.postings.get(account=self.cny_account).amount, Decimal('100.01000000'))
+        self.assertEqual(cny.postings.get(account=self.cny_account).cny_amount, Decimal('100.01'))
+        self.assertEqual(rub.postings.get(account=self.rub_account).amount, Decimal('1.01000000'))
+        self.assertEqual(rub.postings.get(account=self.rub_account).cny_amount, Decimal('1.01'))
+        self.assertEqual(usdt.postings.get(account=usdt_account).amount, Decimal('1.00000001'))
+        self.assertEqual(usdt.postings.get(account=usdt_account).cny_amount, Decimal('0.01'))
+
+    def test_snapshot_ignores_draft_and_reversed_postings_and_preserves_empty_scales(self):
+        for status, sequence in (
+            (LedgerTransaction.Status.DRAFT, None),
+            (LedgerTransaction.Status.REVERSED, 99),
+        ):
+            transaction = LedgerTransaction.objects.create(
+                transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
+                status=status,
+                business_date=date(2026, 8, 10),
+                effective_sequence=sequence,
+                operator=self.operator,
+            )
+            LedgerPosting.objects.create(
+                transaction=transaction,
+                account=self.cny_account,
+                currency='CNY',
+                amount=Decimal('999'),
+                cny_amount=Decimal('999'),
+            )
+
+        snapshot = account_snapshot(self.cny_account)
+        self.assertEqual(snapshot.original_balance, Decimal('0.00000000'))
+        self.assertEqual(snapshot.cny_book_cost, Decimal('0.00'))
+        self.assertIsNone(snapshot.moving_average_cny)
+
+    def test_replay_rejects_negative_cny_cost_while_original_balance_stays_positive(self):
+        self.post(
+            key='rub-cost-in',
+            postings=[self.input(self.rub_account, '100', '100'), self.category('-100')],
+        )
+
+        with self.assertRaises(LedgerError):
+            self.post(
+                key='rub-cost-out',
+                postings=[self.input(self.rub_account, '-1', '-101'), self.category('101')],
+            )
+
+        self.assertEqual(LedgerTransaction.objects.count(), 1)
+
 class LedgerIdempotencyConcurrencyTest(TransactionTestCase):
     reset_sequences = True
 
@@ -269,3 +357,45 @@ class LedgerIdempotencyConcurrencyTest(TransactionTestCase):
         self.assertEqual(len(set(transaction_ids)), 1)
         self.assertEqual(LedgerTransaction.objects.filter(idempotency_key='concurrent-key').count(), 1)
         self.assertEqual(LedgerPosting.objects.count(), 2)
+
+    def test_concurrent_different_keys_receive_distinct_global_sequences(self):
+        barrier = threading.Barrier(2)
+        errors = []
+        sequences = []
+
+        def submit(idempotency_key):
+            close_old_connections()
+            try:
+                operator = User.objects.get(pk=self.operator.pk)
+                account = FundAccount.objects.get(pk=self.account.pk)
+                barrier.wait(timeout=10)
+                tx = post_transaction(
+                    transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
+                    business_date=date(2026, 8, 10),
+                    postings=[
+                        PostingInput(account=account, currency='CNY', amount=Decimal('100'), cny_amount=Decimal('100')),
+                        PostingInput(category=LedgerPosting.Category.OPENING_CAPITAL, currency='CNY', amount=Decimal('-100'), cny_amount=Decimal('-100')),
+                    ],
+                    operator=operator,
+                    idempotency_key=idempotency_key,
+                )
+                sequences.append(tx.effective_sequence)
+            except Exception as error:  # assertions below surface real failures
+                errors.append(error)
+            finally:
+                close_old_connections()
+
+        threads = [
+            threading.Thread(target=submit, args=('concurrent-key-a',)),
+            threading.Thread(target=submit, args=('concurrent-key-b',)),
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=15)
+
+        self.assertFalse(any(thread.is_alive() for thread in threads))
+        self.assertEqual(errors, [])
+        self.assertEqual(set(sequences), {1, 2})
+        self.assertEqual(LedgerTransaction.objects.count(), 2)
+        self.assertEqual(LedgerPosting.objects.count(), 4)

@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'cigars',
     'privnote',
     'price_tracker',
+    'accounting',
 ]
 
 MIDDLEWARE = [

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from functools import wraps
+import random
 import time
 
 from django.contrib.auth import get_user_model
@@ -197,6 +198,11 @@ def _existing_transaction(idempotency_key, transaction_type):
     return existing
 
 
+def _sqlite_retry_delay(attempt, base_delay):
+    """Decorrelate SQLite writers that start from the same retry boundary."""
+    return base_delay * (attempt + 1) + random.uniform(0, base_delay / 2)
+
+
 @transaction.atomic
 def _post_transaction_once(*, transaction_type, business_date, postings, operator,
                            idempotency_key, description='', source_type='', source_id=''):
@@ -283,7 +289,7 @@ def post_transaction(*, transaction_type, business_date, postings, operator,
             locked_sqlite = connection.vendor == 'sqlite' and 'locked' in str(error).lower()
             if not locked_sqlite or attempt == 4:
                 raise
-            time.sleep(0.02 * (attempt + 1))
+            time.sleep(_sqlite_retry_delay(attempt, 0.02))
 
 def _retry_sqlite_locked(operation):
 
@@ -296,7 +302,7 @@ def _retry_sqlite_locked(operation):
                 locked_sqlite = connection.vendor == 'sqlite' and 'locked' in str(error).lower()
                 if not locked_sqlite or attempt == 4:
                     raise
-                time.sleep(0.1 * (attempt + 1))
+                time.sleep(_sqlite_retry_delay(attempt, 0.1))
     return retrying_operation
 
 def _positive_amount(value, currency, field_name):

@@ -7,6 +7,7 @@ from unittest.mock import patch
 from django.db import OperationalError, close_old_connections
 from django.test import TestCase, TransactionTestCase
 
+from accounting import services
 from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
 from accounting.selectors import account_snapshot
 from accounting.services import (
@@ -267,6 +268,30 @@ class AccountingOperationTest(TestCase):
                 )
 
         self.assertEqual(post_once.call_count, 5)
+
+    def test_operation_lock_retry_uses_jitter_to_break_symmetric_backoff(self):
+        self.opening(self.cny, '100', '100', 'retry-jitter-opening')
+
+        with patch(
+            'accounting.services._post_transaction_once',
+            side_effect=OperationalError('database is locked'),
+        ), patch('accounting.services.time.sleep') as sleep, patch.object(
+            services, 'random', create=True,
+        ) as random_module:
+            random_module.uniform.return_value = 0.037
+            with self.assertRaises(OperationalError):
+                exchange_to_rub(
+                    self.cny, self.rub, '100', '1200', self.business_date,
+                    self.operator, 'retry-jitter-exchange',
+                )
+
+        self.assertEqual(sleep.call_count, 4)
+        for actual, expected in zip(
+            (entry.args[0] for entry in sleep.call_args_list),
+            (0.137, 0.237, 0.337, 0.437),
+        ):
+            self.assertAlmostEqual(actual, expected)
+        self.assertEqual(random_module.uniform.call_count, 4)
 
     def test_retry_decorator_preserves_public_operation_signatures(self):
         expected_parameters = {

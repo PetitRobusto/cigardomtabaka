@@ -1,8 +1,10 @@
 from datetime import date
 from decimal import Decimal
+import inspect
 import threading
 
-from django.db import close_old_connections
+from unittest.mock import patch
+from django.db import OperationalError, close_old_connections
 from django.test import TestCase, TransactionTestCase
 
 from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
@@ -250,6 +252,48 @@ class AccountingOperationTest(TestCase):
         with self.assertRaises(LedgerError):
             transfer_same_currency(self.rub, self.rub, '1', self.business_date, self.operator, 'repeat-exchange')
 
+
+    def test_operation_retries_locked_single_transaction_attempt_five_times(self):
+        self.opening(self.cny, '100', '100', 'retry-boundary-opening')
+
+        with patch(
+            'accounting.services._post_transaction_once',
+            side_effect=OperationalError('database is locked'),
+        ) as post_once, patch('accounting.services.time.sleep'):
+            with self.assertRaises(OperationalError):
+                exchange_to_rub(
+                    self.cny, self.rub, '100', '1200', self.business_date,
+                    self.operator, 'retry-boundary-exchange',
+                )
+
+        self.assertEqual(post_once.call_count, 5)
+
+    def test_retry_decorator_preserves_public_operation_signatures(self):
+        expected_parameters = {
+            'record_opening_balance': (
+                'account', 'original_amount', 'cny_book_cost', 'equity_category',
+                'business_date', 'operator', 'idempotency_key',
+            ),
+            'exchange_to_rub': (
+                'source_account', 'rub_account', 'source_amount', 'rub_amount',
+                'business_date', 'operator', 'idempotency_key', 'description',
+            ),
+            'transfer_same_currency': (
+                'source_account', 'target_account', 'amount', 'business_date',
+                'operator', 'idempotency_key', 'description',
+            ),
+        }
+        operations = {
+            'record_opening_balance': record_opening_balance,
+            'exchange_to_rub': exchange_to_rub,
+            'transfer_same_currency': transfer_same_currency,
+        }
+
+        for name, operation in operations.items():
+            with self.subTest(operation=name):
+                self.assertEqual(operation.__name__, name)
+                self.assertTrue(hasattr(operation, '__wrapped__'))
+                self.assertEqual(tuple(inspect.signature(operation).parameters), expected_parameters[name])
 
 class OpeningSequenceConcurrencyTest(TransactionTestCase):
     reset_sequences = True

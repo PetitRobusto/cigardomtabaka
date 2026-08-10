@@ -3,26 +3,31 @@ from decimal import Decimal
 import threading
 from unittest.mock import patch
 
-from django.db import OperationalError, close_old_connections
+from django.db import OperationalError, close_old_connections, connection
 from django.test import TestCase, TransactionTestCase
 
 from accounting import services as ledger_services
-from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction, ledger_mutation
+from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
 from accounting.selectors import account_snapshot
 from accounting.services import LedgerError, PostingInput, post_transaction
 from cigars.models import User
 
 def create_posted_fixture(operator, account, sequence, amount, cny_amount):
-    with ledger_mutation():
-        ledger_transaction = LedgerTransaction.objects.create(
-            transaction_type=LedgerTransaction.TransactionType.TRANSFER,
-            status=LedgerTransaction.Status.POSTED, business_date=date(2026, 8, 10),
-            effective_sequence=sequence, operator=operator,
+    """Raw fixture for legacy historical-replay tests; product ORM bypasses stay closed."""
+    ledger_transaction = LedgerTransaction.objects.create(
+        transaction_type=LedgerTransaction.TransactionType.TRANSFER,
+        business_date=date(2026, 8, 10), effective_sequence=sequence, operator=operator,
+    )
+    LedgerPosting.objects.create(
+        transaction=ledger_transaction, account=account, currency=account.currency,
+        amount=Decimal(amount), cny_amount=Decimal(cny_amount),
+    )
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "UPDATE accounting_ledgertransaction SET status = %s WHERE id = %s",
+            [LedgerTransaction.Status.POSTED, ledger_transaction.pk],
         )
-        LedgerPosting.objects.create(
-            transaction=ledger_transaction, account=account, currency=account.currency,
-            amount=Decimal(amount), cny_amount=Decimal(cny_amount),
-        )
+    ledger_transaction.refresh_from_db()
     return ledger_transaction
 
 

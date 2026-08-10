@@ -327,7 +327,7 @@ class OpeningSequenceConcurrencyTest(TransactionTestCase):
     def setUp(self):
         self.operator = User.objects.create_user('opening-sequence-operator', password='pass', is_staff=True)
 
-    def test_concurrent_opening_and_exchange_never_sequence_opening_after_normal_business(self):
+    def _exercise_concurrent_opening_and_exchange(self):
         for attempt in range(1):
             with self.subTest(attempt=attempt):
                 cny = FundAccount.objects.create(
@@ -395,3 +395,26 @@ class OpeningSequenceConcurrencyTest(TransactionTestCase):
                         transactions['opening'].effective_sequence,
                         transactions['exchange'].effective_sequence,
                     )
+    def test_concurrent_opening_and_exchange_attempt_1(self):
+        self._exercise_concurrent_opening_and_exchange()
+
+    def test_concurrent_opening_and_exchange_attempt_2(self):
+        self._exercise_concurrent_opening_and_exchange()
+
+    def test_concurrent_opening_and_exchange_attempt_3(self):
+        self._exercise_concurrent_opening_and_exchange()
+
+    def test_concurrent_opening_and_exchange_attempt_4(self):
+        self._exercise_concurrent_opening_and_exchange()
+
+    def test_concurrent_opening_and_exchange_attempt_5(self):
+        self._exercise_concurrent_opening_and_exchange()
+
+    def test_concurrent_opening_and_exchange_attempt_6(self):
+        self._exercise_concurrent_opening_and_exchange()
+
+    def test_concurrent_opening_and_exchange_attempt_7(self):
+        self._exercise_concurrent_opening_and_exchange()
+
+    def test_concurrent_opening_and_exchange_attempt_8(self):
+        self._exercise_concurrent_opening_and_exchange()

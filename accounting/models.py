@@ -1,5 +1,3 @@
-from contextlib import contextmanager
-from contextvars import ContextVar
 from decimal import Decimal
 
 from django.conf import settings
@@ -13,31 +11,6 @@ class LedgerMutationError(ValidationError):
     """Raised when ordinary ORM access would bypass ledger invariants."""
 
 
-_ledger_mutation_allowed = ContextVar('ledger_mutation_allowed', default=False)
-_ledger_transition_allowed = ContextVar('ledger_transition_allowed', default=False)
-
-
-@contextmanager
-def ledger_mutation():
-    token = _ledger_mutation_allowed.set(True)
-    try:
-        yield
-    finally:
-        _ledger_mutation_allowed.reset(token)
-
-
-def _mutation_allowed():
-    return _ledger_mutation_allowed.get()
-
-
-@contextmanager
-def ledger_posting_transition():
-    token = _ledger_transition_allowed.set(True)
-    try:
-        yield
-    finally:
-        _ledger_transition_allowed.reset(token)
-
 
 class LedgerTransactionQuerySet(models.QuerySet):
     def _reject_posted(self):
@@ -45,7 +18,7 @@ class LedgerTransactionQuerySet(models.QuerySet):
             raise LedgerMutationError('已入账流水不可修改或删除')
 
     def update(self, **kwargs):
-        if kwargs.get('status') == 'posted':
+        if 'status' in kwargs:
             raise LedgerMutationError('已入账必须通过受控入账流程')
         self._reject_posted()
         return super().update(**kwargs)
@@ -55,7 +28,7 @@ class LedgerTransactionQuerySet(models.QuerySet):
         return super().delete()
 
     def bulk_create(self, objs, **kwargs):
-        if any(obj.status == LedgerTransaction.Status.POSTED for obj in objs) and not _mutation_allowed():
+        if any(obj.status == LedgerTransaction.Status.POSTED for obj in objs):
             raise LedgerMutationError('已入账必须通过受控入账流程')
         return super().bulk_create(objs, **kwargs)
 
@@ -82,14 +55,7 @@ class LedgerPostingQuerySet(models.QuerySet):
         return super().delete()
 
     def bulk_create(self, objs, **kwargs):
-        if not _mutation_allowed():
-            raise LedgerMutationError('分录批量写入必须通过受控入账流程')
-        transaction_ids = {obj.transaction_id for obj in objs if obj.transaction_id}
-        if transaction_ids and LedgerTransaction.objects.filter(
-            pk__in=transaction_ids, status=LedgerTransaction.Status.POSTED,
-        ).exists():
-            raise LedgerMutationError('不能向已入账流水新增分录')
-        return super().bulk_create(objs, **kwargs)
+        raise LedgerMutationError('分录批量写入必须通过受控入账流程')
 
     def bulk_update(self, objs, fields, **kwargs):
         pks = [obj.pk for obj in objs if obj.pk]
@@ -159,6 +125,7 @@ class LedgerTransaction(models.Model):
     posted_at = models.DateTimeField('入账时间', null=True, blank=True)
 
     class Meta:
+        base_manager_name = 'objects'
         ordering = ['business_date', 'effective_sequence', 'id']
         verbose_name = '账务交易'
         verbose_name_plural = '账务交易'
@@ -173,9 +140,7 @@ class LedgerTransaction(models.Model):
         persisted_status = None
         if not self._state.adding:
             persisted_status = type(self).objects.filter(pk=self.pk).values_list('status', flat=True).first()
-        if not _mutation_allowed() and (
-            self.status == self.Status.POSTED or persisted_status == self.Status.POSTED
-        ):
+        if self.status == self.Status.POSTED or persisted_status == self.Status.POSTED:
             if self._state.adding or persisted_status != self.Status.POSTED:
                 raise LedgerMutationError('已入账必须通过受控入账流程')
             raise LedgerMutationError('已入账流水不可修改或删除')
@@ -187,8 +152,10 @@ class LedgerTransaction(models.Model):
         return super().delete(*args, **kwargs)
 
     def transition_to_posted(self):
-        if not _ledger_transition_allowed.get():
-            raise LedgerMutationError('已入账必须通过受控入账流程')
+        raise LedgerMutationError('已入账必须通过受控入账流程')
+
+    def _post_from_service(self, effective_sequence):
+        self.effective_sequence = effective_sequence
         if self._state.adding or self.status != self.Status.DRAFT:
             raise LedgerMutationError('只有草稿流水可以入账')
         if self.effective_sequence is None:
@@ -212,10 +179,13 @@ class LedgerTransaction(models.Model):
                 raise LedgerMutationError('内部分类分录不符合币种或金额约束')
         self.status = self.Status.POSTED
         self.posted_at = timezone.now()
-        with ledger_mutation():
-            self.save(update_fields=['effective_sequence', 'status', 'posted_at'])
+        super().save(update_fields=['effective_sequence', 'status', 'posted_at'])
         return self
 
+
+
+def _post_draft_transaction(ledger_transaction, effective_sequence):
+    return ledger_transaction._post_from_service(effective_sequence)
 
 class LedgerPosting(models.Model):
     class Category(models.TextChoices):
@@ -232,6 +202,7 @@ class LedgerPosting(models.Model):
     cny_amount = models.DecimalField('人民币账面金额', max_digits=20, decimal_places=2)
 
     class Meta:
+        base_manager_name = 'objects'
         ordering = ['transaction__effective_sequence', 'id']
         constraints = [
             models.CheckConstraint(condition=(Q(account__isnull=False, category='') | Q(account__isnull=True) & ~Q(category='')), name='accounting_posting_exactly_one_target'),
@@ -249,7 +220,7 @@ class LedgerPosting(models.Model):
         ).exists()
 
     def save(self, *args, **kwargs):
-        if self._transaction_is_posted() and not _mutation_allowed():
+        if self._transaction_is_posted():
             if self._state.adding:
                 raise LedgerMutationError('不能向已入账流水新增分录')
             raise LedgerMutationError('已入账流水的分录不可修改或删除')

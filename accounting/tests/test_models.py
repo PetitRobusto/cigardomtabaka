@@ -13,6 +13,7 @@ from accounting.admin import (
     LedgerTransactionAdmin,
 )
 from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
+from accounting.services import PostingInput, post_transaction
 from cigars.models import User
 
 
@@ -43,7 +44,7 @@ class LedgerModelTest(TestCase):
     def test_posting_target_xor(self):
         tx = LedgerTransaction.objects.create(
             transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
-            status=LedgerTransaction.Status.POSTED,
+            status=LedgerTransaction.Status.DRAFT,
             business_date=date(2026, 8, 10),
             effective_sequence=1,
             operator=self.user,
@@ -93,7 +94,7 @@ class LedgerModelTest(TestCase):
     def test_effective_sequence_and_idempotency_key_are_unique(self):
         LedgerTransaction.objects.create(
             transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
-            status=LedgerTransaction.Status.POSTED,
+            status=LedgerTransaction.Status.DRAFT,
             business_date=date(2026, 8, 10),
             effective_sequence=1,
             idempotency_key='opening-a',
@@ -102,7 +103,7 @@ class LedgerModelTest(TestCase):
         with self.assertRaises(IntegrityError), transaction.atomic():
             LedgerTransaction.objects.create(
                 transaction_type=LedgerTransaction.TransactionType.TRANSFER,
-                status=LedgerTransaction.Status.POSTED,
+                status=LedgerTransaction.Status.DRAFT,
                 business_date=date(2026, 8, 10),
                 effective_sequence=1,
                 idempotency_key='other-operation',
@@ -111,7 +112,7 @@ class LedgerModelTest(TestCase):
         with self.assertRaises(IntegrityError), transaction.atomic():
             LedgerTransaction.objects.create(
                 transaction_type=LedgerTransaction.TransactionType.TRANSFER,
-                status=LedgerTransaction.Status.POSTED,
+                status=LedgerTransaction.Status.DRAFT,
                 business_date=date(2026, 8, 10),
                 effective_sequence=2,
                 idempotency_key='opening-a',
@@ -121,21 +122,21 @@ class LedgerModelTest(TestCase):
     def test_optional_idempotency_keys_allow_multiple_nulls_and_blank_values(self):
         missing_key = LedgerTransaction.objects.create(
             transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
-            status=LedgerTransaction.Status.POSTED,
+            status=LedgerTransaction.Status.DRAFT,
             business_date=date(2026, 8, 10),
             effective_sequence=1,
             operator=self.user,
         )
         another_missing_key = LedgerTransaction.objects.create(
             transaction_type=LedgerTransaction.TransactionType.TRANSFER,
-            status=LedgerTransaction.Status.POSTED,
+            status=LedgerTransaction.Status.DRAFT,
             business_date=date(2026, 8, 10),
             effective_sequence=2,
             operator=self.user,
         )
         blank_key = LedgerTransaction.objects.create(
             transaction_type=LedgerTransaction.TransactionType.TRANSFER,
-            status=LedgerTransaction.Status.POSTED,
+            status=LedgerTransaction.Status.DRAFT,
             business_date=date(2026, 8, 10),
             effective_sequence=3,
             idempotency_key='',
@@ -143,7 +144,7 @@ class LedgerModelTest(TestCase):
         )
         another_blank_key = LedgerTransaction.objects.create(
             transaction_type=LedgerTransaction.TransactionType.TRANSFER,
-            status=LedgerTransaction.Status.POSTED,
+            status=LedgerTransaction.Status.DRAFT,
             business_date=date(2026, 8, 10),
             effective_sequence=4,
             idempotency_key='',
@@ -158,7 +159,7 @@ class LedgerModelTest(TestCase):
     def test_database_rejects_empty_idempotency_key(self):
         ledger_transaction = LedgerTransaction.objects.create(
             transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
-            status=LedgerTransaction.Status.POSTED,
+            status=LedgerTransaction.Status.DRAFT,
             business_date=date(2026, 8, 10),
             effective_sequence=1,
             operator=self.user,
@@ -280,26 +281,13 @@ class AccountingAdminTest(TestCase):
             currency=FundAccount.Currency.CNY,
             creation_idempotency_key='second-admin-account',
         )
-        posted = LedgerTransaction.objects.create(
-            transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
-            status=LedgerTransaction.Status.POSTED,
+        post_transaction(
+            transaction_type=LedgerTransaction.TransactionType.TRANSFER,
             business_date=date(2026, 8, 10),
-            effective_sequence=1,
-            operator=self.user,
-        )
-        LedgerPosting.objects.create(
-            transaction=posted,
-            account=self.account,
-            currency=FundAccount.Currency.CNY,
-            amount=Decimal('12.00'),
-            cny_amount=Decimal('12.00'),
-        )
-        LedgerPosting.objects.create(
-            transaction=posted,
-            category=LedgerPosting.Category.OPENING_CAPITAL,
-            currency=FundAccount.Currency.CNY,
-            amount=Decimal('-12.00'),
-            cny_amount=Decimal('-12.00'),
+            postings=[
+                PostingInput(account=self.account, currency=FundAccount.Currency.CNY, amount=Decimal("12.00"), cny_amount=Decimal("12.00")),
+                PostingInput(category=LedgerPosting.Category.OPENING_CAPITAL, currency=FundAccount.Currency.CNY, amount=Decimal("-12.00"), cny_amount=Decimal("-12.00")),
+            ], operator=self.user, idempotency_key="admin-annotation-posted",
         )
         draft = LedgerTransaction.objects.create(
             transaction_type=LedgerTransaction.TransactionType.TRANSFER,

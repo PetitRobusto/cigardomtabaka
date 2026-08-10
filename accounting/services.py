@@ -10,7 +10,7 @@ from django.db import IntegrityError, OperationalError, connection, transaction
 from django.db.models import Sum
 from django.utils import timezone
 
-from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
+from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction, ledger_mutation, ledger_posting_transition
 from accounting.selectors import account_snapshot
 
 
@@ -215,6 +215,22 @@ def _sqlite_retry_delay(attempt, base_delay):
     return base_delay * (attempt + 1) + random.uniform(0, base_delay / 2)
 
 
+def _validate_opening_balance_postings(business_date, prepared):
+    if business_date != CUTOVER_DATE:
+        raise LedgerError('期初余额只能记录在账务切换日')
+    account_postings = [posting for posting in prepared if posting.account_id is not None]
+    category_postings = [posting for posting in prepared if posting.account_id is None]
+    if len(prepared) != 2 or len(account_postings) != 1 or len(category_postings) != 1:
+        raise LedgerError('期初余额必须恰好包含一条账户分录和一条内部分类分录')
+    if category_postings[0].category not in (
+        LedgerPosting.Category.OPENING_CAPITAL,
+        LedgerPosting.Category.OPENING_RETAINED_EARNINGS,
+    ):
+        raise LedgerError('期初余额内部分类无效')
+    if LedgerPosting.objects.filter(account_id=account_postings[0].account_id).exists():
+        raise LedgerError('已有分录的账户不能记录期初余额')
+
+
 @transaction.atomic
 def _post_transaction_once(*, transaction_type, business_date, postings, operator,
                            idempotency_key, description='', source_type='', source_id='', return_result=False):
@@ -230,13 +246,13 @@ def _post_transaction_once(*, transaction_type, business_date, postings, operato
         raise LedgerError('postings必须是可迭代分录')
     account_map = _resolve_accounts(raw_postings)
     prepared = _prepare_postings(raw_postings, account_map)
+    if transaction_type == LedgerTransaction.TransactionType.OPENING_BALANCE:
+        _validate_opening_balance_postings(business_date, prepared)
 
     sequence, _ = LedgerSequence.objects.select_for_update().get_or_create(name='global')
     if (
         transaction_type == LedgerTransaction.TransactionType.OPENING_BALANCE
-        and LedgerTransaction.objects.filter(
-            status=LedgerTransaction.Status.POSTED,
-        ).exclude(
+        and LedgerTransaction.objects.filter(status=LedgerTransaction.Status.POSTED).exclude(
             transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
         ).exists()
     ):
@@ -250,33 +266,36 @@ def _post_transaction_once(*, transaction_type, business_date, postings, operato
             sequence.save(update_fields=['next_value'])
             ledger_transaction = LedgerTransaction.objects.create(
                 transaction_type=transaction_type,
-                status=LedgerTransaction.Status.POSTED,
+                status=LedgerTransaction.Status.DRAFT,
                 business_date=business_date,
-                effective_sequence=effective_sequence,
                 idempotency_key=idempotency_key,
                 description=description or '',
                 source_type=source_type or '',
                 source_id=source_id or '',
                 operator=persisted_operator,
-                posted_at=timezone.now(),
             )
-            LedgerPosting.objects.bulk_create([
-                LedgerPosting(
-                    transaction=ledger_transaction,
-                    account_id=posting.account_id,
-                    category=posting.category,
-                    currency=posting.currency,
-                    amount=posting.amount,
-                    cny_amount=posting.cny_amount,
-                )
-                for posting in prepared
-            ])
+            with ledger_mutation():
+                LedgerPosting.objects.bulk_create([
+                    LedgerPosting(
+                        transaction=ledger_transaction,
+                        account_id=posting.account_id,
+                        category=posting.category,
+                        currency=posting.currency,
+                        amount=posting.amount,
+                        cny_amount=posting.cny_amount,
+                    )
+                    for posting in prepared
+                ])
+            ledger_transaction.effective_sequence = effective_sequence
+            with ledger_posting_transition():
+                ledger_transaction.transition_to_posted()
     except IntegrityError:
         existing = _existing_transaction(idempotency_key, transaction_type)
         if existing is not None:
             return _operation_result(existing, False, return_result)
         raise LedgerError('创建账务交易失败')
     return _operation_result(ledger_transaction, True, return_result)
+
 
 
 def post_transaction(*, transaction_type, business_date, postings, operator,

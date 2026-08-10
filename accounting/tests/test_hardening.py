@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
+from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
 from accounting.services import LedgerError, PostingInput, post_transaction
 from cigars.models import User
 
@@ -215,3 +215,62 @@ class LedgerHardeningTest(TestCase):
         transaction.status = LedgerTransaction.Status.DRAFT
         with self.assertRaises(ValidationError):
             transaction.delete()
+
+    def test_draft_bulk_generators_are_materialized_without_losing_rows(self):
+        transaction = LedgerTransaction(
+            transaction_type='transfer', business_date=date(2026, 8, 10), operator=self.operator,
+            idempotency_key='generator-draft', description='before',
+        )
+        LedgerTransaction.objects.bulk_create(item for item in [transaction])
+        transaction.description = 'after'
+        LedgerTransaction.objects.bulk_update((item for item in [transaction]), (field for field in ['description']))
+        self.assertEqual(LedgerTransaction.objects.get(pk=transaction.pk).description, 'after')
+
+        posting = LedgerPosting.objects.create(
+            transaction=transaction, account=self.account, currency='CNY', amount=Decimal('1'), cny_amount=Decimal('1'),
+        )
+        posting.amount = Decimal('2')
+        LedgerPosting.objects.bulk_update((item for item in [posting]), (field for field in ['amount']))
+        self.assertEqual(LedgerPosting.objects.get(pk=posting.pk).amount, Decimal('2.00000000'))
+
+    def test_fund_account_currency_and_creation_key_are_immutable_after_create(self):
+        account = self.account
+        account.currency = 'RUB'
+        with self.assertRaises(ValidationError):
+            account.save()
+        expression_account = FundAccount.objects.get(pk=account.pk)
+        from django.db.models import Value
+        expression_account.currency = Value('RUB')
+        with self.assertRaises(ValidationError):
+            expression_account.save()
+        operations = [
+            lambda: FundAccount.objects.filter(pk=account.pk).update(currency='RUB'),
+            lambda: FundAccount._base_manager.filter(pk=account.pk).update(creation_idempotency_key='changed'),
+            lambda: FundAccount.objects.bulk_update([account], ['currency']),
+        ]
+        for operation in operations:
+            with self.subTest(operation=operation), self.assertRaises(ValidationError):
+                operation()
+        account.refresh_from_db()
+        account.name = 'renamed'
+        account.is_active = False
+        account.save()
+        self.assertEqual(FundAccount.objects.get(pk=account.pk).name, 'renamed')
+
+    def test_ledger_sequence_is_internal_except_initial_global_row(self):
+        sequence, created = LedgerSequence.objects.get_or_create(name='global')
+        self.assertTrue(created)
+        operations = [
+            lambda: sequence.save(),
+            lambda: sequence.delete(),
+            lambda: LedgerSequence.objects.filter(name='global').update(next_value=2),
+            lambda: LedgerSequence._base_manager.filter(name='global').delete(),
+            lambda: LedgerSequence.objects.bulk_update([sequence], ['next_value']),
+            lambda: LedgerSequence.objects.bulk_create([LedgerSequence(name='other', next_value=1)]),
+        ]
+        for operation in operations:
+            with self.subTest(operation=operation), self.assertRaises(ValidationError):
+                operation()
+
+        transaction = self.post('sequence-service-increment')
+        self.assertEqual(LedgerSequence.objects.get(name='global').next_value, transaction.effective_sequence + 1)

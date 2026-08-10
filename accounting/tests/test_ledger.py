@@ -499,7 +499,11 @@ class LedgerIdempotencyConcurrencyTest(TransactionTestCase):
         seed = create_posted_fixture(
             self.operator, reserve, 2, 1, 999999999999999999.99,
         )
-        LedgerSequence.objects.filter(name='global').update(next_value=3)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE accounting_ledgersequence SET next_value = %s WHERE name = %s",
+                [3, 'global'],
+            )
         cny_bound = self.post(
             key='cny-bound',
             postings=[

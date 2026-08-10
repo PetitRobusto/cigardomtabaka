@@ -1,10 +1,7 @@
-from decimal import Decimal
-
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
-from django.utils import timezone
 
 
 class LedgerMutationError(ValidationError):
@@ -28,6 +25,7 @@ class LedgerTransactionQuerySet(models.QuerySet):
         return super().delete()
 
     def bulk_create(self, objs, **kwargs):
+        objs = tuple(objs)
         if any(
             not isinstance(obj.status, str) or obj.status != LedgerTransaction.Status.DRAFT
             for obj in objs
@@ -36,6 +34,8 @@ class LedgerTransactionQuerySet(models.QuerySet):
         return super().bulk_create(objs, **kwargs)
 
     def bulk_update(self, objs, fields, **kwargs):
+        objs = tuple(objs)
+        fields = tuple(fields)
         if 'status' in fields:
             raise LedgerMutationError('已入账必须通过受控入账流程')
         pks = [obj.pk for obj in objs if obj.pk]
@@ -63,6 +63,8 @@ class LedgerPostingQuerySet(models.QuerySet):
         raise LedgerMutationError('分录批量写入必须通过受控入账流程')
 
     def bulk_update(self, objs, fields, **kwargs):
+        objs = tuple(objs)
+        fields = tuple(fields)
         if {'transaction', 'transaction_id'} & set(fields):
             raise LedgerMutationError('分录不可重新绑定交易')
         pks = [obj.pk for obj in objs if obj.pk]
@@ -71,11 +73,43 @@ class LedgerPostingQuerySet(models.QuerySet):
         return super().bulk_update(objs, fields, **kwargs)
 
 
+class FundAccountQuerySet(models.QuerySet):
+    _immutable_fields = {'currency', 'creation_idempotency_key'}
+
+    def update(self, **kwargs):
+        if self._immutable_fields & kwargs.keys():
+            raise ValidationError('资金账户币种和创建幂等键不可修改')
+        return super().update(**kwargs)
+
+    def bulk_update(self, objs, fields, **kwargs):
+        objs = tuple(objs)
+        fields = tuple(fields)
+        if self._immutable_fields & set(fields):
+            raise ValidationError('资金账户币种和创建幂等键不可修改')
+        return super().bulk_update(objs, fields, **kwargs)
+
+
+class LedgerSequenceQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise LedgerMutationError('账务顺序仅可由入账服务推进')
+
+    def delete(self):
+        raise LedgerMutationError('账务顺序不可删除')
+
+    def bulk_create(self, objs, **kwargs):
+        raise LedgerMutationError('账务顺序仅可由入账服务初始化')
+
+    def bulk_update(self, objs, fields, **kwargs):
+        raise LedgerMutationError('账务顺序仅可由入账服务推进')
+
+
 class FundAccount(models.Model):
     class Currency(models.TextChoices):
         CNY = 'CNY', '人民币'
         RUB = 'RUB', '卢布'
         USDT = 'USDT', 'USDT'
+
+    objects = FundAccountQuerySet.as_manager()
 
     name = models.CharField('账户名称', max_length=120, unique=True)
     currency = models.CharField('币种', max_length=4, choices=Currency.choices)
@@ -92,17 +126,46 @@ class FundAccount(models.Model):
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
     class Meta:
+        base_manager_name = 'objects'
         ordering = ['currency', 'id']
         verbose_name = '资金账户'
         verbose_name_plural = '资金账户'
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            persisted = type(self).objects.filter(pk=self.pk).values(
+                'currency', 'creation_idempotency_key',
+            ).first()
+            if persisted and (
+                self.currency != persisted['currency']
+                or self.creation_idempotency_key != persisted['creation_idempotency_key']
+            ):
+                raise ValidationError('资金账户币种和创建幂等键不可修改')
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return f'{self.name} ({self.currency})'
 
 
 class LedgerSequence(models.Model):
+    objects = LedgerSequenceQuerySet.as_manager()
+
     name = models.CharField(max_length=20, primary_key=True, default='global', editable=False)
     next_value = models.PositiveBigIntegerField(default=1)
+
+    class Meta:
+        base_manager_name = 'objects'
+
+    def save(self, *args, **kwargs):
+        if self._state.adding:
+            if self.name != 'global' or self.next_value != 1:
+                raise LedgerMutationError('账务顺序只能从全局初始值创建')
+        else:
+            raise LedgerMutationError('账务顺序仅可由入账服务推进')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise LedgerMutationError('账务顺序不可删除')
 
 
 class LedgerTransaction(models.Model):

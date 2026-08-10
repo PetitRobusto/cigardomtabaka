@@ -28,7 +28,10 @@ class LedgerTransactionQuerySet(models.QuerySet):
         return super().delete()
 
     def bulk_create(self, objs, **kwargs):
-        if any(obj.status == LedgerTransaction.Status.POSTED for obj in objs):
+        if any(
+            not isinstance(obj.status, str) or obj.status != LedgerTransaction.Status.DRAFT
+            for obj in objs
+        ):
             raise LedgerMutationError('已入账必须通过受控入账流程')
         return super().bulk_create(objs, **kwargs)
 
@@ -141,13 +144,15 @@ class LedgerTransaction(models.Model):
     def save(self, *args, **kwargs):
         if self.idempotency_key == '':
             self.idempotency_key = None
-        persisted_status = None
-        if not self._state.adding:
+        if self._state.adding:
+            if not isinstance(self.status, str) or self.status != self.Status.DRAFT:
+                raise LedgerMutationError('普通 ORM 只能创建草稿流水')
+        else:
             persisted_status = type(self).objects.filter(pk=self.pk).values_list('status', flat=True).first()
-        if self.status == self.Status.POSTED or persisted_status == self.Status.POSTED:
-            if self._state.adding or persisted_status != self.Status.POSTED:
-                raise LedgerMutationError('已入账必须通过受控入账流程')
-            raise LedgerMutationError('已入账流水不可修改或删除')
+            if not isinstance(self.status, str) or self.status != persisted_status:
+                raise LedgerMutationError('账务流水状态不可通过普通 ORM 修改')
+            if persisted_status != self.Status.DRAFT:
+                raise LedgerMutationError('已入账流水不可修改或删除')
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):

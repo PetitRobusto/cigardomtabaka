@@ -168,3 +168,20 @@ class LedgerHardeningTest(TestCase):
         for operation in operations:
             with self.subTest(operation=operation), self.assertRaises(ValidationError):
                 operation()
+
+    def test_ordinary_orm_cannot_create_or_change_status_with_expressions(self):
+        from django.db.models import Value
+
+        fields = dict(transaction_type='transfer', business_date=date(2026, 8, 10), operator=self.operator)
+        with self.assertRaises(ValidationError):
+            LedgerTransaction.objects.create(status=Value('posted'), **fields)
+        with self.assertRaises(ValidationError):
+            LedgerTransaction.objects.create(status=LedgerTransaction.Status.REVERSED, **fields)
+        draft = LedgerTransaction.objects.create(status=LedgerTransaction.Status.DRAFT, **fields)
+        draft.status = Value('posted')
+        with self.assertRaises(ValidationError):
+            draft.save()
+        with self.assertRaises(ValidationError):
+            LedgerTransaction.objects.bulk_create([
+                LedgerTransaction(status=Value('posted'), **fields),
+            ])

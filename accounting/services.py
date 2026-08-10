@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from functools import wraps
 import time
 
 from django.contrib.auth import get_user_model
@@ -286,6 +287,7 @@ def post_transaction(*, transaction_type, business_date, postings, operator,
 
 def _retry_sqlite_locked(operation):
 
+    @wraps(operation)
     def retrying_operation(*args, **kwargs):
         for attempt in range(5):
             try:
@@ -294,7 +296,7 @@ def _retry_sqlite_locked(operation):
                 locked_sqlite = connection.vendor == 'sqlite' and 'locked' in str(error).lower()
                 if not locked_sqlite or attempt == 4:
                     raise
-                time.sleep(0.02 * (attempt + 1))
+                time.sleep(0.1 * (attempt + 1))
     return retrying_operation
 
 def _positive_amount(value, currency, field_name):
@@ -384,7 +386,7 @@ def record_opening_balance(account, original_amount, cny_book_cost, equity_categ
     if LedgerPosting.objects.filter(account=locked_account).exists():
         raise LedgerError('已有分录的账户不能记录期初余额')
 
-    return post_transaction(
+    return _post_transaction_once(
         transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
         business_date=business_date,
         postings=[
@@ -422,7 +424,7 @@ def exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
     rub_amount = _positive_amount(rub_amount, FundAccount.Currency.RUB, '换汇转入卢布金额')
     cny_cost = _outflow_cny_cost(source_account, source_amount)
 
-    return post_transaction(
+    return _post_transaction_once(
         transaction_type=LedgerTransaction.TransactionType.EXCHANGE,
         business_date=business_date,
         postings=[
@@ -458,7 +460,7 @@ def transfer_same_currency(source_account, target_account, amount, business_date
     amount = _positive_amount(amount, source_account.currency, '转账原币金额')
     cny_cost = _outflow_cny_cost(source_account, amount)
 
-    return post_transaction(
+    return _post_transaction_once(
         transaction_type=LedgerTransaction.TransactionType.TRANSFER,
         business_date=business_date,
         postings=[

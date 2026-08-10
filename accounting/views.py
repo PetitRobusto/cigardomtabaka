@@ -5,7 +5,6 @@ from decimal import Decimal, InvalidOperation
 from django.db import IntegrityError, transaction
 from django.db.models import Prefetch
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 
 from accounting.decorators import staff_json_required
 from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
@@ -24,6 +23,8 @@ class ApiInputError(Exception):
 
 
 def _json_object(request):
+    if request.content_type != 'application/json':
+        raise ApiInputError('请求体必须是 JSON 对象')
     try:
         payload = json.loads(request.body.decode('utf-8'))
     except (UnicodeDecodeError, json.JSONDecodeError):
@@ -44,12 +45,11 @@ def _idempotency_key(request):
 
 def _required_id(payload, field_name):
     value = payload.get(field_name)
-    if isinstance(value, bool):
-        raise ApiInputError(f'{field_name}无效')
-    try:
+    if type(value) is int:
+        return value
+    if isinstance(value, str) and value.isdecimal():
         return int(value)
-    except (TypeError, ValueError):
-        raise ApiInputError(f'{field_name}无效')
+    raise ApiInputError(f'{field_name}无效')
 
 
 def _required_decimal_string(payload, field_name):
@@ -99,10 +99,9 @@ def _description(payload):
 
 
 @staff_json_required
-@csrf_exempt
 def accounts(request):
     if request.method == 'GET':
-        accounts = FundAccount.objects.filter(is_active=True).select_related('custodian')
+        accounts = FundAccount.objects.select_related('custodian')
         return JsonResponse({'accounts': [serialize_account(account) for account in accounts]})
     if request.method != 'POST':
         return JsonResponse({'error': '请求方法不支持'}, status=400)
@@ -119,12 +118,10 @@ def accounts(request):
 
         custodian_id = payload.get('custodian_id')
         if custodian_id is not None:
-            if isinstance(custodian_id, bool):
-                raise ApiInputError('保管人不存在')
             try:
-                custodian_id = int(custodian_id)
+                custodian_id = _required_id(payload, 'custodian_id')
                 custodian = User.objects.get(pk=custodian_id)
-            except (TypeError, ValueError, User.DoesNotExist):
+            except User.DoesNotExist:
                 raise ApiInputError('保管人不存在')
         else:
             custodian = None
@@ -156,7 +153,6 @@ def accounts(request):
 
 
 @staff_json_required
-@csrf_exempt
 def opening_balances(request):
     if request.method != 'POST':
         return JsonResponse({'error': '请求方法不支持'}, status=400)
@@ -179,7 +175,6 @@ def opening_balances(request):
 
 
 @staff_json_required
-@csrf_exempt
 def exchanges(request):
     if request.method != 'POST':
         return JsonResponse({'error': '请求方法不支持'}, status=400)
@@ -202,7 +197,6 @@ def exchanges(request):
 
 
 @staff_json_required
-@csrf_exempt
 def transfers(request):
     if request.method != 'POST':
         return JsonResponse({'error': '请求方法不支持'}, status=400)
@@ -229,10 +223,7 @@ def overview(request):
         return JsonResponse({'error': '请求方法不支持'}, status=400)
     accounts = FundAccount.objects.filter(is_active=True).select_related('custodian')
     return JsonResponse({
-        'accounts': [
-            {**serialize_account(account), 'snapshot': serialize_snapshot(account)}
-            for account in accounts
-        ],
+        'accounts': [serialize_snapshot(account) for account in accounts],
     })
 
 

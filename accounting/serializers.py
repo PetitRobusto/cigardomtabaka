@@ -15,8 +15,7 @@ def serialize_snapshot(account):
     snapshot = account_snapshot(account)
     moving_average = snapshot.moving_average_cny
     return {
-        'account_id': snapshot.account_id,
-        'currency': snapshot.currency,
+        **serialize_account(account),
         'original_balance': format(snapshot.original_balance, 'f'),
         'cny_book_cost': format(snapshot.cny_book_cost, 'f'),
         'moving_average_cny': None if moving_average is None else format(moving_average, 'f'),
@@ -27,10 +26,10 @@ def serialize_transaction(ledger_transaction):
     postings = list(ledger_transaction.postings.all())
     return {
         'id': ledger_transaction.pk,
-        'type': ledger_transaction.transaction_type,
+        'transaction_type': ledger_transaction.transaction_type,
         'status': ledger_transaction.status,
-        'date': ledger_transaction.business_date.isoformat(),
-        'sequence': ledger_transaction.effective_sequence,
+        'business_date': ledger_transaction.business_date.isoformat(),
+        'effective_sequence': ledger_transaction.effective_sequence,
         'description': ledger_transaction.description,
         'operator_id': ledger_transaction.operator_id,
         'postings': [

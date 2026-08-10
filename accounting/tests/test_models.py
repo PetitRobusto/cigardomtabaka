@@ -187,6 +187,7 @@ class AccountingAdminTest(TestCase):
 
                 self.assertFalse(model_admin.has_add_permission(self.request))
                 self.assertFalse(model_admin.has_delete_permission(self.request))
+                self.assertEqual(model_admin.get_actions(self.request), {})
                 self.assertTrue(model_admin.has_change_permission(self.request))
                 self.assertTrue(
                     set(field.name for field in model._meta.fields).issubset(

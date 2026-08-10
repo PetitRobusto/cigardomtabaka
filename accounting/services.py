@@ -78,7 +78,11 @@ def _resolve_accounts(postings):
     for posting in postings:
         if posting.account is None:
             continue
-        if not isinstance(posting.account, FundAccount) or not posting.account.pk:
+        if (
+            not isinstance(posting.account, FundAccount)
+            or not posting.account.pk
+            or posting.account._state.adding
+        ):
             raise LedgerError('账户必须是已保存的资金账户')
         account_ids.add(posting.account.pk)
 
@@ -183,11 +187,11 @@ def _existing_transaction(idempotency_key, transaction_type):
 def _post_transaction_once(*, transaction_type, business_date, postings, operator,
                            idempotency_key, description='', source_type='', source_id=''):
     _validate_metadata(transaction_type, business_date, idempotency_key)
+    persisted_operator = _require_operator(operator)
     existing = _existing_transaction(idempotency_key, transaction_type)
     if existing is not None:
         return existing
 
-    persisted_operator = _require_operator(operator)
     try:
         raw_postings = tuple(postings)
     except TypeError:

@@ -59,6 +59,12 @@ class Migration(migrations.Migration):
                 'verbose_name': '账务交易',
                 'verbose_name_plural': '账务交易',
                 'ordering': ['business_date', 'effective_sequence', 'id'],
+                'constraints': [
+                    models.CheckConstraint(
+                        condition=models.Q(idempotency_key__isnull=True) | ~models.Q(idempotency_key=''),
+                        name='accounting_transaction_idempotency_key_not_empty',
+                    ),
+                ],
             },
         ),
         migrations.CreateModel(

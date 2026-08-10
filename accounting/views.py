@@ -10,7 +10,12 @@ from django.views.decorators.csrf import csrf_exempt
 from accounting.decorators import staff_json_required
 from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
 from accounting.serializers import serialize_account, serialize_snapshot, serialize_transaction
-from accounting.services import LedgerError, exchange_to_rub, record_opening_balance, transfer_same_currency
+from accounting.services import (
+    LedgerError,
+    _exchange_to_rub_with_result,
+    _record_opening_balance_with_result,
+    _transfer_same_currency_with_result,
+)
 from cigars.models import User
 
 
@@ -159,8 +164,7 @@ def opening_balances(request):
         payload = _json_object(request)
         key = _idempotency_key(request)
         account = FundAccount.objects.get(pk=_required_id(payload, 'account_id'))
-        transaction_exists = LedgerTransaction.objects.filter(idempotency_key=key).exists()
-        ledger_transaction = record_opening_balance(
+        result = _record_opening_balance_with_result(
             account=account,
             original_amount=_required_decimal_string(payload, 'original_amount'),
             cny_book_cost=_required_decimal_string(payload, 'cny_book_cost'),
@@ -169,7 +173,7 @@ def opening_balances(request):
             operator=request.accounting_operator,
             idempotency_key=key,
         )
-        return _transaction_response(ledger_transaction, status=200 if transaction_exists else 201)
+        return _transaction_response(result.transaction, status=201 if result.created else 200)
     except (ApiInputError, LedgerError, FundAccount.DoesNotExist, InvalidOperation, ValueError) as error:
         return JsonResponse({'error': str(error)}, status=400)
 
@@ -182,8 +186,7 @@ def exchanges(request):
     try:
         payload = _json_object(request)
         key = _idempotency_key(request)
-        transaction_exists = LedgerTransaction.objects.filter(idempotency_key=key).exists()
-        ledger_transaction = exchange_to_rub(
+        result = _exchange_to_rub_with_result(
             source_account=FundAccount.objects.get(pk=_required_id(payload, 'source_account_id')),
             rub_account=FundAccount.objects.get(pk=_required_id(payload, 'rub_account_id')),
             source_amount=_required_decimal_string(payload, 'source_amount'),
@@ -193,7 +196,7 @@ def exchanges(request):
             idempotency_key=key,
             description=_description(payload),
         )
-        return _transaction_response(ledger_transaction, status=200 if transaction_exists else 201)
+        return _transaction_response(result.transaction, status=201 if result.created else 200)
     except (ApiInputError, LedgerError, FundAccount.DoesNotExist, InvalidOperation, ValueError) as error:
         return JsonResponse({'error': str(error)}, status=400)
 
@@ -206,8 +209,7 @@ def transfers(request):
     try:
         payload = _json_object(request)
         key = _idempotency_key(request)
-        transaction_exists = LedgerTransaction.objects.filter(idempotency_key=key).exists()
-        ledger_transaction = transfer_same_currency(
+        result = _transfer_same_currency_with_result(
             source_account=FundAccount.objects.get(pk=_required_id(payload, 'source_account_id')),
             target_account=FundAccount.objects.get(pk=_required_id(payload, 'target_account_id')),
             amount=_required_decimal_string(payload, 'amount'),
@@ -216,7 +218,7 @@ def transfers(request):
             idempotency_key=key,
             description=_description(payload),
         )
-        return _transaction_response(ledger_transaction, status=200 if transaction_exists else 201)
+        return _transaction_response(result.transaction, status=201 if result.created else 200)
     except (ApiInputError, LedgerError, FundAccount.DoesNotExist, InvalidOperation, ValueError) as error:
         return JsonResponse({'error': str(error)}, status=400)
 

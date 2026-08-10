@@ -56,6 +56,7 @@ urlpatterns = [
     path('api/agent/orders/cancel/', agent_api.cancel_sales_order_command, name='agent_cancel_sales_order'),
     path('api/agent/stock/adjust/', agent_api.adjust_stock_command, name='agent_adjust_stock'),
     path('api/agent/reports/basic/', agent_api.business_report, name='agent_business_report'),
+    path('api/accounting/', include('accounting.urls')),
     path('api/prices/', include('price_tracker.urls')),
     # Privnote — JSON API + customer view API (frontend handled by React SPA)
     path('api/privnote/<str:token>/', api_privnote, name='api_privnote'),

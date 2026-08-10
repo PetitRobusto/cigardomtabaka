@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.test import TestCase
 
-from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
+from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
 from accounting.selectors import account_snapshot
 from accounting.services import (
     LedgerError,
@@ -70,6 +70,27 @@ class AccountingOperationTest(TestCase):
             )
         self.assertEqual(LedgerTransaction.objects.get(pk=first.pk).postings.count(), 2)
 
+    def test_opening_must_precede_all_normal_cutover_business(self):
+        first = self.opening(self.cny, '100', '100', 'cutover-first-opening')
+        exchange_to_rub(
+            self.cny, self.rub, '100', '1200', self.business_date, self.operator, 'cutover-normal-business',
+        )
+        duplicate = self.opening(self.cny, '0', '0', 'cutover-first-opening')
+        unused = self.account('late opening account', 'USDT', 'late-opening-account')
+        transaction_count = LedgerTransaction.objects.count()
+        posting_count = LedgerPosting.objects.count()
+        sequence = LedgerSequence.objects.get(name='global')
+        next_value = sequence.next_value
+
+        self.assertEqual(duplicate.pk, first.pk)
+        with self.assertRaises(LedgerError):
+            self.opening(unused, '1', '1', 'late-opening')
+
+        sequence.refresh_from_db()
+        self.assertEqual(LedgerTransaction.objects.count(), transaction_count)
+        self.assertEqual(LedgerPosting.objects.count(), posting_count)
+        self.assertEqual(sequence.next_value, next_value)
+
     def test_foreign_opening_requires_positive_amount_nonnegative_cost_and_unused_account(self):
         transaction = self.opening(self.rub, '12000', '0', 'rub-opening', LedgerPosting.Category.OPENING_RETAINED_EARNINGS)
         self.assertEqual(transaction.postings.get(account=self.rub).cny_amount, Decimal('0.00'))
@@ -124,6 +145,26 @@ class AccountingOperationTest(TestCase):
         self.assertEqual((self.snapshot(self.usdt).original_balance, self.snapshot(self.usdt).cny_book_cost), (Decimal('0.00000000'), Decimal('0.00')))
         self.assertEqual((self.snapshot(target).original_balance, self.snapshot(target).cny_book_cost), (Decimal('3.00000000'), Decimal('10.00')))
 
+    def test_usdt_exchange_partial_and_final_outflow_move_rounded_then_remaining_cost(self):
+        self.opening(self.usdt, '3', '10', 'usdt-exchange-opening')
+        first = exchange_to_rub(
+            self.usdt, self.rub, '1', '100', self.business_date, self.operator, 'usdt-exchange-first',
+        )
+        second = exchange_to_rub(
+            self.usdt, self.rub, '2', '200', self.business_date, self.operator, 'usdt-exchange-final',
+        )
+
+        self.assertEqual(first.postings.get(account=self.rub).cny_amount, Decimal('3.33'))
+        self.assertEqual(second.postings.get(account=self.rub).cny_amount, Decimal('6.67'))
+        self.assertEqual(
+            (self.snapshot(self.usdt).original_balance, self.snapshot(self.usdt).cny_book_cost),
+            (Decimal('0.00000000'), Decimal('0.00')),
+        )
+        self.assertEqual(
+            (self.snapshot(self.rub).original_balance, self.snapshot(self.rub).cny_book_cost),
+            (Decimal('300.00000000'), Decimal('10.00')),
+        )
+
     def test_rub_account_accumulates_cost_from_cny_and_usdt_exchanges(self):
         self.opening(self.cny, '1000', '1000', 'cny-opening-for-rub')
         self.opening(self.usdt, '2', '300', 'usdt-opening-for-rub')
@@ -167,6 +208,30 @@ class AccountingOperationTest(TestCase):
         for source, target, source_amount, rub_amount, key in cases:
             with self.subTest(key=key), self.assertRaises(LedgerError):
                 exchange_to_rub(source, target, source_amount, rub_amount, self.business_date, self.operator, key)
+        self.assert_no_ledger_residue()
+
+    def test_exchange_rejects_negative_rub_amount_without_residue(self):
+        with self.assertRaises(LedgerError):
+            exchange_to_rub(
+                self.cny, self.rub, '1', '-1', self.business_date, self.operator, 'negative-rub-amount',
+            )
+        self.assert_no_ledger_residue()
+
+    def test_exchange_and_transfer_reject_missing_account_rows_without_residue(self):
+        missing_id = 999999
+        stale = FundAccount(
+            id=missing_id,
+            name='missing account',
+            currency='CNY',
+            creation_idempotency_key='missing-account',
+        )
+        stale._state.adding = False
+
+        with self.assertRaises(LedgerError):
+            exchange_to_rub(stale, self.rub, '1', '1', self.business_date, self.operator, 'missing-exchange')
+        with self.assertRaises(LedgerError):
+            transfer_same_currency(stale, self.cny, '1', self.business_date, self.operator, 'missing-transfer')
+
         self.assert_no_ledger_residue()
 
     def test_idempotency_returns_existing_without_recomputing_cost_but_validates_metadata_and_operator(self):

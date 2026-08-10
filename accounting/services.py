@@ -346,6 +346,12 @@ def record_opening_balance(account, original_amount, cny_book_cost, equity_categ
     )
     if existing is not None:
         return existing
+    if LedgerTransaction.objects.filter(
+        status=LedgerTransaction.Status.POSTED,
+    ).exclude(
+        transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
+    ).exists():
+        raise LedgerError('日常业务开始后不能记录期初余额')
     if equity_category not in (
         LedgerPosting.Category.OPENING_CAPITAL,
         LedgerPosting.Category.OPENING_RETAINED_EARNINGS,

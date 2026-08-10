@@ -274,3 +274,57 @@ class LedgerHardeningTest(TestCase):
 
         transaction = self.post('sequence-service-increment')
         self.assertEqual(LedgerSequence.objects.get(name='global').next_value, transaction.effective_sequence + 1)
+
+    def test_transaction_bulk_upsert_cannot_modify_finalized_transaction(self):
+        posted = self.post('transaction-upsert-guard')
+        candidate = LedgerTransaction(
+            transaction_type='transfer',
+            status=LedgerTransaction.Status.DRAFT,
+            business_date=date(2026, 8, 10),
+            operator=self.operator,
+            idempotency_key=posted.idempotency_key,
+            description='tampered',
+        )
+        with self.assertRaises(ValidationError):
+            LedgerTransaction.objects.bulk_create(
+                [candidate],
+                update_conflicts=True,
+                update_fields=['status', 'description'],
+                unique_fields=['idempotency_key'],
+            )
+        posted.refresh_from_db()
+        self.assertEqual(posted.status, LedgerTransaction.Status.POSTED)
+        self.assertNotEqual(posted.description, 'tampered')
+
+    def test_account_bulk_upsert_cannot_modify_immutable_fields_even_via_base_manager(self):
+        for manager in (FundAccount.objects, FundAccount._base_manager):
+            candidate = FundAccount(
+                name=self.account.name,
+                currency='RUB',
+                creation_idempotency_key=self.account.creation_idempotency_key,
+            )
+            with self.subTest(manager=manager), self.assertRaises(ValidationError):
+                manager.bulk_create(
+                    [candidate],
+                    update_conflicts=True,
+                    update_fields=['currency'],
+                    unique_fields=['creation_idempotency_key'],
+                )
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.currency, 'CNY')
+
+    def test_account_bulk_upsert_allows_mutable_name_fields(self):
+        candidate = FundAccount(
+            name=self.account.name,
+            currency=self.account.currency,
+            creation_idempotency_key=self.account.creation_idempotency_key,
+            is_active=False,
+        )
+        FundAccount.objects.bulk_create(
+            [candidate],
+            update_conflicts=True,
+            update_fields=(field for field in ['is_active']),
+            unique_fields=['creation_idempotency_key'],
+        )
+        self.account.refresh_from_db()
+        self.assertFalse(self.account.is_active)

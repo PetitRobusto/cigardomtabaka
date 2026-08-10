@@ -26,6 +26,8 @@ class LedgerTransactionQuerySet(models.QuerySet):
 
     def bulk_create(self, objs, **kwargs):
         objs = tuple(objs)
+        if kwargs.get('update_conflicts'):
+            raise LedgerMutationError('账务流水禁止通过 UPSERT 更新')
         if any(
             not isinstance(obj.status, str) or obj.status != LedgerTransaction.Status.DRAFT
             for obj in objs
@@ -80,6 +82,15 @@ class FundAccountQuerySet(models.QuerySet):
         if self._immutable_fields & kwargs.keys():
             raise ValidationError('资金账户币种和创建幂等键不可修改')
         return super().update(**kwargs)
+
+    def bulk_create(self, objs, **kwargs):
+        objs = tuple(objs)
+        if kwargs.get('update_conflicts'):
+            update_fields = tuple(kwargs.get('update_fields') or ())
+            if self._immutable_fields & set(update_fields):
+                raise ValidationError('资金账户币种和创建幂等键不可修改')
+            kwargs = {**kwargs, 'update_fields': update_fields}
+        return super().bulk_create(objs, **kwargs)
 
     def bulk_update(self, objs, fields, **kwargs):
         objs = tuple(objs)

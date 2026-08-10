@@ -545,3 +545,20 @@ class LedgerIdempotencyConcurrencyTest(TransactionTestCase):
                     self.assertEqual(LedgerTransaction.objects.count(), 0)
                     self.assertEqual(LedgerPosting.objects.count(), 0)
                     self.assertEqual(LedgerSequence.objects.count(), 0)
+
+    def test_generic_post_retries_until_sixth_sqlite_lock_attempt(self):
+        original_validate = ledger_services._validate_historical_balances
+        attempts = 0
+
+        def lock_five_times(*args):
+            nonlocal attempts
+            original_validate(*args)
+            attempts += 1
+            if attempts <= 5:
+                raise OperationalError('database table is locked: accounting_ledgersequence')
+
+        with patch.object(ledger_services, '_validate_historical_balances', side_effect=lock_five_times):
+            transaction = self.post(key='sixth-lock-retry')
+
+        self.assertEqual(attempts, 6)
+        self.assertEqual(transaction.postings.count(), 2)

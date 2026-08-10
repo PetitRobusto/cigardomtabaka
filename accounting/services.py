@@ -269,7 +269,8 @@ def _post_transaction_once(*, transaction_type, business_date, postings, operato
     try:
         with transaction.atomic():
             sequence.next_value += 1
-            sequence.save(update_fields=['next_value'])
+            # Trusted low-level persistence boundary: ordinary ORM writes are guarded by LedgerSequence.
+            models.Model.save(sequence, update_fields=['next_value'])
             ledger_transaction = LedgerTransaction.objects.create(
                 transaction_type=transaction_type,
                 status=LedgerTransaction.Status.DRAFT,
@@ -292,6 +293,7 @@ def _post_transaction_once(*, transaction_type, business_date, postings, operato
             ledger_transaction.effective_sequence = effective_sequence
             ledger_transaction.status = LedgerTransaction.Status.POSTED
             ledger_transaction.posted_at = timezone.now()
+            # Trusted low-level persistence boundary: ordinary ORM writes are guarded by LedgerTransaction.
             models.Model.save(
                 ledger_transaction, update_fields=['effective_sequence', 'status', 'posted_at'],
             )

@@ -48,7 +48,12 @@ def _required_id(payload, field_name):
     if type(value) is int:
         parsed = value
     elif isinstance(value, str) and value.isdecimal():
-        parsed = int(value)
+        if len(value) > 19:
+            raise ApiInputError(f'{field_name}无效')
+        try:
+            parsed = int(value)
+        except ValueError:
+            raise ApiInputError(f'{field_name}无效')
     else:
         raise ApiInputError(f'{field_name}无效')
     if not 1 <= parsed <= 9223372036854775807:

@@ -92,7 +92,7 @@ class PurchaseBatchAdmin(admin.ModelAdmin):
 
 @admin.register(AdjustmentRecord)
 class AdjustmentRecordAdmin(admin.ModelAdmin):
-    list_display = ['type', 'cigar', 'quantity', 'unit_cost_cny', 'operator', 'created_at']
+    list_display = ['type', 'cigar', 'quantity', 'unit_cost_cny', 'cost_cny', 'operator', 'created_at']
     list_filter = ['type']
 
 

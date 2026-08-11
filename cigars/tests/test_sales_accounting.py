@@ -144,6 +144,29 @@ class SalesAccountingModelTest(TestCase):
         self.assertEqual(batch.remaining_cost_cny, Decimal('100.00'))
         self.assertEqual(batch.sold_cost_cny, Decimal('0.00'))
 
+    def test_purchase_batch_database_constraints_reject_invalid_inventory_facts(self):
+        supplier = Supplier.objects.create(name='约束供应商')
+        purchase_order = PurchaseOrder.objects.create(
+            supplier=supplier, rub_total=Decimal('1.00'), exchange_rate=Decimal('1.0000'),
+            cny_total=Decimal('100.00'), operator=self.operator,
+        )
+        purchase_item = PurchaseOrderItem.objects.create(
+            purchase_order=purchase_order, cigar=self.cigar, quantity=10, box_size=10,
+            unit_price_rub=Decimal('1.00'), unit_price_cny=Decimal('10.00'),
+        )
+        batch = PurchaseBatch.objects.create(
+            purchase_order_item=purchase_item, cigar=self.cigar, quantity=10, remaining=6,
+            physical_remaining=8, unit_cost_cny=Decimal('10.00'),
+            remaining_cost_cny=Decimal('80.00'), sold_cost_cny=Decimal('20.00'),
+        )
+        for changes in (
+            {'quantity': -1}, {'remaining': -1}, {'physical_remaining': -1},
+            {'remaining': 9}, {'physical_remaining': 11},
+            {'remaining_cost_cny': Decimal('-0.01')}, {'sold_cost_cny': Decimal('-0.01')},
+        ):
+            with self.subTest(changes=changes):
+                with self.assertRaises(IntegrityError), transaction.atomic():
+                    PurchaseBatch.objects.filter(pk=batch.pk).update(**changes)
     def test_sales_facts_are_one_to_one_and_protect_their_accounting_references(self):
         order = self.order()
         shipment = SalesShipment.objects.create(
@@ -307,6 +330,55 @@ class PurchaseBatchInventoryMigrationFixture:
         )
         self.batch_id = batch.pk
 
+
+class SalesAccountingConstraintTest(SalesAccountingModelTest):
+    def test_sales_database_constraints_reject_invalid_row_local_facts(self):
+        def assert_rejected(model, pk, changes):
+            with self.subTest(model=model.__name__, changes=changes):
+                with self.assertRaises(IntegrityError), transaction.atomic():
+                    model.objects.filter(pk=pk).update(**changes)
+
+        order = self.order()
+        for changes in (
+            {'goods_amount_cny': Decimal('-0.01')},
+            {'customer_transport_fee_cny': Decimal('-0.01')},
+            {'amount_due_cny': Decimal('-0.01')},
+            {'fifo_cost_cny': Decimal('-0.01')},
+            {'actual_transport_cost_cny': Decimal('-0.01')},
+        ):
+            assert_rejected(SalesOrder, order.pk, changes)
+        SalesOrder.objects.filter(pk=order.pk).update(contribution_profit_cny=Decimal('-0.01'))
+
+        item = SalesOrderItem.objects.create(
+            sales_order=self.order(), cigar=self.cigar, quantity=1,
+            unit_price=Decimal('1.00'), unit_cost=Decimal('1.00'), revenue=Decimal('1.00'),
+            cost=Decimal('1.00'), profit=Decimal('0.00'),
+        )
+        self.assertEqual(item.sale_unit, '')
+        self.assertIsNone(item.sale_quantity)
+        self.assertIsNone(item.box_size)
+        for changes in ({'quantity': 0}, {'sale_quantity': 0}, {'box_size': 0}):
+            assert_rejected(SalesOrderItem, item.pk, changes)
+
+        shipment = SalesShipment.objects.create(
+            sales_order=self.order(), business_date=date(2026, 8, 11), fifo_cost_cny=Decimal('1.00'),
+            ledger_transaction=self.ledger_transaction('sales_shipment', 'constraint-shipment'), operator=self.operator,
+        )
+        assert_rejected(SalesShipment, shipment.pk, {'fifo_cost_cny': Decimal('-0.01')})
+
+        receipt = SalesReceipt.objects.create(
+            sales_order=self.order(), amount_cny=Decimal('1.00'), fund_account=self.cny_account,
+            business_date=date(2026, 8, 11),
+            ledger_transaction=self.ledger_transaction('sales_receipt', 'constraint-receipt'), operator=self.operator,
+        )
+        assert_rejected(SalesReceipt, receipt.pk, {'amount_cny': Decimal('0.00')})
+
+        transport = SalesTransportCost.objects.create(
+            sales_order=self.order(), actual_cost_cny=Decimal('1.00'), fund_account=self.cny_account,
+            business_date=date(2026, 8, 11),
+            ledger_transaction=self.ledger_transaction('sales_transport_cost', 'constraint-transport'), operator=self.operator,
+        )
+        assert_rejected(SalesTransportCost, transport.pk, {'actual_cost_cny': Decimal('-0.01')})
 
 class PurchaseBatchInventoryMigrationTest(
     PurchaseBatchInventoryMigrationFixture, TransactionTestCase

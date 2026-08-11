@@ -327,6 +327,10 @@ class PurchaseBatch(models.Model):
         Cigar, on_delete=models.PROTECT, verbose_name='雪茄'
     )
     quantity = models.IntegerField('原始数量')
+    original_cost_cny = models.DecimalField('原始入库人民币成本', max_digits=22, decimal_places=2, default=0)
+    positive_adjustment_quantity = models.IntegerField('正向调整数量', default=0)
+    positive_adjustment_cost_cny = models.DecimalField('正向调整人民币成本', max_digits=22, decimal_places=2, default=0)
+    adjustment_cost_cny = models.DecimalField('累计损耗人民币成本', max_digits=22, decimal_places=2, default=0)
     remaining = models.IntegerField('剩余数量')
     physical_remaining = models.IntegerField('物理剩余数量', default=0)
     remaining_cost_cny = models.DecimalField('剩余人民币成本池', max_digits=22, decimal_places=2, default=0)
@@ -341,9 +345,13 @@ class PurchaseBatch(models.Model):
             models.CheckConstraint(condition=models.Q(remaining__gte=0), name='purchase_batch_remaining_gte_zero'),
             models.CheckConstraint(condition=models.Q(physical_remaining__gte=0), name='purchase_batch_physical_remaining_gte_zero'),
             models.CheckConstraint(condition=models.Q(remaining__lte=models.F('physical_remaining')), name='purchase_batch_remaining_lte_physical'),
-            models.CheckConstraint(condition=models.Q(physical_remaining__lte=models.F('quantity')), name='purchase_batch_physical_lte_quantity'),
+            models.CheckConstraint(condition=models.Q(positive_adjustment_quantity__gte=0), name='purchase_batch_positive_adjustment_quantity_gte_zero'),
+            models.CheckConstraint(condition=models.Q(physical_remaining__lte=models.F('quantity') + models.F('positive_adjustment_quantity')), name='purchase_batch_physical_lte_capacity'),
+            models.CheckConstraint(condition=models.Q(original_cost_cny__gte=0), name='purchase_batch_original_cost_gte_zero'),
+            models.CheckConstraint(condition=models.Q(positive_adjustment_cost_cny__gte=0), name='purchase_batch_positive_adjustment_cost_gte_zero'),
             models.CheckConstraint(condition=models.Q(remaining_cost_cny__gte=0), name='purchase_batch_remaining_cost_gte_zero'),
             models.CheckConstraint(condition=models.Q(sold_cost_cny__gte=0), name='purchase_batch_sold_cost_gte_zero'),
+            models.CheckConstraint(condition=models.Q(adjustment_cost_cny__gte=0), name='purchase_batch_adjustment_cost_gte_zero'),
             models.CheckConstraint(condition=models.Q(unit_cost_cny__gte=0), name='purchase_batch_unit_cost_gte_zero'),
         ]
         indexes = [
@@ -716,6 +724,7 @@ class AdjustmentRecord(models.Model):
     type = models.CharField('类型', max_length=20, choices=AdjustType.choices)
     quantity = models.IntegerField('数量')
     unit_cost_cny = models.DecimalField('成本/支 (CNY)', max_digits=12, decimal_places=2)
+    cost_cny = models.DecimalField('损耗总成本 (CNY)', max_digits=22, decimal_places=2, default=0)
     operator = models.ForeignKey(
         User, on_delete=models.PROTECT, related_name='adjustments',
         verbose_name='操作人'
@@ -724,6 +733,9 @@ class AdjustmentRecord(models.Model):
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
     class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(cost_cny__gte=0), name='adjustment_record_cost_gte_zero'),
+        ]
         verbose_name = '库存修正'
         verbose_name_plural = '库存修正'
 

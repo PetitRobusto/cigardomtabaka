@@ -5,6 +5,7 @@ from django.test import Client, TestCase
 
 from cigars.models import (
     Brand,
+    AdjustmentRecord,
     Cigar,
     IdempotencyRecord,
     OrderEvent,
@@ -69,6 +70,10 @@ def create_batch(cigar, *, remaining, unit_cost, operator=None):
         quantity=remaining,
         remaining=remaining,
         physical_remaining=remaining,
+        original_cost_cny=Decimal(str(remaining)) * Decimal(str(unit_cost)),
+        positive_adjustment_quantity=0,
+        positive_adjustment_cost_cny=Decimal('0.00'),
+        adjustment_cost_cny=Decimal('0.00'),
         remaining_cost_cny=Decimal(str(remaining)) * Decimal(str(unit_cost)),
         sold_cost_cny=Decimal('0.00'),
         unit_cost_cny=Decimal(str(unit_cost)),
@@ -221,8 +226,9 @@ class OrderInventoryServiceTest(TestCase):
 
     def test_confirm_payment_moves_cost_for_multiple_allocations_and_last_unit_tail(self):
         batch = create_batch(self.cigar, remaining=3, unit_cost='3.34', operator=self.operator)
+        batch.original_cost_cny = Decimal('10.01')
         batch.remaining_cost_cny = Decimal('10.01')
-        batch.save(update_fields=['remaining_cost_cny'])
+        batch.save(update_fields=['original_cost_cny', 'remaining_cost_cny'])
         order = SalesOrder.objects.create(operator=self.operator, status='pending_payment')
         reserve_allocation(order, self.cigar, batch, 1)
         reserve_allocation(order, self.cigar, batch, 2)
@@ -234,6 +240,15 @@ class OrderInventoryServiceTest(TestCase):
         )
 
         batch.refresh_from_db()
+        self.assertEqual(batch.quantity, 3)
+        self.assertEqual(batch.original_cost_cny, Decimal('10.01'))
+        self.assertEqual(batch.positive_adjustment_quantity, 0)
+        self.assertEqual(batch.positive_adjustment_cost_cny, Decimal('0.00'))
+        self.assertEqual(batch.adjustment_cost_cny, Decimal('0.00'))
+        self.assertEqual(
+            batch.original_cost_cny + batch.positive_adjustment_cost_cny,
+            batch.remaining_cost_cny + batch.sold_cost_cny + batch.adjustment_cost_cny,
+        )
         self.assertEqual(batch.remaining, 0)
         self.assertEqual(batch.physical_remaining, 0)
         self.assertEqual(batch.remaining_cost_cny, Decimal('0.00'))
@@ -257,7 +272,16 @@ class OrderInventoryServiceTest(TestCase):
 
         batch.refresh_from_db()
         allocation.refresh_from_db()
-        self.assertEqual(batch.quantity, 8)
+        self.assertEqual(batch.quantity, 10)
+        self.assertEqual(batch.original_cost_cny, Decimal('100.00'))
+        self.assertEqual(batch.positive_adjustment_quantity, 0)
+        self.assertEqual(batch.positive_adjustment_cost_cny, Decimal('0.00'))
+        self.assertEqual(batch.adjustment_cost_cny, Decimal('20.00'))
+        self.assertEqual(AdjustmentRecord.objects.get(batch=batch).cost_cny, Decimal('20.00'))
+        self.assertEqual(
+            batch.original_cost_cny + batch.positive_adjustment_cost_cny,
+            batch.remaining_cost_cny + batch.sold_cost_cny + batch.adjustment_cost_cny,
+        )
         self.assertEqual(batch.remaining, 5)
         self.assertEqual(batch.physical_remaining, 8)
         self.assertEqual(batch.remaining_cost_cny, Decimal('80.00'))
@@ -280,16 +304,30 @@ class OrderInventoryServiceTest(TestCase):
         second_batch.refresh_from_db()
         self.assertEqual(
             (first_batch.quantity, first_batch.remaining, first_batch.physical_remaining),
-            (0, 0, 0),
+            (2, 0, 0),
         )
         self.assertEqual(first_batch.remaining_cost_cny, Decimal('0.00'))
         self.assertEqual(first_batch.sold_cost_cny, Decimal('0.00'))
+        self.assertEqual(first_batch.original_cost_cny, Decimal('20.00'))
+        self.assertEqual(first_batch.adjustment_cost_cny, Decimal('20.00'))
+        self.assertEqual(AdjustmentRecord.objects.get(batch=first_batch).cost_cny, Decimal('20.00'))
+        self.assertEqual(
+            first_batch.original_cost_cny + first_batch.positive_adjustment_cost_cny,
+            first_batch.remaining_cost_cny + first_batch.sold_cost_cny + first_batch.adjustment_cost_cny,
+        )
         self.assertEqual(
             (second_batch.quantity, second_batch.remaining, second_batch.physical_remaining),
-            (1, 1, 1),
+            (3, 1, 1),
         )
         self.assertEqual(second_batch.remaining_cost_cny, Decimal('20.00'))
         self.assertEqual(second_batch.sold_cost_cny, Decimal('0.00'))
+        self.assertEqual(second_batch.original_cost_cny, Decimal('60.00'))
+        self.assertEqual(second_batch.adjustment_cost_cny, Decimal('40.00'))
+        self.assertEqual(AdjustmentRecord.objects.get(batch=second_batch).cost_cny, Decimal('40.00'))
+        self.assertEqual(
+            second_batch.original_cost_cny + second_batch.positive_adjustment_cost_cny,
+            second_batch.remaining_cost_cny + second_batch.sold_cost_cny + second_batch.adjustment_cost_cny,
+        )
 
     def test_positive_stock_adjustment_creates_batch_with_inventory_facts(self):
         batch = adjust_stock(
@@ -301,7 +339,15 @@ class OrderInventoryServiceTest(TestCase):
         )
 
         batch.refresh_from_db()
-        self.assertEqual(batch.quantity, 3)
+        self.assertEqual(batch.quantity, 0)
+        self.assertEqual(batch.original_cost_cny, Decimal('0.00'))
+        self.assertEqual(batch.positive_adjustment_quantity, 3)
+        self.assertEqual(batch.positive_adjustment_cost_cny, Decimal('37.02'))
+        self.assertEqual(batch.adjustment_cost_cny, Decimal('0.00'))
+        self.assertEqual(
+            batch.original_cost_cny + batch.positive_adjustment_cost_cny,
+            batch.remaining_cost_cny + batch.sold_cost_cny + batch.adjustment_cost_cny,
+        )
         self.assertEqual(batch.remaining, 3)
         self.assertEqual(batch.physical_remaining, 3)
         self.assertEqual(batch.unit_cost_cny, Decimal('12.34'))
@@ -320,7 +366,15 @@ class OrderInventoryServiceTest(TestCase):
         )
 
         batch.refresh_from_db()
-        self.assertEqual(batch.quantity, 7)
+        self.assertEqual(batch.quantity, 5)
+        self.assertEqual(batch.original_cost_cny, Decimal('100.00'))
+        self.assertEqual(batch.positive_adjustment_quantity, 2)
+        self.assertEqual(batch.positive_adjustment_cost_cny, Decimal('40.00'))
+        self.assertEqual(batch.adjustment_cost_cny, Decimal('0.00'))
+        self.assertEqual(
+            batch.original_cost_cny + batch.positive_adjustment_cost_cny,
+            batch.remaining_cost_cny + batch.sold_cost_cny + batch.adjustment_cost_cny,
+        )
         self.assertEqual(batch.remaining, 7)
         self.assertEqual(batch.physical_remaining, 7)
         self.assertEqual(batch.unit_cost_cny, Decimal('20.00'))
@@ -339,11 +393,47 @@ class OrderInventoryServiceTest(TestCase):
         )
 
         batch.refresh_from_db()
-        self.assertEqual(batch.quantity, 7)
+        self.assertEqual(batch.quantity, 10)
+        self.assertEqual(batch.original_cost_cny, Decimal('100.00'))
+        self.assertEqual(batch.positive_adjustment_quantity, 0)
+        self.assertEqual(batch.positive_adjustment_cost_cny, Decimal('0.00'))
+        self.assertEqual(batch.adjustment_cost_cny, Decimal('30.00'))
+        self.assertEqual(AdjustmentRecord.objects.get(batch=batch).cost_cny, Decimal('30.00'))
+        self.assertEqual(
+            batch.original_cost_cny + batch.positive_adjustment_cost_cny,
+            batch.remaining_cost_cny + batch.sold_cost_cny + batch.adjustment_cost_cny,
+        )
         self.assertEqual(batch.remaining, 7)
         self.assertEqual(batch.physical_remaining, 7)
         self.assertEqual(batch.remaining_cost_cny, Decimal('70.00'))
         self.assertEqual(batch.sold_cost_cny, Decimal('0.00'))
+
+    def test_negative_adjustment_assigns_cost_pool_rounding_residue_to_loss(self):
+        batch = create_batch(self.cigar, remaining=3, unit_cost='3.34', operator=self.operator)
+        batch.original_cost_cny = Decimal('10.01')
+        batch.remaining_cost_cny = Decimal('10.01')
+        batch.save(update_fields=['original_cost_cny', 'remaining_cost_cny'])
+
+        adjust_stock(
+            cigar_id=self.cigar.id,
+            quantity_delta=-3,
+            operator=self.operator,
+            agent_context=context(command='adjust_stock', key='loss-tail-cost'),
+        )
+
+        batch.refresh_from_db()
+        record = AdjustmentRecord.objects.get(batch=batch)
+        self.assertEqual(batch.quantity, 3)
+        self.assertEqual(batch.remaining, 0)
+        self.assertEqual(batch.physical_remaining, 0)
+        self.assertEqual(batch.remaining_cost_cny, Decimal('0.00'))
+        self.assertEqual(batch.adjustment_cost_cny, Decimal('10.01'))
+        self.assertEqual(record.unit_cost_cny, Decimal('3.34'))
+        self.assertEqual(record.cost_cny, Decimal('10.01'))
+        self.assertEqual(
+            batch.original_cost_cny + batch.positive_adjustment_cost_cny,
+            batch.remaining_cost_cny + batch.sold_cost_cny + batch.adjustment_cost_cny,
+        )
 
     def test_cancel_releases_reserved_stock(self):
         batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
@@ -497,6 +587,10 @@ class PurchaseReceivingServiceTest(TestCase):
         for batch in batches:
             self.assertEqual(batch.remaining, batch.quantity)
             self.assertEqual(batch.physical_remaining, batch.quantity)
+            self.assertEqual(batch.original_cost_cny, batch.quantity * batch.unit_cost_cny)
+            self.assertEqual(batch.positive_adjustment_quantity, 0)
+            self.assertEqual(batch.positive_adjustment_cost_cny, Decimal('0.00'))
+            self.assertEqual(batch.adjustment_cost_cny, Decimal('0.00'))
             self.assertEqual(batch.remaining_cost_cny, batch.quantity * batch.unit_cost_cny)
             self.assertEqual(batch.sold_cost_cny, Decimal('0.00'))
         self.assertEqual(StockMovement.objects.filter(movement_type='receive').count(), 2)
@@ -567,17 +661,26 @@ class AgentCommandApiTest(TestCase):
     def test_idempotent_business_error_is_replayed(self):
         body = self.body(key='idem-error', quantity=11)
         first = self.post_json('/api/agent/orders/create/', body)
-        self.batch.quantity = 20
+        self.batch.positive_adjustment_quantity = 10
+        self.batch.positive_adjustment_cost_cny = Decimal('1000.00')
         self.batch.remaining = 20
         self.batch.physical_remaining = 20
         self.batch.remaining_cost_cny = Decimal('2000.00')
         self.batch.save(update_fields=[
-            'quantity', 'remaining', 'physical_remaining', 'remaining_cost_cny',
+            'positive_adjustment_quantity', 'positive_adjustment_cost_cny',
+            'remaining', 'physical_remaining', 'remaining_cost_cny',
         ])
         second = self.post_json('/api/agent/orders/create/', body)
 
         self.assertEqual(first.status_code, 400)
         self.assertEqual(second.status_code, 400)
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.quantity, 10)
+        self.assertEqual(self.batch.positive_adjustment_quantity, 10)
+        self.assertEqual(self.batch.positive_adjustment_cost_cny, Decimal('1000.00'))
+        self.assertEqual(self.batch.physical_remaining, 20)
+        self.assertEqual(self.batch.remaining, 20)
+        self.assertEqual(self.batch.remaining_cost_cny, Decimal('2000.00'))
         self.assertEqual(first.json(), second.json())
         self.assertFalse(StockAllocation.objects.exists())
         self.assertEqual(IdempotencyRecord.objects.get(key='idem-error').status_code, 400)

@@ -435,8 +435,13 @@ class AgentCommandApiTest(TestCase):
     def test_idempotent_business_error_is_replayed(self):
         body = self.body(key='idem-error', quantity=11)
         first = self.post_json('/api/agent/orders/create/', body)
+        self.batch.quantity = 20
         self.batch.remaining = 20
-        self.batch.save(update_fields=['remaining'])
+        self.batch.physical_remaining = 20
+        self.batch.remaining_cost_cny = Decimal('2000.00')
+        self.batch.save(update_fields=[
+            'quantity', 'remaining', 'physical_remaining', 'remaining_cost_cny',
+        ])
         second = self.post_json('/api/agent/orders/create/', body)
 
         self.assertEqual(first.status_code, 400)

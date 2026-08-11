@@ -2,7 +2,7 @@
 from decimal import Decimal
 
 from django.db import migrations, models
-from django.db.models import F, Q, Sum
+from django.db.models import Count, F, Q, Sum
 
 
 def _decimal(value):
@@ -60,6 +60,25 @@ def backfill_purchase_batch_cost_facts(apps, schema_editor):
         if movement.movement_type == 'ship':
             shipment_by_batch[batch_id] = shipment_by_batch.get(batch_id, 0) + movement.quantity
 
+    opening_receive_by_batch = {
+        row['purchase_batch_id']: (row['receive_count'], row['receive_quantity'] or 0)
+        for row in StockMovement.objects.filter(
+            movement_type='receive',
+            command_name='migration_stock_opening_balance',
+            purchase_batch__isnull=False,
+        ).values('purchase_batch_id').annotate(
+            receive_count=Count('pk'), receive_quantity=Sum('quantity'),
+        )
+    }
+    normal_receive_by_batch = {
+        row['purchase_batch_id']: (row['receive_count'], row['receive_quantity'] or 0)
+        for row in StockMovement.objects.filter(
+            movement_type='receive', purchase_batch__isnull=False,
+        ).exclude(command_name='migration_stock_opening_balance').values(
+            'purchase_batch_id',
+        ).annotate(receive_count=Count('pk'), receive_quantity=Sum('quantity'))
+    }
+
     adjustment_cost_by_batch = {}
     adjustment_quantity_by_batch = {}
     adjustment_updates = []
@@ -67,6 +86,8 @@ def backfill_purchase_batch_cost_facts(apps, schema_editor):
         unit_cost_cny = _decimal(adjustment.unit_cost_cny)
         cost_cny = Decimal(adjustment.quantity) * unit_cost_cny
         if adjustment.quantity < 0 or unit_cost_cny < 0 or cost_cny < 0:
+            if adjustment.batch_id is None:
+                raise RuntimeError(f'无关联批次的损耗记录 {adjustment.pk} 存在负成本，无法回填成本事实')
             raise RuntimeError(
                 f'采购批次 {adjustment.batch_id} 的损耗记录 {adjustment.pk} 存在负成本，无法回填成本事实'
             )
@@ -85,7 +106,7 @@ def backfill_purchase_batch_cost_facts(apps, schema_editor):
 
     allocation_facts_by_batch = {}
     allowed_allocation_statuses = {'reserved', 'fulfilled', 'released'}
-    for allocation in StockAllocation.objects.all().iterator():
+    for allocation in StockAllocation.objects.select_related('sales_order_item').all().iterator():
         batch_id = allocation.purchase_batch_id
         batch = batch_by_id[batch_id]
         if allocation.sales_order_item.cigar_id != batch.cigar_id:
@@ -119,13 +140,17 @@ def backfill_purchase_batch_cost_facts(apps, schema_editor):
     batch_updates = []
     for batch in batches:
         original_quantity = batch.purchase_order_item.quantity
-        opening_receive_quantity = opening_receive_by_batch.get(batch.pk, 0)
-        normal_receive_quantity = normal_receive_by_batch.get(batch.pk, 0)
-        if opening_receive_quantity and normal_receive_quantity:
+        opening_receive_count, opening_receive_quantity = opening_receive_by_batch.get(batch.pk, (0, 0))
+        normal_receive_count, normal_receive_quantity = normal_receive_by_batch.get(batch.pk, (0, 0))
+        if opening_receive_count > 1:
+            raise RuntimeError(f'采购批次 {batch.pk} 的 opening balance 入库流水条数不等于一')
+        if normal_receive_count > 1:
+            raise RuntimeError(f'采购批次 {batch.pk} 的正常入库流水条数不等于一')
+        if opening_receive_count and normal_receive_count:
             raise RuntimeError(f'采购批次 {batch.pk} 同时存在 opening balance 与正常入库流水')
-        if opening_receive_quantity:
+        if opening_receive_count:
             physical_baseline = opening_receive_quantity
-        elif normal_receive_quantity:
+        elif normal_receive_count:
             if normal_receive_quantity != original_quantity:
                 raise RuntimeError(f'采购批次 {batch.pk} 的正常入库流水数量与采购明细不一致')
             physical_baseline = normal_receive_quantity

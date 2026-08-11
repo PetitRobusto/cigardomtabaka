@@ -790,6 +790,107 @@ class PurchaseBatchCostFactsMigrationTest(TransactionTestCase):
 
         with self.assertRaisesRegex(RuntimeError, r'采购批次 \d+'):
             self.executor.migrate(self.migrate_to)
+    def test_migration_rejects_duplicate_normal_receives_even_when_total_matches_purchase(self):
+        StockMovement = self.apps.get_model('cigars', 'StockMovement')
+        batch = self.apps.get_model('cigars', 'PurchaseBatch').objects.get(pk=self.batch_id)
+        operator = batch.purchase_order_item.purchase_order.operator
+
+        StockMovement.objects.filter(purchase_batch_id=self.batch_id, movement_type='receive').delete()
+        for quantity in (5, 5):
+            StockMovement.objects.create(
+                movement_type='receive', cigar=batch.cigar, purchase_batch=batch, quantity=quantity,
+                operator=operator, command_name='legacy-receive',
+            )
+        self.addCleanup(
+            StockMovement.objects.create,
+            movement_type='receive', cigar=batch.cigar, purchase_batch=batch, quantity=10,
+            operator=operator, command_name='legacy-receive',
+        )
+        self.addCleanup(StockMovement.objects.filter(
+            purchase_batch_id=self.batch_id, movement_type='receive',
+        ).delete)
+
+        with self.assertRaisesRegex(RuntimeError, rf'采购批次 {self.batch_id}.*正常入库流水.*条数'):
+            self.executor.migrate(self.migrate_to)
+
+    def test_migration_rejects_duplicate_opening_receives(self):
+        StockMovement = self.apps.get_model('cigars', 'StockMovement')
+        AdjustmentRecord = self.apps.get_model('cigars', 'AdjustmentRecord')
+        PurchaseBatch = self.apps.get_model('cigars', 'PurchaseBatch')
+        PurchaseOrderItem = self.apps.get_model('cigars', 'PurchaseOrderItem')
+
+        StockMovement.objects.filter(purchase_batch_id=self.batch_id).delete()
+        AdjustmentRecord.objects.filter(batch_id=self.batch_id).delete()
+        PurchaseOrderItem.objects.filter(
+            pk=PurchaseBatch.objects.get(pk=self.batch_id).purchase_order_item_id,
+        ).update(quantity=25)
+        PurchaseBatch.objects.filter(pk=self.batch_id).update(
+            quantity=25, remaining=10, physical_remaining=10,
+            remaining_cost_cny=Decimal('100.00'), sold_cost_cny=Decimal('150.00'),
+        )
+        batch = PurchaseBatch.objects.get(pk=self.batch_id)
+        for quantity in (5, 5):
+            StockMovement.objects.create(
+                movement_type='receive', cigar=batch.cigar, purchase_batch=batch, quantity=quantity,
+                operator_id=batch.purchase_order_item.purchase_order.operator_id,
+                command_name='migration_stock_opening_balance',
+            )
+        self.addCleanup(PurchaseBatch.objects.filter(pk=self.batch_id).delete)
+        self.addCleanup(StockMovement.objects.filter(purchase_batch_id=self.batch_id).delete)
+
+        with self.assertRaisesRegex(RuntimeError, rf'采购批次 {self.batch_id}.*opening balance.*条数'):
+            self.executor.migrate(self.migrate_to)
+
+    def test_migration_rejects_adjustment_cigar_not_matching_batch(self):
+        AdjustmentRecord = self.apps.get_model('cigars', 'AdjustmentRecord')
+        Cigar = self.apps.get_model('cigars', 'Cigar')
+        batch = self.apps.get_model('cigars', 'PurchaseBatch').objects.get(pk=self.batch_id)
+        other_cigar = Cigar.objects.create(
+            brand='Adjustment Mismatch Brand', english_name='Adjustment Mismatch Cigar', name='损耗不一致雪茄',
+        )
+        adjustment = AdjustmentRecord.objects.create(
+            cigar=other_cigar, batch=batch, type='LOSS', quantity=1,
+            unit_cost_cny=Decimal('10.00'), operator=batch.purchase_order_item.purchase_order.operator,
+        )
+        self.addCleanup(AdjustmentRecord.objects.filter(pk=adjustment.pk).delete)
+
+        with self.assertRaisesRegex(RuntimeError, rf'采购批次 {self.batch_id}.*损耗记录 {adjustment.pk}.*雪茄与批次不一致'):
+            self.executor.migrate(self.migrate_to)
+
+    def test_migration_rejects_allocation_cigar_not_matching_batch(self):
+        Cigar = self.apps.get_model('cigars', 'Cigar')
+        SalesOrder = self.apps.get_model('cigars', 'SalesOrder')
+        SalesOrderItem = self.apps.get_model('cigars', 'SalesOrderItem')
+        StockAllocation = self.apps.get_model('cigars', 'StockAllocation')
+        batch = self.apps.get_model('cigars', 'PurchaseBatch').objects.get(pk=self.batch_id)
+        other_cigar = Cigar.objects.create(
+            brand='Allocation Mismatch Brand', english_name='Allocation Mismatch Cigar', name='分配不一致雪茄',
+        )
+        order = SalesOrder.objects.create(operator=batch.purchase_order_item.purchase_order.operator)
+        item = SalesOrderItem.objects.create(
+            sales_order=order, cigar=other_cigar, quantity=1, unit_price=Decimal('20.00'),
+            unit_cost=Decimal('10.00'), revenue=Decimal('20.00'), cost=Decimal('10.00'), profit=Decimal('10.00'),
+        )
+        allocation = StockAllocation.objects.create(
+            sales_order_item=item, purchase_batch=batch, quantity=1, status='released',
+        )
+        self.addCleanup(StockAllocation.objects.filter(pk=allocation.pk).delete)
+
+        with self.assertRaisesRegex(RuntimeError, rf'采购批次 {self.batch_id}.*库存分配 {allocation.pk}.*雪茄与批次不一致'):
+            self.executor.migrate(self.migrate_to)
+
+    def test_migration_describes_invalid_batchless_adjustment_without_none_batch(self):
+        AdjustmentRecord = self.apps.get_model('cigars', 'AdjustmentRecord')
+        batch = self.apps.get_model('cigars', 'PurchaseBatch').objects.get(pk=self.batch_id)
+        adjustment = AdjustmentRecord.objects.create(
+            cigar=batch.cigar, batch=None, type='LOSS', quantity=-1,
+            unit_cost_cny=Decimal('10.00'), operator=batch.purchase_order_item.purchase_order.operator,
+        )
+        self.addCleanup(AdjustmentRecord.objects.filter(pk=adjustment.pk).delete)
+
+        with self.assertRaisesRegex(RuntimeError, rf'无关联批次的损耗记录 {adjustment.pk}.*负成本'):
+            self.executor.migrate(self.migrate_to)
+
 
     def test_migration_rejects_ship_and_physical_quantity_mismatch(self):
         PurchaseBatch = self.apps.get_model('cigars', 'PurchaseBatch')

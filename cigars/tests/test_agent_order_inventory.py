@@ -11,6 +11,7 @@ from cigars.models import (
     PurchaseBatch,
     PurchaseOrder,
     PurchaseOrderItem,
+    SalesOrder,
     SalesOrderItem,
     StockAllocation,
     StockMovement,
@@ -82,6 +83,28 @@ def context(command='create_sales_order', key='test-key'):
         command_name=command,
         idempotency_key=key,
     )
+
+
+def reserve_allocation(order, cigar, batch, quantity):
+    item = SalesOrderItem.objects.create(
+        sales_order=order,
+        cigar=cigar,
+        quantity=quantity,
+        unit_price=Decimal('20.00'),
+        unit_cost=batch.unit_cost_cny,
+        revenue=Decimal('20.00') * quantity,
+        cost=batch.unit_cost_cny * quantity,
+        profit=(Decimal('20.00') - batch.unit_cost_cny) * quantity,
+    )
+    allocation = StockAllocation.objects.create(
+        sales_order_item=item,
+        purchase_batch=batch,
+        quantity=quantity,
+        status=StockAllocation.Status.RESERVED,
+    )
+    batch.remaining -= quantity
+    batch.save(update_fields=['remaining'])
+    return allocation
 
 
 class OrderInventoryServiceTest(TestCase):
@@ -158,6 +181,115 @@ class OrderInventoryServiceTest(TestCase):
         )
         ship = StockMovement.objects.get(movement_type='ship')
         self.assertEqual(ship.quantity, 4)
+
+    def test_confirm_payment_locks_allocations_by_batch_then_allocation_id(self):
+        first_batch = create_batch(self.cigar, remaining=1, unit_cost='10.00', operator=self.operator)
+        second_batch = create_batch(self.cigar, remaining=1, unit_cost='11.00', operator=self.operator)
+        order = SalesOrder.objects.create(operator=self.operator, status='pending_payment')
+
+        for batch in (second_batch, first_batch):
+            item = SalesOrderItem.objects.create(
+                sales_order=order,
+                cigar=self.cigar,
+                quantity=1,
+                unit_price=Decimal('20.00'),
+                unit_cost=Decimal('10.00'),
+                revenue=Decimal('20.00'),
+                cost=Decimal('10.00'),
+                profit=Decimal('10.00'),
+            )
+            StockAllocation.objects.create(
+                sales_order_item=item,
+                purchase_batch=batch,
+                quantity=1,
+                status=StockAllocation.Status.RESERVED,
+            )
+            batch.remaining = 0
+            batch.save(update_fields=['remaining'])
+
+        confirm_payment(
+            sales_order_id=order.id,
+            operator=self.operator,
+            agent_context=context(command='confirm_payment', key='batch-lock-order'),
+        )
+
+        shipment_batch_ids = list(
+            StockMovement.objects.filter(movement_type='ship').order_by('id')
+            .values_list('purchase_batch_id', flat=True)
+        )
+        self.assertEqual(shipment_batch_ids, [first_batch.id, second_batch.id])
+
+    def test_confirm_payment_moves_cost_for_multiple_allocations_and_last_unit_tail(self):
+        batch = create_batch(self.cigar, remaining=3, unit_cost='3.34', operator=self.operator)
+        batch.remaining_cost_cny = Decimal('10.01')
+        batch.save(update_fields=['remaining_cost_cny'])
+        order = SalesOrder.objects.create(operator=self.operator, status='pending_payment')
+        reserve_allocation(order, self.cigar, batch, 1)
+        reserve_allocation(order, self.cigar, batch, 2)
+
+        confirm_payment(
+            sales_order_id=order.id,
+            operator=self.operator,
+            agent_context=context(command='confirm_payment', key='tail-cost'),
+        )
+
+        batch.refresh_from_db()
+        self.assertEqual(batch.remaining, 0)
+        self.assertEqual(batch.physical_remaining, 0)
+        self.assertEqual(batch.remaining_cost_cny, Decimal('0.00'))
+        self.assertEqual(batch.sold_cost_cny, Decimal('10.01'))
+        self.assertEqual(
+            list(StockMovement.objects.filter(movement_type='ship').order_by('id').values_list('quantity', flat=True)),
+            [1, 2],
+        )
+
+    def test_negative_adjustment_preserves_active_reservation_physical_coverage(self):
+        batch = create_batch(self.cigar, remaining=10, unit_cost='10.00', operator=self.operator)
+        order = SalesOrder.objects.create(operator=self.operator, status='pending_payment')
+        allocation = reserve_allocation(order, self.cigar, batch, 3)
+
+        adjust_stock(
+            cigar_id=self.cigar.id,
+            quantity_delta=-2,
+            operator=self.operator,
+            agent_context=context(command='adjust_stock', key='loss-with-reservation'),
+        )
+
+        batch.refresh_from_db()
+        allocation.refresh_from_db()
+        self.assertEqual(batch.quantity, 8)
+        self.assertEqual(batch.remaining, 5)
+        self.assertEqual(batch.physical_remaining, 8)
+        self.assertEqual(batch.remaining_cost_cny, Decimal('80.00'))
+        self.assertEqual(batch.sold_cost_cny, Decimal('0.00'))
+        self.assertEqual(allocation.status, StockAllocation.Status.RESERVED)
+        self.assertLessEqual(batch.remaining + allocation.quantity, batch.physical_remaining)
+
+    def test_negative_adjustment_consumes_batches_fifo_with_each_cost_pool(self):
+        first_batch = create_batch(self.cigar, remaining=2, unit_cost='10.00', operator=self.operator)
+        second_batch = create_batch(self.cigar, remaining=3, unit_cost='20.00', operator=self.operator)
+
+        adjust_stock(
+            cigar_id=self.cigar.id,
+            quantity_delta=-4,
+            operator=self.operator,
+            agent_context=context(command='adjust_stock', key='loss-fifo'),
+        )
+
+        first_batch.refresh_from_db()
+        second_batch.refresh_from_db()
+        self.assertEqual(
+            (first_batch.quantity, first_batch.remaining, first_batch.physical_remaining),
+            (0, 0, 0),
+        )
+        self.assertEqual(first_batch.remaining_cost_cny, Decimal('0.00'))
+        self.assertEqual(first_batch.sold_cost_cny, Decimal('0.00'))
+        self.assertEqual(
+            (second_batch.quantity, second_batch.remaining, second_batch.physical_remaining),
+            (1, 1, 1),
+        )
+        self.assertEqual(second_batch.remaining_cost_cny, Decimal('20.00'))
+        self.assertEqual(second_batch.sold_cost_cny, Decimal('0.00'))
 
     def test_positive_stock_adjustment_creates_batch_with_inventory_facts(self):
         batch = adjust_stock(

@@ -285,6 +285,7 @@ class PurchaseBatchInventoryMigrationFixture:
         SalesOrder = self.apps.get_model('cigars', 'SalesOrder')
         SalesOrderItem = self.apps.get_model('cigars', 'SalesOrderItem')
         StockAllocation = self.apps.get_model('cigars', 'StockAllocation')
+        StockMovement = self.apps.get_model('cigars', 'StockMovement')
         self.operator = User.objects.create(username='migration-operator', is_staff=True)
         self.cigar = Cigar.objects.create(
             brand='Migration Brand',
@@ -313,6 +314,14 @@ class PurchaseBatchInventoryMigrationFixture:
             quantity=10,
             remaining=6,
             unit_cost_cny=Decimal('10.00'),
+        )
+        StockMovement.objects.create(
+            movement_type='receive',
+            cigar=self.cigar,
+            purchase_batch=batch,
+            quantity=10,
+            operator=self.operator,
+            command_name='legacy-receive',
         )
         order = SalesOrder.objects.create(operator=self.operator)
         item = SalesOrderItem.objects.create(
@@ -592,6 +601,14 @@ class PurchaseBatchCostFactsMigrationTest(TransactionTestCase):
             sold_cost_cny=Decimal('0.00'),
         )
         StockMovement.objects.create(
+            movement_type='receive',
+            cigar=cigar,
+            purchase_batch=batch,
+            quantity=10,
+            operator=operator,
+            command_name='legacy-receive',
+        )
+        StockMovement.objects.create(
             movement_type='adjustment',
             cigar=cigar,
             purchase_batch=batch,
@@ -637,6 +654,131 @@ class PurchaseBatchCostFactsMigrationTest(TransactionTestCase):
             batch.original_cost_cny + batch.positive_adjustment_cost_cny,
             batch.remaining_cost_cny + batch.sold_cost_cny + batch.adjustment_cost_cny,
         )
+
+    def test_migration_uses_opening_balance_as_physical_baseline_not_original_purchase(self):
+        StockMovement = self.apps.get_model('cigars', 'StockMovement')
+        AdjustmentRecord = self.apps.get_model('cigars', 'AdjustmentRecord')
+        PurchaseBatch = self.apps.get_model('cigars', 'PurchaseBatch')
+        PurchaseOrderItem = self.apps.get_model('cigars', 'PurchaseOrderItem')
+
+        StockMovement.objects.filter(purchase_batch_id=self.batch_id).delete()
+        AdjustmentRecord.objects.filter(batch_id=self.batch_id).delete()
+        PurchaseOrderItem.objects.filter(
+            pk=PurchaseBatch.objects.get(pk=self.batch_id).purchase_order_item_id,
+        ).update(quantity=25)
+        PurchaseBatch.objects.filter(pk=self.batch_id).update(
+            quantity=25,
+            remaining=10,
+            physical_remaining=10,
+            remaining_cost_cny=Decimal('100.00'),
+            sold_cost_cny=Decimal('150.00'),
+        )
+        batch = PurchaseBatch.objects.get(pk=self.batch_id)
+        StockMovement.objects.create(
+            movement_type='receive',
+            cigar_id=batch.cigar_id,
+            purchase_batch=batch,
+            quantity=10,
+            operator_id=batch.purchase_order_item.purchase_order.operator_id,
+            command_name='migration_stock_opening_balance',
+        )
+
+        self.executor.migrate(self.migrate_to)
+        apps = self.executor.loader.project_state(self.migrate_to).apps
+        migrated_batch = apps.get_model('cigars', 'PurchaseBatch').objects.get(pk=self.batch_id)
+
+        self.assertEqual(migrated_batch.quantity, 25)
+        self.assertEqual(migrated_batch.original_cost_cny, Decimal('250.00'))
+        self.assertEqual(migrated_batch.sold_cost_cny, Decimal('150.00'))
+
+    def test_migration_allows_fully_sold_legacy_batch_without_movements(self):
+        StockMovement = self.apps.get_model('cigars', 'StockMovement')
+        AdjustmentRecord = self.apps.get_model('cigars', 'AdjustmentRecord')
+        PurchaseBatch = self.apps.get_model('cigars', 'PurchaseBatch')
+        PurchaseOrderItem = self.apps.get_model('cigars', 'PurchaseOrderItem')
+
+        StockMovement.objects.filter(purchase_batch_id=self.batch_id).delete()
+        AdjustmentRecord.objects.filter(batch_id=self.batch_id).delete()
+        PurchaseOrderItem.objects.filter(
+            pk=PurchaseBatch.objects.get(pk=self.batch_id).purchase_order_item_id,
+        ).update(quantity=25)
+        PurchaseBatch.objects.filter(pk=self.batch_id).update(
+            quantity=25, remaining=0, physical_remaining=0,
+            remaining_cost_cny=Decimal('0.00'), sold_cost_cny=Decimal('250.00'),
+        )
+
+        self.executor.migrate(self.migrate_to)
+        apps = self.executor.loader.project_state(self.migrate_to).apps
+        batch = apps.get_model('cigars', 'PurchaseBatch').objects.get(pk=self.batch_id)
+        self.assertEqual(batch.quantity, 25)
+        self.assertEqual(batch.sold_cost_cny, Decimal('250.00'))
+
+    def test_migration_rejects_normal_receive_not_matching_purchase_quantity(self):
+        StockMovement = self.apps.get_model('cigars', 'StockMovement')
+        AdjustmentRecord = self.apps.get_model('cigars', 'AdjustmentRecord')
+        PurchaseBatch = self.apps.get_model('cigars', 'PurchaseBatch')
+        PurchaseOrderItem = self.apps.get_model('cigars', 'PurchaseOrderItem')
+
+        StockMovement.objects.filter(purchase_batch_id=self.batch_id).delete()
+        AdjustmentRecord.objects.filter(batch_id=self.batch_id).delete()
+        PurchaseOrderItem.objects.filter(
+            pk=PurchaseBatch.objects.get(pk=self.batch_id).purchase_order_item_id,
+        ).update(quantity=25)
+        PurchaseBatch.objects.filter(pk=self.batch_id).update(
+            quantity=24, remaining=24, physical_remaining=24,
+            remaining_cost_cny=Decimal('240.00'), sold_cost_cny=Decimal('10.00'),
+        )
+        batch = PurchaseBatch.objects.get(pk=self.batch_id)
+        StockMovement.objects.create(
+            movement_type='receive', cigar_id=batch.cigar_id, purchase_batch=batch, quantity=24,
+            operator_id=batch.purchase_order_item.purchase_order.operator_id, command_name='legacy-receive',
+        )
+        self.addCleanup(PurchaseBatch.objects.filter(pk=self.batch_id).delete)
+        self.addCleanup(StockMovement.objects.filter(purchase_batch_id=self.batch_id).delete)
+
+        with self.assertRaisesRegex(RuntimeError, r'采购批次 \d+.*正常入库流水数量'):
+            self.executor.migrate(self.migrate_to)
+
+    def test_migration_backfills_batchless_adjustment_and_ignores_released_allocation(self):
+        AdjustmentRecord = self.apps.get_model('cigars', 'AdjustmentRecord')
+        PurchaseBatch = self.apps.get_model('cigars', 'PurchaseBatch')
+        SalesOrder = self.apps.get_model('cigars', 'SalesOrder')
+        SalesOrderItem = self.apps.get_model('cigars', 'SalesOrderItem')
+        StockAllocation = self.apps.get_model('cigars', 'StockAllocation')
+        batch = PurchaseBatch.objects.get(pk=self.batch_id)
+        operator = batch.purchase_order_item.purchase_order.operator
+        batchless_adjustment = AdjustmentRecord.objects.create(
+            cigar=batch.cigar, batch=None, type='LOSS', quantity=1,
+            unit_cost_cny=Decimal('10.00'), operator=operator, reason='无批次历史损耗',
+        )
+        order = SalesOrder.objects.create(operator=operator)
+        item = SalesOrderItem.objects.create(
+            sales_order=order, cigar=batch.cigar, quantity=1, unit_price=Decimal('20.00'),
+            unit_cost=Decimal('10.00'), revenue=Decimal('20.00'), cost=Decimal('10.00'), profit=Decimal('10.00'),
+        )
+        StockAllocation.objects.create(
+            sales_order_item=item, purchase_batch=batch, quantity=1, status='released',
+        )
+
+        self.executor.migrate(self.migrate_to)
+        apps = self.executor.loader.project_state(self.migrate_to).apps
+        adjustment = apps.get_model('cigars', 'AdjustmentRecord').objects.get(pk=batchless_adjustment.pk)
+        self.assertEqual(adjustment.cost_cny, Decimal('10.00'))
+
+    def test_migration_rejects_movement_cigar_not_matching_batch(self):
+        StockMovement = self.apps.get_model('cigars', 'StockMovement')
+        Cigar = self.apps.get_model('cigars', 'Cigar')
+        other_cigar = Cigar.objects.create(
+            brand='Mismatch Brand', english_name='Mismatch Cigar', name='不一致雪茄',
+        )
+        movement = StockMovement.objects.get(
+            purchase_batch_id=self.batch_id, movement_type='receive',
+        )
+        StockMovement.objects.filter(pk=movement.pk).update(cigar_id=other_cigar.pk)
+        self.addCleanup(StockMovement.objects.filter(pk=movement.pk).update, cigar_id=movement.cigar_id)
+
+        with self.assertRaisesRegex(RuntimeError, rf'采购批次 {self.batch_id}.*库存流水 {movement.pk}.*雪茄与批次不一致'):
+            self.executor.migrate(self.migrate_to)
 
     def test_migration_rejects_unmatched_negative_adjustment_movement(self):
         StockMovement = self.apps.get_model('cigars', 'StockMovement')

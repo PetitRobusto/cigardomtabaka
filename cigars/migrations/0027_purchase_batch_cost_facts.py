@@ -2,7 +2,7 @@
 from decimal import Decimal
 
 from django.db import migrations, models
-from django.db.models import F, Q
+from django.db.models import F, Q, Sum
 
 
 def _decimal(value):
@@ -14,6 +14,12 @@ def backfill_purchase_batch_cost_facts(apps, schema_editor):
     StockMovement = apps.get_model('cigars', 'StockMovement')
     StockAllocation = apps.get_model('cigars', 'StockAllocation')
     AdjustmentRecord = apps.get_model('cigars', 'AdjustmentRecord')
+    opening_receive_by_batch = {}
+    normal_receive_by_batch = {}
+    batches = list(PurchaseBatch.objects.select_related('purchase_order_item').all())
+    batch_by_id = {batch.pk: batch for batch in batches}
+
+
 
     positive_adjustments_by_batch = {}
     for movement in StockMovement.objects.filter(
@@ -37,17 +43,26 @@ def backfill_purchase_batch_cost_facts(apps, schema_editor):
     }
     for movement in StockMovement.objects.filter(purchase_batch__isnull=False).iterator():
         batch_id = movement.purchase_batch_id
+        batch = batch_by_id[batch_id]
+        if movement.cigar_id != batch.cigar_id:
+            raise RuntimeError(f'采购批次 {batch_id} 的库存流水 {movement.pk} 雪茄与批次不一致')
         if movement.movement_type not in allowed_movement_types:
             raise RuntimeError(f'采购批次 {batch_id} 存在未知库存流水类型')
         if movement.quantity == 0:
             raise RuntimeError(f'采购批次 {batch_id} 存在零数量库存流水')
         if movement.quantity < 0 and movement.movement_type != 'adjustment':
             raise RuntimeError(f'采购批次 {batch_id} 存在非法负数量库存流水')
+        if movement.movement_type == 'receive':
+            receives = opening_receive_by_batch if (
+                movement.command_name == 'migration_stock_opening_balance'
+            ) else normal_receive_by_batch
+            receives[batch_id] = receives.get(batch_id, 0) + movement.quantity
         if movement.movement_type == 'ship':
             shipment_by_batch[batch_id] = shipment_by_batch.get(batch_id, 0) + movement.quantity
 
     adjustment_cost_by_batch = {}
     adjustment_quantity_by_batch = {}
+    adjustment_updates = []
     for adjustment in AdjustmentRecord.objects.all().iterator():
         unit_cost_cny = _decimal(adjustment.unit_cost_cny)
         cost_cny = Decimal(adjustment.quantity) * unit_cost_cny
@@ -55,7 +70,11 @@ def backfill_purchase_batch_cost_facts(apps, schema_editor):
             raise RuntimeError(
                 f'采购批次 {adjustment.batch_id} 的损耗记录 {adjustment.pk} 存在负成本，无法回填成本事实'
             )
-        AdjustmentRecord.objects.filter(pk=adjustment.pk).update(cost_cny=cost_cny)
+        if adjustment.batch_id is not None and adjustment.cigar_id != batch_by_id[adjustment.batch_id].cigar_id:
+            raise RuntimeError(f'采购批次 {adjustment.batch_id} 的损耗记录 {adjustment.pk} 雪茄与批次不一致')
+
+        adjustment.cost_cny = cost_cny
+        adjustment_updates.append(adjustment)
         if adjustment.batch_id is not None:
             adjustment_cost_by_batch[adjustment.batch_id] = (
                 adjustment_cost_by_batch.get(adjustment.batch_id, Decimal('0')) + cost_cny
@@ -68,6 +87,9 @@ def backfill_purchase_batch_cost_facts(apps, schema_editor):
     allowed_allocation_statuses = {'reserved', 'fulfilled', 'released'}
     for allocation in StockAllocation.objects.all().iterator():
         batch_id = allocation.purchase_batch_id
+        batch = batch_by_id[batch_id]
+        if allocation.sales_order_item.cigar_id != batch.cigar_id:
+            raise RuntimeError(f'采购批次 {batch_id} 的库存分配 {allocation.pk} 雪茄与批次不一致')
         if allocation.status not in allowed_allocation_statuses:
             raise RuntimeError(f'采购批次 {batch_id} 存在未知库存分配状态')
         if allocation.quantity <= 0:
@@ -82,8 +104,34 @@ def backfill_purchase_batch_cost_facts(apps, schema_editor):
         elif allocation.status == 'fulfilled':
             facts['fulfilled'] += allocation.quantity
 
-    for batch in PurchaseBatch.objects.select_related('purchase_order_item').all().iterator():
+    allocation_facts_by_batch = {}
+    for row in StockAllocation.objects.filter(status__in={'reserved', 'fulfilled'}).values(
+        'purchase_batch_id', 'status',
+    ).annotate(quantity=Sum('quantity')):
+        facts = allocation_facts_by_batch.setdefault(
+            row['purchase_batch_id'],
+            {'reserved': 0, 'fulfilled': 0},
+        )
+        facts[row['status']] = row['quantity'] or 0
+
+    # 逐条扫描只用于状态、数量和归属校验；汇总交给数据库按批次完成。
+
+    batch_updates = []
+    for batch in batches:
         original_quantity = batch.purchase_order_item.quantity
+        opening_receive_quantity = opening_receive_by_batch.get(batch.pk, 0)
+        normal_receive_quantity = normal_receive_by_batch.get(batch.pk, 0)
+        if opening_receive_quantity and normal_receive_quantity:
+            raise RuntimeError(f'采购批次 {batch.pk} 同时存在 opening balance 与正常入库流水')
+        if opening_receive_quantity:
+            physical_baseline = opening_receive_quantity
+        elif normal_receive_quantity:
+            if normal_receive_quantity != original_quantity:
+                raise RuntimeError(f'采购批次 {batch.pk} 的正常入库流水数量与采购明细不一致')
+            physical_baseline = normal_receive_quantity
+        else:
+            physical_baseline = 0
+
         positive_adjustment_quantity = positive_adjustments_by_batch.get(batch.pk, 0)
         negative_adjustment_quantity = negative_adjustments_by_batch.get(batch.pk, 0)
         adjustment_record_quantity = adjustment_quantity_by_batch.get(batch.pk, 0)
@@ -101,7 +149,7 @@ def backfill_purchase_batch_cost_facts(apps, schema_editor):
         remaining_cost_cny = _decimal(batch.remaining_cost_cny)
         sold_cost_cny = _decimal(batch.sold_cost_cny)
         expected_physical_remaining = (
-            original_quantity
+            physical_baseline
             + positive_adjustment_quantity
             - negative_adjustment_quantity
             - shipped_quantity
@@ -130,20 +178,31 @@ def backfill_purchase_batch_cost_facts(apps, schema_editor):
         if batch.remaining + reserved_quantity != batch.physical_remaining:
             raise RuntimeError(f'采购批次 {batch.pk} 的可用库存与预留数量不等于物理库存')
 
-        if not (0 <= batch.remaining <= batch.physical_remaining <= original_quantity + positive_adjustment_quantity):
+        if not (0 <= batch.remaining <= batch.physical_remaining <= physical_baseline + positive_adjustment_quantity):
             raise RuntimeError(f'采购批次 {batch.pk} 的库存数量不守恒，无法回填成本事实')
         if original_cost_cny + positive_adjustment_cost_cny != (
             remaining_cost_cny + sold_cost_cny + adjustment_cost_cny
         ):
             raise RuntimeError(f'采购批次 {batch.pk} 的成本不守恒，无法回填成本事实')
 
-        PurchaseBatch.objects.filter(pk=batch.pk).update(
-            quantity=original_quantity,
-            positive_adjustment_quantity=positive_adjustment_quantity,
-            original_cost_cny=original_cost_cny,
-            positive_adjustment_cost_cny=positive_adjustment_cost_cny,
-            adjustment_cost_cny=adjustment_cost_cny,
-        )
+        batch.quantity = original_quantity
+        batch.positive_adjustment_quantity = positive_adjustment_quantity
+        batch.original_cost_cny = original_cost_cny
+        batch.positive_adjustment_cost_cny = positive_adjustment_cost_cny
+        batch.adjustment_cost_cny = adjustment_cost_cny
+        batch_updates.append(batch)
+
+    # 迁移库约千级记录：先完成所有校验，再用两次批量写避免 N+1 update。
+    AdjustmentRecord.objects.bulk_update(adjustment_updates, ['cost_cny'], batch_size=500)
+    PurchaseBatch.objects.bulk_update(
+        batch_updates,
+        [
+            'quantity', 'positive_adjustment_quantity', 'original_cost_cny',
+            'positive_adjustment_cost_cny', 'adjustment_cost_cny',
+        ],
+        batch_size=500,
+    )
+
 
 
 class Migration(migrations.Migration):

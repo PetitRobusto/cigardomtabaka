@@ -43,10 +43,7 @@ class ReadOnlyLedgerAdmin(StaffAccountingAdmin):
 @admin.register(FundAccount)
 class FundAccountAdmin(StaffAccountingAdmin):
     list_display = ('name', 'currency', 'custodian', 'is_active', 'original_balance', 'cny_book_cost')
-    readonly_fields = (
-        'currency',
-        'creation_idempotency_key',
-        'created_at',
+    readonly_fields = tuple(field.name for field in FundAccount._meta.fields) + (
         'original_balance',
         'cny_book_cost',
     )

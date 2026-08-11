@@ -8,6 +8,13 @@ def backfill_purchase_batch_inventory_facts(apps, schema_editor):
     PurchaseBatch = apps.get_model('cigars', 'PurchaseBatch')
     StockAllocation = apps.get_model('cigars', 'StockAllocation')
     reserved_by_batch = {}
+    for allocation in StockAllocation.objects.filter(
+        status='reserved', quantity__lt=0
+    ).iterator():
+        raise RuntimeError(
+            f'库存分配 {allocation.pk} 存在负预留数量，无法回填库存事实'
+        )
+
     for row in StockAllocation.objects.filter(status='reserved').values('purchase_batch_id').annotate(
         reserved_quantity=Sum('quantity')
     ):

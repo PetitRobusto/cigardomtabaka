@@ -370,6 +370,54 @@ class InconsistentReservedAllocationMigrationTest(
         super().tearDown()
 
 
+class OffsetNegativeReservedAllocationMigrationTest(
+    PurchaseBatchInventoryMigrationFixture, TransactionTestCase
+):
+    def setUp(self):
+        super().setUp()
+        self.set_up_legacy_inventory()
+        SalesOrder = self.apps.get_model('cigars', 'SalesOrder')
+        SalesOrderItem = self.apps.get_model('cigars', 'SalesOrderItem')
+        StockAllocation = self.apps.get_model('cigars', 'StockAllocation')
+        PurchaseBatch = self.apps.get_model('cigars', 'PurchaseBatch')
+        purchase_batch = PurchaseBatch.objects.get(pk=self.batch_id)
+        order = SalesOrder.objects.create(operator=self.operator)
+        self.offset_allocations = []
+        for quantity in (-1, 1):
+            item = SalesOrderItem.objects.create(
+                sales_order=order,
+                cigar=self.cigar,
+                quantity=1,
+                unit_price=Decimal('20.00'),
+                unit_cost=Decimal('10.00'),
+                revenue=Decimal('20.00'),
+                cost=Decimal('10.00'),
+                profit=Decimal('10.00'),
+            )
+            self.offset_allocations.append(StockAllocation.objects.create(
+                sales_order_item=item,
+                purchase_batch=purchase_batch,
+                quantity=quantity,
+                status='reserved',
+            ))
+
+    def test_migration_rejects_negative_allocation_hidden_by_positive_reserved_sum(self):
+        quantities = self.apps.get_model('cigars', 'StockAllocation').objects.filter(
+            purchase_batch_id=self.batch_id,
+            status='reserved',
+        ).values_list('quantity', flat=True)
+        self.assertEqual(sum(quantities), 4)
+        with self.assertRaises(RuntimeError):
+            self.executor.migrate(self.migrate_to)
+
+    def tearDown(self):
+        self.apps.get_model('cigars', 'StockAllocation').objects.filter(
+            pk__in=[allocation.pk for allocation in self.offset_allocations]
+        ).delete()
+        self.executor.migrate(self.executor.loader.graph.leaf_nodes())
+        super().tearDown()
+
+
 class NegativeLegacyStockMigrationTest(
     PurchaseBatchInventoryMigrationFixture, TransactionTestCase
 ):

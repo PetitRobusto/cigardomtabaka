@@ -1055,3 +1055,59 @@ class PurchaseBatchCostFactsModelTest(TestCase):
                     field = model._meta.get_field(field_name)
                     self.assertEqual(field.max_digits, 22)
                     self.assertEqual(field.decimal_places, 2)
+
+class PurchaseBatchPackagingModelTest(TestCase):
+    def setUp(self):
+        self.operator = User.objects.create_user('packaging-model-operator', password='pass', is_staff=True)
+        self.cigar = Cigar.objects.create(brand='Packaging Model Brand', english_name='Packaging Model Cigar', name='包装模型雪茄')
+
+    def test_create_initializes_null_packaging_as_sticks(self):
+        supplier = Supplier.objects.create(name='包装模型供应商')
+        order = PurchaseOrder.objects.create(
+            supplier=supplier, rub_total=Decimal('1.00'), exchange_rate=Decimal('1.0000'),
+            cny_total=Decimal('1000.00'), operator=self.operator,
+        )
+        item = PurchaseOrderItem.objects.create(
+            purchase_order=order, cigar=self.cigar, quantity=5, box_size=None,
+            unit_price_rub=Decimal('1.00'), unit_price_cny=Decimal('10.00'),
+        )
+        batch = PurchaseBatch.objects.create(
+            purchase_order_item=item, cigar=self.cigar, quantity=5, remaining=3, physical_remaining=4,
+            original_cost_cny=Decimal('50.00'), remaining_cost_cny=Decimal('30.00'),
+            sold_cost_cny=Decimal('20.00'), unit_cost_cny=Decimal('10.00'),
+        )
+
+        self.assertEqual(
+            (
+                batch.original_box_quantity, batch.original_stick_quantity,
+                batch.physical_box_quantity, batch.physical_stick_quantity,
+                batch.available_box_quantity, batch.available_stick_quantity,
+            ),
+            (0, 5, 0, 4, 0, 3),
+        )
+
+class PurchaseBatchPackagingMigrationTest(TransactionTestCase):
+    def test_migration_backfills_available_first_box_and_stick_facts(self):
+        executor = MigrationExecutor(connection)
+        migrate_from = [('cigars', '0027_purchase_batch_cost_facts')]
+        migrate_to = [('cigars', '0029_purchase_batch_packaging_constraints')]
+        executor.migrate(migrate_from)
+        self.addCleanup(executor.migrate, executor.loader.graph.leaf_nodes())
+        executor = MigrationExecutor(connection)
+        apps = MigrationExecutor(connection).loader.project_state(migrate_from).apps
+        User = apps.get_model('cigars', 'User')
+        Cigar = apps.get_model('cigars', 'Cigar')
+        Supplier = apps.get_model('cigars', 'Supplier')
+        PurchaseOrder = apps.get_model('cigars', 'PurchaseOrder')
+        PurchaseOrderItem = apps.get_model('cigars', 'PurchaseOrderItem')
+        PurchaseBatch = apps.get_model('cigars', 'PurchaseBatch')
+        operator = User.objects.create(username='packaging-migration-operator', is_staff=True)
+        cigar = Cigar.objects.create(brand='Packaging Migration Brand', english_name='Packaging Migration Cigar', name='包装迁移雪茄')
+        order = PurchaseOrder.objects.create(supplier=Supplier.objects.create(name='包装迁移供应商'), rub_total=Decimal('1.00'), exchange_rate=Decimal('1.0000'), cny_total=Decimal('250.00'), operator=operator)
+        item = PurchaseOrderItem.objects.create(purchase_order=order, cigar=cigar, quantity=25, box_size=25, unit_price_rub=Decimal('1.00'), unit_price_cny=Decimal('10.00'))
+        batch = PurchaseBatch.objects.create(purchase_order_item=item, cigar=cigar, quantity=25, remaining=24, physical_remaining=25, original_cost_cny=Decimal('250.00'), remaining_cost_cny=Decimal('240.00'), sold_cost_cny=Decimal('10.00'), unit_cost_cny=Decimal('10.00'))
+
+        executor.migrate(migrate_to)
+        executor = MigrationExecutor(connection)
+        migrated = executor.loader.project_state(migrate_to).apps.get_model('cigars', 'PurchaseBatch').objects.get(pk=batch.pk)
+        self.assertEqual((migrated.original_box_quantity, migrated.original_stick_quantity, migrated.physical_box_quantity, migrated.physical_stick_quantity, migrated.available_box_quantity, migrated.available_stick_quantity), (1, 0, 0, 25, 0, 24))

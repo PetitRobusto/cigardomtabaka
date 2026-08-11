@@ -8,9 +8,11 @@ from datetime import timedelta
 from django.test import TestCase, Client
 from django.utils import timezone
 from django.contrib.auth.hashers import check_password
+from django.core.exceptions import ValidationError
 
 from privnote.models import Privnote, PaymentMethod
 from cigars.models import User, Brand, Cigar, SalesOrder, SalesOrderItem, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, CigarPrice
+from accounting.models import FundAccount
 
 
 # ═══════════════════════════════════════════════════
@@ -87,6 +89,20 @@ class PaymentMethodModelTestCase(TestCase):
         )
         self.assertEqual(pm.method_type, 'bank_card')
         self.assertEqual(str(pm), '银行卡 · Сбербанк')
+
+    def test_fund_account_persistence_validation(self):
+        cny = FundAccount.objects.create(name='CNY', currency='CNY', creation_idempotency_key='pm-cny')
+        rub = FundAccount.objects.create(name='RUB', currency='RUB', creation_idempotency_key='pm-rub')
+        with self.assertRaises(ValidationError):
+            PaymentMethod.objects.create(method_type='wechat', label='rub', fund_account=rub)
+        with self.assertRaises(ValidationError):
+            PaymentMethod(method_type='wechat', label='unsaved', fund_account=FundAccount(name='RUB2', currency='RUB', creation_idempotency_key='pm-rub2')).save()
+        stale = PaymentMethod(method_type='wechat', label='stale')
+        stale.fund_account_id = 999999
+        with self.assertRaises(ValidationError):
+            stale.save()
+        PaymentMethod.objects.create(method_type='wechat', label='null')
+        PaymentMethod.objects.create(method_type='wechat', label='cny', fund_account=cny)
 
     def test_create_wechat(self):
         pm = PaymentMethod.objects.create(

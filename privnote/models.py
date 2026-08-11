@@ -2,7 +2,7 @@ from django.db import models
 from django.utils import timezone
 from datetime import timedelta
 from django.contrib.auth.hashers import make_password, check_password
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 
 
 class Privnote(models.Model):
@@ -122,5 +122,13 @@ class PaymentMethod(models.Model):
 
     def clean(self):
         super().clean()
-        if self.fund_account is not None and self.fund_account.currency != 'CNY':
+        try:
+            fund_account = self.fund_account
+        except ObjectDoesNotExist:
+            raise ValidationError({'fund_account': '对应资金账户不存在'})
+        if fund_account is not None and fund_account.currency != 'CNY':
             raise ValidationError({'fund_account': '收款方式只能绑定人民币资金账户'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)

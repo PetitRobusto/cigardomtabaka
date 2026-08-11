@@ -21,12 +21,12 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='purchasebatch',
             name='remaining_cost_cny',
-            field=models.DecimalField(decimal_places=2, default=0, max_digits=14, verbose_name='剩余人民币成本池'),
+            field=models.DecimalField(decimal_places=2, default=0, max_digits=22, verbose_name='剩余人民币成本池'),
         ),
         migrations.AddField(
             model_name='purchasebatch',
             name='sold_cost_cny',
-            field=models.DecimalField(decimal_places=2, default=0, max_digits=14, verbose_name='累计销售成本'),
+            field=models.DecimalField(decimal_places=2, default=0, max_digits=22, verbose_name='累计销售成本'),
         ),
         migrations.AddField(
             model_name='salesorder',

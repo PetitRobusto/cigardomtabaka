@@ -429,23 +429,17 @@ class SalesOrder(models.Model):
 
     @property
     def display_status(self):
-        if self.fulfillment_status == self.FulfillmentStatus.DRAFT:
-            return '草稿'
-        if self.fulfillment_status == self.FulfillmentStatus.CONFIRMED:
-            if self.payment_status == self.PaymentStatus.PAID:
-                return '已预收，待出库'
-            return '待出库'
-        if self.fulfillment_status == self.FulfillmentStatus.SHIPPED:
-            if self.payment_status == self.PaymentStatus.PAID:
-                return '已完成'
-            return '已出库，待收款'
-        if self.fulfillment_status == self.FulfillmentStatus.CANCELLED:
-            if self.payment_status in (self.PaymentStatus.PAID, self.PaymentStatus.REFUND_PENDING):
-                return '已取消，待退款'
-            if self.payment_status == self.PaymentStatus.REFUNDED:
-                return '已取消，已退款'
-            return '已取消'
-        return self.get_fulfillment_status_display()
+        statuses = {
+            (self.FulfillmentStatus.DRAFT, self.PaymentStatus.UNPAID): '草稿',
+            (self.FulfillmentStatus.CONFIRMED, self.PaymentStatus.UNPAID): '待出库',
+            (self.FulfillmentStatus.CONFIRMED, self.PaymentStatus.PAID): '已预收，待出库',
+            (self.FulfillmentStatus.SHIPPED, self.PaymentStatus.UNPAID): '已出库，待收款',
+            (self.FulfillmentStatus.SHIPPED, self.PaymentStatus.PAID): '已完成',
+            (self.FulfillmentStatus.CANCELLED, self.PaymentStatus.UNPAID): '已取消',
+            (self.FulfillmentStatus.CANCELLED, self.PaymentStatus.REFUND_PENDING): '已取消，待退款',
+            (self.FulfillmentStatus.CANCELLED, self.PaymentStatus.REFUNDED): '已取消，已退款',
+        }
+        return statuses.get((self.fulfillment_status, self.payment_status), '状态异常')
 
 class SalesOrderItem(models.Model):
     """销售明细"""

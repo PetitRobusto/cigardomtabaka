@@ -122,5 +122,5 @@ class PaymentMethod(models.Model):
 
     def clean(self):
         super().clean()
-        if self.fund_account_id and self.fund_account.currency != 'CNY':
+        if self.fund_account is not None and self.fund_account.currency != 'CNY':
             raise ValidationError({'fund_account': '收款方式只能绑定人民币资金账户'})

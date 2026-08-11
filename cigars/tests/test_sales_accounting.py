@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import connection
+from django.db import IntegrityError, transaction
+from django.db.models.deletion import ProtectedError
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase
 from django.test import TestCase
@@ -74,6 +76,21 @@ class SalesAccountingModelTest(TestCase):
 
         order.payment_status = SalesOrder.PaymentStatus.PAID
         self.assertEqual(order.display_status, '已完成')
+
+        order.fulfillment_status = SalesOrder.FulfillmentStatus.CONFIRMED
+        order.payment_status = SalesOrder.PaymentStatus.UNPAID
+        self.assertEqual(order.display_status, '待出库')
+
+        order.fulfillment_status = SalesOrder.FulfillmentStatus.CANCELLED
+        self.assertEqual(order.display_status, '已取消')
+        order.payment_status = SalesOrder.PaymentStatus.REFUND_PENDING
+        self.assertEqual(order.display_status, '已取消，待退款')
+        order.payment_status = SalesOrder.PaymentStatus.REFUNDED
+        self.assertEqual(order.display_status, '已取消，已退款')
+
+        order.fulfillment_status = SalesOrder.FulfillmentStatus.DRAFT
+        order.payment_status = SalesOrder.PaymentStatus.PAID
+        self.assertEqual(order.display_status, '状态异常')
 
     def test_new_sales_item_keeps_actual_stick_quantity_and_sale_package_snapshot(self):
         order = self.order()
@@ -156,6 +173,52 @@ class SalesAccountingModelTest(TestCase):
         self.assertEqual(shipment.sales_order.sales_shipment, shipment)
         self.assertEqual(receipt.sales_order.sales_receipt, receipt)
         self.assertEqual(transport.sales_order.sales_transport_cost, transport)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            SalesShipment.objects.create(
+                sales_order=order,
+                business_date=date(2026, 8, 11),
+                fifo_cost_cny=Decimal('50.00'),
+                ledger_transaction=self.ledger_transaction('sales_shipment', 'shipment-order-duplicate'),
+                operator=self.operator,
+            )
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            SalesShipment.objects.create(
+                sales_order=self.order(),
+                business_date=date(2026, 8, 11),
+                fifo_cost_cny=Decimal('50.00'),
+                ledger_transaction=shipment.ledger_transaction,
+                operator=self.operator,
+            )
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            SalesReceipt.objects.create(
+                sales_order=receipt.sales_order,
+                amount_cny=Decimal('120.00'),
+                fund_account=self.cny_account,
+                business_date=date(2026, 8, 11),
+                ledger_transaction=self.ledger_transaction('sales_receipt', 'receipt-order-duplicate'),
+                operator=self.operator,
+            )
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            SalesTransportCost.objects.create(
+                sales_order=transport.sales_order,
+                actual_cost_cny=Decimal('15.00'),
+                fund_account=self.cny_account,
+                business_date=date(2026, 8, 11),
+                ledger_transaction=self.ledger_transaction('sales_transport_cost', 'transport-order-duplicate'),
+                operator=self.operator,
+            )
+
+        with self.assertRaises(ProtectedError):
+            shipment.ledger_transaction.delete()
+        with self.assertRaises(ProtectedError):
+            receipt.ledger_transaction.delete()
+        with self.assertRaises(ProtectedError):
+            transport.ledger_transaction.delete()
+        with self.assertRaises(ProtectedError):
+            self.cny_account.delete()
 
     def test_payment_method_only_accepts_a_cny_fund_account(self):
         rub_account = FundAccount.objects.create(
@@ -168,40 +231,51 @@ class SalesAccountingModelTest(TestCase):
 
         method = PaymentMethod(method_type='wechat', label='人民币账户', fund_account=self.cny_account)
         method.full_clean()
+        unsaved_rub_account = FundAccount(
+            name='未保存卢布账户',
+            currency=FundAccount.Currency.RUB,
+            creation_idempotency_key='unsaved-sales-accounting-rub',
+        )
+        with self.assertRaises(ValidationError):
+            PaymentMethod(method_type='wechat', label='未保存卢布账户', fund_account=unsaved_rub_account).full_clean()
+        PaymentMethod(method_type='wechat', label='未绑定账户', fund_account=None).full_clean()
 
 
-class PurchaseBatchInventoryMigrationTest(TransactionTestCase):
-    migrate_from = [('cigars', '0022_purchase_order_status_and_habanos_supplier')]
-    migrate_to = [('cigars', '0023_purchasebatch_physical_remaining_and_more')]
+class PurchaseBatchInventoryMigrationFixture:
+    migrate_from = [('cigars', '0023_purchasebatch_physical_remaining_and_more')]
+    migrate_to = [('cigars', '0024_backfill_purchase_batch_inventory_facts')]
 
-    def setUp(self):
-        super().setUp()
+    def set_up_legacy_inventory(self):
         self.executor = MigrationExecutor(connection)
         self.executor.migrate(self.migrate_from)
         self.executor = MigrationExecutor(connection)
-        apps = self.executor.loader.project_state(self.migrate_from).apps
-        User = apps.get_model('cigars', 'User')
-        Cigar = apps.get_model('cigars', 'Cigar')
-        Supplier = apps.get_model('cigars', 'Supplier')
-        PurchaseOrder = apps.get_model('cigars', 'PurchaseOrder')
-        PurchaseOrderItem = apps.get_model('cigars', 'PurchaseOrderItem')
-        PurchaseBatch = apps.get_model('cigars', 'PurchaseBatch')
-        SalesOrder = apps.get_model('cigars', 'SalesOrder')
-        SalesOrderItem = apps.get_model('cigars', 'SalesOrderItem')
-        StockAllocation = apps.get_model('cigars', 'StockAllocation')
-        operator = User.objects.create(username='migration-operator', is_staff=True)
-        cigar = Cigar.objects.create(brand='Migration Brand', english_name='Migration Cigar', name='迁移雪茄')
+        self.apps = self.executor.loader.project_state(self.migrate_from).apps
+        User = self.apps.get_model('cigars', 'User')
+        Cigar = self.apps.get_model('cigars', 'Cigar')
+        Supplier = self.apps.get_model('cigars', 'Supplier')
+        PurchaseOrder = self.apps.get_model('cigars', 'PurchaseOrder')
+        PurchaseOrderItem = self.apps.get_model('cigars', 'PurchaseOrderItem')
+        PurchaseBatch = self.apps.get_model('cigars', 'PurchaseBatch')
+        SalesOrder = self.apps.get_model('cigars', 'SalesOrder')
+        SalesOrderItem = self.apps.get_model('cigars', 'SalesOrderItem')
+        StockAllocation = self.apps.get_model('cigars', 'StockAllocation')
+        self.operator = User.objects.create(username='migration-operator', is_staff=True)
+        self.cigar = Cigar.objects.create(
+            brand='Migration Brand',
+            english_name='Migration Cigar',
+            name='迁移雪茄',
+        )
         supplier = Supplier.objects.create(name='迁移供应商')
         purchase_order = PurchaseOrder.objects.create(
             supplier=supplier,
             rub_total=Decimal('10.00'),
             exchange_rate=Decimal('1.0000'),
             cny_total=Decimal('100.00'),
-            operator=operator,
+            operator=self.operator,
         )
         purchase_item = PurchaseOrderItem.objects.create(
             purchase_order=purchase_order,
-            cigar=cigar,
+            cigar=self.cigar,
             quantity=10,
             box_size=10,
             unit_price_rub=Decimal('1.00'),
@@ -209,15 +283,15 @@ class PurchaseBatchInventoryMigrationTest(TransactionTestCase):
         )
         batch = PurchaseBatch.objects.create(
             purchase_order_item=purchase_item,
-            cigar=cigar,
+            cigar=self.cigar,
             quantity=10,
             remaining=6,
             unit_cost_cny=Decimal('10.00'),
         )
-        order = SalesOrder.objects.create(operator=operator)
+        order = SalesOrder.objects.create(operator=self.operator)
         item = SalesOrderItem.objects.create(
             sales_order=order,
-            cigar=cigar,
+            cigar=self.cigar,
             quantity=4,
             unit_price=Decimal('20.00'),
             unit_cost=Decimal('10.00'),
@@ -233,8 +307,84 @@ class PurchaseBatchInventoryMigrationTest(TransactionTestCase):
         )
         self.batch_id = batch.pk
 
+
+class PurchaseBatchInventoryMigrationTest(
+    PurchaseBatchInventoryMigrationFixture, TransactionTestCase
+):
+    def setUp(self):
+        super().setUp()
+        self.set_up_legacy_inventory()
+
     def test_reserved_legacy_stock_backfills_physical_and_cost_pools(self):
         self.executor.migrate(self.migrate_to)
         apps = self.executor.loader.project_state(self.migrate_to).apps
         PurchaseBatch = apps.get_model('cigars', 'PurchaseBatch')
         batch = PurchaseBatch.objects.get(pk=self.batch_id)
+        self.assertEqual(batch.remaining, 6)
+        self.assertEqual(batch.physical_remaining, 10)
+        self.assertEqual(batch.remaining_cost_cny, Decimal('100.00'))
+        self.assertEqual(batch.sold_cost_cny, Decimal('0.00'))
+
+    def tearDown(self):
+        self.executor.migrate(self.executor.loader.graph.leaf_nodes())
+        super().tearDown()
+
+
+class InconsistentReservedAllocationMigrationTest(
+    PurchaseBatchInventoryMigrationFixture, TransactionTestCase
+):
+    def setUp(self):
+        super().setUp()
+        self.set_up_legacy_inventory()
+        SalesOrder = self.apps.get_model('cigars', 'SalesOrder')
+        SalesOrderItem = self.apps.get_model('cigars', 'SalesOrderItem')
+        StockAllocation = self.apps.get_model('cigars', 'StockAllocation')
+        PurchaseBatch = self.apps.get_model('cigars', 'PurchaseBatch')
+        order = SalesOrder.objects.create(operator=self.operator)
+        item = SalesOrderItem.objects.create(
+            sales_order=order,
+            cigar=self.cigar,
+            quantity=1,
+            unit_price=Decimal('20.00'),
+            unit_cost=Decimal('10.00'),
+            revenue=Decimal('20.00'),
+            cost=Decimal('10.00'),
+            profit=Decimal('10.00'),
+        )
+        self.invalid_allocation = StockAllocation.objects.create(
+            sales_order_item=item,
+            purchase_batch=PurchaseBatch.objects.get(pk=self.batch_id),
+            quantity=1,
+            status='reserved',
+        )
+
+    def test_migration_rejects_reserved_quantity_beyond_batch_quantity(self):
+        with self.assertRaises(RuntimeError):
+            self.executor.migrate(self.migrate_to)
+
+    def tearDown(self):
+        self.apps.get_model('cigars', 'StockAllocation').objects.filter(
+            pk=self.invalid_allocation.pk
+        ).delete()
+        self.executor.migrate(self.executor.loader.graph.leaf_nodes())
+        super().tearDown()
+
+
+class NegativeLegacyStockMigrationTest(
+    PurchaseBatchInventoryMigrationFixture, TransactionTestCase
+):
+    def setUp(self):
+        super().setUp()
+        self.set_up_legacy_inventory()
+        PurchaseBatch = self.apps.get_model('cigars', 'PurchaseBatch')
+        PurchaseBatch.objects.filter(pk=self.batch_id).update(remaining=-1)
+
+    def test_migration_rejects_negative_remaining_quantity(self):
+        with self.assertRaises(RuntimeError):
+            self.executor.migrate(self.migrate_to)
+
+    def tearDown(self):
+        PurchaseBatch = self.apps.get_model('cigars', 'PurchaseBatch')
+        PurchaseBatch.objects.filter(pk=self.batch_id).update(remaining=6)
+        self.executor.migrate(self.executor.loader.graph.leaf_nodes())
+        super().tearDown()

@@ -63,6 +63,13 @@ class SalesOrderWorkflowTest(TestCase):
             unit_cost_cny=Decimal(unit_cost),
         )
 
+    def test_split_box_movement_type_is_available(self):
+        self.assertIn('split_box', StockMovement.MovementType.values)
+
+    def test_split_box_service_is_available(self):
+        from cigars import services
+        self.assertTrue(callable(getattr(services, 'split_purchase_batch_box', None)))
+
     def test_create_draft_snapshots_box_price_and_does_not_touch_stock(self):
         batch = self.batch(remaining=25, unit_cost='10.00', box_size=25)
 
@@ -93,13 +100,13 @@ class SalesOrderWorkflowTest(TestCase):
         self.assertEqual(item.unit_price, Decimal('4.00'))
         self.assertEqual(item.revenue, Decimal('200.02'))
         self.assertEqual(item.cost, Decimal('0.00'))
-        self.assertEqual(item.profit, Decimal('200.02'))
+        self.assertEqual(item.profit, Decimal('0.00'))
         self.assertEqual(order.goods_amount_cny, Decimal('200.02'))
         self.assertEqual(order.customer_transport_fee_cny, Decimal('8.88'))
         self.assertEqual(order.amount_due_cny, Decimal('208.90'))
         self.assertEqual(order.total_revenue, Decimal('200.02'))
         self.assertEqual(order.total_cost, Decimal('0.00'))
-        self.assertEqual(order.total_profit, Decimal('200.02'))
+        self.assertEqual(order.total_profit, Decimal('0.00'))
         self.assertEqual(batch.remaining, 25)
         self.assertEqual(batch.physical_remaining, 25)
         self.assertEqual(batch.remaining_cost_cny, Decimal('250.00'))
@@ -314,3 +321,38 @@ class SalesOrderWorkflowTest(TestCase):
             PurchaseBatch.objects.filter(pk=batch.pk).update(available_box_quantity=2)
         with self.assertRaises(IntegrityError), transaction.atomic():
             PurchaseBatch.objects.filter(pk=batch.pk).update(physical_stick_quantity=1)
+
+    def test_split_box_conserves_shape_aggregate_cost_and_audit_context(self):
+        batch = self.batch(remaining=25, unit_cost='10.00', box_size=25)
+        before_cost = batch.remaining_cost_cny
+        from cigars.services import split_purchase_batch_box
+        split_purchase_batch_box(batch_id=batch.id, operator=self.operator,
+                                 agent_context=self.context('split-box'), note='拆盒')
+        batch.refresh_from_db()
+        self.assertEqual(
+            (batch.physical_box_quantity, batch.available_box_quantity,
+             batch.physical_stick_quantity, batch.available_stick_quantity),
+            (0, 0, 25, 25),
+        )
+        self.assertEqual((batch.remaining, batch.physical_remaining), (25, 25))
+        self.assertEqual(batch.remaining_cost_cny, before_cost)
+        movement = StockMovement.objects.get(movement_type=StockMovement.MovementType.SPLIT_BOX)
+        self.assertEqual(movement.quantity, 25)
+        self.assertEqual(movement.operator, self.operator)
+        self.assertEqual(movement.command_name, 'split-box')
+        self.assertEqual(movement.agent_name, 'workflow-test')
+        self.assertEqual(movement.note, '拆盒')
+
+    def test_stick_sale_does_not_implicitly_consume_complete_box(self):
+        batch = self.batch(remaining=25, box_size=25)
+        order = create_sales_order_draft(
+            items=[{'cigar_id': self.cigar.id, 'sale_unit': 'stick', 'quantity': 1, 'unit_price': '10.00'}],
+            operator=self.operator, agent_context=self.context('create-draft'),
+        )
+        from cigars.services import InsufficientStockError, confirm_sales_order
+        with self.assertRaises(InsufficientStockError):
+            confirm_sales_order(sales_order_id=order.id, operator=self.operator,
+                                agent_context=self.context('confirm-order'))
+        batch.refresh_from_db()
+        self.assertEqual((batch.available_box_quantity, batch.available_stick_quantity), (1, 0))
+        self.assertFalse(StockAllocation.objects.exists())

@@ -362,24 +362,6 @@ class PurchaseBatch(models.Model):
                 self.original_stick_quantity = self.quantity
                 self.physical_stick_quantity = self.physical_remaining
                 self.available_stick_quantity = self.remaining
-        update_fields = kwargs.get('update_fields')
-        if not self._state.adding and update_fields is not None:
-            update_fields = set(update_fields)
-            if 'remaining' in update_fields:
-                if self.box_size:
-                    self.available_box_quantity, self.available_stick_quantity = divmod(self.remaining, self.box_size)
-                else:
-                    self.available_box_quantity = 0
-                    self.available_stick_quantity = self.remaining
-                update_fields.update({'available_box_quantity', 'available_stick_quantity'})
-            if 'physical_remaining' in update_fields:
-                if self.box_size:
-                    self.physical_box_quantity, self.physical_stick_quantity = divmod(self.physical_remaining, self.box_size)
-                else:
-                    self.physical_box_quantity = 0
-                    self.physical_stick_quantity = self.physical_remaining
-                update_fields.update({'physical_box_quantity', 'physical_stick_quantity'})
-            kwargs['update_fields'] = update_fields
         super().save(*args, **kwargs)
 
     class Meta:
@@ -648,6 +630,7 @@ class StockMovement(models.Model):
         RELEASE_RESERVATION = 'release_reservation', '释放预留'
         SHIP = 'ship', '出库'
         ADJUSTMENT = 'adjustment', '库存修正'
+        SPLIT_BOX = 'split_box', '拆盒'
 
     movement_type = models.CharField('类型', max_length=30, choices=MovementType.choices)
     cigar = models.ForeignKey(Cigar, on_delete=models.PROTECT, verbose_name='雪茄')

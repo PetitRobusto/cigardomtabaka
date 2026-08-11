@@ -21,6 +21,7 @@ from cigars.services import (
     AgentContext,
     InsufficientStockError,
     OrderServiceError,
+    adjust_stock,
     cancel_sales_order,
     confirm_payment,
     create_purchase_order,
@@ -66,6 +67,9 @@ def create_batch(cigar, *, remaining, unit_cost, operator=None):
         cigar=cigar,
         quantity=remaining,
         remaining=remaining,
+        physical_remaining=remaining,
+        remaining_cost_cny=Decimal(str(remaining)) * Decimal(str(unit_cost)),
+        sold_cost_cny=Decimal('0.00'),
         unit_cost_cny=Decimal(str(unit_cost)),
     )
 
@@ -145,12 +149,69 @@ class OrderInventoryServiceTest(TestCase):
         batch.refresh_from_db()
         self.assertEqual(paid.status, 'paid')
         self.assertEqual(batch.remaining, 6)
+        self.assertEqual(batch.physical_remaining, 6)
+        self.assertEqual(batch.remaining_cost_cny, Decimal('600.00'))
+        self.assertEqual(batch.sold_cost_cny, Decimal('400.00'))
         self.assertEqual(
             set(paid.items.first().allocations.values_list('status', flat=True)),
             {'fulfilled'},
         )
         ship = StockMovement.objects.get(movement_type='ship')
         self.assertEqual(ship.quantity, 4)
+
+    def test_positive_stock_adjustment_creates_batch_with_inventory_facts(self):
+        batch = adjust_stock(
+            cigar_id=self.cigar.id,
+            quantity_delta=3,
+            operator=self.operator,
+            unit_cost_cny='12.34',
+            agent_context=context(command='adjust_stock', key='adjust-positive-new'),
+        )
+
+        batch.refresh_from_db()
+        self.assertEqual(batch.quantity, 3)
+        self.assertEqual(batch.remaining, 3)
+        self.assertEqual(batch.physical_remaining, 3)
+        self.assertEqual(batch.unit_cost_cny, Decimal('12.34'))
+        self.assertEqual(batch.remaining_cost_cny, Decimal('37.02'))
+        self.assertEqual(batch.sold_cost_cny, Decimal('0.00'))
+
+    def test_positive_stock_adjustment_updates_specified_batch_inventory_facts(self):
+        batch = create_batch(self.cigar, remaining=5, unit_cost='20.00', operator=self.operator)
+        adjust_stock(
+            cigar_id=self.cigar.id,
+            quantity_delta=2,
+            operator=self.operator,
+            batch_id=batch.id,
+            unit_cost_cny='999.99',
+            agent_context=context(command='adjust_stock', key='adjust-positive-existing'),
+        )
+
+        batch.refresh_from_db()
+        self.assertEqual(batch.quantity, 7)
+        self.assertEqual(batch.remaining, 7)
+        self.assertEqual(batch.physical_remaining, 7)
+        self.assertEqual(batch.unit_cost_cny, Decimal('20.00'))
+        self.assertEqual(batch.remaining_cost_cny, Decimal('140.00'))
+        self.assertEqual(batch.sold_cost_cny, Decimal('0.00'))
+
+    def test_negative_stock_adjustment_reduces_physical_stock_and_remaining_cost_only(self):
+        batch = create_batch(self.cigar, remaining=10, unit_cost='10.00', operator=self.operator)
+
+        adjust_stock(
+            cigar_id=self.cigar.id,
+            quantity_delta=-3,
+            operator=self.operator,
+            reason='盘点损耗',
+            agent_context=context(command='adjust_stock', key='adjust-negative'),
+        )
+
+        batch.refresh_from_db()
+        self.assertEqual(batch.quantity, 7)
+        self.assertEqual(batch.remaining, 7)
+        self.assertEqual(batch.physical_remaining, 7)
+        self.assertEqual(batch.remaining_cost_cny, Decimal('70.00'))
+        self.assertEqual(batch.sold_cost_cny, Decimal('0.00'))
 
     def test_cancel_releases_reserved_stock(self):
         batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)

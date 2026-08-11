@@ -18,6 +18,7 @@ from .models import (
     Customer,
     OrderEvent,
     PurchaseBatch,
+    SalesShipment,
     PurchaseOrder,
     PurchaseOrderItem,
     SalesOrder,
@@ -500,6 +501,11 @@ def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None
         raise OrderServiceError("当前订单不能取消")
     if order.payment_status not in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PAID):
         raise OrderServiceError("当前付款状态不能取消")
+    if StockAllocation.objects.filter(sales_order_item__sales_order=order, status=StockAllocation.Status.FULFILLED).exists():
+        raise OrderServiceError("已出库订单不能取消")
+    if SalesShipment.objects.filter(sales_order=order).exists():
+        raise OrderServiceError("已出库订单不能取消")
+
     now = timezone.now()
     allocations = StockAllocation.objects.select_for_update().filter(
         sales_order_item__sales_order=order, status=StockAllocation.Status.RESERVED,
@@ -721,9 +727,14 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
         total_cost += item.cost
 
     order.total_revenue = total_revenue.quantize(MONEY_PLACES)
+    order.fulfillment_status = SalesOrder.FulfillmentStatus.CONFIRMED
+    order.payment_status = SalesOrder.PaymentStatus.UNPAID
+    order.locked = True
+    order.locked_by = operator
+    order.confirmed_at = timezone.now()
     order.total_cost = total_cost.quantize(MONEY_PLACES)
     order.total_profit = (total_revenue - total_cost).quantize(MONEY_PLACES)
-    order.save(update_fields=['total_revenue', 'total_cost', 'total_profit'])
+    order.save(update_fields=['total_revenue', 'total_cost', 'total_profit', 'fulfillment_status', 'payment_status', 'locked', 'locked_by', 'confirmed_at'])
 
     _record_order_event(
         order,
@@ -843,7 +854,9 @@ def confirm_payment(*, sales_order_id, operator, agent_context=None, note=''):
     order.status = 'paid'
     if note:
         order.note = note
-    order.save(update_fields=['status', 'note'] if note else ['status'])
+    order.fulfillment_status = SalesOrder.FulfillmentStatus.SHIPPED
+    order.payment_status = SalesOrder.PaymentStatus.PAID
+    order.save(update_fields=(['status', 'fulfillment_status', 'payment_status', 'note'] if note else ['status', 'fulfillment_status', 'payment_status']))
     _record_order_event(order, operator=operator, context=context, note=note, metadata={'status': order.status})
     return order
 

@@ -132,6 +132,8 @@ class OrderInventoryServiceTest(TestCase):
         batch.refresh_from_db()
         self.assertEqual(order.status, 'pending_payment')
         self.assertEqual(batch.remaining, 6)
+        self.assertEqual(order.fulfillment_status, SalesOrder.FulfillmentStatus.CONFIRMED)
+        self.assertEqual(order.payment_status, SalesOrder.PaymentStatus.UNPAID)
         self.assertEqual(order.items.first().allocations.count(), 1)
         reserve = StockMovement.objects.get(movement_type='reserve')
         self.assertEqual(reserve.quantity, 4)
@@ -176,6 +178,8 @@ class OrderInventoryServiceTest(TestCase):
         )
 
         batch.refresh_from_db()
+        self.assertEqual(paid.fulfillment_status, SalesOrder.FulfillmentStatus.SHIPPED)
+        self.assertEqual(paid.payment_status, SalesOrder.PaymentStatus.PAID)
         self.assertEqual(paid.status, 'paid')
         self.assertEqual(batch.remaining, 6)
         self.assertEqual(batch.physical_remaining, 6)

@@ -487,6 +487,7 @@ def confirm_payment(*, sales_order_id, operator, agent_context=None, note=''):
         StockAllocation.objects.select_for_update()
         .filter(sales_order_item__sales_order=order, status=StockAllocation.Status.RESERVED)
         .select_related('purchase_batch', 'sales_order_item__cigar')
+        .order_by('purchase_batch_id', 'id')
     )
     for alloc in allocations:
         batch = PurchaseBatch.objects.select_for_update().get(id=alloc.purchase_batch_id)

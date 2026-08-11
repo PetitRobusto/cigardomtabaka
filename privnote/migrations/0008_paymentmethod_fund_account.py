@@ -8,6 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('accounting', '0004_alter_ledgerposting_category_and_more'),
+        ('cigars', '0023_purchasebatch_physical_remaining_and_more'),
         ('privnote', '0007_remove_privnote_brand'),
     ]
 

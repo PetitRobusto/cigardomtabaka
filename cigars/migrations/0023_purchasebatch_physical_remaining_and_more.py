@@ -5,30 +5,6 @@ from django.conf import settings
 from django.db import migrations, models
 
 
-from decimal import Decimal
-
-from django.db.models import Sum
-
-
-def backfill_purchase_batch_inventory_facts(apps, schema_editor):
-    PurchaseBatch = apps.get_model('cigars', 'PurchaseBatch')
-    StockAllocation = apps.get_model('cigars', 'StockAllocation')
-    reserved_by_batch = {}
-    for row in StockAllocation.objects.filter(status='reserved').values('purchase_batch_id').annotate(
-        reserved_quantity=Sum('quantity')
-    ):
-        reserved_by_batch[row['purchase_batch_id']] = row['reserved_quantity'] or 0
-
-    for batch in PurchaseBatch.objects.all().iterator():
-        physical_remaining = batch.remaining + reserved_by_batch.get(batch.pk, 0)
-        remaining_cost_cny = Decimal(physical_remaining) * batch.unit_cost_cny
-        sold_cost_cny = Decimal(max(batch.quantity - physical_remaining, 0)) * batch.unit_cost_cny
-        PurchaseBatch.objects.filter(pk=batch.pk).update(
-            physical_remaining=physical_remaining,
-            remaining_cost_cny=remaining_cost_cny,
-            sold_cost_cny=sold_cost_cny,
-        )
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -168,5 +144,4 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': '销售人肉成本',
             },
         ),
-        migrations.RunPython(backfill_purchase_batch_inventory_facts, migrations.RunPython.noop),
     ]

@@ -346,6 +346,17 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
         fulfillment_type = str(raw_item.get('fulfillment_type') or SalesOrderItem.FulfillmentType.IN_STOCK)
         if fulfillment_type not in SalesOrderItem.FulfillmentType.values:
             raise OrderServiceError(f'第{idx}个商品履约类型错误')
+        sale_unit = str(raw_item.get('sale_unit') or SalesOrderItem.SaleUnit.STICK)
+        if sale_unit not in SalesOrderItem.SaleUnit.values:
+            raise OrderServiceError(f'第{idx}个商品销售单位错误')
+        if sale_unit == SalesOrderItem.SaleUnit.BOX:
+            sale_quantity = _to_positive_int(raw_item.get('sale_quantity'), f'第{idx}个商品销售盒数')
+            box_size = _to_positive_int(raw_item.get('box_size'), f'第{idx}个商品包装支数')
+            if quantity != sale_quantity * box_size:
+                raise OrderServiceError(f'第{idx}个商品盒装数量与包装快照不一致')
+        else:
+            sale_quantity = quantity
+            box_size = None
 
         try:
             cigar = Cigar.objects.get(id=cigar_id)
@@ -363,6 +374,9 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
             cost=Decimal('0.00'),
             profit=revenue,
             fulfillment_type=fulfillment_type,
+            sale_unit=sale_unit,
+            sale_quantity=sale_quantity,
+            box_size=box_size,
         )
 
         item_cost = Decimal('0.00')
@@ -691,6 +705,9 @@ def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, n
             cigar=item.cigar,
             quantity=item.quantity,
             remaining=item.quantity,
+            physical_remaining=item.quantity,
+            remaining_cost_cny=(item.quantity * item.unit_price_cny).quantize(MONEY_PLACES),
+            sold_cost_cny=Decimal('0.00'),
             unit_cost_cny=item.unit_price_cny,
         )
         _record_movement(

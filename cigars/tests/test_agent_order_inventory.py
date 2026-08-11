@@ -103,6 +103,30 @@ class OrderInventoryServiceTest(TestCase):
         reserve = StockMovement.objects.get(movement_type='reserve')
         self.assertEqual(reserve.quantity, 4)
 
+
+    def test_sales_order_defaults_to_stick_snapshot(self):
+        create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
+        order = create_sales_order(
+            items=[{'cigar_id': self.cigar.id, 'quantity': 4, 'unit_price': 180}],
+            operator=self.operator,
+            agent_context=context(),
+        )
+        item = order.items.get()
+        self.assertEqual(item.sale_unit, SalesOrderItem.SaleUnit.STICK)
+        self.assertEqual(item.sale_quantity, 4)
+        self.assertIsNone(item.box_size)
+
+    def test_box_snapshot_requires_consistent_positive_values(self):
+        create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
+        invalid_items = [
+            {'cigar_id': self.cigar.id, 'quantity': 4, 'unit_price': 180, 'sale_unit': 'box', 'sale_quantity': 0, 'box_size': 4},
+            {'cigar_id': self.cigar.id, 'quantity': 4, 'unit_price': 180, 'sale_unit': 'box', 'sale_quantity': 1, 'box_size': 5},
+        ]
+        for raw_item in invalid_items:
+            with self.assertRaises(OrderServiceError):
+                create_sales_order(items=[raw_item], operator=self.operator, agent_context=context())
+
+
     def test_confirm_payment_ships_reserved_stock(self):
         batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
         order = create_sales_order(
@@ -277,6 +301,11 @@ class PurchaseReceivingServiceTest(TestCase):
             list(PurchaseBatch.objects.order_by('id').values_list('quantity', 'remaining')),
             [(25, 25), (10, 10)],
         )
+        for batch in batches:
+            self.assertEqual(batch.remaining, batch.quantity)
+            self.assertEqual(batch.physical_remaining, batch.quantity)
+            self.assertEqual(batch.remaining_cost_cny, batch.quantity * batch.unit_cost_cny)
+            self.assertEqual(batch.sold_cost_cny, Decimal('0.00'))
         self.assertEqual(StockMovement.objects.filter(movement_type='receive').count(), 2)
         movement = StockMovement.objects.filter(movement_type='receive').first()
         self.assertEqual(movement.operator, self.operator)

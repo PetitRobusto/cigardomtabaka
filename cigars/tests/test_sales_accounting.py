@@ -1,0 +1,240 @@
+from datetime import date
+from decimal import Decimal
+
+from django.core.exceptions import ValidationError
+from django.db import connection
+from django.db.migrations.executor import MigrationExecutor
+from django.test import TransactionTestCase
+from django.test import TestCase
+
+from accounting.models import FundAccount, LedgerTransaction
+from cigars.models import (
+    Brand,
+    Cigar,
+    PurchaseBatch,
+    PurchaseOrder,
+    PurchaseOrderItem,
+    SalesOrder,
+    SalesOrderItem,
+    SalesReceipt,
+    SalesShipment,
+    SalesTransportCost,
+    Supplier,
+    User,
+)
+from privnote.models import PaymentMethod
+
+
+class SalesAccountingModelTest(TestCase):
+    def setUp(self):
+        self.operator = User.objects.create_user('sales-accounting-operator', password='pass', is_staff=True)
+        self.brand = Brand.objects.create(english_name='Accounting Brand', name='账务品牌')
+        self.cigar = Cigar.objects.create(
+            brand=self.brand.english_name,
+            english_name='Accounting Cigar',
+            name='账务雪茄',
+        )
+        self.cny_account = FundAccount.objects.create(
+            name='销售人民币账户',
+            currency=FundAccount.Currency.CNY,
+            creation_idempotency_key='sales-accounting-cny',
+        )
+
+    def ledger_transaction(self, kind, key):
+        return LedgerTransaction.objects.create(
+            transaction_type=kind,
+            business_date=date(2026, 8, 11),
+            idempotency_key=key,
+            operator=self.operator,
+        )
+
+    def order(self, **changes):
+        values = {
+            'operator': self.operator,
+            'goods_amount_cny': Decimal('100.00'),
+            'customer_transport_fee_cny': Decimal('20.00'),
+            'amount_due_cny': Decimal('120.00'),
+        }
+        values.update(changes)
+        return SalesOrder.objects.create(**values)
+
+    def test_display_status_is_composed_from_independent_axes(self):
+        order = self.order()
+        self.assertEqual(order.fulfillment_status, SalesOrder.FulfillmentStatus.DRAFT)
+        self.assertEqual(order.payment_status, SalesOrder.PaymentStatus.UNPAID)
+        self.assertEqual(order.display_status, '草稿')
+
+        order.fulfillment_status = SalesOrder.FulfillmentStatus.CONFIRMED
+        order.payment_status = SalesOrder.PaymentStatus.PAID
+        self.assertEqual(order.display_status, '已预收，待出库')
+
+        order.fulfillment_status = SalesOrder.FulfillmentStatus.SHIPPED
+        order.payment_status = SalesOrder.PaymentStatus.UNPAID
+        self.assertEqual(order.display_status, '已出库，待收款')
+
+        order.payment_status = SalesOrder.PaymentStatus.PAID
+        self.assertEqual(order.display_status, '已完成')
+
+    def test_new_sales_item_keeps_actual_stick_quantity_and_sale_package_snapshot(self):
+        order = self.order()
+        item = SalesOrderItem.objects.create(
+            sales_order=order,
+            cigar=self.cigar,
+            quantity=25,
+            sale_unit=SalesOrderItem.SaleUnit.BOX,
+            sale_quantity=1,
+            box_size=25,
+            unit_price=Decimal('4.00'),
+            unit_cost=Decimal('2.00'),
+            revenue=Decimal('100.00'),
+            cost=Decimal('50.00'),
+            profit=Decimal('50.00'),
+        )
+        self.assertEqual(item.quantity, 25)
+        self.assertEqual(item.sale_unit, SalesOrderItem.SaleUnit.BOX)
+        self.assertEqual(item.sale_quantity, 1)
+        self.assertEqual(item.box_size, 25)
+
+    def test_purchase_batch_has_separate_physical_and_available_stock_read_models(self):
+        supplier = Supplier.objects.create(name='库存兼容供应商')
+        purchase_order = PurchaseOrder.objects.create(
+            supplier=supplier,
+            rub_total=Decimal('1.00'),
+            exchange_rate=Decimal('1.0000'),
+            cny_total=Decimal('100.00'),
+            operator=self.operator,
+        )
+        purchase_item = PurchaseOrderItem.objects.create(
+            purchase_order=purchase_order,
+            cigar=self.cigar,
+            quantity=10,
+            box_size=10,
+            unit_price_rub=Decimal('1.00'),
+            unit_price_cny=Decimal('10.00'),
+        )
+        batch = PurchaseBatch.objects.create(
+            purchase_order_item=purchase_item,
+            cigar=self.cigar,
+            quantity=10,
+            remaining=6,
+            physical_remaining=10,
+            unit_cost_cny=Decimal('10.00'),
+            remaining_cost_cny=Decimal('100.00'),
+            sold_cost_cny=Decimal('0.00'),
+        )
+        self.assertEqual(batch.remaining, 6)
+        self.assertEqual(batch.physical_remaining, 10)
+        self.assertEqual(batch.remaining_cost_cny, Decimal('100.00'))
+        self.assertEqual(batch.sold_cost_cny, Decimal('0.00'))
+
+    def test_sales_facts_are_one_to_one_and_protect_their_accounting_references(self):
+        order = self.order()
+        shipment = SalesShipment.objects.create(
+            sales_order=order,
+            business_date=date(2026, 8, 11),
+            fifo_cost_cny=Decimal('50.00'),
+            ledger_transaction=self.ledger_transaction('sales_shipment', 'shipment-ledger'),
+            operator=self.operator,
+        )
+        receipt = SalesReceipt.objects.create(
+            sales_order=self.order(),
+            amount_cny=Decimal('120.00'),
+            fund_account=self.cny_account,
+            business_date=date(2026, 8, 11),
+            ledger_transaction=self.ledger_transaction('sales_receipt', 'receipt-ledger'),
+            operator=self.operator,
+        )
+        transport = SalesTransportCost.objects.create(
+            sales_order=self.order(),
+            actual_cost_cny=Decimal('15.00'),
+            fund_account=self.cny_account,
+            business_date=date(2026, 8, 11),
+            ledger_transaction=self.ledger_transaction('sales_transport_cost', 'transport-ledger'),
+            operator=self.operator,
+            note='人肉费',
+        )
+        self.assertEqual(shipment.sales_order.sales_shipment, shipment)
+        self.assertEqual(receipt.sales_order.sales_receipt, receipt)
+        self.assertEqual(transport.sales_order.sales_transport_cost, transport)
+
+    def test_payment_method_only_accepts_a_cny_fund_account(self):
+        rub_account = FundAccount.objects.create(
+            name='卢布账户',
+            currency=FundAccount.Currency.RUB,
+            creation_idempotency_key='sales-accounting-rub',
+        )
+        with self.assertRaises(ValidationError):
+            PaymentMethod(method_type='wechat', label='错误账户', fund_account=rub_account).full_clean()
+
+        method = PaymentMethod(method_type='wechat', label='人民币账户', fund_account=self.cny_account)
+        method.full_clean()
+
+
+class PurchaseBatchInventoryMigrationTest(TransactionTestCase):
+    migrate_from = [('cigars', '0022_purchase_order_status_and_habanos_supplier')]
+    migrate_to = [('cigars', '0023_purchasebatch_physical_remaining_and_more')]
+
+    def setUp(self):
+        super().setUp()
+        self.executor = MigrationExecutor(connection)
+        self.executor.migrate(self.migrate_from)
+        self.executor = MigrationExecutor(connection)
+        apps = self.executor.loader.project_state(self.migrate_from).apps
+        User = apps.get_model('cigars', 'User')
+        Cigar = apps.get_model('cigars', 'Cigar')
+        Supplier = apps.get_model('cigars', 'Supplier')
+        PurchaseOrder = apps.get_model('cigars', 'PurchaseOrder')
+        PurchaseOrderItem = apps.get_model('cigars', 'PurchaseOrderItem')
+        PurchaseBatch = apps.get_model('cigars', 'PurchaseBatch')
+        SalesOrder = apps.get_model('cigars', 'SalesOrder')
+        SalesOrderItem = apps.get_model('cigars', 'SalesOrderItem')
+        StockAllocation = apps.get_model('cigars', 'StockAllocation')
+        operator = User.objects.create(username='migration-operator', is_staff=True)
+        cigar = Cigar.objects.create(brand='Migration Brand', english_name='Migration Cigar', name='迁移雪茄')
+        supplier = Supplier.objects.create(name='迁移供应商')
+        purchase_order = PurchaseOrder.objects.create(
+            supplier=supplier,
+            rub_total=Decimal('10.00'),
+            exchange_rate=Decimal('1.0000'),
+            cny_total=Decimal('100.00'),
+            operator=operator,
+        )
+        purchase_item = PurchaseOrderItem.objects.create(
+            purchase_order=purchase_order,
+            cigar=cigar,
+            quantity=10,
+            box_size=10,
+            unit_price_rub=Decimal('1.00'),
+            unit_price_cny=Decimal('10.00'),
+        )
+        batch = PurchaseBatch.objects.create(
+            purchase_order_item=purchase_item,
+            cigar=cigar,
+            quantity=10,
+            remaining=6,
+            unit_cost_cny=Decimal('10.00'),
+        )
+        order = SalesOrder.objects.create(operator=operator)
+        item = SalesOrderItem.objects.create(
+            sales_order=order,
+            cigar=cigar,
+            quantity=4,
+            unit_price=Decimal('20.00'),
+            unit_cost=Decimal('10.00'),
+            revenue=Decimal('80.00'),
+            cost=Decimal('40.00'),
+            profit=Decimal('40.00'),
+        )
+        StockAllocation.objects.create(
+            sales_order_item=item,
+            purchase_batch=batch,
+            quantity=4,
+            status='reserved',
+        )
+        self.batch_id = batch.pk
+
+    def test_reserved_legacy_stock_backfills_physical_and_cost_pools(self):
+        self.executor.migrate(self.migrate_to)
+        apps = self.executor.loader.project_state(self.migrate_to).apps
+        PurchaseBatch = apps.get_model('cigars', 'PurchaseBatch')
+        batch = PurchaseBatch.objects.get(pk=self.batch_id)

@@ -328,6 +328,9 @@ class PurchaseBatch(models.Model):
     )
     quantity = models.IntegerField('原始数量')
     remaining = models.IntegerField('剩余数量')
+    physical_remaining = models.IntegerField('物理剩余数量', default=0)
+    remaining_cost_cny = models.DecimalField('剩余人民币成本池', max_digits=14, decimal_places=2, default=0)
+    sold_cost_cny = models.DecimalField('累计销售成本', max_digits=14, decimal_places=2, default=0)
     unit_cost_cny = models.DecimalField('人民币成本单价', max_digits=12, decimal_places=2)
     purchased_at = models.DateTimeField('进货日期', auto_now_add=True)
 
@@ -345,6 +348,18 @@ class PurchaseBatch(models.Model):
 
 class SalesOrder(models.Model):
     """销售单"""
+    class FulfillmentStatus(models.TextChoices):
+        DRAFT = 'draft', '草稿'
+        CONFIRMED = 'confirmed', '已确认/已预留'
+        SHIPPED = 'shipped', '已出库'
+        CANCELLED = 'cancelled', '已取消'
+
+    class PaymentStatus(models.TextChoices):
+        UNPAID = 'unpaid', '未收款'
+        PAID = 'paid', '已收款'
+        REFUND_PENDING = 'refund_pending', '待退款'
+        REFUNDED = 'refunded', '已退款'
+
     customer = models.ForeignKey(
         Customer, on_delete=models.SET_NULL, null=True, blank=True,
         verbose_name='客户'
@@ -353,6 +368,18 @@ class SalesOrder(models.Model):
     total_revenue = models.DecimalField('收入合计', max_digits=12, decimal_places=2, default=0)
     total_cost = models.DecimalField('成本合计', max_digits=12, decimal_places=2, default=0)
     total_profit = models.DecimalField('利润合计', max_digits=12, decimal_places=2, default=0)
+    fulfillment_status = models.CharField(
+        '履约状态', max_length=20, choices=FulfillmentStatus.choices, default=FulfillmentStatus.DRAFT,
+    )
+    payment_status = models.CharField(
+        '收款状态', max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.UNPAID,
+    )
+    goods_amount_cny = models.DecimalField('商品金额 (CNY)', max_digits=14, decimal_places=2, default=0)
+    customer_transport_fee_cny = models.DecimalField('客户人肉费 (CNY)', max_digits=14, decimal_places=2, default=0)
+    amount_due_cny = models.DecimalField('应收总额 (CNY)', max_digits=14, decimal_places=2, default=0)
+    fifo_cost_cny = models.DecimalField('FIFO 销售成本 (CNY)', max_digits=14, decimal_places=2, default=0)
+    actual_transport_cost_cny = models.DecimalField('实际人肉成本 (CNY)', max_digits=14, decimal_places=2, default=0)
+    contribution_profit_cny = models.DecimalField('订单贡献利润 (CNY)', max_digits=14, decimal_places=2, default=0)
     operator = models.ForeignKey(
         User, on_delete=models.PROTECT, related_name='sales_orders',
         null=True, blank=True,
@@ -382,6 +409,8 @@ class SalesOrder(models.Model):
         verbose_name='锁定人'
     )
     locked_at = models.DateTimeField('锁定时间', null=True, blank=True)
+    confirmed_at = models.DateTimeField('确认时间', null=True, blank=True)
+    cancelled_at = models.DateTimeField('取消时间', null=True, blank=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     deleted_at = models.DateTimeField('删除时间', null=True, blank=True)
 
@@ -398,8 +427,32 @@ class SalesOrder(models.Model):
         return f'SO-{self.id:06d}'
 
 
+    @property
+    def display_status(self):
+        if self.fulfillment_status == self.FulfillmentStatus.DRAFT:
+            return '草稿'
+        if self.fulfillment_status == self.FulfillmentStatus.CONFIRMED:
+            if self.payment_status == self.PaymentStatus.PAID:
+                return '已预收，待出库'
+            return '待出库'
+        if self.fulfillment_status == self.FulfillmentStatus.SHIPPED:
+            if self.payment_status == self.PaymentStatus.PAID:
+                return '已完成'
+            return '已出库，待收款'
+        if self.fulfillment_status == self.FulfillmentStatus.CANCELLED:
+            if self.payment_status in (self.PaymentStatus.PAID, self.PaymentStatus.REFUND_PENDING):
+                return '已取消，待退款'
+            if self.payment_status == self.PaymentStatus.REFUNDED:
+                return '已取消，已退款'
+            return '已取消'
+        return self.get_fulfillment_status_display()
+
 class SalesOrderItem(models.Model):
     """销售明细"""
+    class SaleUnit(models.TextChoices):
+        BOX = 'box', '盒'
+        STICK = 'stick', '支'
+
     class FulfillmentType(models.TextChoices):
         IN_STOCK = 'in_stock', '现货'
         PREORDER = 'preorder', '预售'
@@ -422,6 +475,9 @@ class SalesOrderItem(models.Model):
         default=FulfillmentType.IN_STOCK,
     )
 
+    sale_unit = models.CharField('销售单位', max_length=10, choices=SaleUnit.choices, blank=True, default='')
+    sale_quantity = models.IntegerField('销售数量', null=True, blank=True)
+    box_size = models.IntegerField('包装支数', null=True, blank=True)
     class Meta:
         verbose_name = '销售明细'
         verbose_name_plural = '销售明细'
@@ -430,6 +486,46 @@ class SalesOrderItem(models.Model):
         return f'{self.cigar} ×{self.quantity} ¥{self.revenue}'
 
 
+class SalesShipment(models.Model):
+    """销售单实际出库与 FIFO 成本确认事实。"""
+    sales_order = models.OneToOneField(SalesOrder, on_delete=models.PROTECT, related_name='sales_shipment', verbose_name='销售单')
+    business_date = models.DateField('业务日期')
+    fifo_cost_cny = models.DecimalField('FIFO 成本 (CNY)', max_digits=14, decimal_places=2)
+    ledger_transaction = models.OneToOneField('accounting.LedgerTransaction', on_delete=models.PROTECT, related_name='sales_shipment', verbose_name='账务交易')
+    operator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='sales_shipments', verbose_name='操作人')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        verbose_name = '销售出库'
+        verbose_name_plural = '销售出库'
+
+class SalesReceipt(models.Model):
+    """一张销售单的一次整单人民币收款事实。"""
+    sales_order = models.OneToOneField(SalesOrder, on_delete=models.PROTECT, related_name='sales_receipt', verbose_name='销售单')
+    amount_cny = models.DecimalField('收款金额 (CNY)', max_digits=14, decimal_places=2)
+    fund_account = models.ForeignKey('accounting.FundAccount', on_delete=models.PROTECT, related_name='sales_receipts', verbose_name='收款资金账户')
+    business_date = models.DateField('业务日期')
+    ledger_transaction = models.OneToOneField('accounting.LedgerTransaction', on_delete=models.PROTECT, related_name='sales_receipt', verbose_name='账务交易')
+    operator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='sales_receipts', verbose_name='操作人')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        verbose_name = '销售收款'
+        verbose_name_plural = '销售收款'
+class SalesTransportCost(models.Model):
+    """销售单的人肉实际成本及其人民币支付事实。"""
+    sales_order = models.OneToOneField(SalesOrder, on_delete=models.PROTECT, related_name='sales_transport_cost', verbose_name='销售单')
+    actual_cost_cny = models.DecimalField('实际人肉成本 (CNY)', max_digits=14, decimal_places=2)
+    fund_account = models.ForeignKey('accounting.FundAccount', on_delete=models.PROTECT, related_name='sales_transport_costs', verbose_name='付款资金账户')
+    business_date = models.DateField('业务日期')
+    ledger_transaction = models.OneToOneField('accounting.LedgerTransaction', on_delete=models.PROTECT, related_name='sales_transport_cost', verbose_name='账务交易')
+    operator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='sales_transport_costs', verbose_name='操作人')
+    note = models.TextField('备注', blank=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        verbose_name = '销售人肉成本'
+        verbose_name_plural = '销售人肉成本'
 class StockAllocation(models.Model):
     """销售明细与采购批次之间的库存分配"""
     class Status(models.TextChoices):

@@ -308,7 +308,7 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
         SalesOrderItem.objects.create(
             sales_order=order, cigar=cigar, quantity=quantity,
             unit_price=(revenue / quantity).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP),
-            unit_cost=Decimal("0.00"), revenue=revenue, cost=Decimal("0.00"), profit=revenue,
+            unit_cost=Decimal("0.00"), revenue=revenue, cost=Decimal("0.00"), profit=Decimal("0.00"),
             fulfillment_type=fulfillment_type, sale_unit=sale_unit,
             sale_quantity=sale_quantity, box_size=box_size,
         )
@@ -320,7 +320,7 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
     order.amount_due_cny = (goods_amount + transport_fee).quantize(MONEY_PLACES)
     order.total_revenue = goods_amount
     order.total_cost = Decimal("0.00")
-    order.total_profit = goods_amount
+    order.total_profit = Decimal("0.00")
     order.fifo_cost_cny = Decimal("0.00")
     order.contribution_profit_cny = Decimal("0.00")
     order.save(update_fields=[
@@ -407,12 +407,21 @@ def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, 
     return order
 
 
+
+
+def _allocation_uses_boxes(*, allocation, batch):
+    item = allocation.sales_order_item
+    return bool(
+        item.sale_unit == SalesOrderItem.SaleUnit.BOX and batch.box_size == item.box_size
+        and batch.box_size and allocation.quantity % batch.box_size == 0
+    )
+
 def _reserve_box_stock_fifo(*, order, item, operator, context, note=""):
     box_size = item.box_size
     batches = list(PurchaseBatch.objects.select_for_update().filter(
-        cigar=item.cigar, remaining__gt=0, purchase_order_item__box_size=box_size,
+        cigar=item.cigar, box_size=box_size, available_box_quantity__gt=0,
     ).order_by("purchased_at", "id"))
-    available_boxes = sum(batch.remaining // box_size for batch in batches)
+    available_boxes = sum(batch.available_box_quantity for batch in batches)
     if available_boxes < item.sale_quantity:
         raise InsufficientStockError(
             f"{item.cigar.name or item.cigar.english_name} 整盒库存不足",
@@ -420,12 +429,13 @@ def _reserve_box_stock_fifo(*, order, item, operator, context, note=""):
         )
     remaining_boxes, item_cost = item.sale_quantity, Decimal("0.00")
     for batch in batches:
-        take_boxes = min(batch.remaining // box_size, remaining_boxes)
+        take_boxes = min(batch.available_box_quantity, remaining_boxes)
         if not take_boxes:
             continue
         quantity = take_boxes * box_size
         batch.remaining -= quantity
-        batch.save(update_fields=["remaining"])
+        batch.available_box_quantity -= take_boxes
+        batch.save(update_fields=["remaining", "available_box_quantity"])
         StockAllocation.objects.create(sales_order_item=item, purchase_batch=batch, quantity=quantity, status=StockAllocation.Status.RESERVED)
         _record_movement(
             movement_type=StockMovement.MovementType.RESERVE, cigar=item.cigar, purchase_batch=batch,
@@ -496,7 +506,13 @@ def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None
     for allocation in allocations:
         batch = PurchaseBatch.objects.select_for_update().get(id=allocation.purchase_batch_id)
         batch.remaining += allocation.quantity
-        batch.save(update_fields=["remaining"])
+        if _allocation_uses_boxes(allocation=allocation, batch=batch):
+            batch.available_box_quantity += allocation.quantity // batch.box_size
+            fields = ["remaining", "available_box_quantity"]
+        else:
+            batch.available_stick_quantity += allocation.quantity
+            fields = ["remaining", "available_stick_quantity"]
+        batch.save(update_fields=fields)
         allocation.status, allocation.released_at = StockAllocation.Status.RELEASED, now
         allocation.save(update_fields=["status", "released_at"])
         _record_movement(
@@ -515,6 +531,41 @@ def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None
         "fulfillment_status": order.fulfillment_status, "payment_status": order.payment_status,
     })
     return order
+
+
+@transaction.atomic
+def split_purchase_batch_box(*, batch_id, operator, agent_context=None, note=''):
+    """Convert one fully available physical box into individually available sticks."""
+    operator = _require_operator(operator)
+    context = agent_context or AgentContext(command_name='split_purchase_batch_box')
+    try:
+        batch = PurchaseBatch.objects.select_for_update().get(
+            id=_to_positive_int(batch_id, '批次ID')
+        )
+    except PurchaseBatch.DoesNotExist:
+        raise OrderServiceError('批次不存在')
+    if not batch.box_size:
+        raise OrderServiceError('散支批次不能拆盒')
+    if batch.physical_box_quantity < 1:
+        raise OrderServiceError('批次没有完整物理盒可拆')
+    if batch.available_box_quantity < 1:
+        raise OrderServiceError('批次没有可用完整盒可拆')
+
+    batch.physical_box_quantity -= 1
+    batch.available_box_quantity -= 1
+    batch.physical_stick_quantity += batch.box_size
+    batch.available_stick_quantity += batch.box_size
+    batch.save(update_fields=[
+        'physical_box_quantity', 'available_box_quantity',
+        'physical_stick_quantity', 'available_stick_quantity',
+    ])
+    _record_movement(
+        movement_type=StockMovement.MovementType.SPLIT_BOX,
+        cigar=batch.cigar, purchase_batch=batch, quantity=batch.box_size,
+        operator=operator, context=context, note=note,
+    )
+    return batch
+
 
 def create_purchase_order(*, supplier_id, items, exchange_rate, operator, note='',
                           agent_context=None):
@@ -686,10 +737,10 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
 def _reserve_stock_fifo(*, order, item, cigar, quantity, operator, context, note=''):
     batches = list(
         PurchaseBatch.objects.select_for_update()
-        .filter(cigar=cigar, remaining__gt=0)
+        .filter(cigar=cigar, available_stick_quantity__gt=0)
         .order_by('purchased_at', 'id')
     )
-    available = sum(batch.remaining for batch in batches)
+    available = sum(batch.available_stick_quantity for batch in batches)
     if available < quantity:
         raise InsufficientStockError(
             f'{cigar.name or cigar.english_name} 现货库存不足',
@@ -705,9 +756,10 @@ def _reserve_stock_fifo(*, order, item, cigar, quantity, operator, context, note
     for batch in batches:
         if remaining_to_allocate <= 0:
             break
-        take = min(batch.remaining, remaining_to_allocate)
+        take = min(batch.available_stick_quantity, remaining_to_allocate)
         batch.remaining -= take
-        batch.save(update_fields=['remaining'])
+        batch.available_stick_quantity -= take
+        batch.save(update_fields=['remaining', 'available_stick_quantity'])
         StockAllocation.objects.create(
             sales_order_item=item,
             purchase_batch=batch,
@@ -761,10 +813,16 @@ def confirm_payment(*, sales_order_id, operator, agent_context=None, note=''):
         batch = PurchaseBatch.objects.select_for_update().get(id=alloc.purchase_batch_id)
         cost = _remove_remaining_cost(batch, alloc.quantity)
         batch.physical_remaining -= alloc.quantity
+        if _allocation_uses_boxes(allocation=alloc, batch=batch):
+            batch.physical_box_quantity -= alloc.quantity // batch.box_size
+            shape_field = 'physical_box_quantity'
+        else:
+            batch.physical_stick_quantity -= alloc.quantity
+            shape_field = 'physical_stick_quantity'
         batch.remaining_cost_cny -= cost
         batch.sold_cost_cny += cost
         batch.save(update_fields=[
-            'physical_remaining', 'remaining_cost_cny', 'sold_cost_cny',
+            'physical_remaining', shape_field, 'remaining_cost_cny', 'sold_cost_cny',
         ])
         alloc.status = StockAllocation.Status.FULFILLED
         alloc.fulfilled_at = now
@@ -808,7 +866,13 @@ def cancel_sales_order(*, sales_order_id, operator, agent_context=None, note='')
     for alloc in allocations:
         batch = PurchaseBatch.objects.select_for_update().get(id=alloc.purchase_batch_id)
         batch.remaining += alloc.quantity
-        batch.save(update_fields=['remaining'])
+        if _allocation_uses_boxes(allocation=alloc, batch=batch):
+            batch.available_box_quantity += alloc.quantity // batch.box_size
+            shape_field = 'available_box_quantity'
+        else:
+            batch.available_stick_quantity += alloc.quantity
+            shape_field = 'available_stick_quantity'
+        batch.save(update_fields=['remaining', shape_field])
         alloc.status = StockAllocation.Status.RELEASED
         alloc.released_at = now
         alloc.save(update_fields=['status', 'released_at'])
@@ -834,7 +898,7 @@ def cancel_sales_order(*, sales_order_id, operator, agent_context=None, note='')
 
 @transaction.atomic
 def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None,
-                 unit_cost_cny=None, adjustment_type=AdjustmentRecord.AdjustType.LOSS,
+                 unit_cost_cny=None, adjustment_type=AdjustmentRecord.AdjustType.LOSS, inventory_form='stick',
                  agent_context=None):
     """Adjust available stock. Negative adjustments never allow stock below zero."""
     operator = _require_operator(operator)
@@ -842,6 +906,10 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
     delta = _to_int(quantity_delta, '库存修正数量')
     if delta == 0:
         raise OrderServiceError('库存修正数量不能为 0')
+    if inventory_form not in ('stick', 'box'):
+        raise OrderServiceError('库存修正形态必须是 stick 或 box')
+    if inventory_form == 'box' and not batch_id:
+        raise OrderServiceError('box 修正必须指定批次')
     try:
         cigar = Cigar.objects.get(id=_to_positive_int(cigar_id, '雪茄ID'))
     except Cigar.DoesNotExist:
@@ -855,15 +923,27 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
             batch_id=batch_id,
             unit_cost_cny=unit_cost_cny,
         )
+        if inventory_form == 'box':
+            if not batch.box_size:
+                raise OrderServiceError('散支批次不能按 box 修正')
+            if delta % batch.box_size:
+                raise OrderServiceError('box 修正数量必须是包装支数的整数倍')
+            shape_quantity = delta // batch.box_size
+            available_field, physical_field = 'available_box_quantity', 'physical_box_quantity'
+        else:
+            shape_quantity = delta
+            available_field, physical_field = 'available_stick_quantity', 'physical_stick_quantity'
         added_cost = (batch.unit_cost_cny * delta).quantize(MONEY_PLACES)
         batch.positive_adjustment_quantity += delta
         batch.positive_adjustment_cost_cny += added_cost
         batch.remaining += delta
         batch.physical_remaining += delta
         batch.remaining_cost_cny += added_cost
+        setattr(batch, available_field, getattr(batch, available_field) + shape_quantity)
+        setattr(batch, physical_field, getattr(batch, physical_field) + shape_quantity)
         batch.save(update_fields=[
             'positive_adjustment_quantity', 'positive_adjustment_cost_cny',
-            'remaining', 'physical_remaining', 'remaining_cost_cny',
+            'remaining', 'physical_remaining', available_field, physical_field, 'remaining_cost_cny',
         ])
         _record_movement(
             movement_type=StockMovement.MovementType.ADJUSTMENT,
@@ -878,7 +958,15 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
 
     quantity_to_remove = abs(delta)
     batches = _adjustment_batches(cigar=cigar, batch_id=batch_id)
-    available = sum(batch.remaining for batch in batches)
+    if inventory_form == 'box':
+        batch = batches[0]
+        if not batch.box_size:
+            raise OrderServiceError('散支批次不能按 box 修正')
+        if quantity_to_remove % batch.box_size:
+            raise OrderServiceError('box 修正数量必须是包装支数的整数倍')
+        available = batch.available_box_quantity * batch.box_size
+    else:
+        available = sum(batch.available_stick_quantity for batch in batches)
     if available < quantity_to_remove:
         raise InsufficientStockError(
             f'{cigar.name or cigar.english_name} 可修正库存不足',
@@ -890,14 +978,27 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
     for batch in batches:
         if remaining_to_remove <= 0:
             break
-        take = min(batch.remaining, remaining_to_remove)
+        if inventory_form == 'box':
+            take = min(batch.available_box_quantity, remaining_to_remove // batch.box_size) * batch.box_size
+        else:
+            take = min(batch.available_stick_quantity, remaining_to_remove)
+        if not take:
+            continue
         cost = _remove_remaining_cost(batch, take)
         batch.adjustment_cost_cny += cost
         batch.remaining -= take
+        if inventory_form == 'box':
+            batch.available_box_quantity -= take // batch.box_size
+            batch.physical_box_quantity -= take // batch.box_size
+            shape_fields = ['available_box_quantity', 'physical_box_quantity']
+        else:
+            batch.available_stick_quantity -= take
+            batch.physical_stick_quantity -= take
+            shape_fields = ['available_stick_quantity', 'physical_stick_quantity']
         batch.physical_remaining -= take
         batch.remaining_cost_cny -= cost
         batch.save(update_fields=[
-            'remaining', 'physical_remaining', 'remaining_cost_cny', 'adjustment_cost_cny',
+            'remaining', 'physical_remaining', *shape_fields, 'remaining_cost_cny', 'adjustment_cost_cny',
         ])
         last_batch = batch
         _record_movement(
@@ -1008,6 +1109,24 @@ def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, n
 
     batches = []
     for item in items:
+
+        if item.box_size:
+            full_boxes, loose_sticks = divmod(item.quantity, item.box_size)
+            packaging = {
+                'box_size': item.box_size,
+                'original_box_quantity': full_boxes,
+                'original_stick_quantity': loose_sticks,
+                'physical_box_quantity': full_boxes,
+                'available_box_quantity': full_boxes,
+                'physical_stick_quantity': loose_sticks,
+                'available_stick_quantity': loose_sticks,
+            }
+        else:
+            packaging = {
+                'original_stick_quantity': item.quantity,
+                'physical_stick_quantity': item.quantity,
+                'available_stick_quantity': item.quantity,
+            }
         batch = PurchaseBatch.objects.create(
             purchase_order_item=item,
             cigar=item.cigar,
@@ -1021,6 +1140,7 @@ def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, n
             remaining_cost_cny=(item.quantity * item.unit_price_cny).quantize(MONEY_PLACES),
             sold_cost_cny=Decimal('0.00'),
             unit_cost_cny=item.unit_price_cny,
+            **packaging,
         )
         _record_movement(
             movement_type=StockMovement.MovementType.RECEIVE,

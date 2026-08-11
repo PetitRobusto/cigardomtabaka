@@ -108,7 +108,8 @@ def reserve_allocation(order, cigar, batch, quantity):
         status=StockAllocation.Status.RESERVED,
     )
     batch.remaining -= quantity
-    batch.save(update_fields=['remaining'])
+    batch.available_stick_quantity -= quantity
+    batch.save(update_fields=['remaining', 'available_stick_quantity'])
     return allocation
 
 
@@ -210,7 +211,8 @@ class OrderInventoryServiceTest(TestCase):
                 status=StockAllocation.Status.RESERVED,
             )
             batch.remaining = 0
-            batch.save(update_fields=['remaining'])
+            batch.available_stick_quantity = 0
+            batch.save(update_fields=['remaining', 'available_stick_quantity'])
 
         confirm_payment(
             sales_order_id=order.id,
@@ -530,6 +532,24 @@ class OrderInventoryServiceTest(TestCase):
 
 
 class PurchaseReceivingServiceTest(TestCase):
+
+    def test_box_adjustment_changes_only_complete_box_shape(self):
+        batch = create_batch(self.cigar, remaining=25, unit_cost='10.00', operator=self.operator)
+
+        adjust_stock(
+            cigar_id=self.cigar.id, quantity_delta=-25, inventory_form='box',
+            operator=self.operator, batch_id=batch.id,
+            agent_context=context(command='adjust_stock', key='adjust-box-loss'),
+        )
+
+        batch.refresh_from_db()
+        self.assertEqual((batch.remaining, batch.physical_remaining), (0, 0))
+        self.assertEqual((batch.available_box_quantity, batch.available_stick_quantity), (0, 0))
+        self.assertEqual((batch.physical_box_quantity, batch.physical_stick_quantity), (0, 0))
+        self.assertEqual(batch.adjustment_cost_cny, Decimal('250.00'))
+        with self.assertRaises(OrderServiceError):
+            adjust_stock(cigar_id=self.cigar.id, quantity_delta=-1, operator=self.operator,
+                         batch_id=batch.id, agent_context=context(key='adjust-no-stick'))
     def setUp(self):
         self.operator = create_operator()
         self.supplier = Supplier.objects.get(name='Habanos')
@@ -665,10 +685,16 @@ class AgentCommandApiTest(TestCase):
         self.batch.positive_adjustment_cost_cny = Decimal('1000.00')
         self.batch.remaining = 20
         self.batch.physical_remaining = 20
+        self.batch.available_box_quantity = 0
+        self.batch.available_stick_quantity = 20
+        self.batch.physical_box_quantity = 0
+        self.batch.physical_stick_quantity = 20
         self.batch.remaining_cost_cny = Decimal('2000.00')
         self.batch.save(update_fields=[
             'positive_adjustment_quantity', 'positive_adjustment_cost_cny',
             'remaining', 'physical_remaining', 'remaining_cost_cny',
+            'available_box_quantity', 'available_stick_quantity',
+            'physical_box_quantity', 'physical_stick_quantity',
         ])
         second = self.post_json('/api/agent/orders/create/', body)
 

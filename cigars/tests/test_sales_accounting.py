@@ -271,6 +271,7 @@ class PurchaseBatchInventoryMigrationFixture:
     def set_up_legacy_inventory(self):
         self.executor = MigrationExecutor(connection)
         self.executor.migrate(self.migrate_from)
+        self.addCleanup(self.executor.migrate, self.executor.loader.graph.leaf_nodes())
         self.executor = MigrationExecutor(connection)
         self.apps = self.executor.loader.project_state(self.migrate_from).apps
         User = self.apps.get_model('cigars', 'User')
@@ -379,6 +380,22 @@ class SalesAccountingConstraintTest(SalesAccountingModelTest):
             ledger_transaction=self.ledger_transaction('sales_transport_cost', 'constraint-transport'), operator=self.operator,
         )
         assert_rejected(SalesTransportCost, transport.pk, {'actual_cost_cny': Decimal('-0.01')})
+
+class PurchaseBatchCostPoolCapacityMigrationTest(
+    PurchaseBatchInventoryMigrationFixture, TransactionTestCase
+):
+    def setUp(self):
+        super().setUp()
+        self.set_up_legacy_inventory()
+
+    def test_legacy_cost_pool_fields_hold_maximum_quantity_backfill(self):
+        PurchaseBatch = self.apps.get_model('cigars', 'PurchaseBatch')
+        unit_cost = Decimal('9999999999.99')
+        quantity = 2147483647
+        expected_cost = Decimal(quantity) * unit_cost
+        self.assertGreater(expected_cost, Decimal('999999999999.99'))
+        self.assertEqual(PurchaseBatch._meta.get_field('remaining_cost_cny').max_digits, 22)
+        self.assertEqual(PurchaseBatch._meta.get_field('sold_cost_cny').max_digits, 22)
 
 class PurchaseBatchInventoryMigrationTest(
     PurchaseBatchInventoryMigrationFixture, TransactionTestCase

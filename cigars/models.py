@@ -329,8 +329,8 @@ class PurchaseBatch(models.Model):
     quantity = models.IntegerField('原始数量')
     remaining = models.IntegerField('剩余数量')
     physical_remaining = models.IntegerField('物理剩余数量', default=0)
-    remaining_cost_cny = models.DecimalField('剩余人民币成本池', max_digits=14, decimal_places=2, default=0)
-    sold_cost_cny = models.DecimalField('累计销售成本', max_digits=14, decimal_places=2, default=0)
+    remaining_cost_cny = models.DecimalField('剩余人民币成本池', max_digits=22, decimal_places=2, default=0)
+    sold_cost_cny = models.DecimalField('累计销售成本', max_digits=22, decimal_places=2, default=0)
     unit_cost_cny = models.DecimalField('人民币成本单价', max_digits=12, decimal_places=2)
     purchased_at = models.DateTimeField('进货日期', auto_now_add=True)
 

@@ -295,3 +295,22 @@ class SalesOrderWorkflowTest(TestCase):
         self.assertEqual(movement.operator, self.operator)
         self.assertEqual(movement.agent_name, "workflow-test")
         self.assertEqual(movement.command_name, "confirm-command")
+
+    def test_batch_has_explicit_box_and_stick_inventory_facts(self):
+        batch = self.batch(remaining=27, box_size=25)
+
+        self.assertEqual(batch.box_size, 25)
+        self.assertEqual(batch.original_box_quantity, 1)
+        self.assertEqual(batch.original_stick_quantity, 2)
+        self.assertEqual(batch.physical_box_quantity, 1)
+        self.assertEqual(batch.available_box_quantity, 1)
+        self.assertEqual(batch.physical_stick_quantity, 2)
+        self.assertEqual(batch.available_stick_quantity, 2)
+
+    def test_packaging_facts_database_constraints_reject_inconsistent_shapes(self):
+        from django.db import IntegrityError, transaction
+        batch = self.batch(remaining=25, box_size=25)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            PurchaseBatch.objects.filter(pk=batch.pk).update(available_box_quantity=2)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            PurchaseBatch.objects.filter(pk=batch.pk).update(physical_stick_quantity=1)

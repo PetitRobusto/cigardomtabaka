@@ -333,14 +333,61 @@ class PurchaseBatch(models.Model):
     adjustment_cost_cny = models.DecimalField('累计损耗人民币成本', max_digits=22, decimal_places=2, default=0)
     remaining = models.IntegerField('剩余数量')
     physical_remaining = models.IntegerField('物理剩余数量', default=0)
+    box_size = models.IntegerField("包装支数快照", null=True, blank=True)
+    original_box_quantity = models.IntegerField("原始完整盒数", default=0)
+    original_stick_quantity = models.IntegerField("原始散支数", default=0)
+    physical_box_quantity = models.IntegerField("物理完整盒数", default=0)
+    available_box_quantity = models.IntegerField("可用完整盒数", default=0)
+    physical_stick_quantity = models.IntegerField("物理散支数", default=0)
+    available_stick_quantity = models.IntegerField("可用散支数", default=0)
     remaining_cost_cny = models.DecimalField('剩余人民币成本池', max_digits=22, decimal_places=2, default=0)
     sold_cost_cny = models.DecimalField('累计销售成本', max_digits=22, decimal_places=2, default=0)
     unit_cost_cny = models.DecimalField('人民币成本单价', max_digits=12, decimal_places=2)
     purchased_at = models.DateTimeField('进货日期', auto_now_add=True)
 
+    def save(self, *args, **kwargs):
+        if self._state.adding and self.box_size is None and self.purchase_order_item_id:
+            self.box_size = self.purchase_order_item.box_size
+        if self._state.adding and not any((
+            self.original_box_quantity, self.original_stick_quantity,
+            self.physical_box_quantity, self.physical_stick_quantity,
+            self.available_box_quantity, self.available_stick_quantity,
+        )):
+            if self.box_size:
+                self.original_box_quantity, self.original_stick_quantity = divmod(self.quantity, self.box_size)
+                self.available_box_quantity, self.available_stick_quantity = divmod(self.remaining, self.box_size)
+                self.physical_box_quantity = self.available_box_quantity
+                self.physical_stick_quantity = self.available_stick_quantity + (self.physical_remaining - self.remaining)
+            else:
+                self.original_stick_quantity = self.quantity
+                self.physical_stick_quantity = self.physical_remaining
+                self.available_stick_quantity = self.remaining
+        update_fields = kwargs.get('update_fields')
+        if not self._state.adding and update_fields is not None:
+            update_fields = set(update_fields)
+            if 'remaining' in update_fields:
+                if self.box_size:
+                    self.available_box_quantity, self.available_stick_quantity = divmod(self.remaining, self.box_size)
+                else:
+                    self.available_box_quantity = 0
+                    self.available_stick_quantity = self.remaining
+                update_fields.update({'available_box_quantity', 'available_stick_quantity'})
+            if 'physical_remaining' in update_fields:
+                if self.box_size:
+                    self.physical_box_quantity, self.physical_stick_quantity = divmod(self.physical_remaining, self.box_size)
+                else:
+                    self.physical_box_quantity = 0
+                    self.physical_stick_quantity = self.physical_remaining
+                update_fields.update({'physical_box_quantity', 'physical_stick_quantity'})
+            kwargs['update_fields'] = update_fields
+        super().save(*args, **kwargs)
+
     class Meta:
         ordering = ['purchased_at']
         constraints = [
+            models.CheckConstraint(condition=models.Q(original_box_quantity__gte=0, original_stick_quantity__gte=0, physical_box_quantity__gte=0, available_box_quantity__gte=0, physical_stick_quantity__gte=0, available_stick_quantity__gte=0), name="purchase_batch_packaging_nonnegative"),
+            models.CheckConstraint(condition=models.Q(available_box_quantity__lte=models.F("physical_box_quantity"), available_stick_quantity__lte=models.F("physical_stick_quantity")), name="purchase_batch_available_shape_lte_physical"),
+            models.CheckConstraint(condition=(models.Q(box_size__gt=0, quantity=models.F("original_box_quantity") * models.F("box_size") + models.F("original_stick_quantity"), physical_remaining=models.F("physical_box_quantity") * models.F("box_size") + models.F("physical_stick_quantity"), remaining=models.F("available_box_quantity") * models.F("box_size") + models.F("available_stick_quantity")) | models.Q(box_size__isnull=True, original_box_quantity=0, physical_box_quantity=0, available_box_quantity=0, original_stick_quantity=models.F("quantity"), physical_stick_quantity=models.F("physical_remaining"), available_stick_quantity=models.F("remaining"))), name="purchase_batch_packaging_shape_matches_aggregate"),
             models.CheckConstraint(condition=models.Q(quantity__gte=0), name='purchase_batch_quantity_gte_zero'),
             models.CheckConstraint(condition=models.Q(remaining__gte=0), name='purchase_batch_remaining_gte_zero'),
             models.CheckConstraint(condition=models.Q(physical_remaining__gte=0), name='purchase_batch_physical_remaining_gte_zero'),

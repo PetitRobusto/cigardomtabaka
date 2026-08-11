@@ -587,11 +587,16 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
             batch_id=batch_id,
             unit_cost_cny=unit_cost_cny,
         )
-        batch.quantity += delta
+        added_cost = (batch.unit_cost_cny * delta).quantize(MONEY_PLACES)
+        batch.positive_adjustment_quantity += delta
+        batch.positive_adjustment_cost_cny += added_cost
         batch.remaining += delta
         batch.physical_remaining += delta
-        batch.remaining_cost_cny += (batch.unit_cost_cny * delta).quantize(MONEY_PLACES)
-        batch.save(update_fields=['quantity', 'remaining', 'physical_remaining', 'remaining_cost_cny'])
+        batch.remaining_cost_cny += added_cost
+        batch.save(update_fields=[
+            'positive_adjustment_quantity', 'positive_adjustment_cost_cny',
+            'remaining', 'physical_remaining', 'remaining_cost_cny',
+        ])
         _record_movement(
             movement_type=StockMovement.MovementType.ADJUSTMENT,
             cigar=cigar,
@@ -619,11 +624,13 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
             break
         take = min(batch.remaining, remaining_to_remove)
         cost = _remove_remaining_cost(batch, take)
-        batch.quantity -= take
+        batch.adjustment_cost_cny += cost
         batch.remaining -= take
         batch.physical_remaining -= take
         batch.remaining_cost_cny -= cost
-        batch.save(update_fields=['quantity', 'remaining', 'physical_remaining', 'remaining_cost_cny'])
+        batch.save(update_fields=[
+            'remaining', 'physical_remaining', 'remaining_cost_cny', 'adjustment_cost_cny',
+        ])
         last_batch = batch
         _record_movement(
             movement_type=StockMovement.MovementType.ADJUSTMENT,
@@ -640,6 +647,7 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
             type=adjustment_type,
             quantity=take,
             unit_cost_cny=batch.unit_cost_cny,
+            cost_cny=cost,
             operator=operator,
             reason=reason,
         )
@@ -692,6 +700,10 @@ def _get_or_create_adjustment_batch(*, cigar, quantity, operator, batch_id=None,
     return PurchaseBatch.objects.create(
         purchase_order_item=purchase_item,
         cigar=cigar,
+        original_cost_cny=Decimal('0.00'),
+        positive_adjustment_quantity=0,
+        positive_adjustment_cost_cny=Decimal('0.00'),
+        adjustment_cost_cny=Decimal('0.00'),
         quantity=0,
         remaining=0,
         physical_remaining=0,
@@ -734,6 +746,10 @@ def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, n
             quantity=item.quantity,
             remaining=item.quantity,
             physical_remaining=item.quantity,
+            original_cost_cny=(item.quantity * item.unit_price_cny).quantize(MONEY_PLACES),
+            positive_adjustment_quantity=0,
+            positive_adjustment_cost_cny=Decimal('0.00'),
+            adjustment_cost_cny=Decimal('0.00'),
             remaining_cost_cny=(item.quantity * item.unit_price_cny).quantize(MONEY_PLACES),
             sold_cost_cny=Decimal('0.00'),
             unit_cost_cny=item.unit_price_cny,

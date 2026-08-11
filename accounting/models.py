@@ -185,6 +185,9 @@ class LedgerTransaction(models.Model):
         EXCHANGE = 'exchange', '换汇'
         TRANSFER = 'transfer', '同币种转账'
 
+        SALES_SHIPMENT = 'sales_shipment', '销售出库'
+        SALES_RECEIPT = 'sales_receipt', '销售收款'
+        SALES_TRANSPORT_COST = 'sales_transport_cost', '销售人肉费'
     class Status(models.TextChoices):
         DRAFT = 'draft', '草稿'
         POSTED = 'posted', '已入账'
@@ -242,6 +245,13 @@ class LedgerPosting(models.Model):
         OPENING_CAPITAL = 'opening_capital', '期初投入资本'
         OPENING_RETAINED_EARNINGS = 'opening_retained_earnings', '期初未分配利润'
 
+        ACCOUNTS_RECEIVABLE = 'accounts_receivable', '应收款'
+        CUSTOMER_PREPAYMENTS = 'customer_prepayments', '客户预收款'
+        INVENTORY = 'inventory', '库存'
+        SALES_REVENUE = 'sales_revenue', '销售收入'
+        CUSTOMER_TRANSPORT_REVENUE = 'customer_transport_revenue', '客户人肉费收入'
+        COST_OF_GOODS_SOLD = 'cost_of_goods_sold', '销售成本'
+        TRANSPORT_EXPENSE = 'transport_expense', '人肉费用'
     objects = LedgerPostingQuerySet.as_manager()
 
     transaction = models.ForeignKey(LedgerTransaction, on_delete=models.PROTECT, related_name='postings', verbose_name='交易')

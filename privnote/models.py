@@ -2,6 +2,7 @@ from django.db import models
 from django.utils import timezone
 from datetime import timedelta
 from django.contrib.auth.hashers import make_password, check_password
+from django.core.exceptions import ValidationError
 
 
 class Privnote(models.Model):
@@ -106,6 +107,7 @@ class PaymentMethod(models.Model):
     # 备注（收款说明，如"转账请备注订单号"）
     remark = models.TextField('收款备注', blank=True, default='')
 
+    fund_account = models.ForeignKey('accounting.FundAccount', on_delete=models.PROTECT, null=True, blank=True, related_name='payment_methods', verbose_name='对应资金账户')
     sort_order = models.IntegerField('排序', default=0)
     is_active = models.BooleanField('启用', default=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
@@ -117,3 +119,8 @@ class PaymentMethod(models.Model):
 
     def __str__(self):
         return f'{self.get_method_type_display()} · {self.label}'
+
+    def clean(self):
+        super().clean()
+        if self.fund_account_id and self.fund_account.currency != 'CNY':
+            raise ValidationError({'fund_account': '收款方式只能绑定人民币资金账户'})

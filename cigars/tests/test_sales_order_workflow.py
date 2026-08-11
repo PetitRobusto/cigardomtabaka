@@ -131,9 +131,30 @@ class SalesOrderWorkflowTest(TestCase):
 
         self.assertEqual(updated.items.count(), 1)
         self.assertEqual(updated.items.get().revenue, Decimal("60.00"))
+        self.assertEqual(updated.items.get().cost, Decimal("0.00"))
+        self.assertEqual(updated.items.get().profit, Decimal("0.00"))
+        self.assertEqual(updated.total_cost, Decimal("0.00"))
+        self.assertEqual(updated.total_profit, Decimal("0.00"))
         self.assertEqual(updated.customer_name, "新客户")
         self.assertEqual(updated.amount_due_cny, Decimal("62.00"))
         self.assertFalse(StockAllocation.objects.exists())
+
+
+    def test_update_draft_rejects_inconsistent_box_quantity(self):
+        from cigars.services import OrderServiceError, update_sales_order_draft
+        order = create_sales_order_draft(
+            items=[{'cigar_id': self.cigar.id, 'sale_unit': 'stick', 'quantity': 1, 'unit_price': '10.00'}],
+            operator=self.operator, agent_context=self.context('create-draft'),
+        )
+        with self.assertRaises(OrderServiceError):
+            update_sales_order_draft(
+                sales_order_id=order.id,
+                items=[{'cigar_id': self.cigar.id, 'sale_unit': 'box', 'sale_quantity': 2,
+                        'box_size': 25, 'quantity': 49, 'unit_price': '100.00'}],
+                operator=self.operator, agent_context=self.context('update-draft'),
+            )
+        order.refresh_from_db()
+        self.assertEqual(order.items.get().quantity, 1)
 
     def test_confirm_stick_reserves_fifo_and_locks_without_shipping(self):
         batch = self.batch(remaining=3, unit_cost="10.00")
@@ -152,8 +173,9 @@ class SalesOrderWorkflowTest(TestCase):
         self.assertEqual(batch.remaining, 1)
         self.assertEqual(batch.physical_remaining, 3)
         self.assertEqual(batch.remaining_cost_cny, Decimal("30.00"))
-        self.assertEqual(item.cost, Decimal("20.00"))
-        self.assertEqual(confirmed.total_cost, Decimal("20.00"))
+        self.assertEqual(item.cost, Decimal("0.00"))
+        self.assertEqual(item.profit, Decimal("0.00"))
+        self.assertEqual(confirmed.total_cost, Decimal("0.00"))
         self.assertEqual(confirmed.fulfillment_status, SalesOrder.FulfillmentStatus.CONFIRMED)
         self.assertEqual(confirmed.status, "pending_payment")
         self.assertTrue(confirmed.locked)

@@ -373,6 +373,8 @@ def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, 
             sale_quantity = _to_positive_int(raw_item.get("sale_quantity"), f"第{idx}个商品销售盒数")
             box_size = _to_positive_int(raw_item.get("box_size"), f"第{idx}个商品包装支数")
             quantity = sale_quantity * box_size
+            if raw_item.get("quantity") not in (None, "") and _to_positive_int(raw_item.get("quantity"), f"第{idx}个商品数量") != quantity:
+                raise OrderServiceError(f"第{idx}个商品盒装数量与包装快照不一致")
         else:
             quantity = _to_positive_int(raw_item.get("quantity"), f"第{idx}个商品数量")
             sale_quantity, box_size = quantity, None
@@ -388,7 +390,7 @@ def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, 
         SalesOrderItem.objects.create(
             sales_order=order, cigar=cigar, quantity=quantity,
             unit_price=(revenue / quantity).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP),
-            unit_cost=Decimal("0.00"), revenue=revenue, cost=Decimal("0.00"), profit=revenue,
+            unit_cost=Decimal("0.00"), revenue=revenue, cost=Decimal("0.00"), profit=Decimal("0.00"),
             fulfillment_type=fulfillment_type, sale_unit=sale_unit, sale_quantity=sale_quantity, box_size=box_size,
         )
         goods_amount += revenue
@@ -399,7 +401,7 @@ def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, 
     order.customer_transport_fee_cny = _to_money(customer_transport_fee_cny, "客户人肉费")
     order.amount_due_cny = (order.goods_amount_cny + order.customer_transport_fee_cny).quantize(MONEY_PLACES)
     order.total_revenue, order.total_cost = order.goods_amount_cny, Decimal("0.00")
-    order.total_profit, order.fifo_cost_cny, order.contribution_profit_cny = order.goods_amount_cny, Decimal("0.00"), Decimal("0.00")
+    order.total_profit, order.fifo_cost_cny, order.contribution_profit_cny = Decimal("0.00"), Decimal("0.00"), Decimal("0.00")
     order.save()
     _record_order_event(order, operator=operator, context=context, note=note, metadata={
         "fulfillment_status": order.fulfillment_status, "payment_status": order.payment_status,
@@ -468,14 +470,13 @@ def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note=""
                 order=order, item=item, cigar=item.cigar, quantity=item.quantity,
                 operator=operator, context=context, note=note,
             )
-        item.cost = item_cost
-        item.unit_cost = (item_cost / item.quantity).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
-        item.profit = (item.revenue - item_cost).quantize(MONEY_PLACES)
+        item.cost = Decimal("0.00")
+        item.unit_cost = Decimal("0.00")
+        item.profit = Decimal("0.00")
         item.save(update_fields=["cost", "unit_cost", "profit"])
-        total_cost += item_cost
     now = timezone.now()
-    order.total_cost = total_cost.quantize(MONEY_PLACES)
-    order.total_profit = (order.total_revenue - order.total_cost).quantize(MONEY_PLACES)
+    order.total_cost = Decimal("0.00")
+    order.total_profit = Decimal("0.00")
     order.fulfillment_status = SalesOrder.FulfillmentStatus.CONFIRMED
     order.status = "pending_payment"
     order.confirmed_at = now

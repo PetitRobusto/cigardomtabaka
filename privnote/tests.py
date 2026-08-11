@@ -50,7 +50,11 @@ def _create_batch(cigar, remaining=50, box_size=25, unit_cost=200.0):
     )
     batch = PurchaseBatch.objects.create(
         purchase_order_item=poi, cigar=cigar,
-        quantity=remaining, remaining=remaining, unit_cost_cny=unit_cost
+        quantity=remaining, remaining=remaining,
+        physical_remaining=remaining,
+        remaining_cost_cny=Decimal(str(remaining)) * Decimal(str(unit_cost)),
+        sold_cost_cny=Decimal('0.00'),
+        unit_cost_cny=unit_cost,
     )
     return batch
 

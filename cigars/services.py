@@ -462,6 +462,14 @@ def _reserve_stock_fifo(*, order, item, cigar, quantity, operator, context, note
     return item_cost.quantize(MONEY_PLACES)
 
 
+def _remove_remaining_cost(batch, quantity):
+    """Return exact removed cost, assigning rounding residue to the last unit."""
+    if quantity > batch.physical_remaining:
+        raise InsufficientStockError('批次物理库存不足')
+    if quantity == batch.physical_remaining:
+        return batch.remaining_cost_cny
+    return (batch.remaining_cost_cny * quantity / batch.physical_remaining).quantize(MONEY_PLACES)
+
 @transaction.atomic
 def confirm_payment(*, sales_order_id, operator, agent_context=None, note=''):
     operator = _require_operator(operator)
@@ -481,6 +489,14 @@ def confirm_payment(*, sales_order_id, operator, agent_context=None, note=''):
         .select_related('purchase_batch', 'sales_order_item__cigar')
     )
     for alloc in allocations:
+        batch = PurchaseBatch.objects.select_for_update().get(id=alloc.purchase_batch_id)
+        cost = _remove_remaining_cost(batch, alloc.quantity)
+        batch.physical_remaining -= alloc.quantity
+        batch.remaining_cost_cny -= cost
+        batch.sold_cost_cny += cost
+        batch.save(update_fields=[
+            'physical_remaining', 'remaining_cost_cny', 'sold_cost_cny',
+        ])
         alloc.status = StockAllocation.Status.FULFILLED
         alloc.fulfilled_at = now
         alloc.save(update_fields=['status', 'fulfilled_at'])
@@ -572,7 +588,9 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
         )
         batch.quantity += delta
         batch.remaining += delta
-        batch.save(update_fields=['quantity', 'remaining'])
+        batch.physical_remaining += delta
+        batch.remaining_cost_cny += (batch.unit_cost_cny * delta).quantize(MONEY_PLACES)
+        batch.save(update_fields=['quantity', 'remaining', 'physical_remaining', 'remaining_cost_cny'])
         _record_movement(
             movement_type=StockMovement.MovementType.ADJUSTMENT,
             cigar=cigar,
@@ -599,8 +617,12 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
         if remaining_to_remove <= 0:
             break
         take = min(batch.remaining, remaining_to_remove)
+        cost = _remove_remaining_cost(batch, take)
+        batch.quantity -= take
         batch.remaining -= take
-        batch.save(update_fields=['remaining'])
+        batch.physical_remaining -= take
+        batch.remaining_cost_cny -= cost
+        batch.save(update_fields=['quantity', 'remaining', 'physical_remaining', 'remaining_cost_cny'])
         last_batch = batch
         _record_movement(
             movement_type=StockMovement.MovementType.ADJUSTMENT,
@@ -646,6 +668,8 @@ def _get_or_create_adjustment_batch(*, cigar, quantity, operator, batch_id=None,
     if unit_cost_cny is None:
         raise OrderServiceError('正向库存修正需要 unit_cost_cny')
     unit_cost = _to_signed_money(unit_cost_cny, '成本单价')
+    if unit_cost < 0:
+        raise OrderServiceError('成本单价不能为负数')
     supplier, _ = Supplier.objects.get_or_create(name='库存修正')
     purchase_order = PurchaseOrder.objects.create(
         supplier=supplier,
@@ -669,6 +693,9 @@ def _get_or_create_adjustment_batch(*, cigar, quantity, operator, batch_id=None,
         cigar=cigar,
         quantity=0,
         remaining=0,
+        physical_remaining=0,
+        remaining_cost_cny=Decimal('0.00'),
+        sold_cost_cny=Decimal('0.00'),
         unit_cost_cny=unit_cost,
     )
 

@@ -163,6 +163,7 @@ class SalesAccountingModelTest(TestCase):
             {'quantity': -1}, {'remaining': -1}, {'physical_remaining': -1},
             {'remaining': 9}, {'physical_remaining': 11},
             {'remaining_cost_cny': Decimal('-0.01')}, {'sold_cost_cny': Decimal('-0.01')},
+            {'unit_cost_cny': Decimal('-0.01')},
         ):
             with self.subTest(changes=changes):
                 with self.assertRaises(IntegrityError), transaction.atomic():
@@ -391,11 +392,22 @@ class PurchaseBatchCostPoolCapacityMigrationTest(
     def test_legacy_cost_pool_fields_hold_maximum_quantity_backfill(self):
         PurchaseBatch = self.apps.get_model('cigars', 'PurchaseBatch')
         unit_cost = Decimal('9999999999.99')
-        quantity = 2147483647
+        # Exceeds the former 14-digit field while retaining exact cents on SQLite.
+        # SQLite NUMERIC affinity cannot round-trip the theoretical 22-digit limit.
+        quantity = 1000
         expected_cost = Decimal(quantity) * unit_cost
         self.assertGreater(expected_cost, Decimal('999999999999.99'))
-        self.assertEqual(PurchaseBatch._meta.get_field('remaining_cost_cny').max_digits, 22)
-        self.assertEqual(PurchaseBatch._meta.get_field('sold_cost_cny').max_digits, 22)
+        PurchaseBatch.objects.filter(pk=self.batch_id).update(
+            quantity=quantity,
+            remaining=quantity - 4,
+            unit_cost_cny=unit_cost,
+        )
+
+        self.executor.migrate(self.migrate_to)
+        apps = self.executor.loader.project_state(self.migrate_to).apps
+        migrated_batch = apps.get_model('cigars', 'PurchaseBatch').objects.get(pk=self.batch_id)
+        self.assertEqual(migrated_batch.remaining_cost_cny, expected_cost)
+        self.assertEqual(migrated_batch.sold_cost_cny, Decimal('0.00'))
 
 class PurchaseBatchInventoryMigrationTest(
     PurchaseBatchInventoryMigrationFixture, TransactionTestCase

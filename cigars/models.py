@@ -344,6 +344,7 @@ class PurchaseBatch(models.Model):
             models.CheckConstraint(condition=models.Q(physical_remaining__lte=models.F('quantity')), name='purchase_batch_physical_lte_quantity'),
             models.CheckConstraint(condition=models.Q(remaining_cost_cny__gte=0), name='purchase_batch_remaining_cost_gte_zero'),
             models.CheckConstraint(condition=models.Q(sold_cost_cny__gte=0), name='purchase_batch_sold_cost_gte_zero'),
+            models.CheckConstraint(condition=models.Q(unit_cost_cny__gte=0), name='purchase_batch_unit_cost_gte_zero'),
         ]
         indexes = [
             models.Index(fields=['cigar', 'remaining']),

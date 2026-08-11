@@ -248,6 +248,274 @@ def _get_customer(raw_customer_id):
 
 
 @transaction.atomic
+def create_sales_order_draft(*, items, operator, customer=None, customer_id=None,
+                             customer_name="", payment_method_id=None,
+                             payment_manual=None, customer_transport_fee_cny=0,
+                             note="", agent_context=None):
+    """Create a mutable sales draft without reserving inventory."""
+    operator = _require_operator(operator)
+    context = agent_context or AgentContext(command_name="create_sales_order_draft")
+    if not isinstance(items, list) or not items:
+        raise OrderServiceError("至少需要一个商品")
+
+    customer_obj = customer or _get_customer(customer_id)
+    if customer_obj and not customer_name:
+        customer_name = customer_obj.name
+    transport_fee = _to_money(customer_transport_fee_cny, "客户人肉费")
+    selected_payment_method_id = (
+        _to_positive_int(payment_method_id, "收款方式ID")
+        if payment_method_id not in (None, "") else None
+    )
+    order = SalesOrder.objects.create(
+        customer=customer_obj,
+        customer_name=customer_name or "",
+        operator=operator,
+        fulfillment_status=SalesOrder.FulfillmentStatus.DRAFT,
+        payment_status=SalesOrder.PaymentStatus.UNPAID,
+        status="draft",
+        locked=False,
+        note=note or "",
+        payment_method_id=selected_payment_method_id,
+        payment_manual=payment_manual or {},
+    )
+
+    goods_amount = Decimal("0.00")
+    for idx, raw_item in enumerate(items, start=1):
+        if not isinstance(raw_item, dict):
+            raise OrderServiceError(f"第{idx}个商品格式错误")
+        try:
+            cigar = Cigar.objects.get(id=_to_positive_int(raw_item.get("cigar_id"), f"第{idx}个商品ID"))
+        except Cigar.DoesNotExist:
+            raise OrderServiceError(f"第{idx}个商品不存在")
+        fulfillment_type = str(raw_item.get("fulfillment_type") or SalesOrderItem.FulfillmentType.IN_STOCK)
+        if fulfillment_type not in SalesOrderItem.FulfillmentType.values:
+            raise OrderServiceError(f"第{idx}个商品履约类型错误")
+        sale_unit = str(raw_item.get("sale_unit") or SalesOrderItem.SaleUnit.STICK)
+        if sale_unit not in SalesOrderItem.SaleUnit.values:
+            raise OrderServiceError(f"第{idx}个商品销售单位错误")
+        sale_unit_price = _to_money(raw_item.get("unit_price"), f"第{idx}个商品单价")
+        if sale_unit == SalesOrderItem.SaleUnit.BOX:
+            sale_quantity = _to_positive_int(raw_item.get("sale_quantity"), f"第{idx}个商品销售盒数")
+            box_size = _to_positive_int(raw_item.get("box_size"), f"第{idx}个商品包装支数")
+            quantity = sale_quantity * box_size
+            if raw_item.get("quantity") not in (None, "") and _to_positive_int(raw_item.get("quantity"), f"第{idx}个商品数量") != quantity:
+                raise OrderServiceError(f"第{idx}个商品盒装数量与包装快照不一致")
+        else:
+            quantity = _to_positive_int(raw_item.get("quantity"), f"第{idx}个商品数量")
+            sale_quantity = quantity
+            box_size = None
+        revenue = (sale_unit_price * sale_quantity).quantize(MONEY_PLACES)
+        SalesOrderItem.objects.create(
+            sales_order=order, cigar=cigar, quantity=quantity,
+            unit_price=(revenue / quantity).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP),
+            unit_cost=Decimal("0.00"), revenue=revenue, cost=Decimal("0.00"), profit=revenue,
+            fulfillment_type=fulfillment_type, sale_unit=sale_unit,
+            sale_quantity=sale_quantity, box_size=box_size,
+        )
+        goods_amount += revenue
+
+    goods_amount = goods_amount.quantize(MONEY_PLACES)
+    order.goods_amount_cny = goods_amount
+    order.customer_transport_fee_cny = transport_fee
+    order.amount_due_cny = (goods_amount + transport_fee).quantize(MONEY_PLACES)
+    order.total_revenue = goods_amount
+    order.total_cost = Decimal("0.00")
+    order.total_profit = goods_amount
+    order.fifo_cost_cny = Decimal("0.00")
+    order.contribution_profit_cny = Decimal("0.00")
+    order.save(update_fields=[
+        "goods_amount_cny", "customer_transport_fee_cny", "amount_due_cny",
+        "total_revenue", "total_cost", "total_profit", "fifo_cost_cny",
+        "contribution_profit_cny",
+    ])
+    _record_order_event(
+        order, operator=operator, context=context, note=note,
+        metadata={
+            "fulfillment_status": order.fulfillment_status,
+            "payment_status": order.payment_status,
+        },
+    )
+    return order
+
+
+@transaction.atomic
+def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, customer_id=None,
+                             customer_name="", payment_method_id=None, payment_manual=None,
+                             customer_transport_fee_cny=0, note="", agent_context=None):
+    """Replace all snapshots on an unlocked, unpaid draft."""
+    operator = _require_operator(operator)
+    context = agent_context or AgentContext(command_name="update_sales_order_draft")
+    order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, "销售单ID"))
+    if (order.fulfillment_status != SalesOrder.FulfillmentStatus.DRAFT or
+            order.payment_status != SalesOrder.PaymentStatus.UNPAID or order.locked):
+        raise OrderServiceError("当前订单不能编辑草稿")
+    if StockAllocation.objects.filter(sales_order_item__sales_order=order).exists():
+        raise OrderServiceError("存在库存分配的订单不能编辑草稿")
+    if not isinstance(items, list) or not items:
+        raise OrderServiceError("至少需要一个商品")
+
+    snapshots = []
+    for idx, raw_item in enumerate(items, start=1):
+        if not isinstance(raw_item, dict):
+            raise OrderServiceError(f"第{idx}个商品格式错误")
+        try:
+            cigar = Cigar.objects.get(id=_to_positive_int(raw_item.get("cigar_id"), f"第{idx}个商品ID"))
+        except Cigar.DoesNotExist:
+            raise OrderServiceError(f"第{idx}个商品不存在")
+        fulfillment_type = str(raw_item.get("fulfillment_type") or SalesOrderItem.FulfillmentType.IN_STOCK)
+        if fulfillment_type not in SalesOrderItem.FulfillmentType.values:
+            raise OrderServiceError(f"第{idx}个商品履约类型错误")
+        sale_unit = str(raw_item.get("sale_unit") or SalesOrderItem.SaleUnit.STICK)
+        if sale_unit not in SalesOrderItem.SaleUnit.values:
+            raise OrderServiceError(f"第{idx}个商品销售单位错误")
+        sale_unit_price = _to_money(raw_item.get("unit_price"), f"第{idx}个商品单价")
+        if sale_unit == SalesOrderItem.SaleUnit.BOX:
+            sale_quantity = _to_positive_int(raw_item.get("sale_quantity"), f"第{idx}个商品销售盒数")
+            box_size = _to_positive_int(raw_item.get("box_size"), f"第{idx}个商品包装支数")
+            quantity = sale_quantity * box_size
+        else:
+            quantity = _to_positive_int(raw_item.get("quantity"), f"第{idx}个商品数量")
+            sale_quantity, box_size = quantity, None
+        revenue = (sale_unit_price * sale_quantity).quantize(MONEY_PLACES)
+        snapshots.append((cigar, quantity, sale_unit, sale_quantity, box_size, revenue, fulfillment_type))
+
+    customer_obj = customer or _get_customer(customer_id)
+    if customer_obj and not customer_name:
+        customer_name = customer_obj.name
+    order.items.all().delete()
+    goods_amount = Decimal("0.00")
+    for cigar, quantity, sale_unit, sale_quantity, box_size, revenue, fulfillment_type in snapshots:
+        SalesOrderItem.objects.create(
+            sales_order=order, cigar=cigar, quantity=quantity,
+            unit_price=(revenue / quantity).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP),
+            unit_cost=Decimal("0.00"), revenue=revenue, cost=Decimal("0.00"), profit=revenue,
+            fulfillment_type=fulfillment_type, sale_unit=sale_unit, sale_quantity=sale_quantity, box_size=box_size,
+        )
+        goods_amount += revenue
+    order.customer, order.customer_name = customer_obj, customer_name or ""
+    order.payment_method_id = _to_positive_int(payment_method_id, "收款方式ID") if payment_method_id not in (None, "") else None
+    order.payment_manual, order.note = payment_manual or {}, note or ""
+    order.goods_amount_cny = goods_amount.quantize(MONEY_PLACES)
+    order.customer_transport_fee_cny = _to_money(customer_transport_fee_cny, "客户人肉费")
+    order.amount_due_cny = (order.goods_amount_cny + order.customer_transport_fee_cny).quantize(MONEY_PLACES)
+    order.total_revenue, order.total_cost = order.goods_amount_cny, Decimal("0.00")
+    order.total_profit, order.fifo_cost_cny, order.contribution_profit_cny = order.goods_amount_cny, Decimal("0.00"), Decimal("0.00")
+    order.save()
+    _record_order_event(order, operator=operator, context=context, note=note, metadata={
+        "fulfillment_status": order.fulfillment_status, "payment_status": order.payment_status,
+    })
+    return order
+
+
+def _reserve_box_stock_fifo(*, order, item, operator, context, note=""):
+    box_size = item.box_size
+    batches = list(PurchaseBatch.objects.select_for_update().filter(
+        cigar=item.cigar, remaining__gt=0, purchase_order_item__box_size=box_size,
+    ).order_by("purchased_at", "id"))
+    available_boxes = sum(batch.remaining // box_size for batch in batches)
+    if available_boxes < item.sale_quantity:
+        raise InsufficientStockError(
+            f"{item.cigar.name or item.cigar.english_name} 整盒库存不足",
+            details={"cigar_id": item.cigar_id, "requested": item.sale_quantity, "available": available_boxes, "unit": "boxes"},
+        )
+    remaining_boxes, item_cost = item.sale_quantity, Decimal("0.00")
+    for batch in batches:
+        take_boxes = min(batch.remaining // box_size, remaining_boxes)
+        if not take_boxes:
+            continue
+        quantity = take_boxes * box_size
+        batch.remaining -= quantity
+        batch.save(update_fields=["remaining"])
+        StockAllocation.objects.create(sales_order_item=item, purchase_batch=batch, quantity=quantity, status=StockAllocation.Status.RESERVED)
+        _record_movement(
+            movement_type=StockMovement.MovementType.RESERVE, cigar=item.cigar, purchase_batch=batch,
+            sales_order=order, sales_order_item=item, quantity=quantity, operator=operator, context=context, note=note,
+        )
+        item_cost += batch.unit_cost_cny * quantity
+        remaining_boxes -= take_boxes
+        if not remaining_boxes:
+            break
+    return item_cost.quantize(MONEY_PLACES)
+
+
+@transaction.atomic
+def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note=""):
+    """Confirm an unpaid draft and reserve its in-stock stick items."""
+    operator = _require_operator(operator)
+    context = agent_context or AgentContext(command_name="confirm_sales_order")
+    order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, "销售单ID"))
+    if (order.fulfillment_status != SalesOrder.FulfillmentStatus.DRAFT or
+            order.payment_status != SalesOrder.PaymentStatus.UNPAID):
+        raise OrderServiceError("当前订单不能确认")
+    total_cost = Decimal("0.00")
+    for item in order.items.select_for_update().select_related("cigar").order_by("id"):
+        if item.fulfillment_type == SalesOrderItem.FulfillmentType.PREORDER:
+            item_cost = Decimal("0.00")
+        elif item.sale_unit == SalesOrderItem.SaleUnit.BOX:
+            item_cost = _reserve_box_stock_fifo(order=order, item=item, operator=operator, context=context, note=note)
+        else:
+            item_cost = _reserve_stock_fifo(
+                order=order, item=item, cigar=item.cigar, quantity=item.quantity,
+                operator=operator, context=context, note=note,
+            )
+        item.cost = item_cost
+        item.unit_cost = (item_cost / item.quantity).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
+        item.profit = (item.revenue - item_cost).quantize(MONEY_PLACES)
+        item.save(update_fields=["cost", "unit_cost", "profit"])
+        total_cost += item_cost
+    now = timezone.now()
+    order.total_cost = total_cost.quantize(MONEY_PLACES)
+    order.total_profit = (order.total_revenue - order.total_cost).quantize(MONEY_PLACES)
+    order.fulfillment_status = SalesOrder.FulfillmentStatus.CONFIRMED
+    order.status = "pending_payment"
+    order.confirmed_at = now
+    order.locked, order.locked_by, order.locked_at = True, operator, now
+    if note:
+        order.note = note
+    order.save()
+    _record_order_event(order, operator=operator, context=context, note=note, metadata={
+        "fulfillment_status": order.fulfillment_status, "payment_status": order.payment_status,
+    })
+    return order
+
+
+@transaction.atomic
+def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None, note=""):
+    """Release reservations of a confirmed order before shipment."""
+    operator = _require_operator(operator)
+    context = agent_context or AgentContext(command_name="cancel_confirmed_sales_order")
+    order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, "销售单ID"))
+    if order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED:
+        raise OrderServiceError("当前订单不能取消")
+    if order.payment_status not in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PAID):
+        raise OrderServiceError("当前付款状态不能取消")
+    now = timezone.now()
+    allocations = StockAllocation.objects.select_for_update().filter(
+        sales_order_item__sales_order=order, status=StockAllocation.Status.RESERVED,
+    ).select_related("sales_order_item__cigar").order_by("purchase_batch_id", "id")
+    for allocation in allocations:
+        batch = PurchaseBatch.objects.select_for_update().get(id=allocation.purchase_batch_id)
+        batch.remaining += allocation.quantity
+        batch.save(update_fields=["remaining"])
+        allocation.status, allocation.released_at = StockAllocation.Status.RELEASED, now
+        allocation.save(update_fields=["status", "released_at"])
+        _record_movement(
+            movement_type=StockMovement.MovementType.RELEASE_RESERVATION,
+            cigar=allocation.sales_order_item.cigar, purchase_batch=batch, sales_order=order,
+            sales_order_item=allocation.sales_order_item, quantity=allocation.quantity,
+            operator=operator, context=context, note=note,
+        )
+    order.fulfillment_status = SalesOrder.FulfillmentStatus.CANCELLED
+    order.payment_status = (SalesOrder.PaymentStatus.REFUND_PENDING if order.payment_status == SalesOrder.PaymentStatus.PAID else SalesOrder.PaymentStatus.UNPAID)
+    order.status, order.cancelled_at = "cancelled", now
+    if note:
+        order.note = note
+    order.save()
+    _record_order_event(order, operator=operator, context=context, note=note, metadata={
+        "fulfillment_status": order.fulfillment_status, "payment_status": order.payment_status,
+    })
+    return order
+
 def create_purchase_order(*, supplier_id, items, exchange_rate, operator, note='',
                           agent_context=None):
     """Create an immutable purchase order draft. It does not receive stock."""

@@ -638,7 +638,86 @@ class PurchaseBatchCostFactsMigrationTest(TransactionTestCase):
             batch.remaining_cost_cny + batch.sold_cost_cny + batch.adjustment_cost_cny,
         )
 
+    def test_migration_rejects_unmatched_negative_adjustment_movement(self):
+        StockMovement = self.apps.get_model('cigars', 'StockMovement')
+        movement = StockMovement.objects.get(
+            purchase_batch_id=self.batch_id, movement_type='adjustment', quantity=-2,
+        )
+        self.addCleanup(StockMovement.objects.filter(pk=movement.pk).update, quantity=-2)
+        StockMovement.objects.filter(pk=movement.pk).update(quantity=-3)
 
+        with self.assertRaisesRegex(RuntimeError, r'采购批次 \d+'):
+            self.executor.migrate(self.migrate_to)
+
+    def test_migration_rejects_ship_and_physical_quantity_mismatch(self):
+        PurchaseBatch = self.apps.get_model('cigars', 'PurchaseBatch')
+        SalesOrder = self.apps.get_model('cigars', 'SalesOrder')
+        SalesOrderItem = self.apps.get_model('cigars', 'SalesOrderItem')
+        StockAllocation = self.apps.get_model('cigars', 'StockAllocation')
+        StockMovement = self.apps.get_model('cigars', 'StockMovement')
+        batch = PurchaseBatch.objects.get(pk=self.batch_id)
+        operator = batch.purchase_order_item.purchase_order.operator
+        order = SalesOrder.objects.create(operator=operator)
+        item = SalesOrderItem.objects.create(
+            sales_order=order,
+            cigar=batch.cigar,
+            quantity=1,
+            unit_price=Decimal('20.00'),
+            unit_cost=Decimal('10.00'),
+            revenue=Decimal('20.00'),
+            cost=Decimal('10.00'),
+            profit=Decimal('10.00'),
+        )
+        allocation = StockAllocation.objects.create(
+            sales_order_item=item,
+            purchase_batch=batch,
+            quantity=1,
+            status='fulfilled',
+        )
+        movement = StockMovement.objects.create(
+            movement_type='ship',
+            cigar=batch.cigar,
+            purchase_batch=batch,
+            sales_order=order,
+            sales_order_item=item,
+            quantity=1,
+            operator=operator,
+            command_name='legacy-ship',
+        )
+        self.addCleanup(StockAllocation.objects.filter(pk=allocation.pk).delete)
+        self.addCleanup(StockMovement.objects.filter(pk=movement.pk).delete)
+
+        with self.assertRaisesRegex(RuntimeError, r'采购批次 \d+'):
+            self.executor.migrate(self.migrate_to)
+
+    def test_migration_rejects_reserved_and_remaining_quantity_mismatch(self):
+        PurchaseBatch = self.apps.get_model('cigars', 'PurchaseBatch')
+        SalesOrder = self.apps.get_model('cigars', 'SalesOrder')
+        SalesOrderItem = self.apps.get_model('cigars', 'SalesOrderItem')
+        StockAllocation = self.apps.get_model('cigars', 'StockAllocation')
+        batch = PurchaseBatch.objects.get(pk=self.batch_id)
+        operator = batch.purchase_order_item.purchase_order.operator
+        order = SalesOrder.objects.create(operator=operator)
+        item = SalesOrderItem.objects.create(
+            sales_order=order,
+            cigar=batch.cigar,
+            quantity=1,
+            unit_price=Decimal('20.00'),
+            unit_cost=Decimal('10.00'),
+            revenue=Decimal('20.00'),
+            cost=Decimal('10.00'),
+            profit=Decimal('10.00'),
+        )
+        allocation = StockAllocation.objects.create(
+            sales_order_item=item,
+            purchase_batch=batch,
+            quantity=1,
+            status='reserved',
+        )
+        self.addCleanup(StockAllocation.objects.filter(pk=allocation.pk).delete)
+
+        with self.assertRaisesRegex(RuntimeError, r'采购批次 \d+'):
+            self.executor.migrate(self.migrate_to)
 
 class PurchaseBatchCostFactsModelTest(TestCase):
     def setUp(self):

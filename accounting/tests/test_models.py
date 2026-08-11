@@ -216,15 +216,13 @@ class AccountingAdminTest(TestCase):
         self.assertIsInstance(admin.site._registry[LedgerPosting], LedgerPostingAdmin)
         self.assertIsInstance(admin.site._registry[LedgerSequence], LedgerSequenceAdmin)
 
-    def test_fund_account_admin_keeps_metadata_editable_and_displays_derived_balances(self):
+    def test_fund_account_admin_is_read_only_and_displays_derived_balances(self):
         model_admin = FundAccountAdmin(FundAccount, AdminSite())
-        editable_metadata = {'name', 'currency', 'custodian', 'creation_idempotency_key', 'is_active'}
-        # 账户创建后的可变元数据仅限名称、保管人和启用状态。
-        editable_metadata = {'name', 'custodian', 'is_active'}
+        readonly_fields = set(model_admin.get_readonly_fields(self.request))
 
-
-        self.assertTrue(editable_metadata.issubset(model_admin.get_form(self.request).base_fields))
-        self.assertTrue({'original_balance', 'cny_book_cost'}.issubset(model_admin.get_readonly_fields(self.request)))
+        self.assertTrue({field.name for field in FundAccount._meta.fields}.issubset(readonly_fields))
+        self.assertTrue({'original_balance', 'cny_book_cost'}.issubset(readonly_fields))
+        self.assertEqual(model_admin.get_form(self.request).base_fields, {})
         self.assertTrue(
             {'name', 'currency', 'custodian', 'is_active', 'original_balance', 'cny_book_cost'}
             .issubset(model_admin.list_display),
@@ -251,29 +249,33 @@ class AccountingAdminTest(TestCase):
                 self.assertIsNone(model_admin.actions)
                 self.assertEqual(model_admin.get_actions(self.staff_request), {})
 
-    def test_fund_account_admin_only_allows_mutable_metadata_and_admin_post_preserves_keys(self):
+    def test_fund_account_admin_post_cannot_modify_any_field(self):
         model_admin = FundAccountAdmin(FundAccount, AdminSite())
 
-        self.assertEqual(
-            set(model_admin.get_form(self.staff_request).base_fields),
-            {'name', 'custodian', 'is_active'},
-        )
+        self.assertEqual(model_admin.get_form(self.staff_request).base_fields, {})
         self.assertTrue(
-            {'currency', 'creation_idempotency_key', 'created_at', 'original_balance', 'cny_book_cost'}
+            ({field.name for field in FundAccount._meta.fields} | {'original_balance', 'cny_book_cost'})
             .issubset(model_admin.get_readonly_fields(self.staff_request)),
         )
 
         self.client.force_login(self.staff_user)
         response = self.client.post(
             f'/admin/accounting/fundaccount/{self.account.pk}/change/',
-            {'name': '已更名账户', 'custodian': '', 'is_active': 'on', '_save': '保存'},
+            {
+                'name': '已更名账户', 'currency': FundAccount.Currency.RUB,
+                'custodian': self.staff_user.pk, 'is_active': '',
+                'creation_idempotency_key': 'changed-admin-key', '_save': '保存',
+            },
         )
 
         self.assertEqual(response.status_code, 302)
         self.account.refresh_from_db()
-        self.assertEqual(self.account.name, '已更名账户')
+        self.assertEqual(self.account.name, '后台账户')
         self.assertEqual(self.account.currency, FundAccount.Currency.CNY)
         self.assertEqual(self.account.creation_idempotency_key, 'admin-account')
+
+        self.assertIsNone(self.account.custodian)
+        self.assertTrue(self.account.is_active)
 
     def test_fund_account_list_uses_posted_balance_annotations_without_per_row_queries(self):
         second_account = FundAccount.objects.create(

@@ -63,6 +63,19 @@ def _decimal(value, places, field_name):
     return decimal_value
 
 
+def _strict_external_decimal(value, places, field_name):
+    try:
+        original_value = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        raise LedgerError(f'{field_name}必须是有效金额')
+    if not original_value.is_finite():
+        raise LedgerError(f'{field_name}必须是有效金额')
+    amount = _decimal(original_value, places, field_name)
+    if original_value != amount:
+        raise LedgerError(f'{field_name}小数位数超出允许精度')
+    return amount
+
+
 def _require_operator(operator):
     user_model = get_user_model()
     if not isinstance(operator, user_model) or not operator.pk:
@@ -87,6 +100,11 @@ def _validate_metadata(transaction_type, business_date, idempotency_key):
         raise LedgerError('幂等键不能为空')
 
 
+def _require_active_accounts(account_map):
+    if any(not account.is_active for account in account_map.values()):
+        raise LedgerError('账户已停用')
+
+
 def _resolve_accounts(postings):
     account_ids = set()
     for posting in postings:
@@ -104,6 +122,7 @@ def _resolve_accounts(postings):
     account_map = {account.pk: account for account in accounts}
     if len(account_map) != len(account_ids):
         raise LedgerError('账户不存在')
+    _require_active_accounts(account_map)
     return account_map
 
 
@@ -348,7 +367,7 @@ def _positive_amount(value, currency, field_name):
 
     if currency not in ORIGINAL_PLACES:
         raise LedgerError('原币无效')
-    amount = _decimal(value, ORIGINAL_PLACES[currency], field_name)
+    amount = _strict_external_decimal(value, ORIGINAL_PLACES[currency], field_name)
     if abs(amount) >= MAX_ORIGINAL_ABS:
         raise LedgerError(f'{field_name}超出范围')
     if amount <= 0:
@@ -357,7 +376,7 @@ def _positive_amount(value, currency, field_name):
 
 
 def _nonnegative_cny_amount(value, field_name):
-    amount = _decimal(value, CNY_PLACES, field_name)
+    amount = _strict_external_decimal(value, CNY_PLACES, field_name)
     if abs(amount) >= MAX_CNY_ABS:
         raise LedgerError(f'{field_name}超出范围')
     if amount < 0:
@@ -386,8 +405,8 @@ def _lock_accounts(*accounts):
     account_map = {account.pk: account for account in locked}
     if len(account_map) != len(account_ids):
         raise LedgerError('账户不存在')
+    _require_active_accounts(account_map)
     return account_map
-
 
 def _outflow_cny_cost(account, amount):
     snapshot = account_snapshot(account)

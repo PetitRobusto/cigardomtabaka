@@ -336,6 +336,15 @@ class PurchaseBatch(models.Model):
 
     class Meta:
         ordering = ['purchased_at']
+        constraints = [
+            models.CheckConstraint(condition=models.Q(quantity__gte=0), name='purchase_batch_quantity_gte_zero'),
+            models.CheckConstraint(condition=models.Q(remaining__gte=0), name='purchase_batch_remaining_gte_zero'),
+            models.CheckConstraint(condition=models.Q(physical_remaining__gte=0), name='purchase_batch_physical_remaining_gte_zero'),
+            models.CheckConstraint(condition=models.Q(remaining__lte=models.F('physical_remaining')), name='purchase_batch_remaining_lte_physical'),
+            models.CheckConstraint(condition=models.Q(physical_remaining__lte=models.F('quantity')), name='purchase_batch_physical_lte_quantity'),
+            models.CheckConstraint(condition=models.Q(remaining_cost_cny__gte=0), name='purchase_batch_remaining_cost_gte_zero'),
+            models.CheckConstraint(condition=models.Q(sold_cost_cny__gte=0), name='purchase_batch_sold_cost_gte_zero'),
+        ]
         indexes = [
             models.Index(fields=['cigar', 'remaining']),
         ]
@@ -416,6 +425,13 @@ class SalesOrder(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.CheckConstraint(condition=models.Q(goods_amount_cny__gte=0), name='sales_order_goods_amount_gte_zero'),
+            models.CheckConstraint(condition=models.Q(customer_transport_fee_cny__gte=0), name='sales_order_customer_transport_gte_zero'),
+            models.CheckConstraint(condition=models.Q(amount_due_cny__gte=0), name='sales_order_amount_due_gte_zero'),
+            models.CheckConstraint(condition=models.Q(fifo_cost_cny__gte=0), name='sales_order_fifo_cost_gte_zero'),
+            models.CheckConstraint(condition=models.Q(actual_transport_cost_cny__gte=0), name='sales_order_actual_transport_gte_zero'),
+        ]
         verbose_name = '销售单'
         verbose_name_plural = '销售单'
 
@@ -473,6 +489,11 @@ class SalesOrderItem(models.Model):
     sale_quantity = models.IntegerField('销售数量', null=True, blank=True)
     box_size = models.IntegerField('包装支数', null=True, blank=True)
     class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(quantity__gt=0), name='sales_item_quantity_gt_zero'),
+            models.CheckConstraint(condition=models.Q(sale_quantity__isnull=True) | models.Q(sale_quantity__gt=0), name='sales_item_sale_quantity_positive_or_null'),
+            models.CheckConstraint(condition=models.Q(box_size__isnull=True) | models.Q(box_size__gt=0), name='sales_item_box_size_positive_or_null'),
+        ]
         verbose_name = '销售明细'
         verbose_name_plural = '销售明细'
 
@@ -490,6 +511,9 @@ class SalesShipment(models.Model):
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
     class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(fifo_cost_cny__gte=0), name='sales_shipment_fifo_cost_gte_zero'),
+        ]
         verbose_name = '销售出库'
         verbose_name_plural = '销售出库'
 
@@ -504,6 +528,9 @@ class SalesReceipt(models.Model):
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
     class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(amount_cny__gt=0), name='sales_receipt_amount_gt_zero'),
+        ]
         verbose_name = '销售收款'
         verbose_name_plural = '销售收款'
 class SalesTransportCost(models.Model):
@@ -518,6 +545,9 @@ class SalesTransportCost(models.Model):
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
     class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(actual_cost_cny__gte=0), name='sales_transport_cost_actual_gte_zero'),
+        ]
         verbose_name = '销售人肉成本'
         verbose_name_plural = '销售人肉成本'
 class StockAllocation(models.Model):

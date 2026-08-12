@@ -248,6 +248,7 @@ class LedgerPosting(models.Model):
         ACCOUNTS_RECEIVABLE = 'accounts_receivable', '应收款'
         CUSTOMER_PREPAYMENTS = 'customer_prepayments', '客户预收款'
         INVENTORY = 'inventory', '库存'
+        FUND_ACCOUNT = '', '资金账户'
         SALES_REVENUE = 'sales_revenue', '销售收入'
         CUSTOMER_TRANSPORT_REVENUE = 'customer_transport_revenue', '客户人肉费收入'
         COST_OF_GOODS_SOLD = 'cost_of_goods_sold', '销售成本'

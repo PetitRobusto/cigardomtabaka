@@ -4,7 +4,8 @@ from decimal import Decimal
 from unittest.mock import patch
 from django.test import TestCase
 
-from accounting.models import LedgerPosting, LedgerTransaction
+from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
+from accounting.selectors import account_snapshot
 from accounting.services import LedgerError
 from cigars.models import (
     Brand,
@@ -13,6 +14,7 @@ from cigars.models import (
     PurchaseOrder,
     PurchaseOrderItem,
     SalesOrder,
+    SalesReceipt,
     SalesShipment,
     StockAllocation,
     StockMovement,
@@ -233,3 +235,23 @@ class SalesFulfillmentServiceTest(TestCase):
         self.assertEqual(SalesShipment.objects.count(), 1)
         self.assertEqual(LedgerTransaction.objects.filter(transaction_type=LedgerTransaction.TransactionType.SALES_SHIPMENT).count(), 1)
         self.assertEqual(StockMovement.objects.filter(movement_type=StockMovement.MovementType.SHIP).count(), 1)
+
+    def test_receive_payment_after_shipment_clears_receivable(self):
+        account = FundAccount.objects.create(name='销售收款账户', currency=FundAccount.Currency.CNY, custodian=self.operator, creation_idempotency_key='sales-receipt-account-1')
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import receive_sales_order_payment, ship_sales_order
+        ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-before-receipt-1', note='出库')
+        received = receive_sales_order_payment(order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='sales-receipt-1')
+        account.refresh_from_db(); order.refresh_from_db()
+        self.assertEqual(account_snapshot(account).original_balance, Decimal('95.00000000'))
+        self.assertEqual(account_snapshot(account).cny_book_cost, Decimal('95.00'))
+        ledger = received.ledger_transaction
+        self.assertEqual(ledger.transaction_type, LedgerTransaction.TransactionType.SALES_RECEIPT)
+        self.assertEqual(list(ledger.postings.order_by('id').values_list('category', 'amount', 'cny_amount')), [(LedgerPosting.Category.FUND_ACCOUNT, Decimal('95.00'), Decimal('95.00')), (LedgerPosting.Category.ACCOUNTS_RECEIVABLE, Decimal('-95.00'), Decimal('-95.00'))])
+        self.assertEqual(received.amount_cny, Decimal('95.00'))
+        self.assertEqual(received.fund_account_id, account.id)
+        self.assertEqual(SalesReceipt.objects.get(sales_order=order).id, received.id)
+        self.assertEqual(order.payment_status, SalesOrder.PaymentStatus.PAID)
+        self.assertEqual(order.status, 'completed')
+        self.assertEqual(order.fulfillment_status, SalesOrder.FulfillmentStatus.SHIPPED)

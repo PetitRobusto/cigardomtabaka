@@ -3,6 +3,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.test import Client, TestCase
+from django.utils import timezone
 
 from accounting.models import LedgerTransaction
 from cigars.models import (
@@ -290,15 +291,15 @@ class OrderInventoryServiceTest(TestCase):
             operator=self.operator,
             agent_context=context(),
         )
-        confirm_payment(
-            sales_order_id=order.id,
-            operator=self.operator,
-            agent_context=context(command='confirm_payment', key='legacy-paid'),
-        )
-        order.refresh_from_db()
-        order.fulfillment_status = SalesOrder.FulfillmentStatus.CONFIRMED
-        order.save(update_fields=['fulfillment_status'])
         allocation = order.items.get().allocations.get()
+        allocation.status = StockAllocation.Status.FULFILLED
+        allocation.fulfilled_at = timezone.now()
+        allocation.save(update_fields=['status', 'fulfilled_at'])
+        order.refresh_from_db()
+        order.status = 'paid'
+        order.payment_status = SalesOrder.PaymentStatus.PAID
+        order.fulfillment_status = SalesOrder.FulfillmentStatus.CONFIRMED
+        order.save(update_fields=['status', 'payment_status', 'fulfillment_status'])
         batch.refresh_from_db()
         before_batch = (
             batch.remaining, batch.physical_remaining, batch.remaining_cost_cny, batch.sold_cost_cny,
@@ -371,7 +372,7 @@ class OrderInventoryServiceTest(TestCase):
         )
         self.assertEqual(allocation.status, StockAllocation.Status.RESERVED)
 
-    def test_confirm_payment_locks_allocations_by_batch_then_allocation_id(self):
+    def test_legacy_confirm_payment_rejects_without_moving_locked_batches(self):
         first_batch = create_batch(self.cigar, remaining=1, unit_cost='10.00', operator=self.operator)
         second_batch = create_batch(self.cigar, remaining=1, unit_cost='11.00', operator=self.operator)
         order = SalesOrder.objects.create(operator=self.operator, status='pending_payment')
@@ -397,51 +398,28 @@ class OrderInventoryServiceTest(TestCase):
             batch.available_stick_quantity = 0
             batch.save(update_fields=['remaining', 'available_stick_quantity'])
 
-        confirm_payment(
-            sales_order_id=order.id,
-            operator=self.operator,
-            agent_context=context(command='confirm_payment', key='batch-lock-order'),
-        )
+        before = list(PurchaseBatch.objects.filter(id__in=[first_batch.id, second_batch.id]).values_list('remaining', 'sold_cost_cny'))
+        with self.assertRaisesRegex(OrderServiceError, '已停用'):
+            confirm_payment(
+                sales_order_id=order.id,
+                operator=self.operator,
+                agent_context=context(command='confirm_payment', key='batch-lock-order'),
+            )
+        self.assertEqual(list(PurchaseBatch.objects.filter(id__in=[first_batch.id, second_batch.id]).values_list('remaining', 'sold_cost_cny')), before)
 
-        shipment_batch_ids = list(
-            StockMovement.objects.filter(movement_type='ship').order_by('id')
-            .values_list('purchase_batch_id', flat=True)
-        )
-        self.assertEqual(shipment_batch_ids, [first_batch.id, second_batch.id])
-
-    def test_confirm_payment_moves_cost_for_multiple_allocations_and_last_unit_tail(self):
+    def test_remove_remaining_cost_assigns_last_unit_rounding_tail(self):
+        from cigars.services import _remove_remaining_cost
         batch = create_batch(self.cigar, remaining=3, unit_cost='3.34', operator=self.operator)
         batch.original_cost_cny = Decimal('10.01')
         batch.remaining_cost_cny = Decimal('10.01')
-        batch.save(update_fields=['original_cost_cny', 'remaining_cost_cny'])
-        order = SalesOrder.objects.create(operator=self.operator, status='pending_payment')
-        reserve_allocation(order, self.cigar, batch, 1)
-        reserve_allocation(order, self.cigar, batch, 2)
-
-        confirm_payment(
-            sales_order_id=order.id,
-            operator=self.operator,
-            agent_context=context(command='confirm_payment', key='tail-cost'),
-        )
-
-        batch.refresh_from_db()
-        self.assertEqual(batch.quantity, 3)
-        self.assertEqual(batch.original_cost_cny, Decimal('10.01'))
-        self.assertEqual(batch.positive_adjustment_quantity, 0)
-        self.assertEqual(batch.positive_adjustment_cost_cny, Decimal('0.00'))
-        self.assertEqual(batch.adjustment_cost_cny, Decimal('0.00'))
-        self.assertEqual(
-            batch.original_cost_cny + batch.positive_adjustment_cost_cny,
-            batch.remaining_cost_cny + batch.sold_cost_cny + batch.adjustment_cost_cny,
-        )
-        self.assertEqual(batch.remaining, 0)
-        self.assertEqual(batch.physical_remaining, 0)
-        self.assertEqual(batch.remaining_cost_cny, Decimal('0.00'))
-        self.assertEqual(batch.sold_cost_cny, Decimal('10.01'))
-        self.assertEqual(
-            list(StockMovement.objects.filter(movement_type='ship').order_by('id').values_list('quantity', flat=True)),
-            [1, 2],
-        )
+        batch.physical_remaining = 3
+        first = _remove_remaining_cost(batch, 1)
+        batch.remaining_cost_cny -= first
+        batch.physical_remaining -= 1
+        second = _remove_remaining_cost(batch, 2)
+        self.assertEqual(first, Decimal('3.34'))
+        self.assertEqual(second, Decimal('6.67'))
+        self.assertEqual(first + second, Decimal('10.01'))
 
     def test_negative_adjustment_preserves_active_reservation_physical_coverage(self):
         batch = create_batch(self.cigar, remaining=10, unit_cost='10.00', operator=self.operator)

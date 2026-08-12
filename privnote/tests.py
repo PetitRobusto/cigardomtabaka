@@ -447,8 +447,8 @@ class CreatePaymentTestCase(TestCase):
         data = resp.json()
         so = SalesOrder.objects.get(id=data['sales_order_id'])
         item = so.items.first()
-        self.assertEqual(item.unit_cost, Decimal('280.00'))
-        self.assertEqual(item.cost, Decimal('2800.00'))
+        self.assertEqual(item.unit_cost, Decimal('0.00'))
+        self.assertEqual(item.cost, Decimal('0.00'))
 
     def test_create_payment_without_sales_order(self):
         """可以不绑定 SalesOrder（但当前 create 总是创建一个）"""

@@ -579,6 +579,23 @@ class SalesReceipt(models.Model):
         ]
         verbose_name = '销售收款'
         verbose_name_plural = '销售收款'
+class SalesRefund(models.Model):
+    """一张已取消销售单的一次全额退款事实。"""
+    sales_order = models.OneToOneField(SalesOrder, on_delete=models.PROTECT, related_name='sales_refund', verbose_name='销售单')
+    amount_cny = models.DecimalField('退款金额 (CNY)', max_digits=14, decimal_places=2)
+    fund_account = models.ForeignKey('accounting.FundAccount', on_delete=models.PROTECT, related_name='sales_refunds', verbose_name='退款资金账户')
+    business_date = models.DateField('业务日期')
+    ledger_transaction = models.OneToOneField('accounting.LedgerTransaction', on_delete=models.PROTECT, related_name='sales_refund', verbose_name='账务交易')
+    operator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='sales_refunds', verbose_name='操作人')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(amount_cny__gt=0), name='sales_refund_amount_gt_zero'),
+        ]
+        verbose_name = '销售退款'
+        verbose_name_plural = '销售退款'
+
 class SalesTransportCost(models.Model):
     """销售单的人肉实际成本及其人民币支付事实。"""
     sales_order = models.OneToOneField(SalesOrder, on_delete=models.PROTECT, related_name='sales_transport_cost', verbose_name='销售单')

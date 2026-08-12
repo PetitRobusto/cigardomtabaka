@@ -6,10 +6,10 @@ from django.test import TestCase
 
 from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
 from accounting.selectors import account_snapshot
-from accounting.services import LedgerError
+from accounting.services import LedgerError, record_opening_balance
 from cigars.models import (
     Brand, Cigar, PurchaseBatch, PurchaseOrder, PurchaseOrderItem,
-    SalesOrder, SalesReceipt, SalesShipment, SalesTransportCost,
+    SalesOrder, SalesReceipt, SalesRefund, SalesShipment, SalesTransportCost,
     StockAllocation, StockMovement, Supplier, User,
 )
 from cigars.services import (
@@ -97,6 +97,10 @@ class SalesRefundAndTransportTest(TestCase):
             name='人肉成本账户', currency=FundAccount.Currency.CNY,
             custodian=self.operator, creation_idempotency_key='transport-cost-account',
         )
+        record_opening_balance(
+            account, '10.00', '10.00', LedgerPosting.Category.OPENING_CAPITAL,
+            self.business_date, self.operator, 'transport-cost-opening',
+        )
         batch = self.batch()
         order = self.confirmed_order()
         from cigars.sales_accounting import ship_sales_order
@@ -145,8 +149,15 @@ class SalesRefundAndTransportTest(TestCase):
         order.refresh_from_db(); account.refresh_from_db()
         self.assertEqual(order.payment_status, SalesOrder.PaymentStatus.REFUND_PENDING)
         self.assertEqual(account_snapshot(account).original_balance, Decimal('95.00000000'))
-        with self.assertRaises((LedgerError, OrderServiceError)):
-            refund_sales_order_payment(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='refund-disabled')
+        retried = refund_sales_order_payment(
+            order_id=order.id, business_date=self.business_date,
+            operator=self.operator, idempotency_key='refund-retry',
+        )
+        order.refresh_from_db(); account.refresh_from_db()
+        self.assertEqual(retried.sales_order_id, order.id)
+        self.assertEqual(order.payment_status, SalesOrder.PaymentStatus.REFUNDED)
+        self.assertEqual(account_snapshot(account).original_balance, Decimal('0E-8'))
+        self.assertEqual(SalesRefund.objects.filter(sales_order=order).count(), 1)
 
     def test_transport_cost_after_shipment_posts_expense_and_updates_profit(self):
         order, account, batch = self.shipped_order()
@@ -164,9 +175,9 @@ class SalesRefundAndTransportTest(TestCase):
         ])
         self.assertEqual(recorded.actual_cost_cny, Decimal('10.00'))
         self.assertEqual(order.actual_transport_cost_cny, Decimal('10.00'))
-        self.assertEqual(order.contribution_profit_cny, Decimal('53.00'))
+        self.assertEqual(order.contribution_profit_cny, Decimal('55.00'))
         self.assertEqual(SalesTransportCost.objects.get(sales_order=order).id, recorded.id)
-        self.assertEqual(account_snapshot(account).original_balance, Decimal('-10.00000000'))
+        self.assertEqual(account_snapshot(account).original_balance, Decimal('0E-8'))
 
     def test_transport_cost_same_key_replays_and_different_key_rejects(self):
         order, account, batch = self.shipped_order()
@@ -203,4 +214,4 @@ class SalesRefundAndTransportTest(TestCase):
         order.refresh_from_db(); account.refresh_from_db()
         self.assertEqual(order.actual_transport_cost_cny, Decimal('0.00'))
         self.assertEqual(SalesTransportCost.objects.count(), 0)
-        self.assertEqual(account_snapshot(account).original_balance, Decimal('0E-8'))
+        self.assertEqual(account_snapshot(account).original_balance, Decimal('10.00000000'))

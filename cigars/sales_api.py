@@ -18,6 +18,8 @@ from accounting.models import FundAccount
 from accounting.services import LedgerError
 
 from .models import IdempotencyRecord, SalesOrder
+
+
 from .services import (
     AgentContext,
     InsufficientStockError,
@@ -28,6 +30,16 @@ from .services import (
     serialize_sales_order,
     update_sales_order_draft,
 )
+
+
+class ActionConflictError(OrderServiceError):
+    """动作因订单当前状态或事实冲突而无法执行。"""
+
+
+class ActionInputError(OrderServiceError):
+    """动作请求参数无效。"""
+
+
 from .sales_accounting import (
     ship_sales_order, receive_sales_order_payment, refund_sales_order_payment,
     record_sales_transport_cost,
@@ -123,6 +135,10 @@ def _write(request, command, handler, success_status=200):
             return _error(str(exc), 409, exc.details)
         except SalesOrder.DoesNotExist:
             return _error("销售单不存在", 404)
+        except ActionInputError as exc:
+            return _error(str(exc), 400, getattr(exc, "details", None))
+        except ActionConflictError as exc:
+            return _error(str(exc), 409, getattr(exc, "details", None))
         except (OrderServiceError, LedgerError) as exc:
             return _error(str(exc), 400, getattr(exc, "details", None))
         except OperationalError as exc:
@@ -269,19 +285,19 @@ def _business_date(body):
     try:
         parsed = date.fromisoformat(str(value))
     except (TypeError, ValueError):
-        raise OrderServiceError("business_date 必须是 ISO 日期")
+        raise ActionInputError("business_date 必须是 ISO 日期")
     return parsed
 
 
 def _account(body, operator):
-    try:
-        account_id = int(body.get("fund_account_id"))
-    except (TypeError, ValueError):
-        raise OrderServiceError("fund_account_id 必须是整数")
+    value = body.get("fund_account_id")
+    if type(value) is not int or value <= 0:
+        raise ActionInputError("fund_account_id 必须是正整数")
+    account_id = value
     try:
         return FundAccount.objects.get(pk=account_id)
     except FundAccount.DoesNotExist:
-        raise OrderServiceError("资金账户不存在")
+        raise ActionInputError("资金账户不存在")
 
 
 def _action(request, order_id, command, handler):
@@ -293,7 +309,14 @@ def _action(request, order_id, command, handler):
         return method_error
     if _get_order(order_id) is None:
         return _error("销售单不存在", 404)
-    return _write(request, command, lambda body, operator, context: _response(handler(body, operator, context)))
+    def action_handler(body, operator, context):
+        try:
+            return _response(handler(body, operator, context))
+        except ActionInputError:
+            raise
+        except OrderServiceError as exc:
+            raise ActionConflictError(str(exc), details=exc.details)
+    return _write(request, command, action_handler)
 
 
 def sales_order_ship(request, order_id):

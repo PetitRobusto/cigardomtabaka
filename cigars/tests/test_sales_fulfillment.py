@@ -364,3 +364,25 @@ class SalesFulfillmentServiceTest(TestCase):
             receive_sales_order_payment(order_id=first_order.id, amount_cny=Decimal('95.00'), fund_account=second_account, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-strict-1')
         with self.assertRaises(OrderServiceError):
             receive_sales_order_payment(order_id=second_order.id, amount_cny=Decimal('95.00'), fund_account=second_account, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-strict-1')
+
+
+    def test_ship_same_key_cannot_be_reused_for_another_order(self):
+        self.batch(quantity=6, unit_cost='10.00')
+        first_order = self.confirmed_order(quantity=3, unit_price='30.00')
+        second_order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import ship_sales_order
+        ship_sales_order(order_id=first_order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-cross-order-1')
+        with self.assertRaises(OrderServiceError):
+            ship_sales_order(order_id=second_order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-cross-order-1')
+        second_order.refresh_from_db()
+        self.assertEqual(second_order.fulfillment_status, SalesOrder.FulfillmentStatus.CONFIRMED)
+        self.assertEqual(StockAllocation.objects.filter(sales_order_item__sales_order=second_order, status=StockAllocation.Status.RESERVED).count(), 1)
+        self.assertEqual(SalesShipment.objects.filter(sales_order=second_order).count(), 0)
+
+    def test_ship_same_key_replay_with_different_date_is_rejected(self):
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import ship_sales_order
+        ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-date-replay-1')
+        with self.assertRaises(OrderServiceError):
+            ship_sales_order(order_id=order.id, business_date=date(2026, 8, 11), operator=self.operator, idempotency_key='ship-date-replay-1')

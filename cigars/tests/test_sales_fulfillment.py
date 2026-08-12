@@ -255,3 +255,99 @@ class SalesFulfillmentServiceTest(TestCase):
         self.assertEqual(order.payment_status, SalesOrder.PaymentStatus.PAID)
         self.assertEqual(order.status, 'completed')
         self.assertEqual(order.fulfillment_status, SalesOrder.FulfillmentStatus.SHIPPED)
+
+
+    def test_receive_payment_before_shipment_records_customer_prepayment(self):
+        account = FundAccount.objects.create(name='预收人民币账户', currency=FundAccount.Currency.CNY, custodian=self.operator, creation_idempotency_key='prepay-account-1')
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import receive_sales_order_payment
+        received = receive_sales_order_payment(order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-receipt-1')
+        order.refresh_from_db()
+        self.assertEqual(order.fulfillment_status, SalesOrder.FulfillmentStatus.CONFIRMED)
+        self.assertEqual(order.payment_status, SalesOrder.PaymentStatus.PAID)
+        self.assertEqual(received.sales_order_id, order.id)
+        self.assertEqual(account_snapshot(account).original_balance, Decimal('95.00000000'))
+        self.assertEqual(list(received.ledger_transaction.postings.order_by('id').values_list('category', 'amount', 'cny_amount')), [
+            (LedgerPosting.Category.FUND_ACCOUNT, Decimal('95.00'), Decimal('95.00')),
+            (LedgerPosting.Category.CUSTOMER_PREPAYMENTS, Decimal('-95.00'), Decimal('-95.00')),
+        ])
+        self.assertFalse(received.ledger_transaction.postings.filter(category=LedgerPosting.Category.ACCOUNTS_RECEIVABLE).exists())
+
+    def test_prepaid_order_shipment_releases_prepayment_and_posts_profit(self):
+        account = FundAccount.objects.create(name='预收出库账户', currency=FundAccount.Currency.CNY, custodian=self.operator, creation_idempotency_key='prepay-account-2')
+        batch = self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import receive_sales_order_payment, ship_sales_order
+        receive_sales_order_payment(order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-receipt-2')
+        shipped = ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-ship-1')
+        shipped.refresh_from_db(); batch.refresh_from_db()
+        ledger = SalesShipment.objects.get(sales_order=shipped).ledger_transaction
+        self.assertEqual((shipped.fulfillment_status, shipped.payment_status, shipped.status), (SalesOrder.FulfillmentStatus.SHIPPED, SalesOrder.PaymentStatus.PAID, 'completed'))
+        self.assertEqual(batch.physical_remaining, 0)
+        self.assertEqual(list(ledger.postings.order_by('id').values_list('category', 'amount', 'cny_amount')), [
+            (LedgerPosting.Category.CUSTOMER_PREPAYMENTS, Decimal('95.00'), Decimal('95.00')),
+            (LedgerPosting.Category.SALES_REVENUE, Decimal('-90.00'), Decimal('-90.00')),
+            (LedgerPosting.Category.CUSTOMER_TRANSPORT_REVENUE, Decimal('-5.00'), Decimal('-5.00')),
+            (LedgerPosting.Category.COST_OF_GOODS_SOLD, Decimal('30.00'), Decimal('30.00')),
+            (LedgerPosting.Category.INVENTORY, Decimal('-30.00'), Decimal('-30.00')),
+        ])
+        self.assertFalse(ledger.postings.filter(category=LedgerPosting.Category.ACCOUNTS_RECEIVABLE).exists())
+
+    def test_prepaid_receipt_same_key_replays_and_different_key_rejects(self):
+        account = FundAccount.objects.create(name='预收幂等账户', currency=FundAccount.Currency.CNY, custodian=self.operator, creation_idempotency_key='prepay-account-3')
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import receive_sales_order_payment
+        first = receive_sales_order_payment(order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-idempotent-1')
+        second = receive_sales_order_payment(order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-idempotent-1')
+        self.assertEqual(second.id, first.id)
+        with self.assertRaises((LedgerError, OrderServiceError)):
+            receive_sales_order_payment(order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-idempotent-2')
+        self.assertEqual(SalesReceipt.objects.count(), 1)
+        self.assertEqual(LedgerTransaction.objects.filter(transaction_type=LedgerTransaction.TransactionType.SALES_RECEIPT).count(), 1)
+
+    def test_prepaid_receipt_ledger_failure_rolls_back_everything(self):
+        account = FundAccount.objects.create(name='预收回滚账户', currency=FundAccount.Currency.CNY, custodian=self.operator, creation_idempotency_key='prepay-account-4')
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import receive_sales_order_payment
+        with patch('cigars.sales_accounting._post_transaction_once', side_effect=LedgerError('ledger failed')):
+            with self.assertRaises(LedgerError):
+                receive_sales_order_payment(order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-rollback-1')
+        order.refresh_from_db(); account.refresh_from_db()
+        self.assertEqual((order.fulfillment_status, order.payment_status), (SalesOrder.FulfillmentStatus.CONFIRMED, SalesOrder.PaymentStatus.UNPAID))
+        self.assertEqual(account_snapshot(account).original_balance, Decimal('0E-8'))
+        self.assertEqual(SalesReceipt.objects.count(), 0)
+        self.assertEqual(LedgerTransaction.objects.count(), 0)
+
+    def test_prepaid_receipt_rejects_invalid_amount_or_account(self):
+        from cigars.sales_accounting import receive_sales_order_payment
+        cases = (('amount precision', Decimal('95.001'), FundAccount.Currency.CNY, True), ('inactive account', Decimal('95.00'), FundAccount.Currency.CNY, False), ('rub account', Decimal('95.00'), FundAccount.Currency.RUB, True))
+        for index, (label, amount, currency, active) in enumerate(cases):
+            with self.subTest(label=label):
+                account = FundAccount.objects.create(name=f'预收校验账户{index}', currency=currency, custodian=self.operator, is_active=active, creation_idempotency_key=f'prepay-account-invalid-{index}')
+                self.batch(quantity=3, unit_cost='10.00')
+                order = self.confirmed_order(quantity=3, unit_price='30.00')
+                with self.assertRaises((LedgerError, OrderServiceError)):
+                    receive_sales_order_payment(order_id=order.id, amount_cny=amount, fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key=f'prepay-invalid-{index}')
+                order.refresh_from_db()
+                self.assertEqual(order.payment_status, SalesOrder.PaymentStatus.UNPAID)
+                self.assertFalse(SalesReceipt.objects.filter(sales_order=order).exists())
+
+    def test_prepaid_shipment_ledger_failure_preserves_inventory_and_reservation(self):
+        account = FundAccount.objects.create(name='预收出库回滚账户', currency=FundAccount.Currency.CNY, custodian=self.operator, creation_idempotency_key='prepay-account-5')
+        batch = self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import receive_sales_order_payment, ship_sales_order
+        receive_sales_order_payment(order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-receipt-rollback-1')
+        with patch('cigars.sales_accounting._post_transaction_once', side_effect=LedgerError('ledger failed')):
+            with self.assertRaises(LedgerError):
+                ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-ship-rollback-1')
+        batch.refresh_from_db(); order.refresh_from_db()
+        self.assertEqual(batch.physical_remaining, 3)
+        self.assertEqual(batch.remaining_cost_cny, Decimal('30.00'))
+        self.assertEqual(StockAllocation.objects.filter(status=StockAllocation.Status.RESERVED).count(), 1)
+        self.assertEqual(StockMovement.objects.filter(movement_type=StockMovement.MovementType.SHIP).count(), 0)
+        self.assertEqual((order.fulfillment_status, order.payment_status), (SalesOrder.FulfillmentStatus.CONFIRMED, SalesOrder.PaymentStatus.PAID))
+        self.assertEqual(SalesShipment.objects.count(), 0)

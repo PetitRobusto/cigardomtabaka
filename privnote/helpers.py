@@ -81,9 +81,9 @@ def split_search_terms(q):
 
 # ── PaymentMethod 序列化 ──
 
-def serialize_payment_method(pm):
-    """将 PaymentMethod 模型序列化为字典"""
-    return {
+def serialize_payment_method(pm, *, include_fund_account=False):
+    """将 PaymentMethod 序列化；资金账户 ID 仅供 staff 配置接口使用。"""
+    data = {
         'id': pm.id,
         'method_type': pm.method_type,
         'label': pm.label,
@@ -93,6 +93,9 @@ def serialize_payment_method(pm):
         'qr_url': pm.qr_image.url if pm.qr_image else None,
         'remark': pm.remark,
     }
+    if include_fund_account:
+        data['fund_account_id'] = pm.fund_account_id
+    return data
 
 
 # ── 雪茄最小序列化 ──

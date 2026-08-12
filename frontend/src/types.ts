@@ -327,6 +327,7 @@ export interface PaymentMethod {
   card_holder?: string;
   qr_url?: string | null;
   remark?: string;
+  fund_account_id?: number;
 }
 
 export interface SearchCigarResult {
@@ -509,6 +510,27 @@ export interface RecentChangesResponse {
 }
 
 // =================== SALES & ACCOUNTING WORKBENCH ===================
+
+export interface PaymentOrderItem {
+  cigar_name: string;
+  quantity: number;
+  sale_unit: 'stick' | 'box' | string;
+  sale_quantity: number | null;
+  unit_price: number;
+}
+
+export interface PaymentOrder {
+  id: number;
+  order_number: string;
+  status: string;
+  display_status: string;
+  fulfillment_status: 'confirmed' | 'shipped' | string;
+  payment_status: 'unpaid' | string;
+  customer_name: string;
+  customer?: { name: string } | null;
+  amount_due_cny: number;
+  items: PaymentOrderItem[];
+}
 
 export interface SalesOrderItem {
   id: number;

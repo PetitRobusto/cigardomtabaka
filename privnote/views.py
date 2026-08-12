@@ -5,18 +5,22 @@ import uuid
 from datetime import datetime, timedelta
 
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Q
 from django.http import JsonResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET
 
-from cigars.models import Brand, Cigar, CigarPrice, Customer, PurchaseBatch, User
+from cigars.models import Brand, Cigar, CigarPrice, Customer, PurchaseBatch, SalesOrder, User
+from accounting.models import FundAccount
 from cigars.search import CigarSearchEngine
 from cigars.constants import BRAND_CN_MAP
-from .models import Privnote
+from .models import PaymentMethod, Privnote
 from .decorators import staff_required
 from .helpers import (
+    decimal_to_number,
     safe_json_loads,
     get_in_stock_cigar_ids,
     serialize_payment_method,
@@ -26,7 +30,6 @@ from .services import (
     build_inventory_data,
     build_payment_data,
     build_quote_data,
-    create_sales_order_from_items,
 )
 from .services.payment import PaymentValidationError
 
@@ -55,6 +58,7 @@ def _request_operator(request):
 
 @csrf_exempt
 @staff_required
+@transaction.atomic
 def create(request):
     """POST /privnote/create/ — 四种类型统一创建入口"""
     note_type = request.POST.get('note_type', 'inventory')
@@ -77,49 +81,52 @@ def create(request):
 
     # ── PAYMENT ──
     elif note_type == 'payment':
-        items_json = request.POST.get('items', '[]')
+        # 收款单是已有销售单的客户文档；销售单必须先经过销售工作流创建。
+        raw_order_id = request.POST.get('sales_order_id', '').strip()
+        raw_payment_method_id = request.POST.get('payment_method_id', '').strip()
         try:
-            items_raw = json.loads(items_json)
-        except json.JSONDecodeError:
-            return JsonResponse({'error': '商品数据格式错误'}, status=400)
+            sales_order_id = int(raw_order_id)
+            payment_method_id = int(raw_payment_method_id)
+        except (TypeError, ValueError):
+            return JsonResponse({'error': '收款单必须提供有效的销售单和收款方式'}, status=400)
+        if sales_order_id <= 0 or payment_method_id <= 0:
+            return JsonResponse({'error': '收款单必须提供有效的销售单和收款方式'}, status=400)
 
-        if not items_raw:
-            return JsonResponse({'error': '至少需要一个商品'}, status=400)
+        try:
+            order = SalesOrder.objects.select_for_update().get(pk=sales_order_id)
+        except SalesOrder.DoesNotExist:
+            return JsonResponse({'error': '销售单不存在'}, status=400)
+        if (
+            order.fulfillment_status not in (
+                SalesOrder.FulfillmentStatus.CONFIRMED,
+                SalesOrder.FulfillmentStatus.SHIPPED,
+            )
+            or order.payment_status != SalesOrder.PaymentStatus.UNPAID
+        ):
+            return JsonResponse({'error': '只有已确认或已出库且未收款的销售单才能创建收款单'}, status=400)
 
-        customer_name = request.POST.get('customer_name', '').strip()
-        customer_id = request.POST.get('customer_id', '').strip()
-        customer = None
-        if customer_id:
-            try:
-                customer = Customer.objects.get(id=int(customer_id))
-                customer_name = customer.name
-            except (Customer.DoesNotExist, ValueError):
-                pass
+        payment_method = PaymentMethod.objects.filter(
+            pk=payment_method_id,
+            is_active=True,
+            fund_account__is_active=True,
+            fund_account__currency=FundAccount.Currency.CNY,
+        ).select_related('fund_account').first()
+        if payment_method is None:
+            return JsonResponse({'error': '收款方式不存在、未启用或未绑定有效人民币账户'}, status=400)
 
-        payment_method_id = request.POST.get('payment_method_id', '')
-        payment_manual = safe_json_loads(request.POST.get('payment_manual', '{}'), {})
-        extra_fees = safe_json_loads(request.POST.get('extra_fees', '[]'), [])
         remark = request.POST.get('remark', '').strip()
         images = safe_json_loads(request.POST.get('images', '[]'), [])
-
-        try:
-            order = create_sales_order_from_items(
-                items_raw=items_raw,
-                customer_name=customer_name,
-                payment_method_id=payment_method_id,
-                payment_manual=payment_manual,
-                extra_fees=extra_fees,
-                remark=remark,
-                images=images,
-                operator=operator,
-                customer=customer,
-            )
-        except PaymentValidationError as exc:
-            return JsonResponse({'error': str(exc)}, status=400)
-
+        if not isinstance(images, list):
+            images = []
         title = f'收款单 · {order.order_number}{debug_tag}'
-        data = build_payment_data(order)
         sales_order = order
+        # payment_manual / extra_fees 等旧字段永远不从 HTTP 请求写回销售单，
+        # 也不进入新收款单快照；金额只来自销售单正式应收字段。
+        data = {
+            'payment_method_id': payment_method.id,
+            'remark': remark,
+            'images': images,
+        }
 
     # ── MESSAGE ──
     elif note_type == 'message':
@@ -281,10 +288,58 @@ def list_quote_products(request):
 @staff_required
 def list_payment_methods(request):
     """GET /privnote/api/payment-methods/"""
-    from .models import PaymentMethod
-    methods = PaymentMethod.objects.filter(is_active=True).order_by('sort_order')
-    data = [serialize_payment_method(m) for m in methods]
+    methods = PaymentMethod.objects.filter(
+        is_active=True,
+        fund_account__is_active=True,
+        fund_account__currency=FundAccount.Currency.CNY,
+    ).select_related('fund_account').order_by('sort_order')
+    data = [serialize_payment_method(m, include_fund_account=True) for m in methods]
     return JsonResponse({'methods': data})
+
+
+@staff_required
+@require_GET
+def list_payment_orders(request):
+    """GET /privnote/api/payment-orders/ — 可生成收款单的销售单。"""
+    orders = (
+        SalesOrder.objects
+        .filter(
+            fulfillment_status__in=(
+                SalesOrder.FulfillmentStatus.CONFIRMED,
+                SalesOrder.FulfillmentStatus.SHIPPED,
+            ),
+            payment_status=SalesOrder.PaymentStatus.UNPAID,
+        )
+        .select_related('customer')
+        .prefetch_related('items__cigar')
+        .order_by('-created_at', '-id')
+    )
+    data = []
+    for order in orders:
+        data.append({
+            'id': order.id,
+            'order_number': order.order_number,
+            'status': order.status,
+            'display_status': order.display_status,
+            'fulfillment_status': order.fulfillment_status,
+            'payment_status': order.payment_status,
+            'customer_name': order.customer_name,
+            'customer': ({
+                'id': order.customer_id,
+                'name': order.customer.name,
+                'phone': order.customer.phone,
+            } if order.customer_id else None),
+            'amount_due_cny': decimal_to_number(order.amount_due_cny),
+            'items': [{
+                'id': item.id,
+                'cigar_name': item.cigar.name or item.cigar.english_name,
+                'quantity': item.quantity,
+                'sale_unit': item.sale_unit,
+                'sale_quantity': item.sale_quantity,
+                'unit_price': decimal_to_number(item.unit_price),
+            } for item in order.items.all()],
+        })
+    return JsonResponse({'orders': data})
 
 
 # ═══════════════ CUSTOMER SEARCH API ═══════════════
@@ -368,23 +423,79 @@ def api_privnote(request, token):
             'requires_password': True,
         })
 
-    note.mark_viewed()
-
     # 收款类型：实时渲染
-    if note.note_type == 'payment' and note.sales_order:
-        data = build_payment_data(note.sales_order)
-    elif note.note_type == 'quote':
-        cfg = note.data_json or {}
-        data = build_quote_data(
-            quote_mode=cfg.get('quote_mode', 'full'),
-            selected_ids=cfg.get('selected_ids', []),
-            shipping_included=cfg.get('shipping_included', False),
-            customer_name=cfg.get('customer_name'),
-            custom_prices=cfg.get('custom_prices'),
-            shipping_fee_per_stick=cfg.get('shipping_fee_per_stick'),
-        )
-    else:
-        data = note.data_json
+    try:
+        if note.note_type == 'payment' and note.sales_order:
+            cfg = note.data_json or {}
+            # 新格式由 payment_method_id 标识；旧格式保存的是完整 payment
+            # 快照，不能把历史手动收款信息误当作新请求数据。
+            if 'payment_method_id' not in cfg:
+                data = build_payment_data(
+                    note.sales_order,
+                    remark=cfg.get('remark') if isinstance(cfg, dict) else None,
+                    images=cfg.get('images') if isinstance(cfg, dict) else None,
+                    extra_fees=cfg.get('extra_fees') if isinstance(cfg, dict) else None,
+                )
+                legacy_methods = cfg.get('payment_methods') if isinstance(cfg, dict) else None
+                if isinstance(legacy_methods, list):
+                    data['payment_methods'] = [
+                        method for method in legacy_methods
+                        if isinstance(method, dict) and 'fund_account_id' not in method
+                    ]
+                elif note.sales_order.payment_manual:
+                    manual = note.sales_order.payment_manual
+                    if any(manual.get(key) for key in ('bank_name', 'card_number', 'card_holder')):
+                        data['payment_methods'] = [{
+                            'method_type': 'bank_card',
+                            'label': '手动填写',
+                            'bank_name': manual.get('bank_name', ''),
+                            'card_number': manual.get('card_number', ''),
+                            'card_holder': manual.get('card_holder', ''),
+                            'qr_url': manual.get('qr_url'),
+                            'remark': '',
+                        }]
+                if isinstance(note.sales_order.payment_manual, dict):
+                    manual = note.sales_order.payment_manual
+                    if data.get('remark') == '':
+                        data['remark'] = str(manual.get('remark') or '')
+                    if not data.get('images'):
+                        data['images'] = manual.get('images') if isinstance(manual.get('images'), list) else []
+            else:
+                payment_method = PaymentMethod.objects.filter(
+                    pk=cfg.get('payment_method_id'),
+                    is_active=True,
+                    fund_account__is_active=True,
+                    fund_account__currency=FundAccount.Currency.CNY,
+                ).select_related('fund_account').first()
+                data = build_payment_data(
+                    note.sales_order,
+                    payment_method=payment_method,
+                    remark=cfg.get('remark'),
+                    images=cfg.get('images', []),
+                    # 新 note 不保存 extra_fees：让渲染器从销售单正式人肉费字段计算；
+                    # 历史 note 若有快照则继续按快照兼容展示。
+                    extra_fees=cfg.get('extra_fees'),
+                )
+        elif note.note_type == 'quote':
+            cfg = note.data_json or {}
+            data = build_quote_data(
+                quote_mode=cfg.get('quote_mode', 'full'),
+                selected_ids=cfg.get('selected_ids', []),
+                shipping_included=cfg.get('shipping_included', False),
+                customer_name=cfg.get('customer_name'),
+                custom_prices=cfg.get('custom_prices'),
+                shipping_fee_per_stick=cfg.get('shipping_fee_per_stick'),
+            )
+        else:
+            data = note.data_json
+    except PaymentValidationError:
+        return JsonResponse({
+            'error': 'invalid_payment_order',
+            'reason': 'invalid_payment_order',
+            'title': note.title,
+        }, status=409)
+
+    note.mark_viewed()
 
     return JsonResponse({
         'title': note.title,

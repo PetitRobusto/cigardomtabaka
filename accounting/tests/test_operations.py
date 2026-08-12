@@ -164,6 +164,24 @@ class AccountingOperationTest(TestCase):
         self.assertEqual(lock_accounts.call_count, 1)
         self.assertLess(call_order.index('writer_gate'), call_order.index('lock_accounts'))
 
+    def test_sqlite_writer_gate_equal_write_does_not_advance_sequence(self):
+        first = services._acquire_sqlite_writer_gate()
+        second = services._acquire_sqlite_writer_gate()
+
+        self.assertEqual(first.next_value, 1)
+        self.assertEqual(second.next_value, 1)
+        self.assertEqual(LedgerSequence.objects.get(name='global').next_value, 1)
+
+    def test_exchange_advances_sequence_once_after_writer_gate(self):
+        self.opening(self.cny, '100', '100', 'gate-sequence-opening')
+        transaction = exchange_to_rub(
+            self.cny, self.rub, '100', '1200', self.business_date,
+            self.operator, 'gate-sequence-exchange',
+        )
+
+        self.assertEqual(transaction.effective_sequence, 2)
+        self.assertEqual(LedgerSequence.objects.get(name='global').next_value, 3)
+
     def test_foreign_partial_and_final_outflow_use_moving_average_then_exact_remainder(self):
         self.opening(self.usdt, '3', '10', 'usdt-opening')
         target = self.account('USDT target', 'USDT', 'operations-usdt-target')

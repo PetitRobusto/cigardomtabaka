@@ -1,9 +1,11 @@
 from datetime import date
 from decimal import Decimal
 
+from unittest.mock import patch
 from django.test import TestCase
 
 from accounting.models import LedgerPosting, LedgerTransaction
+from accounting.services import LedgerError
 from cigars.models import (
     Brand,
     Cigar,
@@ -17,7 +19,7 @@ from cigars.models import (
     Supplier,
     User,
 )
-from cigars.services import AgentContext, confirm_sales_order, create_sales_order_draft
+from cigars.services import AgentContext, OrderServiceError, confirm_sales_order, create_sales_order_draft
 
 
 class SalesFulfillmentServiceTest(TestCase):
@@ -131,3 +133,103 @@ class SalesFulfillmentServiceTest(TestCase):
             ],
         )
         self.assertEqual(sum(row[2] for row in ledger.postings.values_list("category", "amount", "cny_amount")), Decimal("0.00"))
+
+
+    def test_ship_box_reduces_physical_box_and_cost(self):
+        batch = self.batch(quantity=25, unit_cost='10.00', box_size=25)
+        order = self.confirmed_order(quantity=1, unit_price='400.00', box_size=25)
+        from cigars.sales_accounting import ship_sales_order
+        shipped = ship_sales_order(
+            order_id=order.id,
+            business_date=self.business_date,
+            operator=self.operator,
+            idempotency_key='ship-box-1',
+        )
+        batch.refresh_from_db()
+        item = shipped.items.get()
+        self.assertEqual(batch.available_box_quantity, 0)
+        self.assertEqual(batch.physical_box_quantity, 0)
+        self.assertEqual(batch.physical_remaining, 0)
+        self.assertEqual(item.cost, Decimal('250.00'))
+        self.assertEqual(shipped.total_cost, Decimal('250.00'))
+
+    def test_ship_preserves_fifo_tail_cost(self):
+        batch = self.batch(quantity=3, unit_cost='3.3366666667')
+        batch.original_cost_cny = Decimal('10.01')
+        batch.remaining_cost_cny = Decimal('10.01')
+        batch.unit_cost_cny = Decimal('3.3366666667')
+        batch.save(update_fields=['original_cost_cny', 'remaining_cost_cny', 'unit_cost_cny'])
+        order = self.confirmed_order(quantity=3, unit_price='20.00')
+        from cigars.sales_accounting import ship_sales_order
+        shipped = ship_sales_order(
+            order_id=order.id,
+            business_date=self.business_date,
+            operator=self.operator,
+            idempotency_key='ship-tail-1',
+        )
+        batch.refresh_from_db()
+        item = shipped.items.get()
+        self.assertEqual(batch.remaining_cost_cny, Decimal('0.00'))
+        self.assertEqual(batch.sold_cost_cny, Decimal('10.01'))
+        self.assertEqual(item.cost, Decimal('10.01'))
+        self.assertEqual(shipped.total_cost, Decimal('10.01'))
+        self.assertEqual(shipped.total_profit, Decimal('54.99'))
+
+
+    def test_ship_retries_locked_writer_and_commits_once(self):
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='20.00')
+        from cigars.sales_accounting import ship_sales_order
+        from django.db import OperationalError
+        import accounting.services as accounting_services
+        original_gate = accounting_services._acquire_sqlite_writer_gate
+        calls = {'count': 0}
+
+        def flaky_gate():
+            calls['count'] += 1
+            if calls['count'] == 1:
+                raise OperationalError('database is locked')
+            return original_gate()
+
+        with patch('cigars.sales_accounting._acquire_sqlite_writer_gate', side_effect=flaky_gate):
+            with patch('accounting.services.time.sleep'):
+                shipped = ship_sales_order(
+                    order_id=order.id,
+                    business_date=self.business_date,
+                    operator=self.operator,
+                    idempotency_key='ship-retry-1',
+                )
+        self.assertEqual(shipped.fulfillment_status, SalesOrder.FulfillmentStatus.SHIPPED)
+        self.assertEqual(SalesShipment.objects.count(), 1)
+        self.assertEqual(StockMovement.objects.filter(movement_type=StockMovement.MovementType.SHIP).count(), 1)
+
+    def test_ship_rolls_back_inventory_when_ledger_fails(self):
+        batch = self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='20.00')
+        from cigars.sales_accounting import ship_sales_order
+        with patch('cigars.sales_accounting._post_transaction_once', side_effect=LedgerError('ledger failed')):
+            with self.assertRaises(LedgerError):
+                ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-rollback-1')
+        batch.refresh_from_db(); order.refresh_from_db()
+        self.assertEqual(batch.physical_remaining, 3)
+        self.assertEqual(batch.remaining_cost_cny, Decimal('30.00'))
+        self.assertEqual(batch.sold_cost_cny, Decimal('0.00'))
+        self.assertEqual(StockAllocation.objects.filter(status=StockAllocation.Status.RESERVED).count(), 1)
+        self.assertEqual(StockMovement.objects.filter(movement_type=StockMovement.MovementType.SHIP).count(), 0)
+        self.assertEqual(SalesShipment.objects.count(), 0)
+        self.assertEqual(order.fulfillment_status, SalesOrder.FulfillmentStatus.CONFIRMED)
+        self.assertEqual(order.total_cost, Decimal('0.00'))
+
+    def test_ship_same_key_does_not_create_duplicate_facts(self):
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='20.00')
+        from cigars.sales_accounting import ship_sales_order
+        first = ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-idempotent-1')
+        second = ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-idempotent-1')
+        self.assertEqual(second.id, first.id)
+        with self.assertRaises(Exception):
+            ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-idempotent-2')
+        self.assertEqual(first.id, order.id)
+        self.assertEqual(SalesShipment.objects.count(), 1)
+        self.assertEqual(LedgerTransaction.objects.filter(transaction_type=LedgerTransaction.TransactionType.SALES_SHIPMENT).count(), 1)
+        self.assertEqual(StockMovement.objects.filter(movement_type=StockMovement.MovementType.SHIP).count(), 1)

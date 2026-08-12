@@ -69,6 +69,11 @@ def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note
         order = SalesOrder.objects.select_for_update().get(pk=order_id)
     except (SalesOrder.DoesNotExist, ValueError, TypeError):
         raise OrderServiceError("销售单不存在")
+    existing_shipment = SalesShipment.objects.select_related("ledger_transaction").filter(sales_order=order).first()
+    if existing_shipment is not None:
+        if existing_shipment.ledger_transaction.idempotency_key == idempotency_key:
+            return order
+        raise OrderServiceError("销售单已经出库")
     if order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED:
         raise OrderServiceError("只有已确认订单才能出库")
     if order.payment_status != SalesOrder.PaymentStatus.UNPAID:

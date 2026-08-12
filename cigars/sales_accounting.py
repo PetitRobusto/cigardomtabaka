@@ -72,9 +72,26 @@ def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note
         raise OrderServiceError("销售单不存在")
     existing_shipment = SalesShipment.objects.select_related("ledger_transaction").filter(sales_order=order).first()
     if existing_shipment is not None:
-        if existing_shipment.ledger_transaction.idempotency_key == idempotency_key:
-            return order
+        transaction_obj = existing_shipment.ledger_transaction
+        if transaction_obj.idempotency_key == idempotency_key:
+            if (
+                transaction_obj.transaction_type == LedgerTransaction.TransactionType.SALES_SHIPMENT
+                and transaction_obj.business_date == business_date
+                and transaction_obj.source_type == "sales_order"
+                and transaction_obj.source_id == str(order.pk)
+            ):
+                return order
+            raise OrderServiceError("出库幂等键参数不匹配")
         raise OrderServiceError("销售单已经出库")
+    existing_transaction = LedgerTransaction.objects.filter(idempotency_key=idempotency_key).first()
+    if existing_transaction is not None:
+        if not (
+            existing_transaction.transaction_type == LedgerTransaction.TransactionType.SALES_SHIPMENT
+            and existing_transaction.business_date == business_date
+            and existing_transaction.source_type == "sales_order"
+            and existing_transaction.source_id == str(order.pk)
+        ):
+            raise OrderServiceError("出库幂等键已用于其他业务")
     if order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED:
         raise OrderServiceError("只有已确认订单才能出库")
     if order.payment_status not in (

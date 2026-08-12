@@ -5,7 +5,8 @@ from decimal import Decimal
 from django.db import close_old_connections
 from django.test import Client, TestCase, TransactionTestCase
 
-from accounting.models import FundAccount
+from accounting.models import FundAccount, LedgerPosting
+from accounting.services import record_opening_balance
 from threading import Barrier, Thread
 
 from cigars.models import (
@@ -343,6 +344,10 @@ class SalesOrderApiTest(TestCase):
     def test_transport_cost_action_api_returns_transport_fact(self):
         order_id = self.action_order("api-transport")
         account = self.action_account("api-transport-account")
+        record_opening_balance(
+            account, "10.00", "10.00", LedgerPosting.Category.OPENING_CAPITAL,
+            date(2026, 8, 10), self.operator, "api-transport-opening",
+        )
         from cigars.sales_accounting import ship_sales_order
         ship_sales_order(order_id=order_id, business_date=date(2026, 8, 10), operator=self.operator, idempotency_key="api-transport-setup-ship")
         response = self.request("post", f"/api/sales/orders/{order_id}/transport-cost/", {"actual_cost_cny": "10.00", "fund_account_id": account.id, "business_date": "2026-08-10"}, "api-transport-action")

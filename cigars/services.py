@@ -212,14 +212,55 @@ def serialize_sales_order(order):
         'total_profit': _decimal_to_json(order.total_profit),
         'fifo_cost': _decimal_to_json(order.fifo_cost_cny),
         'contribution_profit': _decimal_to_json(order.contribution_profit_cny),
+        'actual_transport_cost_cny': _decimal_to_json(order.actual_transport_cost_cny),
         'locked': order.locked,
         'created_at': order.created_at.isoformat() if order.created_at else None,
         'confirmed_at': order.confirmed_at.isoformat() if order.confirmed_at else None,
         'cancelled_at': order.cancelled_at.isoformat() if order.cancelled_at else None,
         'note': order.note,
         'items': items,
+        'sales_shipment': ({
+            'id': order.sales_shipment.id,
+            'business_date': order.sales_shipment.business_date.isoformat(),
+            'fifo_cost_cny': _decimal_to_json(order.sales_shipment.fifo_cost_cny),
+        } if hasattr(order, 'sales_shipment') else None),
+        'sales_receipt': ({
+            'id': order.sales_receipt.id,
+            'amount_cny': _decimal_to_json(order.sales_receipt.amount_cny),
+            'business_date': order.sales_receipt.business_date.isoformat(),
+            'fund_account_id': order.sales_receipt.fund_account_id,
+        } if hasattr(order, 'sales_receipt') else None),
+        'sales_refund': ({
+            'id': order.sales_refund.id,
+            'amount_cny': _decimal_to_json(order.sales_refund.amount_cny),
+            'business_date': order.sales_refund.business_date.isoformat(),
+            'fund_account_id': order.sales_refund.fund_account_id,
+        } if hasattr(order, 'sales_refund') else None),
+        'sales_transport_cost': ({
+            'id': order.sales_transport_cost.id,
+            'actual_cost_cny': _decimal_to_json(order.sales_transport_cost.actual_cost_cny),
+            'business_date': order.sales_transport_cost.business_date.isoformat(),
+            'fund_account_id': order.sales_transport_cost.fund_account_id,
+        } if hasattr(order, 'sales_transport_cost') else None),
+        'available_actions': _sales_order_available_actions(order),
     }
 
+
+def _sales_order_available_actions(order):
+    actions = []
+    if order.fulfillment_status == SalesOrder.FulfillmentStatus.DRAFT:
+        actions.append('confirm')
+    if order.fulfillment_status == SalesOrder.FulfillmentStatus.CONFIRMED:
+        actions.extend(['ship', 'cancel'])
+        if order.payment_status == SalesOrder.PaymentStatus.UNPAID:
+            actions.append('receive')
+    if order.fulfillment_status == SalesOrder.FulfillmentStatus.SHIPPED:
+        if order.payment_status == SalesOrder.PaymentStatus.UNPAID:
+            actions.append('receive')
+        actions.append('transport_cost')
+    if order.fulfillment_status == SalesOrder.FulfillmentStatus.CANCELLED and order.payment_status == SalesOrder.PaymentStatus.REFUND_PENDING:
+        actions.append('refund')
+    return actions
 
 def _decimal_to_json(value):
     if value is None:

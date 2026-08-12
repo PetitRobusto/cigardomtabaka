@@ -5,12 +5,17 @@ import hashlib
 import json
 import re
 import time
+from datetime import date
+from decimal import Decimal
 
 from django.db import IntegrityError, OperationalError
 
 from django.db import transaction
 from django.db.models import Q
 from django.http import JsonResponse
+
+from accounting.models import FundAccount
+from accounting.services import LedgerError
 
 from .models import IdempotencyRecord, SalesOrder
 from .services import (
@@ -22,6 +27,10 @@ from .services import (
     create_sales_order_draft,
     serialize_sales_order,
     update_sales_order_draft,
+)
+from .sales_accounting import (
+    ship_sales_order, receive_sales_order_payment, refund_sales_order_payment,
+    record_sales_transport_cost,
 )
 
 
@@ -83,6 +92,8 @@ def _write(request, command, handler, success_status=200):
                     if record.command_name != command or record.request_hash != request_hash:
                         return _error("Idempotency-Key 已用于不同请求", 409)
                     if record.status_code:
+                        if record.operator_id != request.user.pk:
+                            return _error("幂等键属于其他操作人", 409)
                         return _json(record.response_body, record.status_code)
                     # Another transaction currently owns the claim.  SQLite has no
                     # useful row lock here; retry after its short transaction commits.
@@ -112,8 +123,8 @@ def _write(request, command, handler, success_status=200):
             return _error(str(exc), 409, exc.details)
         except SalesOrder.DoesNotExist:
             return _error("销售单不存在", 404)
-        except OrderServiceError as exc:
-            return _error(str(exc), 400, exc.details)
+        except (OrderServiceError, LedgerError) as exc:
+            return _error(str(exc), 400, getattr(exc, "details", None))
         except OperationalError as exc:
             if "locked" not in str(exc).lower() and "in progress" not in str(exc).lower():
                 raise
@@ -129,7 +140,7 @@ def _denied(request):
 
 def _get_order(order_id):
     try:
-        return SalesOrder.objects.select_related("customer").get(id=order_id)
+        return SalesOrder.objects.select_related("customer", "sales_shipment", "sales_receipt", "sales_refund", "sales_transport_cost").get(id=order_id)
     except (SalesOrder.DoesNotExist, ValueError, TypeError):
         return None
 
@@ -165,7 +176,7 @@ def sales_orders(request):
             raise ValueError
     except (TypeError, ValueError):
         return _error("limit 必须是 1 到 100 之间的整数", 400)
-    orders = SalesOrder.objects.select_related("customer").prefetch_related(
+    orders = SalesOrder.objects.select_related("customer", "sales_shipment", "sales_receipt", "sales_refund", "sales_transport_cost").prefetch_related(
         "items__cigar", "items__allocations__purchase_batch"
     ).all()
     fulfillment = request.GET.get("fulfillment_status", "").strip()
@@ -251,3 +262,66 @@ def sales_order_cancel(request, order_id):
             note=str(body.get("note") or "").strip(), agent_context=context,
         ))
     return _write(request, "cancel_confirmed_sales_order", handler)
+
+
+def _business_date(body):
+    value = body.get("business_date")
+    try:
+        parsed = date.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        raise OrderServiceError("business_date 必须是 ISO 日期")
+    return parsed
+
+
+def _account(body, operator):
+    try:
+        account_id = int(body.get("fund_account_id"))
+    except (TypeError, ValueError):
+        raise OrderServiceError("fund_account_id 必须是整数")
+    try:
+        return FundAccount.objects.get(pk=account_id)
+    except FundAccount.DoesNotExist:
+        raise OrderServiceError("资金账户不存在")
+
+
+def _action(request, order_id, command, handler):
+    denied = _denied(request)
+    if denied:
+        return denied
+    method_error = _method(request, {"POST"})
+    if method_error:
+        return method_error
+    if _get_order(order_id) is None:
+        return _error("销售单不存在", 404)
+    return _write(request, command, lambda body, operator, context: _response(handler(body, operator, context)))
+
+
+def sales_order_ship(request, order_id):
+    return _action(request, order_id, "ship_sales_order", lambda body, operator, context: ship_sales_order(
+        order_id=order_id, business_date=_business_date(body), operator=operator,
+        idempotency_key=context.idempotency_key, note=str(body.get("note") or ""),
+    ))
+
+
+def sales_order_receive(request, order_id):
+    return _action(request, order_id, "receive_sales_order_payment", lambda body, operator, context: receive_sales_order_payment(
+        order_id=order_id, amount_cny=body.get("amount_cny"),
+        fund_account=_account(body, operator), business_date=_business_date(body),
+        operator=operator, idempotency_key=context.idempotency_key,
+    ).sales_order)
+
+
+def sales_order_refund(request, order_id):
+    return _action(request, order_id, "refund_sales_order_payment", lambda body, operator, context: refund_sales_order_payment(
+        order_id=order_id, business_date=_business_date(body), operator=operator,
+        idempotency_key=context.idempotency_key,
+    ).sales_order)
+
+
+def sales_order_transport_cost(request, order_id):
+    return _action(request, order_id, "record_sales_transport_cost", lambda body, operator, context: record_sales_transport_cost(
+        order_id=order_id, actual_cost_cny=body.get("actual_cost_cny"),
+        fund_account=_account(body, operator), business_date=_business_date(body),
+        operator=operator, idempotency_key=context.idempotency_key,
+        note=str(body.get("note") or ""),
+    ).sales_order)

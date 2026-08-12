@@ -61,6 +61,10 @@ urlpatterns = [
     path('api/sales/orders/<int:order_id>/', sales_api.sales_order_detail, name='sales_order_detail'),
     path('api/sales/orders/<int:order_id>/confirm/', sales_api.sales_order_confirm, name='sales_order_confirm'),
     path('api/sales/orders/<int:order_id>/cancel/', sales_api.sales_order_cancel, name='sales_order_cancel'),
+    path('api/sales/orders/<int:order_id>/ship/', sales_api.sales_order_ship, name='sales_order_ship'),
+    path('api/sales/orders/<int:order_id>/receive/', sales_api.sales_order_receive, name='sales_order_receive'),
+    path('api/sales/orders/<int:order_id>/refund/', sales_api.sales_order_refund, name='sales_order_refund'),
+    path('api/sales/orders/<int:order_id>/transport-cost/', sales_api.sales_order_transport_cost, name='sales_order_transport_cost'),
     path('api/accounting/', include('accounting.urls')),
     path('api/prices/', include('price_tracker.urls')),
     # Privnote — JSON API + customer view API (frontend handled by React SPA)

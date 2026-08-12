@@ -513,7 +513,7 @@ class SalesOrderItem(models.Model):
         Cigar, on_delete=models.PROTECT, verbose_name='雪茄'
     )
     quantity = models.IntegerField('数量')
-    unit_price = models.DecimalField('售价/支 (CNY)', max_digits=12, decimal_places=2)
+    unit_price = models.DecimalField('销售单位单价 (CNY)', max_digits=12, decimal_places=2)
     unit_cost = models.DecimalField('成本/支 (CNY)', max_digits=12, decimal_places=2)
     revenue = models.DecimalField('收入', max_digits=12, decimal_places=2)
     cost = models.DecimalField('成本', max_digits=12, decimal_places=2)
@@ -531,6 +531,14 @@ class SalesOrderItem(models.Model):
             models.CheckConstraint(condition=models.Q(quantity__gt=0), name='sales_item_quantity_gt_zero'),
             models.CheckConstraint(condition=models.Q(sale_quantity__isnull=True) | models.Q(sale_quantity__gt=0), name='sales_item_sale_quantity_positive_or_null'),
             models.CheckConstraint(condition=models.Q(box_size__isnull=True) | models.Q(box_size__gt=0), name='sales_item_box_size_positive_or_null'),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(sale_unit='box', sale_quantity__isnull=False, box_size__isnull=False, quantity=models.F('sale_quantity') * models.F('box_size')) |
+                    models.Q(sale_unit='stick', sale_quantity=models.F('quantity'), box_size__isnull=True) |
+                    models.Q(sale_unit='', sale_quantity__isnull=True, box_size__isnull=True)
+                ),
+                name='sales_item_sale_unit_shape_matches_quantity',
+            ),
         ]
         verbose_name = '销售明细'
         verbose_name_plural = '销售明细'

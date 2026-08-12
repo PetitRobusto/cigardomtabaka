@@ -11,6 +11,7 @@ from django.contrib.auth.hashers import check_password
 from django.core.exceptions import ValidationError
 
 from privnote.models import Privnote, PaymentMethod
+from privnote.services import build_payment_data
 from cigars.models import User, Brand, Cigar, SalesOrder, SalesOrderItem, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, CigarPrice
 from accounting.models import FundAccount
 
@@ -906,6 +907,9 @@ class RealTimeRenderingTestCase(TestCase):
         so = SalesOrder.objects.get(id=self.so_id)
         item = so.items.first()
         item.quantity = 10
+        item.sale_unit = SalesOrderItem.SaleUnit.STICK
+        item.sale_quantity = 10
+        item.box_size = None
         item.revenue = 10 * item.unit_price
         item.profit = item.revenue - item.cost
         item.save()
@@ -1050,3 +1054,46 @@ class QuoteCustomPricesTestCase(TestCase):
         self.assertEqual(item10['wholesale_price'], 1200)
         # 单价 100 + 20 = 120
         self.assertEqual(item10['per_stick_price'], 120)
+
+
+class PaymentSaleUnitRenderingTest(TestCase):
+    def test_box_item_uses_persisted_revenue_and_sale_unit_snapshot(self):
+        operator, _ = _create_staff_user()
+        cigar = _create_cigar()
+        order = SalesOrder.objects.create(operator=operator)
+        SalesOrderItem.objects.create(
+            sales_order=order, cigar=cigar, quantity=50,
+            sale_unit=SalesOrderItem.SaleUnit.BOX, sale_quantity=2, box_size=25,
+            unit_price=Decimal('100.01'), unit_cost=Decimal('0.00'),
+            revenue=Decimal('200.02'), cost=Decimal('0.00'), profit=Decimal('200.02'),
+        )
+
+        data = build_payment_data(order)
+
+        item = data['items'][0]
+        self.assertEqual(item['unit_price'], 100.01)
+        self.assertEqual(item['subtotal'], 200.02)
+        self.assertEqual(item['sale_unit'], 'box')
+        self.assertEqual(item['sale_quantity'], 2)
+        self.assertEqual(item['box_size'], 25)
+        self.assertEqual(data['total'], 200.02)
+        self.assertEqual(data['grand_total'], 200.02)
+
+    def test_stick_item_keeps_unit_price_and_persisted_revenue(self):
+        operator, _ = _create_staff_user()
+        cigar = _create_cigar()
+        order = SalesOrder.objects.create(operator=operator)
+        SalesOrderItem.objects.create(
+            sales_order=order, cigar=cigar, quantity=3,
+            sale_unit=SalesOrderItem.SaleUnit.STICK, sale_quantity=3, box_size=None,
+            unit_price=Decimal('400.00'), unit_cost=Decimal('0.00'),
+            revenue=Decimal('1200.00'), cost=Decimal('0.00'), profit=Decimal('1200.00'),
+        )
+
+        item = build_payment_data(order)['items'][0]
+
+        self.assertEqual(item['unit_price'], 400)
+        self.assertEqual(item['subtotal'], 1200)
+        self.assertEqual(item['sale_unit'], 'stick')
+        self.assertEqual(item['sale_quantity'], 3)
+        self.assertIsNone(item['box_size'])

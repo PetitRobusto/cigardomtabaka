@@ -9,6 +9,7 @@ from cigars.models import (
     PurchaseOrder,
     PurchaseOrderItem,
     SalesOrder,
+    SalesOrderItem,
     StockAllocation,
     StockMovement,
     Supplier,
@@ -97,7 +98,7 @@ class SalesOrderWorkflowTest(TestCase):
         self.assertEqual(item.quantity, 50)
         self.assertEqual(item.sale_quantity, 2)
         self.assertEqual(item.box_size, 25)
-        self.assertEqual(item.unit_price, Decimal('4.00'))
+        self.assertEqual(item.unit_price, Decimal('100.01'))
         self.assertEqual(item.revenue, Decimal('200.02'))
         self.assertEqual(item.cost, Decimal('0.00'))
         self.assertEqual(item.profit, Decimal('0.00'))
@@ -138,6 +139,34 @@ class SalesOrderWorkflowTest(TestCase):
         self.assertEqual(updated.customer_name, "新客户")
         self.assertEqual(updated.amount_due_cny, Decimal("62.00"))
         self.assertFalse(StockAllocation.objects.exists())
+
+    def test_update_draft_preserves_box_unit_price_and_revenue(self):
+        from cigars.services import update_sales_order_draft
+
+        order = create_sales_order_draft(
+            items=[{"cigar_id": self.cigar.id, "sale_unit": "stick", "quantity": 1, "unit_price": "10.00"}],
+            operator=self.operator,
+            agent_context=self.context("create_sales_order_draft"),
+        )
+
+        updated = update_sales_order_draft(
+            sales_order_id=order.id,
+            items=[{
+                "cigar_id": self.cigar.id,
+                "sale_unit": "box",
+                "sale_quantity": 2,
+                "box_size": 25,
+                "unit_price": "100.01",
+            }],
+            operator=self.operator,
+            agent_context=self.context("update_sales_order_draft"),
+        )
+
+        item = updated.items.get()
+        self.assertEqual(item.unit_price, Decimal("100.01"))
+        self.assertEqual(item.revenue, Decimal("200.02"))
+        self.assertEqual(updated.goods_amount_cny, Decimal("200.02"))
+        self.assertEqual(updated.amount_due_cny, Decimal("200.02"))
 
 
     def test_update_draft_rejects_inconsistent_box_quantity(self):
@@ -343,6 +372,29 @@ class SalesOrderWorkflowTest(TestCase):
             PurchaseBatch.objects.filter(pk=batch.pk).update(available_box_quantity=2)
         with self.assertRaises(IntegrityError), transaction.atomic():
             PurchaseBatch.objects.filter(pk=batch.pk).update(physical_stick_quantity=1)
+
+    def test_sales_item_database_constraint_requires_consistent_sale_unit_snapshot(self):
+        """销售单位快照是数据库事实，bulk update 也不能绕过其形态关系。"""
+        from django.db import IntegrityError, transaction
+
+        order = create_sales_order_draft(
+            items=[{"cigar_id": self.cigar.id, "sale_unit": "stick", "quantity": 2, "unit_price": "10.00"}],
+            operator=self.operator, agent_context=self.context("create-draft"),
+        )
+        item = order.items.get()
+
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            SalesOrderItem.objects.filter(pk=item.pk).update(
+                sale_unit=SalesOrderItem.SaleUnit.BOX, sale_quantity=1, box_size=25,
+            )
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            SalesOrderItem.objects.filter(pk=item.pk).update(
+                sale_unit=SalesOrderItem.SaleUnit.STICK, sale_quantity=1, box_size=1,
+            )
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            SalesOrderItem.objects.filter(pk=item.pk).update(
+                sale_unit='', sale_quantity=2, box_size=None,
+            )
 
     def test_split_box_conserves_shape_aggregate_cost_and_audit_context(self):
         batch = self.batch(remaining=25, unit_cost='10.00', box_size=25)

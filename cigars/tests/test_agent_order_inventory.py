@@ -184,9 +184,20 @@ class OrderInventoryServiceTest(TestCase):
         batch.refresh_from_db()
         item = order.items.get()
         self.assertEqual(item.revenue, Decimal('360.00'))
+        self.assertEqual(item.unit_price, Decimal('360.00'))
+        self.assertEqual(order.goods_amount_cny, Decimal('360.00'))
+        self.assertEqual(order.amount_due_cny, Decimal('360.00'))
+        self.assertEqual(order.customer_transport_fee_cny, Decimal('0.00'))
         self.assertEqual(batch.remaining, 0)
         self.assertEqual((batch.available_box_quantity, batch.available_stick_quantity), (0, 0))
         self.assertEqual(item.allocations.get().quantity, 25)
+
+        from privnote.services import build_payment_data
+        rendered = build_payment_data(order)
+        self.assertEqual(rendered['items'][0]['unit_price'], 360)
+        self.assertEqual(rendered['items'][0]['subtotal'], 360)
+        self.assertEqual(rendered['total'], 360)
+        self.assertEqual(rendered['grand_total'], 360)
 
     def test_legacy_create_defers_cost_and_profit_until_shipment(self):
         create_batch(self.cigar, remaining=2, unit_cost='10.00', operator=self.operator)
@@ -206,35 +217,70 @@ class OrderInventoryServiceTest(TestCase):
         self.assertEqual(order.total_cost, Decimal('0.00'))
         self.assertEqual(order.total_profit, Decimal('0.00'))
 
-    def test_confirm_payment_ships_reserved_stock(self):
+    def test_confirm_payment_is_disabled_for_confirmed_order_without_side_effects(self):
         batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
         order = create_sales_order(
             items=[{'cigar_id': self.cigar.id, 'quantity': 4, 'unit_price': 180}],
             operator=self.operator,
             agent_context=context(),
         )
-
-        paid = confirm_payment(
-            sales_order_id=order.id,
-            operator=self.operator,
-            agent_context=context(command='confirm_payment', key='pay-key'),
-            note='已收款',
-        )
-
         batch.refresh_from_db()
-        self.assertEqual(paid.fulfillment_status, SalesOrder.FulfillmentStatus.SHIPPED)
-        self.assertEqual(paid.payment_status, SalesOrder.PaymentStatus.PAID)
-        self.assertEqual(paid.status, 'paid')
-        self.assertEqual(batch.remaining, 6)
-        self.assertEqual(batch.physical_remaining, 6)
-        self.assertEqual(batch.remaining_cost_cny, Decimal('600.00'))
-        self.assertEqual(batch.sold_cost_cny, Decimal('400.00'))
-        self.assertEqual(
-            set(paid.items.first().allocations.values_list('status', flat=True)),
-            {'fulfilled'},
+        allocation = order.items.get().allocations.get()
+        before_batch = (
+            batch.remaining, batch.physical_remaining, batch.remaining_cost_cny,
+            batch.sold_cost_cny, batch.available_box_quantity, batch.available_stick_quantity,
         )
-        ship = StockMovement.objects.get(movement_type='ship')
-        self.assertEqual(ship.quantity, 4)
+        before_events = OrderEvent.objects.count()
+        before_movements = StockMovement.objects.count()
+        before_ledger = LedgerTransaction.objects.count()
+
+        with self.assertRaisesRegex(OrderServiceError, '已停用'):
+            confirm_payment(
+                sales_order_id=order.id,
+                operator=self.operator,
+                agent_context=context(command='confirm_payment', key='pay-key'),
+                note='已收款',
+            )
+
+        order.refresh_from_db()
+        batch.refresh_from_db()
+        allocation.refresh_from_db()
+        self.assertEqual(
+            (order.status, order.fulfillment_status, order.payment_status),
+            ('pending_payment', SalesOrder.FulfillmentStatus.CONFIRMED, SalesOrder.PaymentStatus.UNPAID),
+        )
+        self.assertEqual(
+            (batch.remaining, batch.physical_remaining, batch.remaining_cost_cny,
+             batch.sold_cost_cny, batch.available_box_quantity, batch.available_stick_quantity),
+            before_batch,
+        )
+        self.assertEqual(allocation.status, StockAllocation.Status.RESERVED)
+        self.assertEqual(OrderEvent.objects.count(), before_events)
+        self.assertEqual(StockMovement.objects.count(), before_movements)
+        self.assertEqual(LedgerTransaction.objects.count(), before_ledger)
+
+    def test_confirm_payment_is_disabled_for_draft_without_side_effects(self):
+        order = SalesOrder.objects.create(operator=self.operator, status='draft')
+        before_events = OrderEvent.objects.count()
+        before_movements = StockMovement.objects.count()
+        before_ledger = LedgerTransaction.objects.count()
+
+        with self.assertRaisesRegex(OrderServiceError, '已停用'):
+            confirm_payment(
+                sales_order_id=order.id,
+                operator=self.operator,
+                agent_context=context(command='confirm_payment', key='draft-payment-disabled'),
+            )
+
+        order.refresh_from_db()
+        self.assertEqual(
+            (order.status, order.fulfillment_status, order.payment_status),
+            ('draft', SalesOrder.FulfillmentStatus.DRAFT, SalesOrder.PaymentStatus.UNPAID),
+        )
+        self.assertEqual(OrderEvent.objects.count(), before_events)
+        self.assertEqual(StockMovement.objects.count(), before_movements)
+        self.assertEqual(LedgerTransaction.objects.count(), before_ledger)
+
 
     def test_cancel_rejects_legacy_fulfilled_allocation_without_side_effects(self):
         batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)

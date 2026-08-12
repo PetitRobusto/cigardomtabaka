@@ -271,17 +271,26 @@ class SalesAccountingModelTest(TestCase):
         )
         with self.assertRaises(ValidationError):
             PaymentMethod(method_type='wechat', label='未保存卢布账户', fund_account=unsaved_rub_account).full_clean()
-        PaymentMethod(method_type='wechat', label='未绑定账户', fund_account=None).full_clean()
+        with self.assertRaises(ValidationError):
+            PaymentMethod(
+                method_type='wechat', label='未绑定账户', fund_account=None,
+            ).full_clean()
 
 
 class PurchaseBatchInventoryMigrationFixture:
     migrate_from = [('cigars', '0023_purchasebatch_physical_remaining_and_more')]
     migrate_to = [('cigars', '0024_backfill_purchase_batch_inventory_facts')]
 
+    def restore_latest_schema(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+
     def set_up_legacy_inventory(self):
         self.executor = MigrationExecutor(connection)
         self.executor.migrate(self.migrate_from)
-        self.addCleanup(self.executor.migrate, self.executor.loader.graph.leaf_nodes())
+        # Cleanup 必须重新读取实际迁移状态；绑定旧 executor 会在子类
+        # tearDown 已恢复 schema 后，按过期快照再次应用后续迁移。
+        self.addCleanup(self.restore_latest_schema)
         self.executor = MigrationExecutor(connection)
         self.apps = self.executor.loader.project_state(self.migrate_from).apps
         User = self.apps.get_model('cigars', 'User')
@@ -426,6 +435,20 @@ class PurchaseBatchCostPoolCapacityMigrationTest(
         migrated_batch = apps.get_model('cigars', 'PurchaseBatch').objects.get(pk=self.batch_id)
         self.assertEqual(migrated_batch.remaining_cost_cny, expected_cost)
         self.assertEqual(migrated_batch.sold_cost_cny, Decimal('0.00'))
+
+    def tearDown(self):
+        PurchaseBatch = self.executor.loader.project_state(self.migrate_to).apps.get_model(
+            'cigars', 'PurchaseBatch'
+        )
+        PurchaseBatch.objects.filter(pk=self.batch_id).update(
+            quantity=10,
+            remaining=6,
+            physical_remaining=10,
+            unit_cost_cny=Decimal('10.00'),
+            remaining_cost_cny=Decimal('100.00'),
+            sold_cost_cny=Decimal('0.00'),
+        )
+        super().tearDown()
 
 class PurchaseBatchInventoryMigrationTest(
     PurchaseBatchInventoryMigrationFixture, TransactionTestCase

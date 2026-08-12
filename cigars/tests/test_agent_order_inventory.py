@@ -165,6 +165,46 @@ class OrderInventoryServiceTest(TestCase):
             with self.assertRaises(OrderServiceError):
                 create_sales_order(items=[raw_item], operator=self.operator, agent_context=context())
 
+    def test_legacy_create_reserves_complete_box_and_prices_per_box(self):
+        batch = create_batch(self.cigar, remaining=25, unit_cost='10.00', operator=self.operator)
+
+        order = create_sales_order(
+            items=[{
+                'cigar_id': self.cigar.id,
+                'quantity': 25,
+                'sale_unit': SalesOrderItem.SaleUnit.BOX,
+                'sale_quantity': 1,
+                'box_size': 25,
+                'unit_price': '360.00',
+            }],
+            operator=self.operator,
+            agent_context=context(key='legacy-box-price-and-reservation'),
+        )
+
+        batch.refresh_from_db()
+        item = order.items.get()
+        self.assertEqual(item.revenue, Decimal('360.00'))
+        self.assertEqual(batch.remaining, 0)
+        self.assertEqual((batch.available_box_quantity, batch.available_stick_quantity), (0, 0))
+        self.assertEqual(item.allocations.get().quantity, 25)
+
+    def test_legacy_create_defers_cost_and_profit_until_shipment(self):
+        create_batch(self.cigar, remaining=2, unit_cost='10.00', operator=self.operator)
+
+        order = create_sales_order(
+            items=[{'cigar_id': self.cigar.id, 'quantity': 2, 'unit_price': '20.00'}],
+            operator=self.operator,
+            agent_context=context(key='legacy-defer-cost-profit'),
+        )
+
+        item = order.items.get()
+        self.assertEqual(item.revenue, Decimal('40.00'))
+        self.assertEqual(item.unit_cost, Decimal('0.00'))
+        self.assertEqual(item.cost, Decimal('0.00'))
+        self.assertEqual(item.profit, Decimal('0.00'))
+        self.assertEqual(order.total_revenue, Decimal('40.00'))
+        self.assertEqual(order.total_cost, Decimal('0.00'))
+        self.assertEqual(order.total_profit, Decimal('0.00'))
 
     def test_confirm_payment_ships_reserved_stock(self):
         batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
@@ -572,12 +612,50 @@ class OrderInventoryServiceTest(TestCase):
 
         batch.refresh_from_db()
         self.assertEqual(cancelled.status, 'cancelled')
+        self.assertEqual(
+            (cancelled.fulfillment_status, cancelled.payment_status),
+            (SalesOrder.FulfillmentStatus.CANCELLED, SalesOrder.PaymentStatus.UNPAID),
+        )
         self.assertEqual(batch.remaining, 10)
         self.assertEqual(
             set(cancelled.items.first().allocations.values_list('status', flat=True)),
             {'released'},
         )
         self.assertEqual(StockMovement.objects.filter(movement_type='release_reservation').count(), 1)
+
+    def test_legacy_cancel_rejects_order_with_shipment(self):
+        batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
+        order = create_sales_order(
+            items=[{'cigar_id': self.cigar.id, 'quantity': 4, 'unit_price': 180}],
+            operator=self.operator,
+            agent_context=context(key='legacy-cancel-shipment'),
+        )
+        ledger_transaction = LedgerTransaction.objects.create(
+            transaction_type=LedgerTransaction.TransactionType.SALES_SHIPMENT,
+            business_date=date(2026, 8, 11),
+            idempotency_key='legacy-cancel-shipment-defense',
+            operator=self.operator,
+        )
+        SalesShipment.objects.create(
+            sales_order=order,
+            business_date=date(2026, 8, 11),
+            fifo_cost_cny=Decimal('400.00'),
+            ledger_transaction=ledger_transaction,
+            operator=self.operator,
+        )
+
+        with self.assertRaises(OrderServiceError):
+            cancel_sales_order(
+                sales_order_id=order.id,
+                operator=self.operator,
+                agent_context=context(command='cancel_sales_order', key='legacy-shipment-cancel'),
+            )
+
+        order.refresh_from_db()
+        batch.refresh_from_db()
+        self.assertEqual(order.fulfillment_status, SalesOrder.FulfillmentStatus.CONFIRMED)
+        self.assertEqual(order.payment_status, SalesOrder.PaymentStatus.UNPAID)
+        self.assertEqual(batch.remaining, 6)
 
     def test_fifo_allocation_can_span_batches(self):
         old_batch = create_batch(self.cigar, remaining=3, unit_cost='100.00', operator=self.operator)

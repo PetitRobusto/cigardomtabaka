@@ -691,7 +691,7 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
         except Cigar.DoesNotExist:
             raise OrderServiceError(f'第{idx}个商品不存在')
 
-        revenue = (unit_price * quantity).quantize(MONEY_PLACES)
+        revenue = (unit_price * sale_quantity).quantize(MONEY_PLACES)
         item = SalesOrderItem.objects.create(
             sales_order=order,
             cigar=cigar,
@@ -700,29 +700,27 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
             unit_cost=Decimal('0.00'),
             revenue=revenue,
             cost=Decimal('0.00'),
-            profit=revenue,
+            profit=Decimal('0.00'),
             fulfillment_type=fulfillment_type,
             sale_unit=sale_unit,
             sale_quantity=sale_quantity,
             box_size=box_size,
         )
 
-        item_cost = Decimal('0.00')
         if fulfillment_type == SalesOrderItem.FulfillmentType.IN_STOCK:
-            item_cost = _reserve_stock_fifo(
-                order=order,
-                item=item,
-                cigar=cigar,
-                quantity=quantity,
-                operator=operator,
-                context=context,
-                note=note,
-            )
+            if sale_unit == SalesOrderItem.SaleUnit.BOX:
+                _reserve_box_stock_fifo(
+                    order=order, item=item, operator=operator, context=context, note=note,
+                )
+            else:
+                _reserve_stock_fifo(
+                    order=order, item=item, cigar=cigar, quantity=quantity,
+                    operator=operator, context=context, note=note,
+                )
 
-        unit_cost = (item_cost / quantity).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
-        item.unit_cost = unit_cost
-        item.cost = item_cost.quantize(MONEY_PLACES)
-        item.profit = (revenue - item.cost).quantize(MONEY_PLACES)
+        item.unit_cost = Decimal('0.00')
+        item.cost = Decimal('0.00')
+        item.profit = Decimal('0.00')
         item.save(update_fields=['unit_cost', 'cost', 'profit'])
 
         total_revenue += revenue
@@ -735,7 +733,7 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
     order.locked_by = operator
     order.confirmed_at = timezone.now()
     order.total_cost = total_cost.quantize(MONEY_PLACES)
-    order.total_profit = (total_revenue - total_cost).quantize(MONEY_PLACES)
+    order.total_profit = Decimal('0.00')
     order.save(update_fields=['total_revenue', 'total_cost', 'total_profit', 'fulfillment_status', 'payment_status', 'locked', 'locked_by', 'confirmed_at'])
 
     _record_order_event(
@@ -872,6 +870,17 @@ def cancel_sales_order(*, sales_order_id, operator, agent_context=None, note='')
         return order
     if order.status == 'paid':
         raise OrderServiceError('已付款订单不能用第一版取消命令自动回滚库存')
+    if order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED:
+        raise OrderServiceError('当前订单不能取消')
+    if order.payment_status != SalesOrder.PaymentStatus.UNPAID:
+        raise OrderServiceError('当前付款状态不能取消')
+    if StockAllocation.objects.filter(
+        sales_order_item__sales_order=order,
+        status=StockAllocation.Status.FULFILLED,
+    ).exists():
+        raise OrderServiceError('已出库订单不能取消')
+    if SalesShipment.objects.filter(sales_order=order).exists():
+        raise OrderServiceError('已出库订单不能取消')
 
     now = timezone.now()
     allocations = (
@@ -905,9 +914,10 @@ def cancel_sales_order(*, sales_order_id, operator, agent_context=None, note='')
         )
 
     order.status = 'cancelled'
+    order.fulfillment_status = SalesOrder.FulfillmentStatus.CANCELLED
     if note:
         order.note = note
-    order.save(update_fields=['status', 'note'] if note else ['status'])
+    order.save(update_fields=['status', 'fulfillment_status', 'note'] if note else ['status', 'fulfillment_status'])
     _record_order_event(order, operator=operator, context=context, note=note, metadata={'status': order.status})
     return order
 

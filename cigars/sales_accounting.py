@@ -10,7 +10,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 
-from accounting.models import LedgerPosting, LedgerTransaction
+from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
 from accounting.services import (
     LedgerError,
     PostingInput,
@@ -23,6 +23,7 @@ from .models import (
     SalesOrder,
     SalesOrderItem,
     SalesShipment,
+    SalesReceipt,
     StockAllocation,
     StockMovement,
 )
@@ -192,3 +193,68 @@ def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note
         "fulfillment_status", "status",
     ])
     return order
+
+
+@_retry_sqlite_locked
+@transaction.atomic
+def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
+                                business_date, operator, idempotency_key):
+    """记录已出库销售单的一次整单人民币收款并清除应收款。"""
+    _acquire_sqlite_writer_gate()
+    operator = _require_operator(operator)
+    if type(business_date) is not date:
+        raise LedgerError("业务日期必须是 date")
+    if not isinstance(idempotency_key, str) or not idempotency_key:
+        raise LedgerError("幂等键不能为空")
+    try:
+        order = SalesOrder.objects.select_for_update().get(pk=order_id)
+    except (SalesOrder.DoesNotExist, ValueError, TypeError):
+        raise OrderServiceError("销售单不存在")
+    existing = SalesReceipt.objects.select_related("ledger_transaction").filter(sales_order=order).first()
+    if existing is not None:
+        if existing.ledger_transaction.idempotency_key == idempotency_key:
+            return existing
+        raise OrderServiceError("销售单已经收款")
+    if order.fulfillment_status != SalesOrder.FulfillmentStatus.SHIPPED:
+        raise OrderServiceError("只有已出库订单才能收款")
+    if order.payment_status != SalesOrder.PaymentStatus.UNPAID:
+        raise OrderServiceError("销售单不是待收款状态")
+    try:
+        raw_amount = Decimal(str(amount_cny))
+        amount = raw_amount.quantize(MONEY_PLACES)
+    except Exception as exc:
+        raise LedgerError("收款金额必须是有效金额") from exc
+    if not raw_amount.is_finite() or raw_amount != amount:
+        raise LedgerError("收款金额小数位数超出允许精度")
+    if amount <= 0 or amount != order.amount_due_cny.quantize(MONEY_PLACES):
+        raise OrderServiceError("收款金额必须等于销售单应收总额")
+    if not isinstance(fund_account, FundAccount) or not fund_account.pk:
+        raise LedgerError("收款账户必须是已保存的资金账户")
+    try:
+        account = FundAccount.objects.select_for_update().get(pk=fund_account.pk)
+    except FundAccount.DoesNotExist:
+        raise LedgerError("收款账户不存在")
+    if not account.is_active:
+        raise LedgerError("账户已停用")
+    if account.currency != FundAccount.Currency.CNY:
+        raise LedgerError("销售收款账户必须是人民币账户")
+    ledger = _post_transaction_once(
+        transaction_type=LedgerTransaction.TransactionType.SALES_RECEIPT,
+        business_date=business_date,
+        postings=[
+            PostingInput(account=account, currency=FundAccount.Currency.CNY,
+                         amount=amount, cny_amount=amount),
+            _cny_posting(LedgerPosting.Category.ACCOUNTS_RECEIVABLE, -amount),
+        ],
+        operator=operator, idempotency_key=idempotency_key,
+        description=f"销售单 {order.order_number} 收款",
+        source_type="sales_order", source_id=str(order.pk), _writer_gate=False,
+    )
+    receipt = SalesReceipt.objects.create(
+        sales_order=order, amount_cny=amount, fund_account=account,
+        business_date=business_date, ledger_transaction=ledger, operator=operator,
+    )
+    order.payment_status = SalesOrder.PaymentStatus.PAID
+    order.status = "completed"
+    order.save(update_fields=["payment_status", "status"])
+    return receipt

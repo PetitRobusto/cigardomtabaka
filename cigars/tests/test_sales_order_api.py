@@ -381,6 +381,20 @@ class SalesOrderApiTest(TestCase):
         self.assertEqual(changed.status_code, 409)
 
 
+    def test_action_api_invalid_state_and_repeat_are_conflicts(self):
+        order_id = self.action_order("api-state-conflict")
+        first = self.request("post", f"/api/sales/orders/{order_id}/ship/", {"business_date": "2026-08-10"}, "api-state-ship")
+        repeated = self.request("post", f"/api/sales/orders/{order_id}/ship/", {"business_date": "2026-08-10"}, "api-state-ship-other")
+        self.assertIn(first.status_code, (200, 201))
+        self.assertEqual(repeated.status_code, 409)
+
+    def test_action_api_fund_account_id_requires_positive_integer(self):
+        order_id = self.action_order("api-account-type")
+        for index, value in enumerate((1.2, True, 0, -1)):
+            response = self.request("post", f"/api/sales/orders/{order_id}/receive/", {"amount_cny": "43.00", "fund_account_id": value, "business_date": "2026-08-10"}, f"api-account-type-{index}")
+            self.assertEqual(response.status_code, 400)
+
+
 class SalesOrderApiConcurrencyTest(TransactionTestCase):
     reset_sequences = True
 

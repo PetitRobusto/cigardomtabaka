@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from unittest.mock import patch
 from django.test import TestCase
+from django.db import models
 
 from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
 from accounting.selectors import account_snapshot
@@ -215,3 +216,42 @@ class SalesRefundAndTransportTest(TestCase):
         self.assertEqual(order.actual_transport_cost_cny, Decimal('0.00'))
         self.assertEqual(SalesTransportCost.objects.count(), 0)
         self.assertEqual(account_snapshot(account).original_balance, Decimal('10.00000000'))
+
+
+    def test_refund_replay_requires_date_and_operator_and_cross_order_key_is_rejected(self):
+        order, account = self.prepaid_confirmed_order()
+        second_account = FundAccount.objects.create(
+            name='退款第二账户', currency=FundAccount.Currency.CNY,
+            custodian=self.operator, creation_idempotency_key='refund-second-account',
+        )
+        from cigars.sales_accounting import refund_sales_order_payment
+        first = refund_sales_order_payment(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='refund-strict')
+        another = User.objects.create_user('refund-other-operator', password='pass', is_staff=True)
+        for kwargs in (
+            {'business_date': date(2026, 8, 11), 'operator': self.operator},
+            {'business_date': self.business_date, 'operator': another},
+        ):
+            with self.assertRaises(OrderServiceError):
+                refund_sales_order_payment(order_id=order.id, idempotency_key='refund-strict', **kwargs)
+        self.assertEqual(first.id, SalesRefund.objects.get(sales_order=order).id)
+
+    def test_refund_rejects_cross_order_key(self):
+        first_order, first_account = self.prepaid_confirmed_order()
+        second_account = FundAccount.objects.create(name='退款跨单账户', currency=FundAccount.Currency.CNY, custodian=self.operator, creation_idempotency_key='refund-cross-account')
+        self.batch()
+        second_order = self.confirmed_order()
+        from cigars.sales_accounting import refund_sales_order_payment
+        refund_sales_order_payment(order_id=first_order.id, business_date=self.business_date, operator=self.operator, idempotency_key='refund-cross-key')
+        with self.assertRaises(OrderServiceError):
+            refund_sales_order_payment(order_id=second_order.id, business_date=self.business_date, operator=self.operator, idempotency_key='refund-cross-key')
+
+    def test_refund_rejects_malformed_receipt_ledger(self):
+        order, account = self.prepaid_confirmed_order()
+        receipt = SalesReceipt.objects.get(sales_order=order)
+        posting = receipt.ledger_transaction.postings.get(category=LedgerPosting.Category.CUSTOMER_PREPAYMENTS)
+        posting.amount = Decimal('-1.00')
+        posting.cny_amount = Decimal('-1.00')
+        models.Model.save(posting, update_fields=['amount', 'cny_amount'])
+        from cigars.sales_accounting import refund_sales_order_payment
+        with self.assertRaises(OrderServiceError):
+            refund_sales_order_payment(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='refund-malformed')

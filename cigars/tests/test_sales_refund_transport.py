@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from unittest.mock import patch
 from django.test import TestCase
-from django.db import models
+from django.db import connection, models
 
 from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
 from accounting.selectors import account_snapshot
@@ -255,3 +255,42 @@ class SalesRefundAndTransportTest(TestCase):
         from cigars.sales_accounting import refund_sales_order_payment
         with self.assertRaises(OrderServiceError):
             refund_sales_order_payment(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='refund-malformed')
+
+
+    def _swap_posting_targets(self, transaction):
+        postings = list(transaction.postings.order_by('id'))
+        account_posting, category_posting = postings
+        with connection.cursor() as cursor:
+            cursor.execute('UPDATE accounting_ledgerposting SET id = -id WHERE id IN (%s, %s)', [account_posting.id, category_posting.id])
+            cursor.execute('UPDATE accounting_ledgerposting SET id = %s WHERE id = %s', [category_posting.id, -account_posting.id])
+            cursor.execute('UPDATE accounting_ledgerposting SET id = %s WHERE id = %s', [account_posting.id, -category_posting.id])
+
+    def test_refund_replay_accepts_semantically_valid_reverse_posting_order(self):
+        order, account = self.prepaid_confirmed_order()
+        from cigars.sales_accounting import refund_sales_order_payment
+        first = refund_sales_order_payment(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='refund-reverse')
+        self._swap_posting_targets(first.ledger_transaction)
+        replay = refund_sales_order_payment(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='refund-reverse')
+        self.assertEqual(replay.id, first.id)
+
+    def test_refund_rejects_non_cny_receipt_posting(self):
+        order, account = self.prepaid_confirmed_order()
+        receipt = SalesReceipt.objects.get(sales_order=order)
+        posting = receipt.ledger_transaction.postings.get(category=LedgerPosting.Category.CUSTOMER_PREPAYMENTS)
+        posting.currency = 'RUB'
+        models.Model.save(posting, update_fields=['currency'])
+        from cigars.sales_accounting import refund_sales_order_payment
+        with self.assertRaises(OrderServiceError):
+            refund_sales_order_payment(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='refund-rub-posting')
+
+    def test_refund_rejects_category_posting_with_fund_account(self):
+        order, account = self.prepaid_confirmed_order()
+        receipt = SalesReceipt.objects.get(sales_order=order)
+        posting = receipt.ledger_transaction.postings.get(category=LedgerPosting.Category.CUSTOMER_PREPAYMENTS)
+        with connection.cursor() as cursor:
+            cursor.execute('PRAGMA ignore_check_constraints = ON')
+            cursor.execute('UPDATE accounting_ledgerposting SET account_id = %s WHERE id = %s', [account.id, posting.id])
+            cursor.execute('PRAGMA ignore_check_constraints = OFF')
+        from cigars.sales_accounting import refund_sales_order_payment
+        with self.assertRaises((OrderServiceError, LedgerError)):
+            refund_sales_order_payment(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='refund-account-category')

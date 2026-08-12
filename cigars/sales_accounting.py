@@ -346,7 +346,23 @@ def refund_sales_order_payment(*, order_id, business_date, operator, idempotency
     existing = SalesRefund.objects.select_related("ledger_transaction").filter(sales_order=order).first()
     if existing is not None:
         tx = existing.ledger_transaction
-        postings = list(tx.postings.order_by("id"))
+        postings = list(tx.postings.all())
+        account_postings = [
+            posting for posting in postings
+            if posting.account_id == existing.fund_account_id
+            and posting.category == ""
+            and posting.currency == FundAccount.Currency.CNY
+            and posting.amount == -existing.amount_cny
+            and posting.cny_amount == -existing.amount_cny
+        ]
+        prepayment_postings = [
+            posting for posting in postings
+            if posting.account_id is None
+            and posting.category == LedgerPosting.Category.CUSTOMER_PREPAYMENTS
+            and posting.currency == FundAccount.Currency.CNY
+            and posting.amount == existing.amount_cny
+            and posting.cny_amount == existing.amount_cny
+        ]
         valid = (
             existing_tx == tx
             and tx.transaction_type == LedgerTransaction.TransactionType.SALES_REFUND
@@ -358,13 +374,8 @@ def refund_sales_order_payment(*, order_id, business_date, operator, idempotency
             and existing.business_date == business_date
             and existing.operator_id == operator.pk
             and len(postings) == 2
-            and postings[0].account_id == existing.fund_account_id
-            and postings[0].category == ""
-            and postings[0].amount == -existing.amount_cny
-            and postings[0].cny_amount == -existing.amount_cny
-            and postings[1].category == LedgerPosting.Category.CUSTOMER_PREPAYMENTS
-            and postings[1].amount == existing.amount_cny
-            and postings[1].cny_amount == existing.amount_cny
+            and len(account_postings) == 1
+            and len(prepayment_postings) == 1
         )
         if not valid:
             raise OrderServiceError("销售退款幂等键参数不匹配")
@@ -379,6 +390,22 @@ def refund_sales_order_payment(*, order_id, business_date, operator, idempotency
     receipt_postings = list(receipt_tx.postings.order_by("id"))
     amount = receipt.amount_cny.quantize(MONEY_PLACES)
     account = FundAccount.objects.select_for_update().get(pk=receipt.fund_account_id)
+    account_postings = [
+        posting for posting in receipt_postings
+        if posting.account_id == account.pk
+        and posting.category == ""
+        and posting.currency == FundAccount.Currency.CNY
+        and posting.amount == amount
+        and posting.cny_amount == amount
+    ]
+    prepayment_postings = [
+        posting for posting in receipt_postings
+        if posting.account_id is None
+        and posting.category == LedgerPosting.Category.CUSTOMER_PREPAYMENTS
+        and posting.currency == FundAccount.Currency.CNY
+        and posting.amount == -amount
+        and posting.cny_amount == -amount
+    ]
     valid_receipt = (
         receipt_tx.transaction_type == LedgerTransaction.TransactionType.SALES_RECEIPT
         and receipt_tx.status == LedgerTransaction.Status.POSTED
@@ -387,13 +414,8 @@ def refund_sales_order_payment(*, order_id, business_date, operator, idempotency
         and receipt_tx.business_date == receipt.business_date
         and receipt_tx.operator_id == receipt.operator_id
         and len(receipt_postings) == 2
-        and receipt_postings[0].account_id == account.pk
-        and receipt_postings[0].category == ""
-        and receipt_postings[0].amount == amount
-        and receipt_postings[0].cny_amount == amount
-        and receipt_postings[1].category == LedgerPosting.Category.CUSTOMER_PREPAYMENTS
-        and receipt_postings[1].amount == -amount
-        and receipt_postings[1].cny_amount == -amount
+        and len(account_postings) == 1
+        and len(prepayment_postings) == 1
     )
     if not valid_receipt:
         raise OrderServiceError("原销售收款流水不完整，不能退款")

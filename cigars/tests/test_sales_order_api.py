@@ -1,7 +1,9 @@
 import json
 from decimal import Decimal
 
-from django.test import Client, TestCase
+from django.db import close_old_connections
+from django.test import Client, TestCase, TransactionTestCase
+from threading import Barrier, Thread
 
 from cigars.models import (
     Brand,
@@ -284,3 +286,61 @@ class SalesOrderApiTest(TestCase):
         method = self.client.put("/api/sales/orders/", data="{}", content_type="application/json")
         self.assertEqual(method.status_code, 405)
         self.assertEqual(method["Content-Type"], "application/json")
+
+    def test_list_serializes_prefetched_orders_with_fixed_query_count(self):
+        for index in range(5):
+            self.create_order(key=f"query-order-{index}", body=self.body(quantity=2))
+        self.login()
+        with self.assertNumQueries(6):
+            response = self.client.get("/api/sales/orders/?limit=5")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()["results"]), 5)
+
+
+class SalesOrderApiConcurrencyTest(TransactionTestCase):
+    reset_sequences = True
+
+    def setUp(self):
+        self.operator = User.objects.create_user(
+            "sales-api-concurrent", password="pass", is_staff=True
+        )
+        brand = Brand.objects.create(english_name="Concurrent Brand", name="并发品牌")
+        self.cigar = Cigar.objects.create(brand=brand.english_name, english_name="Concurrent Cigar", name="并发雪茄")
+
+    def test_same_key_concurrent_create_returns_same_order(self):
+        body = {
+            "items": [{"cigar_id": self.cigar.id, "sale_unit": "stick", "quantity": 2, "unit_price": "20.00"}],
+            "customer_name": "并发客户",
+        }
+        barrier = Barrier(2)
+        results = []
+
+        clients = []
+        for _ in range(2):
+            client = Client()
+            client.force_login(self.operator)
+            clients.append(client)
+
+        def worker(client):
+            close_old_connections()
+            barrier.wait()
+            response = client.post(
+                "/api/sales/orders/", data=json.dumps(body), content_type="application/json",
+                HTTP_IDEMPOTENCY_KEY="concurrent-create",
+            )
+            results.append((response.status_code, response.json()))
+            close_old_connections()
+
+        threads = [Thread(target=worker, args=(client,)) for client in clients]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=15)
+            self.assertFalse(thread.is_alive())
+        self.assertEqual(len(results), 2)
+        self.assertTrue(all(status == 201 for status, _ in results), results)
+        payload_ids = {payload["sales_order"]["id"] for _, payload in results}
+        self.assertEqual(len(payload_ids), 1)
+        self.assertEqual(payload_ids, set(SalesOrder.objects.values_list("id", flat=True)))
+        self.assertEqual(SalesOrder.objects.count(), 1)
+        self.assertEqual(IdempotencyRecord.objects.count(), 1)

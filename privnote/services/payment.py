@@ -99,7 +99,10 @@ def build_payment_data(sales_order):
             'vitola': cigar.vitola or '—',
             'quantity': item.quantity,
             'unit_price': decimal_to_number(item.unit_price),
-            'subtotal': decimal_to_number((item.quantity * item.unit_price).quantize(MONEY_PLACES)),
+            'subtotal': decimal_to_number(item.revenue.quantize(MONEY_PLACES)),
+            'sale_unit': item.sale_unit,
+            'sale_quantity': item.sale_quantity,
+            'box_size': item.box_size,
             'thumb_url': get_thumb_url(cigar),
         })
 

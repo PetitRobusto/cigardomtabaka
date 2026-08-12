@@ -24,6 +24,8 @@ from .models import (
     SalesOrderItem,
     SalesShipment,
     SalesReceipt,
+    SalesRefund,
+    SalesTransportCost,
     StockAllocation,
     StockMovement,
 )
@@ -323,3 +325,119 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
     order.status = "paid" if order.fulfillment_status == SalesOrder.FulfillmentStatus.CONFIRMED else "completed"
     order.save(update_fields=["payment_status", "status"])
     return receipt
+
+
+@_retry_sqlite_locked
+@transaction.atomic
+def refund_sales_order_payment(*, order_id, business_date, operator, idempotency_key):
+    """退回已取消销售单的整笔预收款。"""
+    _acquire_sqlite_writer_gate()
+    operator = _require_operator(operator)
+    if type(business_date) is not date:
+        raise LedgerError("业务日期必须是 date")
+    if not isinstance(idempotency_key, str) or not idempotency_key:
+        raise LedgerError("幂等键不能为空")
+    try:
+        order = SalesOrder.objects.select_for_update().get(pk=order_id)
+    except (SalesOrder.DoesNotExist, ValueError, TypeError):
+        raise OrderServiceError("销售单不存在")
+    receipt = SalesReceipt.objects.select_related("fund_account", "ledger_transaction").filter(sales_order=order).first()
+    if receipt is None or receipt.ledger_transaction.postings.filter(category=LedgerPosting.Category.CUSTOMER_PREPAYMENTS).exists() is False:
+        raise OrderServiceError("销售单没有可退款的预收款")
+    account = FundAccount.objects.select_for_update().get(pk=receipt.fund_account_id)
+    if order.fulfillment_status != SalesOrder.FulfillmentStatus.CANCELLED or order.payment_status != SalesOrder.PaymentStatus.REFUND_PENDING:
+        existing_refund = SalesRefund.objects.select_related("ledger_transaction").filter(sales_order=order).first()
+        if existing_refund is not None and existing_refund.ledger_transaction.idempotency_key == idempotency_key:
+            return existing_refund
+        raise OrderServiceError("销售单不是待退款状态")
+    if not account.is_active or account.currency != FundAccount.Currency.CNY:
+        raise LedgerError("原收款账户必须是启用的人民币账户")
+    amount = receipt.amount_cny.quantize(MONEY_PLACES)
+    existing_tx = LedgerTransaction.objects.filter(idempotency_key=idempotency_key).first()
+    existing = SalesRefund.objects.select_related("ledger_transaction").filter(sales_order=order).first()
+    if existing is not None:
+        tx = existing.ledger_transaction
+        if existing_tx != tx or tx.transaction_type != LedgerTransaction.TransactionType.SALES_REFUND or tx.business_date != business_date or tx.source_type != "sales_order" or tx.source_id != str(order.pk) or existing.amount_cny != amount or existing.fund_account_id != account.pk:
+            raise OrderServiceError("销售退款幂等键参数不匹配")
+        return existing
+    if existing_tx is not None:
+        raise OrderServiceError("销售退款幂等键已用于其他业务")
+    ledger = _post_transaction_once(
+        transaction_type=LedgerTransaction.TransactionType.SALES_REFUND,
+        business_date=business_date,
+        postings=[
+            PostingInput(account=account, currency=FundAccount.Currency.CNY, amount=-amount, cny_amount=-amount),
+            _cny_posting(LedgerPosting.Category.CUSTOMER_PREPAYMENTS, amount),
+        ],
+        operator=operator, idempotency_key=idempotency_key,
+        description=f"销售单 {order.order_number} 退款",
+        source_type="sales_order", source_id=str(order.pk), _writer_gate=False,
+    )
+    refund = SalesRefund.objects.create(
+        sales_order=order, amount_cny=amount, fund_account=account,
+        business_date=business_date, ledger_transaction=ledger, operator=operator,
+    )
+    order.payment_status = SalesOrder.PaymentStatus.REFUNDED
+    order.save(update_fields=["payment_status"])
+    return refund
+
+
+@_retry_sqlite_locked
+@transaction.atomic
+def record_sales_transport_cost(*, order_id, actual_cost_cny, fund_account,
+                                business_date, operator, idempotency_key, note=""):
+    """记录已出库销售单实际承担的人肉成本。"""
+    _acquire_sqlite_writer_gate()
+    operator = _require_operator(operator)
+    if type(business_date) is not date:
+        raise LedgerError("业务日期必须是 date")
+    if not isinstance(idempotency_key, str) or not idempotency_key:
+        raise LedgerError("幂等键不能为空")
+    try:
+        order = SalesOrder.objects.select_for_update().get(pk=order_id)
+    except (SalesOrder.DoesNotExist, ValueError, TypeError):
+        raise OrderServiceError("销售单不存在")
+    if order.fulfillment_status != SalesOrder.FulfillmentStatus.SHIPPED:
+        raise OrderServiceError("只有已出库订单才能记录人肉成本")
+    try:
+        raw_amount = Decimal(str(actual_cost_cny))
+        amount = raw_amount.quantize(MONEY_PLACES)
+    except Exception as exc:
+        raise LedgerError("人肉成本必须是有效金额") from exc
+    if not raw_amount.is_finite() or raw_amount != amount or amount <= 0:
+        raise LedgerError("人肉成本必须是正的两位小数")
+    if not isinstance(fund_account, FundAccount) or not fund_account.pk:
+        raise LedgerError("付款账户必须是已保存的资金账户")
+    account = FundAccount.objects.select_for_update().filter(pk=fund_account.pk).first()
+    if account is None:
+        raise LedgerError("付款账户不存在")
+    if not account.is_active or account.currency != FundAccount.Currency.CNY:
+        raise LedgerError("人肉成本账户必须是启用的人民币账户")
+    existing_tx = LedgerTransaction.objects.filter(idempotency_key=idempotency_key).first()
+    existing = SalesTransportCost.objects.select_related("ledger_transaction").filter(sales_order=order).first()
+    if existing is not None:
+        tx = existing.ledger_transaction
+        if existing_tx != tx or tx.transaction_type != LedgerTransaction.TransactionType.SALES_TRANSPORT_COST or tx.business_date != business_date or tx.source_type != "sales_order" or tx.source_id != str(order.pk) or existing.actual_cost_cny != amount or existing.fund_account_id != account.pk:
+            raise OrderServiceError("人肉成本幂等键参数不匹配")
+        return existing
+    if existing_tx is not None:
+        raise OrderServiceError("人肉成本幂等键已用于其他业务")
+    ledger = _post_transaction_once(
+        transaction_type=LedgerTransaction.TransactionType.SALES_TRANSPORT_COST,
+        business_date=business_date,
+        postings=[
+            _cny_posting(LedgerPosting.Category.TRANSPORT_EXPENSE, amount),
+            PostingInput(account=account, currency=FundAccount.Currency.CNY, amount=-amount, cny_amount=-amount),
+        ],
+        operator=operator, idempotency_key=idempotency_key,
+        description=f"销售单 {order.order_number} 人肉成本",
+        source_type="sales_order", source_id=str(order.pk), _writer_gate=False,
+    )
+    cost = SalesTransportCost.objects.create(
+        sales_order=order, actual_cost_cny=amount, fund_account=account,
+        business_date=business_date, ledger_transaction=ledger, operator=operator, note=note or "",
+    )
+    order.actual_transport_cost_cny = amount
+    order.contribution_profit_cny = (order.total_profit - amount).quantize(MONEY_PLACES)
+    order.save(update_fields=["actual_transport_cost_cny", "contribution_profit_cny"])
+    return cost

@@ -188,6 +188,7 @@ class LedgerTransaction(models.Model):
         SALES_SHIPMENT = 'sales_shipment', '销售出库'
         SALES_RECEIPT = 'sales_receipt', '销售收款'
         SALES_TRANSPORT_COST = 'sales_transport_cost', '销售人肉费'
+        SALES_REFUND = 'sales_refund', '销售退款'
     class Status(models.TextChoices):
         DRAFT = 'draft', '草稿'
         POSTED = 'posted', '已入账'

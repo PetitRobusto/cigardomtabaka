@@ -501,11 +501,13 @@ def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None
         raise OrderServiceError("当前订单不能取消")
     if order.payment_status not in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PAID):
         raise OrderServiceError("当前付款状态不能取消")
-    if StockAllocation.objects.filter(sales_order_item__sales_order=order, status=StockAllocation.Status.FULFILLED).exists():
+    if StockAllocation.objects.filter(
+        sales_order_item__sales_order=order,
+        status=StockAllocation.Status.FULFILLED,
+    ).exists():
         raise OrderServiceError("已出库订单不能取消")
     if SalesShipment.objects.filter(sales_order=order).exists():
         raise OrderServiceError("已出库订单不能取消")
-
     now = timezone.now()
     allocations = StockAllocation.objects.select_for_update().filter(
         sales_order_item__sales_order=order, status=StockAllocation.Status.RESERVED,

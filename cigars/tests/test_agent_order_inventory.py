@@ -1,8 +1,10 @@
 import json
+from datetime import date
 from decimal import Decimal
 
 from django.test import Client, TestCase
 
+from accounting.models import LedgerTransaction
 from cigars.models import (
     Brand,
     AdjustmentRecord,
@@ -14,6 +16,7 @@ from cigars.models import (
     PurchaseOrderItem,
     SalesOrder,
     SalesOrderItem,
+    SalesShipment,
     StockAllocation,
     StockMovement,
     Supplier,
@@ -24,6 +27,7 @@ from cigars.services import (
     InsufficientStockError,
     OrderServiceError,
     adjust_stock,
+    cancel_confirmed_sales_order,
     cancel_sales_order,
     confirm_payment,
     create_purchase_order,
@@ -191,6 +195,95 @@ class OrderInventoryServiceTest(TestCase):
         )
         ship = StockMovement.objects.get(movement_type='ship')
         self.assertEqual(ship.quantity, 4)
+
+    def test_cancel_rejects_legacy_fulfilled_allocation_without_side_effects(self):
+        batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
+
+        order = create_sales_order(
+            items=[{'cigar_id': self.cigar.id, 'quantity': 4, 'unit_price': 180}],
+            operator=self.operator,
+            agent_context=context(),
+        )
+        confirm_payment(
+            sales_order_id=order.id,
+            operator=self.operator,
+            agent_context=context(command='confirm_payment', key='legacy-paid'),
+        )
+        order.refresh_from_db()
+        order.fulfillment_status = SalesOrder.FulfillmentStatus.CONFIRMED
+        order.save(update_fields=['fulfillment_status'])
+        allocation = order.items.get().allocations.get()
+        batch.refresh_from_db()
+        before_batch = (
+            batch.remaining, batch.physical_remaining, batch.remaining_cost_cny, batch.sold_cost_cny,
+        )
+
+        with self.assertRaises(OrderServiceError):
+            cancel_confirmed_sales_order(
+                sales_order_id=order.id,
+                operator=self.operator,
+                agent_context=context(command='cancel_confirmed_sales_order', key='legacy-cancel'),
+            )
+
+        order.refresh_from_db()
+        batch.refresh_from_db()
+        allocation.refresh_from_db()
+        self.assertEqual(
+            (order.status, order.fulfillment_status, order.payment_status),
+            ('paid', SalesOrder.FulfillmentStatus.CONFIRMED, SalesOrder.PaymentStatus.PAID),
+        )
+        self.assertEqual(
+            (batch.remaining, batch.physical_remaining, batch.remaining_cost_cny, batch.sold_cost_cny),
+            before_batch,
+        )
+        self.assertEqual(allocation.status, StockAllocation.Status.FULFILLED)
+
+    def test_cancel_rejects_confirmed_order_with_shipment_without_side_effects(self):
+        batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
+
+        order = create_sales_order(
+            items=[{'cigar_id': self.cigar.id, 'quantity': 4, 'unit_price': 180}],
+            operator=self.operator,
+            agent_context=context(),
+        )
+        ledger_transaction = LedgerTransaction.objects.create(
+            transaction_type=LedgerTransaction.TransactionType.SALES_SHIPMENT,
+            business_date=date(2026, 8, 11),
+            idempotency_key='shipment-cancel-defense',
+            operator=self.operator,
+        )
+        SalesShipment.objects.create(
+            sales_order=order,
+            business_date=date(2026, 8, 11),
+            fifo_cost_cny=Decimal('400.00'),
+            ledger_transaction=ledger_transaction,
+            operator=self.operator,
+        )
+        allocation = order.items.get().allocations.get()
+        batch.refresh_from_db()
+        before_batch = (
+            batch.remaining, batch.physical_remaining, batch.remaining_cost_cny, batch.sold_cost_cny,
+        )
+
+        with self.assertRaises(OrderServiceError):
+            cancel_confirmed_sales_order(
+                sales_order_id=order.id,
+                operator=self.operator,
+                agent_context=context(command='cancel_confirmed_sales_order', key='shipment-cancel'),
+            )
+
+        order.refresh_from_db()
+        batch.refresh_from_db()
+        allocation.refresh_from_db()
+        self.assertEqual(
+            (order.status, order.fulfillment_status, order.payment_status),
+            ('pending_payment', SalesOrder.FulfillmentStatus.CONFIRMED, SalesOrder.PaymentStatus.UNPAID),
+        )
+        self.assertEqual(
+            (batch.remaining, batch.physical_remaining, batch.remaining_cost_cny, batch.sold_cost_cny),
+            before_batch,
+        )
+        self.assertEqual(allocation.status, StockAllocation.Status.RESERVED)
 
     def test_confirm_payment_locks_allocations_by_batch_then_allocation_id(self):
         first_batch = create_batch(self.cigar, remaining=1, unit_cost='10.00', operator=self.operator)
@@ -441,6 +534,27 @@ class OrderInventoryServiceTest(TestCase):
             batch.remaining_cost_cny + batch.sold_cost_cny + batch.adjustment_cost_cny,
         )
 
+    def test_box_adjustment_changes_only_complete_box_shape(self):
+        batch = create_batch(self.cigar, remaining=25, unit_cost='10.00', operator=self.operator)
+
+        adjust_stock(
+            cigar_id=self.cigar.id,
+            quantity_delta=-25,
+            inventory_form='box',
+            operator=self.operator,
+            batch_id=batch.id,
+            agent_context=context(command='adjust_stock', key='adjust-box-loss'),
+        )
+
+        batch.refresh_from_db()
+        self.assertEqual((batch.remaining, batch.physical_remaining), (0, 0))
+        self.assertEqual((batch.available_box_quantity, batch.available_stick_quantity), (0, 0))
+        self.assertEqual((batch.physical_box_quantity, batch.physical_stick_quantity), (0, 0))
+        self.assertEqual(batch.adjustment_cost_cny, Decimal('250.00'))
+        with self.assertRaises(OrderServiceError):
+            adjust_stock(cigar_id=self.cigar.id, quantity_delta=-1, operator=self.operator,
+                         batch_id=batch.id, agent_context=context(key='adjust-no-stick'))
+
     def test_cancel_releases_reserved_stock(self):
         batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
         order = create_sales_order(
@@ -537,23 +651,6 @@ class OrderInventoryServiceTest(TestCase):
 
 class PurchaseReceivingServiceTest(TestCase):
 
-    def test_box_adjustment_changes_only_complete_box_shape(self):
-        batch = create_batch(self.cigar, remaining=25, unit_cost='10.00', operator=self.operator)
-
-        adjust_stock(
-            cigar_id=self.cigar.id, quantity_delta=-25, inventory_form='box',
-            operator=self.operator, batch_id=batch.id,
-            agent_context=context(command='adjust_stock', key='adjust-box-loss'),
-        )
-
-        batch.refresh_from_db()
-        self.assertEqual((batch.remaining, batch.physical_remaining), (0, 0))
-        self.assertEqual((batch.available_box_quantity, batch.available_stick_quantity), (0, 0))
-        self.assertEqual((batch.physical_box_quantity, batch.physical_stick_quantity), (0, 0))
-        self.assertEqual(batch.adjustment_cost_cny, Decimal('250.00'))
-        with self.assertRaises(OrderServiceError):
-            adjust_stock(cigar_id=self.cigar.id, quantity_delta=-1, operator=self.operator,
-                         batch_id=batch.id, agent_context=context(key='adjust-no-stick'))
     def setUp(self):
         self.operator = create_operator()
         self.supplier = Supplier.objects.get(name='Habanos')

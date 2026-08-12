@@ -35,7 +35,7 @@ def _create_cigar():
     return cigar
 
 
-def _create_batch(cigar, remaining=50, box_size=25, unit_cost=200.0):
+def _create_batch(cigar, remaining=50, box_size=25, unit_cost=200.0, loose=False):
     """创建一个进货批次"""
     import uuid
     from cigars.models import Supplier
@@ -48,6 +48,15 @@ def _create_batch(cigar, remaining=50, box_size=25, unit_cost=200.0):
         purchase_order=po, cigar=cigar, quantity=remaining,
         box_size=box_size, unit_price_rub=2400, unit_price_cny=unit_cost
     )
+    packaging = {}
+    if loose:
+        original_boxes, original_sticks = divmod(remaining, box_size)
+        packaging = {
+            'original_box_quantity': original_boxes,
+            'original_stick_quantity': original_sticks,
+            'physical_stick_quantity': remaining,
+            'available_stick_quantity': remaining,
+        }
     batch = PurchaseBatch.objects.create(
         purchase_order_item=poi, cigar=cigar,
         quantity=remaining, remaining=remaining,
@@ -59,6 +68,7 @@ def _create_batch(cigar, remaining=50, box_size=25, unit_cost=200.0):
         adjustment_cost_cny=Decimal('0.00'),
         sold_cost_cny=Decimal('0.00'),
         unit_cost_cny=unit_cost,
+        **packaging,
     )
     return batch
 
@@ -365,7 +375,7 @@ class CreatePaymentTestCase(TestCase):
         self.user, self.password = _create_staff_user()
         self.client.login(username=self.user.username, password=self.password)
         self.cigar = _create_cigar()
-        self.batch = _create_batch(self.cigar, remaining=50, box_size=25, unit_cost=280.0)
+        self.batch = _create_batch(self.cigar, remaining=50, box_size=25, unit_cost=280.0, loose=True)
         self.pm = PaymentMethod.objects.create(
             method_type='bank_card', label='TestBank',
             bank_name='TestBank', card_number='1111222233334444', card_holder='TEST'
@@ -407,7 +417,7 @@ class CreatePaymentTestCase(TestCase):
         cigar2 = Cigar.objects.create(
             brand='TestBrand', english_name='Cigar2', name='雪茄2'
         )
-        _create_batch(cigar2, remaining=30, box_size=15, unit_cost=150.0)
+        _create_batch(cigar2, remaining=30, box_size=15, unit_cost=150.0, loose=True)
 
         items = [
             {'cigar_id': self.cigar.id, 'quantity': 5, 'unit_price': 350},
@@ -713,7 +723,7 @@ class ViewPrivnoteTestCase(TestCase):
         self.client = Client()
         self.staff, self.staff_pass = _create_staff_user()
         self.cigar = _create_cigar()
-        self.batch = _create_batch(self.cigar, remaining=50, unit_cost=280.0)
+        self.batch = _create_batch(self.cigar, remaining=50, unit_cost=280.0, loose=True)
 
     def _create_privnote(self, note_type='inventory', data=None, **kwargs):
         """辅助：通过 create view 创建 privnote"""
@@ -856,7 +866,7 @@ class RealTimeRenderingTestCase(TestCase):
         self.client = Client()
         self.staff, self.staff_pass = _create_staff_user()
         self.cigar = _create_cigar()
-        _create_batch(self.cigar, remaining=50, unit_cost=300.0)
+        _create_batch(self.cigar, remaining=50, unit_cost=300.0, loose=True)
 
         # 创建收款 privnote
         self.client.login(username=self.staff.username, password=self.staff_pass)

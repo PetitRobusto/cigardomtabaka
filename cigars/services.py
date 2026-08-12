@@ -159,6 +159,7 @@ def serialize_sales_order(order):
     for item in order.items.select_related('cigar').prefetch_related('allocations__purchase_batch').all():
         allocations = [
             {
+                'id': alloc.id,
                 'batch_id': alloc.purchase_batch_id,
                 'quantity': alloc.quantity,
                 'status': alloc.status,
@@ -170,6 +171,9 @@ def serialize_sales_order(order):
             'cigar_id': item.cigar_id,
             'cigar_name': item.cigar.name or item.cigar.english_name,
             'quantity': item.quantity,
+            'sale_unit': item.sale_unit,
+            'sale_quantity': item.sale_quantity,
+            'box_size': item.box_size,
             'unit_price': _decimal_to_json(item.unit_price),
             'unit_cost': _decimal_to_json(item.unit_cost),
             'revenue': _decimal_to_json(item.revenue),
@@ -182,11 +186,28 @@ def serialize_sales_order(order):
         'id': order.id,
         'order_number': order.order_number,
         'status': order.status,
+        'display_status': order.display_status,
+        'fulfillment_status': order.fulfillment_status,
+        'payment_status': order.payment_status,
         'customer_id': order.customer_id,
         'customer_name': order.customer_name,
+        'customer': ({
+            'id': order.customer_id,
+            'name': order.customer.name,
+            'phone': order.customer.phone,
+        } if getattr(order, 'customer', None) is not None else None),
+        'goods_amount_cny': _decimal_to_json(order.goods_amount_cny),
+        'customer_transport_fee_cny': _decimal_to_json(order.customer_transport_fee_cny),
+        'amount_due_cny': _decimal_to_json(order.amount_due_cny),
         'total_revenue': _decimal_to_json(order.total_revenue),
         'total_cost': _decimal_to_json(order.total_cost),
         'total_profit': _decimal_to_json(order.total_profit),
+        'fifo_cost': _decimal_to_json(order.fifo_cost_cny),
+        'contribution_profit': _decimal_to_json(order.contribution_profit_cny),
+        'locked': order.locked,
+        'created_at': order.created_at.isoformat() if order.created_at else None,
+        'confirmed_at': order.confirmed_at.isoformat() if order.confirmed_at else None,
+        'cancelled_at': order.cancelled_at.isoformat() if order.cancelled_at else None,
         'note': order.note,
         'items': items,
     }
@@ -195,6 +216,8 @@ def serialize_sales_order(order):
 def _decimal_to_json(value):
     if value is None:
         return None
+    if not isinstance(value, Decimal):
+        value = Decimal(str(value))
     if value == value.to_integral_value():
         return int(value)
     return float(value)

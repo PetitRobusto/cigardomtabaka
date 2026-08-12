@@ -7,6 +7,7 @@ from urllib.parse import urlencode
 
 from cigars import views
 from cigars import agent_api
+from cigars import sales_api
 from cigars.auth_views import api_login, api_logout, api_me
 from privnote.views import (
     api_privnote, create as privnote_create,
@@ -56,6 +57,10 @@ urlpatterns = [
     path('api/agent/orders/cancel/', agent_api.cancel_sales_order_command, name='agent_cancel_sales_order'),
     path('api/agent/stock/adjust/', agent_api.adjust_stock_command, name='agent_adjust_stock'),
     path('api/agent/reports/basic/', agent_api.business_report, name='agent_business_report'),
+    path('api/sales/orders/', sales_api.sales_orders, name='sales_orders'),
+    path('api/sales/orders/<int:order_id>/', sales_api.sales_order_detail, name='sales_order_detail'),
+    path('api/sales/orders/<int:order_id>/confirm/', sales_api.sales_order_confirm, name='sales_order_confirm'),
+    path('api/sales/orders/<int:order_id>/cancel/', sales_api.sales_order_cancel, name='sales_order_cancel'),
     path('api/accounting/', include('accounting.urls')),
     path('api/prices/', include('price_tracker.urls')),
     # Privnote — JSON API + customer view API (frontend handled by React SPA)

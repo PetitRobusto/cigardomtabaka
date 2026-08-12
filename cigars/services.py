@@ -156,7 +156,15 @@ def _record_order_event(order, *, operator, context, note='', metadata=None):
 
 def serialize_sales_order(order):
     items = []
-    for item in order.items.select_related('cigar').prefetch_related('allocations__purchase_batch').all():
+    if hasattr(order, '_prefetched_objects_cache') and 'items' in order._prefetched_objects_cache:
+        order_items = order._prefetched_objects_cache['items']
+    else:
+        order_items = order.items.select_related('cigar').prefetch_related('allocations__purchase_batch').all()
+    for item in order_items:
+        if hasattr(item, '_prefetched_objects_cache') and 'allocations' in item._prefetched_objects_cache:
+            item_allocations = item._prefetched_objects_cache['allocations']
+        else:
+            item_allocations = item.allocations.all()
         allocations = [
             {
                 'id': alloc.id,
@@ -164,7 +172,7 @@ def serialize_sales_order(order):
                 'quantity': alloc.quantity,
                 'status': alloc.status,
             }
-            for alloc in item.allocations.all()
+            for alloc in item_allocations
         ]
         items.append({
             'id': item.id,

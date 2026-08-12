@@ -4,6 +4,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
+
+from django.db import IntegrityError, OperationalError
 
 from django.db import transaction
 from django.db.models import Q
@@ -71,34 +74,53 @@ def _write(request, command, handler, success_status=200):
         context = _request_context(request, command)
     except OrderServiceError as exc:
         return _error(str(exc), 400, exc.details)
-    try:
-        with transaction.atomic():
-            record = IdempotencyRecord.objects.select_for_update().filter(key=context.idempotency_key).first()
-            request_hash = _request_hash(body, request.path)
-            if record:
-                if record.command_name != command or record.request_hash != request_hash:
-                    return _error("Idempotency-Key 已用于不同请求", 409)
-                return _json(record.response_body, record.status_code)
-            response_body = handler(body, request.user, context)
-            IdempotencyRecord.objects.create(
-                key=context.idempotency_key,
-                command_name=command,
-                request_hash=request_hash,
-                request_body=body,
-                response_body=response_body,
-                status_code=success_status,
-                operator=request.user,
-                agent_name=context.agent_name,
-                agent_run_id=context.agent_run_id,
-                agent_request_id=context.agent_request_id,
-            )
-    except InsufficientStockError as exc:
-        return _error(str(exc), 409, exc.details)
-    except SalesOrder.DoesNotExist:
-        return _error("销售单不存在", 404)
-    except OrderServiceError as exc:
-        return _error(str(exc), 400, exc.details)
-    return _json(response_body, success_status)
+    request_hash = _request_hash(body, request.path)
+    for attempt in range(8):
+        try:
+            with transaction.atomic():
+                record = IdempotencyRecord.objects.select_for_update().filter(key=context.idempotency_key).first()
+                if record:
+                    if record.command_name != command or record.request_hash != request_hash:
+                        return _error("Idempotency-Key 已用于不同请求", 409)
+                    if record.status_code:
+                        return _json(record.response_body, record.status_code)
+                    # Another transaction currently owns the claim.  SQLite has no
+                    # useful row lock here; retry after its short transaction commits.
+                    raise OperationalError("idempotency claim is in progress")
+                try:
+                    with transaction.atomic():
+                        IdempotencyRecord.objects.create(
+                            key=context.idempotency_key,
+                            command_name=command,
+                            request_hash=request_hash,
+                            request_body=body,
+                            response_body={},
+                            status_code=0,
+                            operator=request.user,
+                            agent_name=context.agent_name,
+                            agent_run_id=context.agent_run_id,
+                            agent_request_id=context.agent_request_id,
+                        )
+                except IntegrityError:
+                    raise OperationalError("idempotency claim is in progress")
+                response_body = handler(body, request.user, context)
+                IdempotencyRecord.objects.filter(key=context.idempotency_key).update(
+                    response_body=response_body, status_code=success_status,
+                )
+            return _json(response_body, success_status)
+        except InsufficientStockError as exc:
+            return _error(str(exc), 409, exc.details)
+        except SalesOrder.DoesNotExist:
+            return _error("销售单不存在", 404)
+        except OrderServiceError as exc:
+            return _error(str(exc), 400, exc.details)
+        except OperationalError as exc:
+            if "locked" not in str(exc).lower() and "in progress" not in str(exc).lower():
+                raise
+            if attempt == 7:
+                return _error("请求正在处理中，请稍后重试", 409)
+            time.sleep(0.02 * (attempt + 1))
+    return _error("请求正在处理中，请稍后重试", 409)
 
 
 def _denied(request):
@@ -143,7 +165,9 @@ def sales_orders(request):
             raise ValueError
     except (TypeError, ValueError):
         return _error("limit 必须是 1 到 100 之间的整数", 400)
-    orders = SalesOrder.objects.select_related("customer").all()
+    orders = SalesOrder.objects.select_related("customer").prefetch_related(
+        "items__cigar", "items__allocations__purchase_batch"
+    ).all()
     fulfillment = request.GET.get("fulfillment_status", "").strip()
     payment = request.GET.get("payment_status", "").strip()
     if fulfillment:
@@ -159,12 +183,11 @@ def sales_orders(request):
         if query.isdigit():
             orders = orders.filter(Q(customer_name__icontains=query) | Q(id=int(query)))
         else:
-            query_folded = query.casefold()
-            orders = [
-                order for order in orders
-                if query_folded in order.order_number.casefold()
-                or query_folded in (order.customer_name or "").casefold()
-            ]
+            order_match = re.fullmatch(r"SO-(\d+)", query, re.IGNORECASE)
+            if order_match:
+                orders = orders.filter(id=int(order_match.group(1)))
+            else:
+                orders = orders.filter(customer_name__icontains=query)
     return _json({"results": [serialize_sales_order(order) for order in orders[:limit]]})
 
 

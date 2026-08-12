@@ -1038,6 +1038,7 @@ class PurchaseBatchCostFactsModelTest(TestCase):
         PurchaseBatch.objects.filter(pk=batch.pk).update(
             positive_adjustment_quantity=4,
             physical_remaining=14,
+            physical_stick_quantity=14,
         )
         self.assertEqual(PurchaseBatch.objects.get(pk=batch.pk).physical_remaining, 14)
 
@@ -1111,3 +1112,98 @@ class PurchaseBatchPackagingMigrationTest(TransactionTestCase):
         executor = MigrationExecutor(connection)
         migrated = executor.loader.project_state(migrate_to).apps.get_model('cigars', 'PurchaseBatch').objects.get(pk=batch.pk)
         self.assertEqual((migrated.original_box_quantity, migrated.original_stick_quantity, migrated.physical_box_quantity, migrated.physical_stick_quantity, migrated.available_box_quantity, migrated.available_stick_quantity), (1, 0, 0, 25, 0, 24))
+
+    def test_migration_preserves_reserved_and_null_package_shapes(self):
+        executor = MigrationExecutor(connection)
+        migrate_from = [('cigars', '0027_purchase_batch_cost_facts')]
+        migrate_to = [('cigars', '0029_purchase_batch_packaging_constraints')]
+        executor.migrate(migrate_from)
+        self.addCleanup(executor.migrate, executor.loader.graph.leaf_nodes())
+        executor = MigrationExecutor(connection)
+        apps = MigrationExecutor(connection).loader.project_state(migrate_from).apps
+        User = apps.get_model('cigars', 'User')
+        Cigar = apps.get_model('cigars', 'Cigar')
+        Supplier = apps.get_model('cigars', 'Supplier')
+        PurchaseOrder = apps.get_model('cigars', 'PurchaseOrder')
+        PurchaseOrderItem = apps.get_model('cigars', 'PurchaseOrderItem')
+        PurchaseBatch = apps.get_model('cigars', 'PurchaseBatch')
+        SalesOrder = apps.get_model('cigars', 'SalesOrder')
+        SalesOrderItem = apps.get_model('cigars', 'SalesOrderItem')
+        StockAllocation = apps.get_model('cigars', 'StockAllocation')
+        self.assertTrue(SalesOrderItem._meta.get_field('sale_unit'))
+        self.assertTrue(SalesOrderItem._meta.get_field('box_size'))
+        operator = User.objects.create(username='packaging-shape-operator', is_staff=True)
+        cigar = Cigar.objects.create(brand='Packaging Shape Brand', english_name='Packaging Shape Cigar', name='包装形态雪茄')
+        supplier = Supplier.objects.create(name='包装形态供应商')
+
+        def make_batch(label, quantity, remaining, physical_remaining, box_size):
+            order = PurchaseOrder.objects.create(
+                supplier=supplier, rub_total=Decimal('1.00'), exchange_rate=Decimal('1.0000'),
+                cny_total=Decimal(quantity * 10), operator=operator,
+            )
+            item = PurchaseOrderItem.objects.create(
+                purchase_order=order, cigar=cigar, quantity=quantity, box_size=box_size,
+                unit_price_rub=Decimal('1.00'), unit_price_cny=Decimal('10.00'),
+            )
+            return PurchaseBatch.objects.create(
+                purchase_order_item=item, cigar=cigar, quantity=quantity, remaining=remaining,
+                physical_remaining=physical_remaining, original_cost_cny=Decimal(quantity * 10),
+                remaining_cost_cny=Decimal(remaining * 10),
+                sold_cost_cny=Decimal((quantity - remaining) * 10), unit_cost_cny=Decimal('10.00'),
+            )
+
+        boxed = make_batch('boxed', 25, 0, 25, 25)
+        blank = make_batch('blank', 10, 8, 10, 25)
+        unpackaged = make_batch('unpackaged', 5, 3, 5, None)
+        sales_order = SalesOrder.objects.create(operator=operator, status='pending_payment')
+        boxed_item = SalesOrderItem.objects.create(
+            sales_order=sales_order, cigar=cigar, quantity=25, unit_price=Decimal('10.00'),
+            unit_cost=Decimal('10.00'), revenue=Decimal('250.00'), cost=Decimal('250.00'),
+            profit=Decimal('0.00'), sale_unit='box', sale_quantity=1, box_size=25,
+        )
+        blank_item = SalesOrderItem.objects.create(
+            sales_order=sales_order, cigar=cigar, quantity=2, unit_price=Decimal('10.00'),
+            unit_cost=Decimal('10.00'), revenue=Decimal('20.00'), cost=Decimal('20.00'),
+            profit=Decimal('0.00'), sale_unit='', sale_quantity=None, box_size=None,
+        )
+        StockAllocation.objects.create(sales_order_item=boxed_item, purchase_batch=boxed, quantity=25, status='reserved')
+        StockAllocation.objects.create(sales_order_item=blank_item, purchase_batch=blank, quantity=2, status='reserved')
+
+        executor.migrate(migrate_to)
+        migrated_apps = MigrationExecutor(connection).loader.project_state(migrate_to).apps
+        MigratedBatch = migrated_apps.get_model('cigars', 'PurchaseBatch')
+
+        def assert_shape(batch_id, expected):
+            migrated = MigratedBatch.objects.get(pk=batch_id)
+            actual = (
+                migrated.original_box_quantity, migrated.original_stick_quantity,
+                migrated.physical_box_quantity, migrated.physical_stick_quantity,
+                migrated.available_box_quantity, migrated.available_stick_quantity,
+            )
+            self.assertEqual(actual, expected)
+            if migrated.box_size is None:
+                self.assertEqual(migrated.original_box_quantity, 0)
+                self.assertEqual(migrated.physical_box_quantity, 0)
+                self.assertEqual(migrated.available_box_quantity, 0)
+                self.assertEqual(migrated.original_stick_quantity, migrated.quantity)
+                self.assertEqual(migrated.physical_stick_quantity, migrated.physical_remaining)
+                self.assertEqual(migrated.available_stick_quantity, migrated.remaining)
+            else:
+                self.assertEqual(
+                    migrated.quantity,
+                    migrated.original_box_quantity * migrated.box_size + migrated.original_stick_quantity,
+                )
+                self.assertEqual(
+                    migrated.physical_remaining,
+                    migrated.physical_box_quantity * migrated.box_size + migrated.physical_stick_quantity,
+                )
+                self.assertEqual(
+                    migrated.remaining,
+                    migrated.available_box_quantity * migrated.box_size + migrated.available_stick_quantity,
+                )
+            self.assertLessEqual(migrated.available_box_quantity, migrated.physical_box_quantity)
+            self.assertLessEqual(migrated.available_stick_quantity, migrated.physical_stick_quantity)
+
+        assert_shape(boxed.pk, (1, 0, 1, 0, 0, 0))
+        assert_shape(blank.pk, (0, 10, 0, 10, 0, 8))
+        assert_shape(unpackaged.pk, (0, 5, 0, 5, 0, 3))

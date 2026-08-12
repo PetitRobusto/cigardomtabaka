@@ -507,3 +507,110 @@ export interface RecentChangesResponse {
   price_changes: RecentPriceChange[];
   restocks: RecentRestock[];
 }
+
+// =================== SALES & ACCOUNTING WORKBENCH ===================
+
+export interface SalesOrderItem {
+  id: number;
+  cigar_id: number;
+  cigar_name: string;
+  quantity: number;
+  sale_unit: 'stick' | 'box' | string;
+  sale_quantity: number | null;
+  box_size: number | null;
+  unit_price: number;
+  unit_cost: number;
+  revenue: number;
+  cost: number;
+  profit: number;
+  fulfillment_type: string;
+  allocations: { id: number; batch_id: number; quantity: number; status: string; unit_cost_cny?: number | string; cost_cny?: number | string }[];
+}
+
+export interface SalesOrder {
+  id: number;
+  order_number: string;
+  status: string;
+  display_status: string;
+  fulfillment_status: 'draft' | 'confirmed' | 'shipped' | 'cancelled' | string;
+  payment_status: 'unpaid' | 'paid' | 'refund_pending' | 'refunded' | string;
+  customer_id: number | null;
+  customer_name: string;
+  customer?: { id: number; name: string; phone: string } | null;
+  goods_amount_cny: number;
+  customer_transport_fee_cny: number;
+  amount_due_cny: number;
+  total_revenue: number;
+  total_cost: number;
+  total_profit: number;
+  fifo_cost: number;
+  contribution_profit: number;
+  actual_transport_cost_cny: number;
+  locked: boolean;
+  created_at: string | null;
+  confirmed_at: string | null;
+  cancelled_at: string | null;
+  note: string;
+  items: SalesOrderItem[];
+  sales_shipment: { id: number; business_date: string; fifo_cost_cny: number } | null;
+  sales_receipt: { id: number; amount_cny: number; business_date: string; fund_account_id: number } | null;
+  sales_refund: { id: number; amount_cny: number; business_date: string; fund_account_id: number } | null;
+  sales_transport_cost: { id: number; actual_cost_cny: number; business_date: string; fund_account_id: number } | null;
+  available_actions: string[];
+}
+
+export interface SalesOrderPayload {
+  items: { cigar_id: number; sale_unit: string; quantity: number; unit_price: string; sale_quantity?: number; box_size?: number }[];
+  customer_id?: number | null;
+  customer_name?: string;
+  payment_method_id?: number | null;
+  payment_manual?: Record<string, string>;
+  customer_transport_fee_cny?: string;
+  note?: string;
+}
+
+export interface FundAccount {
+  id: number;
+  name: string;
+  currency: 'CNY' | 'RUB' | 'USDT' | string;
+  custodian_id: number | null;
+  is_active: boolean;
+  original_balance?: string;
+  cny_book_cost?: string;
+  moving_average_cny?: string | null;
+}
+
+export interface MonthlyProfitReport {
+  period_start: string;
+  period_end: string;
+  sales_revenue_cny: string;
+  customer_transport_revenue_cny: string;
+  cost_of_goods_sold_cny: string;
+  transport_expense_cny: string;
+  net_profit_cny: string;
+  transaction_count: number;
+}
+
+export interface AccountingSummary {
+  as_of: string;
+  fund_accounts: (FundAccount & { original_balance: string; cny_book_cost: string })[];
+  accounts_receivable_cny: string;
+  customer_prepayments_cny: string;
+  inventory_remaining_cost_cny: string;
+  purchase_in_transit_cny: string;
+}
+
+export interface Reconciliation {
+  id: number;
+  account_id: number;
+  business_date: string;
+  system_amount: string;
+  actual_amount: string;
+  difference: string;
+  status: 'pending' | 'confirmed' | string;
+  operator_id: number;
+  confirmer_id: number | null;
+  note: string;
+  created_at: string;
+  updated_at: string;
+}

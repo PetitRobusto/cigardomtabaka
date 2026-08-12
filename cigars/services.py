@@ -171,6 +171,10 @@ def serialize_sales_order(order):
                 'batch_id': alloc.purchase_batch_id,
                 'quantity': alloc.quantity,
                 'status': alloc.status,
+                'unit_cost_cny': _decimal_to_json(alloc.purchase_batch.unit_cost_cny),
+                'cost_cny': _decimal_to_json(
+                    alloc.purchase_batch.unit_cost_cny * alloc.quantity
+                ),
             }
             for alloc in item_allocations
         ]
@@ -257,7 +261,8 @@ def _sales_order_available_actions(order):
     if order.fulfillment_status == SalesOrder.FulfillmentStatus.SHIPPED:
         if order.payment_status == SalesOrder.PaymentStatus.UNPAID:
             actions.append('receive')
-        actions.append('transport_cost')
+        if not hasattr(order, 'sales_transport_cost'):
+            actions.append('transport_cost')
     if order.fulfillment_status == SalesOrder.FulfillmentStatus.CANCELLED and order.payment_status == SalesOrder.PaymentStatus.REFUND_PENDING:
         actions.append('refund')
     return actions

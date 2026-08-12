@@ -5,7 +5,7 @@ import type {
   InventoryResponse, PrivnoteResponse,
   PaymentMethod, SearchCigarResult, InventoryViewData,
   CustomerResult, QuoteProduct, RecentChangesResponse,
-  SalesOrder, SalesOrderPayload, FundAccount, MonthlyProfitReport,
+  SalesOrder, PaymentOrder, SalesOrderPayload, FundAccount, MonthlyProfitReport,
   AccountingSummary, Reconciliation,
 } from './types';
 import { writeWithIdempotency } from './api/idempotency';
@@ -129,7 +129,19 @@ export const createPrivnote = (data: FormData) =>
     body: data,
     credentials: 'same-origin',
     headers: { 'X-CSRFToken': getCSRFToken() },
-  }).then(r => r.json());
+  }).then(async r => {
+    let body: { error?: string; [key: string]: unknown } = {};
+    try {
+      body = await r.json();
+    } catch {
+      if (!r.ok) throw new Error('私密链接创建失败，请稍后重试');
+    }
+    if (!r.ok) {
+      const message = typeof body?.error === 'string' ? body.error : '私密链接创建失败';
+      throw new Error(message);
+    }
+    return body;
+  });
 
 // ── Privnote upgrade APIs (NOT under /api/ prefix) ──
 
@@ -148,6 +160,14 @@ export const fetchPaymentMethods = (): Promise<PaymentMethod[]> =>
   })
     .then(r => { if (!r.ok) throw new Error('收款方式加载失败'); return r.json(); })
     .then(d => Array.isArray(d?.methods) ? d.methods : []);
+
+export const fetchEligiblePaymentOrders = (): Promise<PaymentOrder[]> =>
+  fetch('/privnote/api/payment-orders/', {
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': getCSRFToken() },
+  })
+    .then(r => { if (!r.ok) throw new Error('待收款销售单加载失败'); return r.json(); })
+    .then(d => Array.isArray(d?.orders) ? d.orders : []);
 
 export const previewInventoryPrivnote = (): Promise<{ preview: InventoryViewData }> =>
   fetch('/privnote/create/', {

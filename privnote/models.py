@@ -122,12 +122,20 @@ class PaymentMethod(models.Model):
 
     def clean(self):
         super().clean()
+        # 历史上存在未绑定资金账户的停用收款方式；它们可以保留，
+        # 但任何启用方式都必须能把收款归属到一个有效的人民币账户。
+        if not self.is_active:
+            return
         try:
             fund_account = self.fund_account
         except ObjectDoesNotExist:
             raise ValidationError({'fund_account': '对应资金账户不存在'})
-        if fund_account is not None and fund_account.currency != 'CNY':
+        if fund_account is None or not fund_account.pk:
+            raise ValidationError({'fund_account': '启用收款方式必须绑定资金账户'})
+        if fund_account.currency != 'CNY':
             raise ValidationError({'fund_account': '收款方式只能绑定人民币资金账户'})
+        if not fund_account.is_active:
+            raise ValidationError({'fund_account': '收款方式绑定的资金账户未启用'})
 
     def save(self, *args, **kwargs):
         self.full_clean()

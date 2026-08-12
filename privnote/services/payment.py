@@ -1,14 +1,12 @@
-"""Payment 业务逻辑 — 收款单数据构建、SalesOrder 创建"""
+"""Payment 业务逻辑 — 收款单数据构建。
+
+SalesOrder 必须由销售单工作流创建；这里的 payment privnote 只负责引用
+既有销售单并渲染收款信息。
+"""
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
-from cigars.models import PurchaseBatch, SalesOrderItem
-from cigars.services import (
-    AgentContext,
-    InsufficientStockError,
-    OrderServiceError,
-    create_sales_order,
-)
 from privnote.models import PaymentMethod
+from accounting.models import FundAccount
 from privnote.helpers import decimal_to_number, get_thumb_url, serialize_payment_method
 
 
@@ -29,66 +27,8 @@ def _to_money(raw, field_name):
     return value
 
 
-def _to_positive_int(raw, field_name):
-    try:
-        value = int(raw)
-    except (TypeError, ValueError):
-        raise PaymentValidationError(f'{field_name}必须是正整数')
-    if value <= 0:
-        raise PaymentValidationError(f'{field_name}必须是正整数')
-    return value
-
-
-def _normalize_extra_fees(extra_fees):
-    if not extra_fees:
-        return []
-    if not isinstance(extra_fees, list):
-        raise PaymentValidationError('额外费用格式错误')
-
-    normalized = []
-    for idx, fee in enumerate(extra_fees, start=1):
-        if not isinstance(fee, dict):
-            raise PaymentValidationError(f'第{idx}项额外费用格式错误')
-        name = str(fee.get('name', '')).strip()
-        amount = _to_money(fee.get('amount', 0), f'第{idx}项额外费用金额')
-        if not name and amount == 0:
-            continue
-        if not name:
-            raise PaymentValidationError(f'第{idx}项额外费用名称不能为空')
-        normalized.append({'name': name, 'amount': decimal_to_number(amount)})
-    return normalized
-
-
-def _normalize_manual_payment(payment_manual):
-    if not payment_manual:
-        return {}
-    if not isinstance(payment_manual, dict):
-        raise PaymentValidationError('手动收款信息格式错误')
-    allowed_keys = ('bank_name', 'card_number', 'card_holder', 'qr_url')
-    return {
-        key: str(payment_manual.get(key, '')).strip()
-        for key in allowed_keys
-        if payment_manual.get(key)
-    }
-
-
-def _normalize_images(images):
-    if not images:
-        return []
-    if not isinstance(images, list):
-        raise PaymentValidationError('图片数据格式错误')
-    normalized = []
-    for image in images:
-        if not isinstance(image, dict):
-            continue
-        url = str(image.get('url', '')).strip()
-        name = str(image.get('name', '')).strip()
-        if url:
-            normalized.append({'url': url, 'name': name})
-    return normalized
-
-
-def build_payment_data(sales_order):
+def build_payment_data(sales_order, payment_method=None, *, remark=None, images=None,
+                       extra_fees=None):
     """实时渲染收款 privnote 数据"""
     items = []
     for item in sales_order.items.select_related('cigar').all():
@@ -106,37 +46,68 @@ def build_payment_data(sales_order):
             'thumb_url': get_thumb_url(cigar),
         })
 
-    total = sum(Decimal(str(it['subtotal'])) for it in items).quantize(MONEY_PLACES)
-
-    # 额外费用
-    extra_fees = sales_order.payment_manual.get('extra_fees', []) if sales_order.payment_manual else []
-    extra_total = sum(
-        (_to_money(f.get('amount', 0), '额外费用金额') for f in extra_fees),
-        Decimal('0.00'),
+    authoritative_total = _to_money(sales_order.amount_due_cny, '销售单应收总额')
+    total = sum(
+        (Decimal(str(item['subtotal'])) for item in items), Decimal('0.00')
     ).quantize(MONEY_PLACES)
 
-    payment_methods = []
-    if sales_order.payment_method_id:
+    # 额外费用只来自销售单的正式应收字段或本次 privnote 快照，
+    # 不再读取 payment_manual，避免手动收款信息污染销售事实。
+    if extra_fees is None:
+        extra_fees = []
+        transport_fee = getattr(sales_order, 'customer_transport_fee_cny', Decimal('0.00'))
+        if transport_fee:
+            extra_fees = [{'name': '人肉费', 'amount': decimal_to_number(_to_money(transport_fee, '人肉费'))}]
+    if not isinstance(extra_fees, list):
+        extra_fees = []
+    clean_extra_fees = []
+    for fee in extra_fees:
+        if not isinstance(fee, dict):
+            continue
         try:
-            pm = PaymentMethod.objects.get(id=sales_order.payment_method_id, is_active=True)
-            payment_methods.append(serialize_payment_method(pm))
-        except PaymentMethod.DoesNotExist:
-            pass
+            amount = _to_money(fee.get('amount', 0), '额外费用金额')
+        except PaymentValidationError:
+            continue
+        name = str(fee.get('name', '')).strip()
+        if name and amount:
+            clean_extra_fees.append({'name': name, 'amount': decimal_to_number(amount)})
 
-    if sales_order.payment_manual:
-        manual = sales_order.payment_manual
-        if manual.get('bank_name') or manual.get('card_number') or manual.get('card_holder'):
-            payment_methods.append({
-                'method_type': 'bank_card',
-                'label': '手动填写',
-                'bank_name': manual.get('bank_name', ''),
-                'card_number': manual.get('card_number', ''),
-                'card_holder': manual.get('card_holder', ''),
-                'qr_url': manual.get('qr_url'),
+    displayed_extra = sum(
+        (Decimal(str(fee['amount'])) for fee in clean_extra_fees), Decimal('0.00')
+    ).quantize(MONEY_PLACES)
+    required_extra = (authoritative_total - total).quantize(MONEY_PLACES)
+    if required_extra < 0:
+        raise PaymentValidationError('销售单商品明细超过冻结应收金额，请先修正销售单')
+    if displayed_extra != required_extra:
+        clean_extra_fees = []
+        if required_extra:
+            transport_fee = _to_money(
+                getattr(sales_order, 'customer_transport_fee_cny', 0), '客户人肉费'
+            )
+            label = '人肉费' if transport_fee == required_extra else '应收调整'
+            clean_extra_fees.append({
+                'name': label,
+                'amount': decimal_to_number(required_extra),
             })
+    extra_fees = clean_extra_fees
+    extra_total = required_extra
 
-    # 备注图片
-    images = sales_order.payment_manual.get('images', []) if sales_order.payment_manual else []
+    payment_methods = []
+    if payment_method is None and getattr(sales_order, 'payment_method_id', None):
+        payment_method = PaymentMethod.objects.filter(
+            id=sales_order.payment_method_id,
+            is_active=True,
+            fund_account__is_active=True,
+            fund_account__currency=FundAccount.Currency.CNY,
+        ).first()
+    if payment_method is not None:
+        payment_methods.append(serialize_payment_method(payment_method))
+
+    # 备注和图片属于本张 privnote 快照，不写回销售单。
+    if remark is None:
+        remark = getattr(sales_order, 'note', '') or ''
+    if not isinstance(images, list):
+        images = []
 
     return {
         'mode': 'payment',
@@ -144,67 +115,12 @@ def build_payment_data(sales_order):
         'total': decimal_to_number(total),
         'extra_fees': extra_fees,
         'extra_total': decimal_to_number(extra_total),
-        'grand_total': decimal_to_number((total + extra_total).quantize(MONEY_PLACES)),
+        'grand_total': decimal_to_number(authoritative_total),
         'payment_methods': payment_methods,
         'customer_name': sales_order.customer_name or '',
-        'remark': sales_order.payment_manual.get('remark', '') if sales_order.payment_manual else '',
-        'images': images,
+        'remark': str(remark or ''),
+        'images': [
+            image for image in images
+            if isinstance(image, dict) and str(image.get('url', '')).strip()
+        ],
     }
-
-
-def create_sales_order_from_items(items_raw, customer_name, payment_method_id,
-                                   payment_manual, extra_fees, remark, images,
-                                   operator=None, customer=None):
-    """
-    从商品列表创建 SalesOrder + SalesOrderItem。
-    返回创建好的 SalesOrder 实例。
-    """
-    if not isinstance(items_raw, list):
-        raise PaymentValidationError('商品数据格式错误')
-    normalized_manual = _normalize_manual_payment(payment_manual)
-    normalized_extra_fees = _normalize_extra_fees(extra_fees)
-    normalized_images = _normalize_images(images)
-
-    selected_payment_method_id = None
-    if payment_method_id:
-        selected_payment_method_id = _to_positive_int(payment_method_id, '收款方式ID')
-        if not PaymentMethod.objects.filter(id=selected_payment_method_id, is_active=True).exists():
-            raise PaymentValidationError('收款方式不存在或未启用')
-
-    normalized_items = []
-    for idx, it in enumerate(items_raw, start=1):
-        if not isinstance(it, dict):
-            raise PaymentValidationError(f'第{idx}个商品格式错误')
-        cigar_id = _to_positive_int(it.get('cigar_id'), f'第{idx}个商品ID')
-        purchase_batch_id = it.get('batch_id')
-        if purchase_batch_id:
-            batch_id = _to_positive_int(purchase_batch_id, f'第{idx}个商品批次ID')
-            if not PurchaseBatch.objects.filter(id=batch_id, cigar_id=cigar_id).exists():
-                raise PaymentValidationError(f'第{idx}个商品批次不存在或不匹配')
-        normalized_items.append({
-            'cigar_id': cigar_id,
-            'quantity': _to_positive_int(it.get('quantity', 1), f'第{idx}个商品数量'),
-            'unit_price': _to_money(it.get('unit_price', 0), f'第{idx}个商品单价'),
-            'fulfillment_type': it.get('fulfillment_type') or SalesOrderItem.FulfillmentType.IN_STOCK,
-        })
-
-    try:
-        return create_sales_order(
-            items=normalized_items,
-            operator=operator,
-            customer=customer,
-            customer_name=customer_name or '',
-            payment_method_id=selected_payment_method_id,
-            payment_manual=dict(
-                normalized_manual,
-                extra_fees=normalized_extra_fees,
-                remark=remark,
-                images=normalized_images,
-            ),
-            note=remark,
-            agent_context=AgentContext(command_name='privnote_create_payment'),
-        )
-    except InsufficientStockError as exc:
-        raise PaymentValidationError(str(exc))
-    except OrderServiceError as exc:
-        raise PaymentValidationError(str(exc))

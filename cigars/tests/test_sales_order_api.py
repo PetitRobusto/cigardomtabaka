@@ -1,12 +1,16 @@
+from datetime import date
 import json
 from decimal import Decimal
 
 from django.db import close_old_connections
 from django.test import Client, TestCase, TransactionTestCase
+
+from accounting.models import FundAccount
 from threading import Barrier, Thread
 
 from cigars.models import (
     Brand,
+    SalesReceipt, SalesRefund, SalesShipment, SalesTransportCost,
     Cigar,
     IdempotencyRecord,
     PurchaseBatch,
@@ -295,6 +299,81 @@ class SalesOrderApiTest(TestCase):
             response = self.client.get("/api/sales/orders/?limit=5")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()["results"]), 5)
+
+
+    def action_order(self, key="action-create"):
+        self.create_batch(quantity=10, box_size=25)
+        created = self.create_order(key=key, body=self.body(quantity=2))
+        order_id = created.json()["sales_order"]["id"]
+        self.login()
+        confirmed = self.request("post", f"/api/sales/orders/{order_id}/confirm/", {}, f"{key}-confirm")
+        self.assertEqual(confirmed.status_code, 200)
+        return order_id
+
+    def action_account(self, key="action-account"):
+        return FundAccount.objects.create(name=f"API 动作账户 {key}", currency=FundAccount.Currency.CNY, custodian=self.operator, creation_idempotency_key=key)
+
+    def test_ship_action_api_returns_serialized_order_and_shipment(self):
+        order_id = self.action_order("api-ship")
+        response = self.request("post", f"/api/sales/orders/{order_id}/ship/", {"business_date": "2026-08-10"}, "api-ship-action")
+        self.assertIn(response.status_code, (200, 201))
+        payload = response.json()["sales_order"]
+        self.assertEqual(payload["fulfillment_status"], SalesOrder.FulfillmentStatus.SHIPPED)
+        self.assertIn("sales_shipment", payload)
+
+    def test_receive_action_api_supports_confirmed_prepayment(self):
+        order_id = self.action_order("api-receive")
+        account = self.action_account("api-receive-account")
+        response = self.request("post", f"/api/sales/orders/{order_id}/receive/", {"amount_cny": "43.00", "fund_account_id": account.id, "business_date": "2026-08-10"}, "api-receive-action")
+        self.assertIn(response.status_code, (200, 201))
+        payload = response.json()["sales_order"]
+        self.assertEqual(payload["payment_status"], SalesOrder.PaymentStatus.PAID)
+        self.assertIn("sales_receipt", payload)
+
+    def test_refund_action_api_returns_refund_fact(self):
+        order_id = self.action_order("api-refund")
+        account = self.action_account("api-refund-account")
+        from cigars.sales_accounting import receive_sales_order_payment
+        receive_sales_order_payment(order_id=order_id, amount_cny=Decimal("43.00"), fund_account=account, business_date=date(2026, 8, 10), operator=self.operator, idempotency_key="api-refund-setup-receipt")
+        self.request("post", f"/api/sales/orders/{order_id}/cancel/", {}, "api-refund-cancel")
+        response = self.request("post", f"/api/sales/orders/{order_id}/refund/", {"business_date": "2026-08-10"}, "api-refund-action")
+        self.assertIn(response.status_code, (200, 201))
+        self.assertEqual(response.json()["sales_order"]["payment_status"], SalesOrder.PaymentStatus.REFUNDED)
+
+    def test_transport_cost_action_api_returns_transport_fact(self):
+        order_id = self.action_order("api-transport")
+        account = self.action_account("api-transport-account")
+        from cigars.sales_accounting import ship_sales_order
+        ship_sales_order(order_id=order_id, business_date=date(2026, 8, 10), operator=self.operator, idempotency_key="api-transport-setup-ship")
+        response = self.request("post", f"/api/sales/orders/{order_id}/transport-cost/", {"actual_cost_cny": "10.00", "fund_account_id": account.id, "business_date": "2026-08-10"}, "api-transport-action")
+        self.assertIn(response.status_code, (200, 201))
+        self.assertEqual(response.json()["sales_order"]["actual_transport_cost_cny"], 10)
+
+    def test_action_api_invalid_input_returns_json_not_500(self):
+        order_id = self.action_order("api-invalid-action")
+        for path, body, key in ((f"/api/sales/orders/{order_id}/ship/", {"business_date": "not-a-date"}, "api-invalid-date"), (f"/api/sales/orders/{order_id}/receive/", {"amount_cny": "43.001", "fund_account_id": 999999, "business_date": "2026-08-10"}, "api-invalid-receive"), (f"/api/sales/orders/{order_id}/transport-cost/", {"actual_cost_cny": "10.00", "fund_account_id": 999999, "business_date": "2026-08-10"}, "api-invalid-transport")):
+            response = self.request("post", path, body, key)
+            self.assertIn(response.status_code, (400, 404, 409))
+            self.assertLess(response.status_code, 500)
+            self.assertEqual(response["Content-Type"], "application/json")
+
+    def test_action_api_requires_staff_json(self):
+        order_id = self.action_order("api-auth-action")
+        self.client.logout()
+        anonymous = self.request("post", f"/api/sales/orders/{order_id}/ship/", {"business_date": "2026-08-10"}, "api-anonymous-action")
+        self.assertEqual(anonymous.status_code, 403)
+        self.login(self.non_staff)
+        non_staff = self.request("post", f"/api/sales/orders/{order_id}/ship/", {"business_date": "2026-08-10"}, "api-nonstaff-action")
+        self.assertEqual(non_staff.status_code, 403)
+
+    def test_action_api_same_key_replays_and_conflicts_on_changed_body(self):
+        order_id = self.action_order("api-idempotent-action")
+        first = self.request("post", f"/api/sales/orders/{order_id}/ship/", {"business_date": "2026-08-10"}, "api-action-key")
+        second = self.request("post", f"/api/sales/orders/{order_id}/ship/", {"business_date": "2026-08-10"}, "api-action-key")
+        changed = self.request("post", f"/api/sales/orders/{order_id}/ship/", {"business_date": "2026-08-11"}, "api-action-key")
+        self.assertEqual(first.status_code, second.status_code)
+        self.assertEqual(first.json(), second.json())
+        self.assertEqual(changed.status_code, 409)
 
 
 class SalesOrderApiConcurrencyTest(TransactionTestCase):

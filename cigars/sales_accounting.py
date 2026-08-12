@@ -77,8 +77,11 @@ def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note
         raise OrderServiceError("销售单已经出库")
     if order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED:
         raise OrderServiceError("只有已确认订单才能出库")
-    if order.payment_status != SalesOrder.PaymentStatus.UNPAID:
-        raise OrderServiceError("本切片只允许未收款订单出库")
+    if order.payment_status not in (
+        SalesOrder.PaymentStatus.UNPAID,
+        SalesOrder.PaymentStatus.PAID,
+    ):
+        raise OrderServiceError("销售单不是可出库状态")
     if SalesShipment.objects.filter(sales_order=order).exists():
         raise OrderServiceError("销售单已经出库")
 
@@ -158,16 +161,22 @@ def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note
     goods = order.goods_amount_cny.quantize(MONEY_PLACES)
     transport = order.customer_transport_fee_cny.quantize(MONEY_PLACES)
     amount_due = order.amount_due_cny.quantize(MONEY_PLACES)
+    shipment_postings = [
+        _cny_posting(
+            LedgerPosting.Category.CUSTOMER_PREPAYMENTS
+            if order.payment_status == SalesOrder.PaymentStatus.PAID
+            else LedgerPosting.Category.ACCOUNTS_RECEIVABLE,
+            amount_due,
+        ),
+        _cny_posting(LedgerPosting.Category.SALES_REVENUE, -goods),
+        _cny_posting(LedgerPosting.Category.CUSTOMER_TRANSPORT_REVENUE, -transport),
+        _cny_posting(LedgerPosting.Category.COST_OF_GOODS_SOLD, total_cost),
+        _cny_posting(LedgerPosting.Category.INVENTORY, -total_cost),
+    ]
     ledger = _post_transaction_once(
         transaction_type=LedgerTransaction.TransactionType.SALES_SHIPMENT,
         business_date=business_date,
-        postings=[
-            _cny_posting(LedgerPosting.Category.ACCOUNTS_RECEIVABLE, amount_due),
-            _cny_posting(LedgerPosting.Category.SALES_REVENUE, -goods),
-            _cny_posting(LedgerPosting.Category.CUSTOMER_TRANSPORT_REVENUE, -transport),
-            _cny_posting(LedgerPosting.Category.COST_OF_GOODS_SOLD, total_cost),
-            _cny_posting(LedgerPosting.Category.INVENTORY, -total_cost),
-        ],
+        postings=shipment_postings,
         operator=operator,
         idempotency_key=idempotency_key,
         description=note or f"销售单 {order.order_number} 出库",
@@ -187,7 +196,7 @@ def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note
     order.total_profit = (amount_due - total_cost).quantize(MONEY_PLACES)
     order.contribution_profit_cny = order.total_profit
     order.fulfillment_status = SalesOrder.FulfillmentStatus.SHIPPED
-    order.status = "shipped"
+    order.status = "completed" if order.payment_status == SalesOrder.PaymentStatus.PAID else "shipped"
     order.save(update_fields=[
         "total_cost", "fifo_cost_cny", "total_profit", "contribution_profit_cny",
         "fulfillment_status", "status",
@@ -199,7 +208,7 @@ def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note
 @transaction.atomic
 def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
                                 business_date, operator, idempotency_key):
-    """记录已出库销售单的一次整单人民币收款并清除应收款。"""
+    """记录销售单的一次整单人民币收款，支持出库后收款或出库前预收。"""
     _acquire_sqlite_writer_gate()
     operator = _require_operator(operator)
     if type(business_date) is not date:
@@ -210,15 +219,11 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
         order = SalesOrder.objects.select_for_update().get(pk=order_id)
     except (SalesOrder.DoesNotExist, ValueError, TypeError):
         raise OrderServiceError("销售单不存在")
-    existing = SalesReceipt.objects.select_related("ledger_transaction").filter(sales_order=order).first()
-    if existing is not None:
-        if existing.ledger_transaction.idempotency_key == idempotency_key:
-            return existing
-        raise OrderServiceError("销售单已经收款")
-    if order.fulfillment_status != SalesOrder.FulfillmentStatus.SHIPPED:
-        raise OrderServiceError("只有已出库订单才能收款")
-    if order.payment_status != SalesOrder.PaymentStatus.UNPAID:
-        raise OrderServiceError("销售单不是待收款状态")
+    if order.fulfillment_status not in (
+        SalesOrder.FulfillmentStatus.CONFIRMED,
+        SalesOrder.FulfillmentStatus.SHIPPED,
+    ):
+        raise OrderServiceError("只有已确认或已出库订单才能收款")
     try:
         raw_amount = Decimal(str(amount_cny))
         amount = raw_amount.quantize(MONEY_PLACES)
@@ -238,13 +243,56 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
         raise LedgerError("账户已停用")
     if account.currency != FundAccount.Currency.CNY:
         raise LedgerError("销售收款账户必须是人民币账户")
+    existing_transaction = LedgerTransaction.objects.filter(
+        idempotency_key=idempotency_key,
+    ).first()
+    existing = SalesReceipt.objects.select_related("ledger_transaction").filter(sales_order=order).first()
+    if existing is not None:
+        transaction_obj = existing.ledger_transaction
+        postings = list(transaction_obj.postings.order_by("id"))
+        valid_replay = (
+            transaction_obj == existing_transaction
+            and transaction_obj.transaction_type == LedgerTransaction.TransactionType.SALES_RECEIPT
+            and transaction_obj.business_date == business_date
+            and transaction_obj.operator_id == operator.pk
+            and transaction_obj.source_type == "sales_order"
+            and transaction_obj.source_id == str(order.pk)
+            and existing.amount_cny == amount
+            and existing.fund_account_id == account.pk
+            and existing.business_date == business_date
+            and len(postings) == 2
+            and postings[0].account_id == account.pk
+            and postings[0].category == ""
+            and postings[0].currency == FundAccount.Currency.CNY
+            and postings[0].amount == amount
+            and postings[0].cny_amount == amount
+            and postings[1].category in (
+                LedgerPosting.Category.ACCOUNTS_RECEIVABLE,
+                LedgerPosting.Category.CUSTOMER_PREPAYMENTS,
+            )
+            and postings[1].currency == FundAccount.Currency.CNY
+            and postings[1].amount == -amount
+            and postings[1].cny_amount == -amount
+        )
+        if not valid_replay:
+            raise OrderServiceError("销售收款幂等键参数不匹配")
+        return existing
+    if existing_transaction is not None:
+        raise OrderServiceError("销售收款幂等键已用于其他业务")
+    if order.payment_status != SalesOrder.PaymentStatus.UNPAID:
+        raise OrderServiceError("销售单不是待收款状态")
+    credit_category = (
+        LedgerPosting.Category.CUSTOMER_PREPAYMENTS
+        if order.fulfillment_status == SalesOrder.FulfillmentStatus.CONFIRMED
+        else LedgerPosting.Category.ACCOUNTS_RECEIVABLE
+    )
     ledger = _post_transaction_once(
         transaction_type=LedgerTransaction.TransactionType.SALES_RECEIPT,
         business_date=business_date,
         postings=[
             PostingInput(account=account, currency=FundAccount.Currency.CNY,
                          amount=amount, cny_amount=amount),
-            _cny_posting(LedgerPosting.Category.ACCOUNTS_RECEIVABLE, -amount),
+            _cny_posting(credit_category, -amount),
         ],
         operator=operator, idempotency_key=idempotency_key,
         description=f"销售单 {order.order_number} 收款",
@@ -255,6 +303,6 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
         business_date=business_date, ledger_transaction=ledger, operator=operator,
     )
     order.payment_status = SalesOrder.PaymentStatus.PAID
-    order.status = "completed"
+    order.status = "paid" if order.fulfillment_status == SalesOrder.FulfillmentStatus.CONFIRMED else "completed"
     order.save(update_fields=["payment_status", "status"])
     return receipt

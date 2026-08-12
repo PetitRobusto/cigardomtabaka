@@ -3,8 +3,10 @@ import { useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { usePageMetaContext } from '../../contexts/PageMetaContext';
 import Breadcrumb from './Breadcrumb';
+import { isSalesAccountingNavActive } from '../sales/salesState';
 import {
   LayoutGrid, Package, TrendingUp, Link2, Settings, LogIn, LogOut, User, Menu, X,
+  CircleDollarSign, ClipboardList,
   MapPin, Phone, MessageCircle
 } from 'lucide-react';
 import { useState } from 'react';
@@ -32,6 +34,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { to: '/', label: '品牌', icon: LayoutGrid, public: true },
     ...(user?.is_staff ? [
       { to: '/inventory', label: '库存', icon: Package },
+      { to: '/sales', label: '销售', icon: CircleDollarSign },
+      { to: '/sales#accounting', label: '账务', icon: ClipboardList },
       { to: '/prices', label: '价格', icon: TrendingUp },
       { to: '/privnote', label: '链接', icon: Link2 },
       { to: '/admin/', label: '管理', icon: Settings, external: true },
@@ -40,8 +44,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
+    if (path === '/sales' || path === '/sales#accounting') return location.pathname === '/sales' && isSalesAccountingNavActive(path, location.hash.replace('#', ''));
     return location.pathname.startsWith(path);
   };
+
+  useEffect(() => {
+    if (location.pathname === '/sales' && location.hash === '#accounting') {
+      window.setTimeout(() => document.getElementById('accounting')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    }
+  }, [location.pathname, location.hash]);
 
   if (isLoading) {
     return (
@@ -137,6 +148,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <button
                 className="md:hidden p-2 rounded-md text-muted hover:text-fg"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label="打开导航菜单"
+                aria-expanded={mobileMenuOpen}
               >
                 {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
@@ -181,7 +194,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* ===== MAIN CONTENT ===== */}
       <main className="flex-1">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-24 md:pb-6">
+        <div className="max-w-[1480px] mx-auto px-4 sm:px-6 py-6 pb-24 md:pb-6">
           <Breadcrumb />
           {children}
         </div>
@@ -252,8 +265,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             { to: '/', label: '品牌', icon: LayoutGrid },
             ...(user?.is_staff ? [
               { to: '/inventory', label: '库存', icon: Package },
-              { to: '/prices', label: '价格', icon: TrendingUp },
-              { to: '/privnote', label: '链接', icon: Link2 },
+              { to: '/sales', label: '销售', icon: CircleDollarSign },
+              { to: '/sales#accounting', label: '账务', icon: ClipboardList },
+              { to: '/prices', label: '更多', icon: Menu },
             ] : []),
           ].map((item) => (
             <NavLink

@@ -354,6 +354,44 @@ class SalesOrderApiTest(TestCase):
         self.assertIn(response.status_code, (200, 201))
         self.assertEqual(response.json()["sales_order"]["actual_transport_cost_cny"], 10)
 
+    def test_transport_cost_is_not_available_after_transport_fact_exists(self):
+        order_id = self.action_order("api-transport-available-actions")
+        account = self.action_account("api-transport-available-actions-account")
+        record_opening_balance(
+            account, "10.00", "10.00", LedgerPosting.Category.OPENING_CAPITAL,
+            date(2026, 8, 10), self.operator, "api-transport-available-actions-opening",
+        )
+        from cigars.sales_accounting import ship_sales_order
+        ship_sales_order(
+            order_id=order_id,
+            business_date=date(2026, 8, 10),
+            operator=self.operator,
+            idempotency_key="api-transport-available-actions-ship",
+        )
+        response = self.request(
+            "post",
+            f"/api/sales/orders/{order_id}/transport-cost/",
+            {
+                "actual_cost_cny": "10.00",
+                "fund_account_id": account.id,
+                "business_date": "2026-08-10",
+            },
+            "api-transport-available-actions-cost",
+        )
+        self.assertIn(response.status_code, (200, 201))
+        self.assertNotIn("transport_cost", response.json()["sales_order"]["available_actions"])
+
+    def test_sales_order_allocations_include_fifo_cost_trace(self):
+        first = self.create_batch(quantity=10, box_size=25, unit_cost="10.00")
+        order_id = self.action_order("api-allocation-cost-trace")
+        self.login()
+        response = self.client.get(f"/api/sales/orders/{order_id}/")
+        self.assertEqual(response.status_code, 200)
+        allocation = response.json()["sales_order"]["items"][0]["allocations"][0]
+        self.assertEqual(allocation["batch_id"], first.id)
+        self.assertEqual(allocation["unit_cost_cny"], 10)
+        self.assertEqual(allocation["cost_cny"], 20)
+
     def test_action_api_invalid_input_returns_json_not_500(self):
         order_id = self.action_order("api-invalid-action")
         for path, body, key in ((f"/api/sales/orders/{order_id}/ship/", {"business_date": "not-a-date"}, "api-invalid-date"), (f"/api/sales/orders/{order_id}/receive/", {"amount_cny": "43.001", "fund_account_id": 999999, "business_date": "2026-08-10"}, "api-invalid-receive"), (f"/api/sales/orders/{order_id}/transport-cost/", {"actual_cost_cny": "10.00", "fund_account_id": 999999, "business_date": "2026-08-10"}, "api-invalid-transport")):

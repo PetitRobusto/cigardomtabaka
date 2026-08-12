@@ -9,6 +9,7 @@ from accounting.models import (
     LedgerPosting,
     LedgerTransaction,
 )
+from accounting.services import PostingInput
 from cigars.models import PurchaseOrder, Supplier, User
 
 
@@ -36,6 +37,38 @@ class SalesReportsAndReconciliationTest(TestCase):
     def test_monthly_profit_uses_business_date_and_posted_only(self):
         from accounting.selectors import monthly_profit
 
+        transport_account = FundAccount.objects.create(
+            name='月报人肉费账户', currency=FundAccount.Currency.CNY,
+            creation_idempotency_key='monthly-transport-account',
+        )
+        from accounting.services import record_opening_balance
+        record_opening_balance(
+            transport_account, Decimal('10.00'), Decimal('10.00'),
+            LedgerPosting.Category.OPENING_CAPITAL, date(2026, 8, 10),
+            self.operator, 'monthly-transport-opening',
+        )
+        self.posted_transaction(
+            LedgerTransaction.TransactionType.SALES_SHIPMENT,
+            date(2026, 8, 15),
+            [
+                PostingInput(category=LedgerPosting.Category.ACCOUNTS_RECEIVABLE, currency='CNY', amount=Decimal('95.00'), cny_amount=Decimal('95.00')),
+                PostingInput(category=LedgerPosting.Category.SALES_REVENUE, currency='CNY', amount=Decimal('-90.00'), cny_amount=Decimal('-90.00')),
+                PostingInput(category=LedgerPosting.Category.CUSTOMER_TRANSPORT_REVENUE, currency='CNY', amount=Decimal('-5.00'), cny_amount=Decimal('-5.00')),
+                PostingInput(category=LedgerPosting.Category.COST_OF_GOODS_SOLD, currency='CNY', amount=Decimal('30.00'), cny_amount=Decimal('30.00')),
+                PostingInput(category=LedgerPosting.Category.INVENTORY, currency='CNY', amount=Decimal('-30.00'), cny_amount=Decimal('-30.00')),
+            ],
+            'monthly-sales-shipment',
+        )
+        self.posted_transaction(
+            LedgerTransaction.TransactionType.SALES_TRANSPORT_COST,
+            date(2026, 8, 15),
+            [
+                PostingInput(category=LedgerPosting.Category.TRANSPORT_EXPENSE, currency='CNY', amount=Decimal('10.00'), cny_amount=Decimal('10.00')),
+                PostingInput(account=transport_account, currency='CNY', amount=Decimal('-10.00'), cny_amount=Decimal('-10.00')),
+            ],
+            'monthly-transport-cost',
+        )
+
         monthly = monthly_profit(month=date(2026, 8, 1))
         self.assertEqual(monthly['sales_revenue_cny'], Decimal('-90.00'))
         self.assertEqual(monthly['customer_transport_revenue_cny'], Decimal('-5.00'))
@@ -47,6 +80,20 @@ class SalesReportsAndReconciliationTest(TestCase):
 
     def test_monthly_profit_excludes_other_month_and_draft_transactions(self):
         from accounting.selectors import monthly_profit
+
+        self.posted_transaction(
+            LedgerTransaction.TransactionType.SALES_SHIPMENT,
+            date(2026, 9, 1),
+            [
+                PostingInput(category=LedgerPosting.Category.ACCOUNTS_RECEIVABLE, currency='CNY', amount=Decimal('10.00'), cny_amount=Decimal('10.00')),
+                PostingInput(category=LedgerPosting.Category.SALES_REVENUE, currency='CNY', amount=Decimal('-10.00'), cny_amount=Decimal('-10.00')),
+            ],
+            'monthly-outside-period',
+        )
+        LedgerTransaction.objects.create(
+            transaction_type=LedgerTransaction.TransactionType.SALES_SHIPMENT,
+            business_date=date(2026, 8, 20), operator=self.operator,
+        )
 
         monthly = monthly_profit(month=date(2026, 8, 1))
         self.assertNotIn('draft_transaction_total', monthly)
@@ -65,6 +112,15 @@ class SalesReportsAndReconciliationTest(TestCase):
             exchange_rate=Decimal('12.0000'), cny_total=Decimal('100.00'),
             operator=self.operator,
         )
+        self.posted_transaction(
+            LedgerTransaction.TransactionType.SALES_RECEIPT,
+            date(2026, 8, 10),
+            [
+                PostingInput(category=LedgerPosting.Category.ACCOUNTS_RECEIVABLE, currency='CNY', amount=Decimal('50.00'), cny_amount=Decimal('50.00')),
+                PostingInput(category=LedgerPosting.Category.CUSTOMER_PREPAYMENTS, currency='CNY', amount=Decimal('-50.00'), cny_amount=Decimal('-50.00')),
+            ],
+            'summary-receivable-prepayment',
+        )
         summary = accounting_summary(as_of=date(2026, 8, 10))
         self.assertIn('fund_accounts', summary)
         self.assertIn('accounts_receivable_cny', summary)
@@ -72,6 +128,8 @@ class SalesReportsAndReconciliationTest(TestCase):
         self.assertIn('inventory_remaining_cost_cny', summary)
         self.assertIn('purchase_in_transit_cny', summary)
         self.assertEqual(summary['fund_accounts'][0]['account_id'], account.id)
+        self.assertEqual(summary['accounts_receivable_cny'], Decimal('50.00'))
+        self.assertEqual(summary['customer_prepayments_cny'], Decimal('50.00'))
 
     def test_reconciliation_creates_snapshot_actual_and_difference_once_per_account_date(self):
         from accounting.services import confirm_reconciliation, create_reconciliation

@@ -341,27 +341,66 @@ def refund_sales_order_payment(*, order_id, business_date, operator, idempotency
         order = SalesOrder.objects.select_for_update().get(pk=order_id)
     except (SalesOrder.DoesNotExist, ValueError, TypeError):
         raise OrderServiceError("销售单不存在")
-    receipt = SalesReceipt.objects.select_related("fund_account", "ledger_transaction").filter(sales_order=order).first()
-    if receipt is None or receipt.ledger_transaction.postings.filter(category=LedgerPosting.Category.CUSTOMER_PREPAYMENTS).exists() is False:
-        raise OrderServiceError("销售单没有可退款的预收款")
-    account = FundAccount.objects.select_for_update().get(pk=receipt.fund_account_id)
-    if order.fulfillment_status != SalesOrder.FulfillmentStatus.CANCELLED or order.payment_status != SalesOrder.PaymentStatus.REFUND_PENDING:
-        existing_refund = SalesRefund.objects.select_related("ledger_transaction").filter(sales_order=order).first()
-        if existing_refund is not None and existing_refund.ledger_transaction.idempotency_key == idempotency_key:
-            return existing_refund
-        raise OrderServiceError("销售单不是待退款状态")
-    if not account.is_active or account.currency != FundAccount.Currency.CNY:
-        raise LedgerError("原收款账户必须是启用的人民币账户")
-    amount = receipt.amount_cny.quantize(MONEY_PLACES)
+
     existing_tx = LedgerTransaction.objects.filter(idempotency_key=idempotency_key).first()
     existing = SalesRefund.objects.select_related("ledger_transaction").filter(sales_order=order).first()
     if existing is not None:
         tx = existing.ledger_transaction
-        if existing_tx != tx or tx.transaction_type != LedgerTransaction.TransactionType.SALES_REFUND or tx.business_date != business_date or tx.source_type != "sales_order" or tx.source_id != str(order.pk) or existing.amount_cny != amount or existing.fund_account_id != account.pk:
+        postings = list(tx.postings.order_by("id"))
+        valid = (
+            existing_tx == tx
+            and tx.transaction_type == LedgerTransaction.TransactionType.SALES_REFUND
+            and tx.status == LedgerTransaction.Status.POSTED
+            and tx.business_date == business_date
+            and tx.operator_id == operator.pk
+            and tx.source_type == "sales_order"
+            and tx.source_id == str(order.pk)
+            and existing.business_date == business_date
+            and existing.operator_id == operator.pk
+            and len(postings) == 2
+            and postings[0].account_id == existing.fund_account_id
+            and postings[0].category == ""
+            and postings[0].amount == -existing.amount_cny
+            and postings[0].cny_amount == -existing.amount_cny
+            and postings[1].category == LedgerPosting.Category.CUSTOMER_PREPAYMENTS
+            and postings[1].amount == existing.amount_cny
+            and postings[1].cny_amount == existing.amount_cny
+        )
+        if not valid:
             raise OrderServiceError("销售退款幂等键参数不匹配")
         return existing
     if existing_tx is not None:
         raise OrderServiceError("销售退款幂等键已用于其他业务")
+
+    receipt = SalesReceipt.objects.select_related("fund_account", "ledger_transaction").filter(sales_order=order).first()
+    if receipt is None:
+        raise OrderServiceError("销售单没有可退款的预收款")
+    receipt_tx = receipt.ledger_transaction
+    receipt_postings = list(receipt_tx.postings.order_by("id"))
+    amount = receipt.amount_cny.quantize(MONEY_PLACES)
+    account = FundAccount.objects.select_for_update().get(pk=receipt.fund_account_id)
+    valid_receipt = (
+        receipt_tx.transaction_type == LedgerTransaction.TransactionType.SALES_RECEIPT
+        and receipt_tx.status == LedgerTransaction.Status.POSTED
+        and receipt_tx.source_type == "sales_order"
+        and receipt_tx.source_id == str(order.pk)
+        and receipt_tx.business_date == receipt.business_date
+        and receipt_tx.operator_id == receipt.operator_id
+        and len(receipt_postings) == 2
+        and receipt_postings[0].account_id == account.pk
+        and receipt_postings[0].category == ""
+        and receipt_postings[0].amount == amount
+        and receipt_postings[0].cny_amount == amount
+        and receipt_postings[1].category == LedgerPosting.Category.CUSTOMER_PREPAYMENTS
+        and receipt_postings[1].amount == -amount
+        and receipt_postings[1].cny_amount == -amount
+    )
+    if not valid_receipt:
+        raise OrderServiceError("原销售收款流水不完整，不能退款")
+    if order.fulfillment_status != SalesOrder.FulfillmentStatus.CANCELLED or order.payment_status != SalesOrder.PaymentStatus.REFUND_PENDING:
+        raise OrderServiceError("销售单不是待退款状态")
+    if not account.is_active or account.currency != FundAccount.Currency.CNY:
+        raise LedgerError("原收款账户必须是启用的人民币账户")
     ledger = _post_transaction_once(
         transaction_type=LedgerTransaction.TransactionType.SALES_REFUND,
         business_date=business_date,
@@ -417,7 +456,7 @@ def record_sales_transport_cost(*, order_id, actual_cost_cny, fund_account,
     existing = SalesTransportCost.objects.select_related("ledger_transaction").filter(sales_order=order).first()
     if existing is not None:
         tx = existing.ledger_transaction
-        if existing_tx != tx or tx.transaction_type != LedgerTransaction.TransactionType.SALES_TRANSPORT_COST or tx.business_date != business_date or tx.source_type != "sales_order" or tx.source_id != str(order.pk) or existing.actual_cost_cny != amount or existing.fund_account_id != account.pk:
+        if existing_tx != tx or tx.transaction_type != LedgerTransaction.TransactionType.SALES_TRANSPORT_COST or tx.status != LedgerTransaction.Status.POSTED or tx.business_date != business_date or tx.operator_id != operator.pk or tx.source_type != "sales_order" or tx.source_id != str(order.pk) or existing.actual_cost_cny != amount or existing.fund_account_id != account.pk or existing.business_date != business_date or existing.operator_id != operator.pk:
             raise OrderServiceError("人肉成本幂等键参数不匹配")
         return existing
     if existing_tx is not None:

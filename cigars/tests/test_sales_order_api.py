@@ -231,6 +231,21 @@ class SalesOrderApiTest(TestCase):
         repeated = self.request("post", f"/api/sales/orders/{order_id}/confirm/", {}, "bad-confirm")
         self.assertEqual(repeated.status_code, 400)
 
+    def test_confirm_idempotency_key_is_scoped_to_order(self):
+        self.create_batch(quantity=10)
+        first = self.create_order(key="scope-create-one")
+        second = self.create_order(key="scope-create-two")
+        first_id = first.json()["sales_order"]["id"]
+        second_id = second.json()["sales_order"]["id"]
+        self.login()
+        first_confirm = self.request("post", f"/api/sales/orders/{first_id}/confirm/", {}, "shared-confirm")
+        second_confirm = self.request("post", f"/api/sales/orders/{second_id}/confirm/", {}, "shared-confirm")
+        self.assertEqual(first_confirm.status_code, 200)
+        self.assertEqual(second_confirm.status_code, 409)
+        self.assertEqual(SalesOrder.objects.get(id=first_id).fulfillment_status, SalesOrder.FulfillmentStatus.CONFIRMED)
+        self.assertEqual(SalesOrder.objects.get(id=second_id).fulfillment_status, SalesOrder.FulfillmentStatus.DRAFT)
+        self.assertFalse(StockAllocation.objects.filter(sales_order_item__sales_order_id=second_id).exists())
+
     def test_list_filters_and_detail(self):
         first = self.create_order(key="list-one")
         second_body = self.body(quantity=3)
@@ -244,6 +259,17 @@ class SalesOrderApiTest(TestCase):
         detail = self.client.get(f"/api/sales/orders/{first.json()['sales_order']['id']}/")
         self.assertEqual(detail.status_code, 200)
         self.assertIn("fifo_cost", detail.json()["sales_order"])
+
+    def test_list_search_matches_order_number(self):
+        created = self.create_order(key="order-number-search")
+        order_number = created.json()["sales_order"]["order_number"]
+        self.login()
+        exact = self.client.get(f"/api/sales/orders/?q={order_number}")
+        partial = self.client.get(f"/api/sales/orders/?q={order_number[-3:]}")
+        self.assertEqual(exact.status_code, 200)
+        self.assertEqual(partial.status_code, 200)
+        self.assertEqual([item["order_number"] for item in exact.json()["results"]], [order_number])
+        self.assertIn(order_number, [item["order_number"] for item in partial.json()["results"]])
 
     def test_invalid_json_and_method_are_json_errors(self):
         self.login()

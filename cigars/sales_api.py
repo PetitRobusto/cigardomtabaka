@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 
 from django.db import transaction
 from django.db.models import Q
@@ -59,8 +60,8 @@ def _request_context(request, command):
     return AgentContext(agent_name="web", command_name=command, idempotency_key=key)
 
 
-def _request_hash(body):
-    value = json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+def _request_hash(body, scope=""):
+    value = json.dumps({"scope": scope, "body": body}, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
@@ -73,7 +74,7 @@ def _write(request, command, handler, success_status=200):
     try:
         with transaction.atomic():
             record = IdempotencyRecord.objects.select_for_update().filter(key=context.idempotency_key).first()
-            request_hash = _request_hash(body)
+            request_hash = _request_hash(body, request.path)
             if record:
                 if record.command_name != command or record.request_hash != request_hash:
                     return _error("Idempotency-Key 已用于不同请求", 409)
@@ -155,10 +156,15 @@ def sales_orders(request):
         orders = orders.filter(payment_status=payment)
     query = request.GET.get("q", "").strip()
     if query:
-        condition = Q(customer_name__icontains=query)
         if query.isdigit():
-            condition |= Q(id=int(query))
-        orders = orders.filter(condition)
+            orders = orders.filter(Q(customer_name__icontains=query) | Q(id=int(query)))
+        else:
+            query_folded = query.casefold()
+            orders = [
+                order for order in orders
+                if query_folded in order.order_number.casefold()
+                or query_folded in (order.customer_name or "").casefold()
+            ]
     return _json({"results": [serialize_sales_order(order) for order in orders[:limit]]})
 
 

@@ -351,3 +351,16 @@ class SalesFulfillmentServiceTest(TestCase):
         self.assertEqual(StockMovement.objects.filter(movement_type=StockMovement.MovementType.SHIP).count(), 0)
         self.assertEqual((order.fulfillment_status, order.payment_status), (SalesOrder.FulfillmentStatus.CONFIRMED, SalesOrder.PaymentStatus.PAID))
         self.assertEqual(SalesShipment.objects.count(), 0)
+
+    def test_prepaid_receipt_rejects_mismatched_replay_and_cross_order_key(self):
+        first_account = FundAccount.objects.create(name='预收严格账户1', currency=FundAccount.Currency.CNY, custodian=self.operator, creation_idempotency_key='prepay-account-strict-1')
+        second_account = FundAccount.objects.create(name='预收严格账户2', currency=FundAccount.Currency.CNY, custodian=self.operator, creation_idempotency_key='prepay-account-strict-2')
+        self.batch(quantity=6, unit_cost='10.00')
+        first_order = self.confirmed_order(quantity=3, unit_price='30.00')
+        second_order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import receive_sales_order_payment
+        receive_sales_order_payment(order_id=first_order.id, amount_cny=Decimal('95.00'), fund_account=first_account, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-strict-1')
+        with self.assertRaises(OrderServiceError):
+            receive_sales_order_payment(order_id=first_order.id, amount_cny=Decimal('95.00'), fund_account=second_account, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-strict-1')
+        with self.assertRaises(OrderServiceError):
+            receive_sales_order_payment(order_id=second_order.id, amount_cny=Decimal('95.00'), fund_account=second_account, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-strict-1')

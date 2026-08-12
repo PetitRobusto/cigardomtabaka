@@ -1,11 +1,18 @@
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 
+from django.db import connection
+from django.db import OperationalError
+from django.db.migrations.executor import MigrationExecutor
 from django.test import Client, TestCase
+from django.test import TransactionTestCase
+from django.core.exceptions import ValidationError
 
 from accounting.models import (
     AccountReconciliation,
     FundAccount,
+    LedgerMutationError,
     LedgerPosting,
     LedgerTransaction,
 )
@@ -121,7 +128,8 @@ class SalesReportsAndReconciliationTest(TestCase):
             ],
             'summary-receivable-prepayment',
         )
-        summary = accounting_summary(as_of=date(2026, 8, 10))
+        with patch('accounting.selectors.timezone.localdate', return_value=date(2026, 8, 10)):
+            summary = accounting_summary(as_of=date(2026, 8, 10))
         self.assertIn('fund_accounts', summary)
         self.assertIn('accounts_receivable_cny', summary)
         self.assertIn('customer_prepayments_cny', summary)
@@ -131,12 +139,50 @@ class SalesReportsAndReconciliationTest(TestCase):
         self.assertEqual(summary['accounts_receivable_cny'], Decimal('50.00'))
         self.assertEqual(summary['customer_prepayments_cny'], Decimal('50.00'))
 
+    def test_summary_rejects_non_today_as_of(self):
+        from accounting.selectors import accounting_summary
+
+        with patch('accounting.selectors.timezone.localdate', return_value=date(2026, 8, 12)):
+            with self.assertRaisesRegex(ValueError, 'as_of 仅支持当前日期'):
+                accounting_summary(as_of=date(2026, 8, 11))
+
+    def test_summary_api_rejects_non_today_as_of(self):
+        self.client.force_login(self.operator)
+
+        with patch('accounting.selectors.timezone.localdate', return_value=date(2026, 8, 12)):
+            response = self.client.get('/api/accounting/reports/summary/?as_of=2026-08-11')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['error'], 'as_of 仅支持当前日期')
+
+    def test_summary_api_allows_today_current_snapshot(self):
+        supplier = Supplier.objects.create(name='今日摘要供应商')
+        PurchaseOrder.objects.create(
+            supplier=supplier, status=PurchaseOrder.Status.DRAFT,
+            rub_total=Decimal('120.00'), exchange_rate=Decimal('12.0000'),
+            cny_total=Decimal('120.00'), operator=self.operator,
+        )
+        self.client.force_login(self.operator)
+
+        with patch('accounting.selectors.timezone.localdate', return_value=date(2026, 8, 12)):
+            response = self.client.get('/api/accounting/reports/summary/?as_of=2026-08-12')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['purchase_in_transit_cny'], '120.00')
+
     def test_reconciliation_creates_snapshot_actual_and_difference_once_per_account_date(self):
-        from accounting.services import confirm_reconciliation, create_reconciliation
+        from accounting.services import (
+            confirm_reconciliation, create_reconciliation, record_opening_balance,
+        )
 
         account = FundAccount.objects.create(
             name='对账人民币账户', currency=FundAccount.Currency.CNY,
             creation_idempotency_key='reconciliation-cny',
+        )
+        record_opening_balance(
+            account, Decimal('100.00'), Decimal('100.00'),
+            LedgerPosting.Category.OPENING_CAPITAL, date(2026, 8, 10),
+            self.operator, 'reconciliation-opening',
         )
         reconciliation = create_reconciliation(
             account=account, business_date=date(2026, 8, 10),
@@ -147,11 +193,22 @@ class SalesReportsAndReconciliationTest(TestCase):
         self.assertEqual(reconciliation.actual_amount, Decimal('95.00'))
         self.assertEqual(reconciliation.difference, Decimal('-5.00'))
         self.assertEqual(reconciliation.status, AccountReconciliation.Status.PENDING)
+        replayed = create_reconciliation(
+            account=account, business_date=date(2026, 8, 10),
+            actual_amount=Decimal('95.00'), operator=self.operator,
+            idempotency_key='reconciliation-create',
+        )
+        self.assertEqual(replayed.id, reconciliation.id)
         confirmed = confirm_reconciliation(
             reconciliation_id=reconciliation.id, operator=self.operator,
             idempotency_key='reconciliation-confirm',
         )
         self.assertEqual(confirmed.status, AccountReconciliation.Status.CONFIRMED)
+        replayed_confirmation = confirm_reconciliation(
+            reconciliation_id=reconciliation.id, operator=self.operator,
+            idempotency_key='reconciliation-confirm',
+        )
+        self.assertEqual(replayed_confirmation.id, confirmed.id)
         with self.assertRaises(Exception):
             confirm_reconciliation(
                 reconciliation_id=reconciliation.id, operator=self.operator,
@@ -163,7 +220,12 @@ class SalesReportsAndReconciliationTest(TestCase):
                 actual_amount=Decimal('90.00'), operator=self.operator,
                 idempotency_key='reconciliation-duplicate',
             )
-        self.assertEqual(LedgerTransaction.objects.count(), 0)
+        self.assertEqual(
+            LedgerTransaction.objects.exclude(
+                transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
+            ).count(),
+            0,
+        )
 
     def test_reconciliation_staff_api_and_invalid_inputs_are_json(self):
         self.client.force_login(self.non_staff)
@@ -187,3 +249,256 @@ class SalesReportsAndReconciliationTest(TestCase):
             self.assertIn(response.status_code, (400, 404, 409))
             self.assertLess(response.status_code, 500)
             self.assertEqual(response['Content-Type'], 'application/json')
+
+    def test_reports_and_reconciliation_success_api(self):
+        from accounting.services import record_opening_balance
+
+        account = FundAccount.objects.create(
+            name='API 对账人民币账户', currency=FundAccount.Currency.CNY,
+            creation_idempotency_key='reconciliation-api-cny',
+        )
+        record_opening_balance(
+            account, Decimal('100.00'), Decimal('100.00'),
+            LedgerPosting.Category.OPENING_CAPITAL, date(2026, 8, 10),
+            self.operator, 'reconciliation-api-opening',
+        )
+        self.client.force_login(self.operator)
+        monthly = self.client.get('/api/accounting/reports/monthly-profit/?month=2026-08')
+        self.assertEqual(monthly.status_code, 200)
+        self.assertEqual(monthly.json()['period_start'], '2026-08-01')
+        self.assertEqual(monthly.json()['net_profit_cny'], '0.00')
+        with patch('accounting.selectors.timezone.localdate', return_value=date(2026, 8, 10)):
+            summary = self.client.get('/api/accounting/reports/summary/?as_of=2026-08-10')
+        self.assertEqual(summary.status_code, 200)
+        self.assertEqual(summary.json()['fund_accounts'][0]['original_balance'], '100.00000000')
+        created = self.client.post(
+            '/api/accounting/reconciliations/',
+            data={'account_id': account.id, 'business_date': '2026-08-10', 'actual_amount': '95.00'},
+            content_type='application/json',
+            HTTP_IDEMPOTENCY_KEY='reconciliation-api-create',
+        )
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.json()['reconciliation']['difference'], '-5.00000000')
+        reconciliation_id = created.json()['reconciliation']['id']
+        confirmed = self.client.post(
+            f'/api/accounting/reconciliations/{reconciliation_id}/confirm/',
+            data={}, content_type='application/json',
+            HTTP_IDEMPOTENCY_KEY='reconciliation-api-confirm',
+        )
+        self.assertEqual(confirmed.status_code, 200)
+        self.assertEqual(confirmed.json()['reconciliation']['status'], 'confirmed')
+
+    def test_reconciliation_rejects_before_cutover_and_max_original_amount(self):
+        from accounting.services import LedgerError, create_reconciliation
+
+        account = FundAccount.objects.create(
+            name='对账边界账户', currency=FundAccount.Currency.CNY,
+            creation_idempotency_key='reconciliation-boundary-account',
+        )
+        with self.assertRaises(LedgerError):
+            create_reconciliation(
+                account=account, business_date=date(2026, 8, 9),
+                actual_amount=Decimal('1.00'), operator=self.operator,
+                idempotency_key='reconciliation-before-cutover',
+            )
+        with self.assertRaises(LedgerError):
+            create_reconciliation(
+                account=account, business_date=date(2026, 8, 10),
+                actual_amount=Decimal('1000000000000.00'), operator=self.operator,
+                idempotency_key='reconciliation-too-large',
+            )
+
+    def test_confirmation_audits_first_confirmer_and_service_returns_replay_result(self):
+        from accounting.services import confirm_reconciliation, create_reconciliation
+
+        confirmer = User.objects.create_user(
+            'reports-confirmer', password='pass', is_staff=True,
+        )
+        account = FundAccount.objects.create(
+            name='对账审计账户', currency=FundAccount.Currency.CNY,
+            creation_idempotency_key='reconciliation-audit-account',
+        )
+        created = create_reconciliation(
+            account=account, business_date=date(2026, 8, 10),
+            actual_amount=Decimal('1.00'), operator=self.operator,
+            idempotency_key='reconciliation-audit-create', return_result=True,
+        )
+        self.assertTrue(created.created)
+        replay = create_reconciliation(
+            account=account, business_date=date(2026, 8, 10),
+            actual_amount=Decimal('1.00'), operator=self.operator,
+            idempotency_key='reconciliation-audit-create', return_result=True,
+        )
+        self.assertFalse(replay.created)
+        confirmed = confirm_reconciliation(
+            reconciliation_id=created.reconciliation.id, operator=confirmer,
+            idempotency_key='reconciliation-audit-confirm', return_result=True,
+        )
+        self.assertTrue(confirmed.created)
+        self.assertEqual(confirmed.reconciliation.confirmer_id, confirmer.id)
+        replayed = confirm_reconciliation(
+            reconciliation_id=created.reconciliation.id, operator=confirmer,
+            idempotency_key='reconciliation-audit-confirm', return_result=True,
+        )
+        self.assertFalse(replayed.created)
+        from accounting.services import LedgerError
+        with self.assertRaises(LedgerError):
+            confirm_reconciliation(
+                reconciliation_id=created.reconciliation.id, operator=self.operator,
+                idempotency_key='reconciliation-audit-confirm', return_result=True,
+            )
+
+    def test_reconciliation_queryset_blocks_ordinary_mutations(self):
+        from accounting.services import create_reconciliation
+
+        account = FundAccount.objects.create(
+            name='对账 ORM 账户', currency=FundAccount.Currency.CNY,
+            creation_idempotency_key='reconciliation-orm-account',
+        )
+        record = create_reconciliation(
+            account=account, business_date=date(2026, 8, 10),
+            actual_amount=Decimal('1.00'), operator=self.operator,
+            idempotency_key='reconciliation-orm-create',
+        )
+        with self.assertRaises(LedgerMutationError):
+            AccountReconciliation.objects.filter(pk=record.pk).update(note='bypass')
+        with self.assertRaises(LedgerMutationError):
+            AccountReconciliation.objects.bulk_update([record], ['note'])
+        with self.assertRaises(LedgerMutationError):
+            AccountReconciliation.objects.bulk_create([record])
+        with self.assertRaises(LedgerMutationError):
+            AccountReconciliation.objects.create(
+                account=account, business_date=date(2026, 8, 11),
+                system_amount=Decimal('0.00'), actual_amount=Decimal('0.00'),
+                difference=Decimal('0.00'), operator=self.operator,
+                creation_idempotency_key='reconciliation-forged-create',
+            )
+        with self.assertRaises(LedgerMutationError):
+            AccountReconciliation.objects.get_or_create(
+                account=account, business_date=date(2026, 8, 11),
+                defaults={
+                    'system_amount': Decimal('0.00'),
+                    'actual_amount': Decimal('0.00'),
+                    'difference': Decimal('0.00'),
+                    'operator': self.operator,
+                    'creation_idempotency_key': 'reconciliation-forged-get-create',
+                },
+            )
+        with self.assertRaises(LedgerMutationError):
+            AccountReconciliation.objects.filter(pk=record.pk).update_or_create(
+                defaults={'note': 'bypass'}, pk=record.pk,
+            )
+        with self.assertRaises(LedgerMutationError):
+            AccountReconciliation.objects.filter(pk=record.pk).delete()
+        record.note = 'instance bypass'
+        with self.assertRaises(LedgerMutationError):
+            record.save(update_fields=['note'])
+        with self.assertRaises(LedgerMutationError):
+            record.delete()
+
+    def test_reconciliation_api_replay_conflict_limit_and_method_statuses(self):
+        self.client.force_login(self.operator)
+        unsupported = self.client.put(
+            '/api/accounting/reconciliations/', data='{}',
+            content_type='application/json',
+        )
+        self.assertEqual(unsupported.status_code, 405)
+        invalid_limit = self.client.get('/api/accounting/reconciliations/?limit=0')
+        self.assertEqual(invalid_limit.status_code, 400)
+        too_large_limit = self.client.get('/api/accounting/reconciliations/?limit=501')
+        self.assertEqual(too_large_limit.status_code, 400)
+        account = FundAccount.objects.create(
+            name='对账 API 冲突账户', currency=FundAccount.Currency.CNY,
+            creation_idempotency_key='reconciliation-api-conflict-account',
+        )
+        payload = {
+            'account_id': account.id, 'business_date': '2026-08-10',
+            'actual_amount': '1.00',
+        }
+        first = self.client.post(
+            '/api/accounting/reconciliations/', data=payload,
+            content_type='application/json', HTTP_IDEMPOTENCY_KEY='reconciliation-api-replay',
+        )
+        replay = self.client.post(
+            '/api/accounting/reconciliations/', data=payload,
+            content_type='application/json', HTTP_IDEMPOTENCY_KEY='reconciliation-api-replay',
+        )
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(replay.status_code, 200)
+        conflict = self.client.post(
+            '/api/accounting/reconciliations/',
+            data={**payload, 'actual_amount': '2.00'},
+            content_type='application/json', HTTP_IDEMPOTENCY_KEY='reconciliation-api-replay',
+        )
+        self.assertEqual(conflict.status_code, 409)
+
+    def test_reconciliation_api_returns_json_when_sqlite_lock_retries_exhaust(self):
+        self.client.force_login(self.operator)
+        account = FundAccount.objects.create(
+            name='对账锁冲突账户', currency=FundAccount.Currency.CNY,
+            creation_idempotency_key='reconciliation-api-locked-account',
+        )
+        with patch(
+            'accounting.views.create_reconciliation',
+            side_effect=OperationalError('database is locked'),
+        ):
+            response = self.client.post(
+                '/api/accounting/reconciliations/',
+                data={
+                    'account_id': account.id, 'business_date': '2026-08-10',
+                    'actual_amount': '1.00',
+                },
+                content_type='application/json',
+                HTTP_IDEMPOTENCY_KEY='reconciliation-api-locked',
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json(), {'error': '账务系统繁忙，请重试'})
+
+
+class AccountReconciliationIdempotencyMigrationTest(TransactionTestCase):
+    migrate_from = [('accounting', '0007_accountreconciliation')]
+    migrate_to = [('accounting', '0009_accountreconciliation_confirmer')]
+
+    def test_multiple_legacy_records_receive_distinct_nonempty_creation_keys(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_from)
+        self.addCleanup(executor.migrate, executor.loader.graph.leaf_nodes())
+        legacy_apps = MigrationExecutor(connection).loader.project_state(
+            self.migrate_from,
+        ).apps
+        User = legacy_apps.get_model('cigars', 'User')
+        FundAccount = legacy_apps.get_model('accounting', 'FundAccount')
+        AccountReconciliation = legacy_apps.get_model(
+            'accounting', 'AccountReconciliation',
+        )
+        operator = User.objects.create(username='legacy-reconciliation-operator')
+        first_account = FundAccount.objects.create(
+            name='旧对账账户一', currency='CNY',
+            creation_idempotency_key='legacy-reconciliation-account-1',
+        )
+        second_account = FundAccount.objects.create(
+            name='旧对账账户二', currency='RUB',
+            creation_idempotency_key='legacy-reconciliation-account-2',
+        )
+        for account in (first_account, second_account):
+            AccountReconciliation.objects.create(
+                account=account, business_date=date(2026, 8, 10),
+                system_amount=Decimal('10.00'), actual_amount=Decimal('10.00'),
+                difference=Decimal('0.00'), operator=operator,
+            )
+
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_to)
+        migrated_apps = MigrationExecutor(connection).loader.project_state(
+            self.migrate_to,
+        ).apps
+        migrated_records = list(
+            migrated_apps.get_model('accounting', 'AccountReconciliation')
+            .objects.order_by('pk')
+        )
+
+        keys = [record.creation_idempotency_key for record in migrated_records]
+        self.assertEqual(len(keys), 2)
+        self.assertTrue(all(keys))
+        self.assertEqual(len(set(keys)), 2)

@@ -114,6 +114,29 @@ class LedgerSequenceQuerySet(models.QuerySet):
         raise LedgerMutationError('账务顺序仅可由入账服务推进')
 
 
+class AccountReconciliationQuerySet(models.QuerySet):
+    def create(self, **kwargs):
+        raise LedgerMutationError('对账只能通过受控对账流程创建')
+
+    def get_or_create(self, defaults=None, **kwargs):
+        raise LedgerMutationError('对账只能通过受控对账流程创建')
+
+    def update(self, **kwargs):
+        raise LedgerMutationError('对账只能通过受控对账流程修改')
+
+    def delete(self):
+        raise LedgerMutationError('对账只能通过受控对账流程删除')
+
+    def bulk_create(self, objs, **kwargs):
+        raise LedgerMutationError('对账只能通过受控对账流程创建')
+
+    def bulk_update(self, objs, fields, **kwargs):
+        raise LedgerMutationError('对账只能通过受控对账流程修改')
+
+    def update_or_create(self, defaults=None, **kwargs):
+        raise LedgerMutationError('对账禁止通过 UPSERT 修改')
+
+
 class FundAccount(models.Model):
     class Currency(models.TextChoices):
         CNY = 'CNY', '人民币'
@@ -316,9 +339,21 @@ class AccountReconciliation(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
         related_name='account_reconciliations', verbose_name='操作人',
     )
+    confirmer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='confirmed_account_reconciliations', verbose_name='确认人',
+    )
     note = models.TextField('备注', blank=True)
+    creation_idempotency_key = models.CharField(
+        '创建幂等键', max_length=128, unique=True,
+    )
+    confirmation_idempotency_key = models.CharField(
+        '确认幂等键', max_length=128, unique=True, null=True, blank=True,
+    )
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    objects = AccountReconciliationQuerySet.as_manager()
 
     class Meta:
         base_manager_name = 'objects'
@@ -341,15 +376,7 @@ class AccountReconciliation(models.Model):
         return self.actual_amount
 
     def save(self, *args, **kwargs):
-        if not self._state.adding:
-            persisted = type(self).objects.filter(pk=self.pk).values('status').first()
-            if persisted and persisted['status'] == self.Status.CONFIRMED:
-                raise LedgerMutationError('已确认对账不可修改')
-        return super().save(*args, **kwargs)
+        raise LedgerMutationError('对账只能通过受控对账流程保存')
 
     def delete(self, *args, **kwargs):
-        if self.pk and type(self).objects.filter(
-            pk=self.pk, status=self.Status.CONFIRMED,
-        ).exists():
-            raise LedgerMutationError('已确认对账不可删除')
-        return super().delete(*args, **kwargs)
+        raise LedgerMutationError('对账只能通过受控对账流程删除')

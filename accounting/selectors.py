@@ -2,6 +2,8 @@ from dataclasses import dataclass
 import calendar
 from decimal import Decimal
 
+from django.utils import timezone
+
 from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
 from cigars.models import PurchaseBatch, PurchaseOrder
 
@@ -88,6 +90,8 @@ def monthly_profit(*, month):
 def accounting_summary(*, as_of):
     if not hasattr(as_of, 'year') or not hasattr(as_of, 'month'):
         raise ValueError('as_of 必须是 date')
+    if as_of != timezone.localdate():
+        raise ValueError('as_of 仅支持当前日期')
     fund_accounts = []
     for account in FundAccount.objects.filter(is_active=True).order_by('currency', 'id'):
         snapshot = account_snapshot(account, as_of_business_date=as_of)

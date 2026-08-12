@@ -292,3 +292,64 @@ class LedgerPosting(models.Model):
         if self._transaction_is_finalized():
             raise LedgerMutationError('已入账流水的分录不可修改或删除')
         return super().delete(*args, **kwargs)
+
+
+class AccountReconciliation(models.Model):
+    """资金账户在某一业务日的账面余额与实盘余额快照。"""
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', '待确认'
+        CONFIRMED = 'confirmed', '已确认'
+
+    account = models.ForeignKey(
+        FundAccount, on_delete=models.PROTECT, related_name='reconciliations',
+        verbose_name='资金账户',
+    )
+    business_date = models.DateField('业务日期')
+    system_amount = models.DecimalField('系统余额', max_digits=20, decimal_places=8)
+    actual_amount = models.DecimalField('实际余额', max_digits=20, decimal_places=8)
+    difference = models.DecimalField('差异', max_digits=20, decimal_places=8)
+    status = models.CharField(
+        '状态', max_length=12, choices=Status.choices, default=Status.PENDING,
+    )
+    operator = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name='account_reconciliations', verbose_name='操作人',
+    )
+    note = models.TextField('备注', blank=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        base_manager_name = 'objects'
+        ordering = ['-business_date', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['account', 'business_date'],
+                name='accounting_reconciliation_account_date_unique',
+            ),
+        ]
+        verbose_name = '账户对账'
+        verbose_name_plural = '账户对账'
+
+    @property
+    def system_balance(self):
+        return self.system_amount
+
+    @property
+    def actual_balance(self):
+        return self.actual_amount
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            persisted = type(self).objects.filter(pk=self.pk).values('status').first()
+            if persisted and persisted['status'] == self.Status.CONFIRMED:
+                raise LedgerMutationError('已确认对账不可修改')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(
+            pk=self.pk, status=self.Status.CONFIRMED,
+        ).exists():
+            raise LedgerMutationError('已确认对账不可删除')
+        return super().delete(*args, **kwargs)

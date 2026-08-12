@@ -234,6 +234,22 @@ def _sqlite_retry_delay(attempt, base_delay):
     return base_delay * (attempt + 1) + random.uniform(0, base_delay / 2)
 
 
+def _acquire_sqlite_writer_gate():
+    """Acquire the ledger writer gate without consuming a ledger sequence.
+
+    SQLite has no useful row-level lock for ``select_for_update``.  A controlled
+    equal-value write upgrades the current outer transaction to a writer before
+    account/history reads, so concurrent operations retry as whole transactions.
+    ``LedgerSequence`` ordinary writes are intentionally guarded; this is the
+    trusted low-level persistence boundary.
+    """
+    sequence, created = LedgerSequence.objects.select_for_update().get_or_create(name='global')
+    if connection.vendor == 'sqlite' and not created:
+        # Trusted low-level persistence boundary: equal write acquires SQLite writer lock.
+        models.Model.save(sequence, update_fields=['next_value'])
+    return sequence
+
+
 def _validate_opening_balance_postings(business_date, prepared):
     if business_date != CUTOVER_DATE:
         raise LedgerError('期初余额只能记录在账务切换日')
@@ -258,7 +274,10 @@ def _validate_opening_balance_postings(business_date, prepared):
 
 @transaction.atomic
 def _post_transaction_once(*, transaction_type, business_date, postings, operator,
-                           idempotency_key, description='', source_type='', source_id='', return_result=False):
+                           idempotency_key, description='', source_type='', source_id='', return_result=False,
+                           _writer_gate=True):
+    if _writer_gate:
+        _acquire_sqlite_writer_gate()
     _validate_metadata(transaction_type, business_date, idempotency_key)
     persisted_operator = _require_operator(operator)
     existing = _existing_transaction(idempotency_key, transaction_type)
@@ -433,6 +452,7 @@ def record_opening_balance(account, original_amount, cny_book_cost, equity_categ
 
 def _record_opening_balance(account, original_amount, cny_book_cost, equity_category,
                             business_date, operator, idempotency_key, return_result=False):
+    _acquire_sqlite_writer_gate()
     _validate_metadata(LedgerTransaction.TransactionType.OPENING_BALANCE, business_date, idempotency_key)
     persisted_operator = _require_operator(operator)
     if business_date != CUTOVER_DATE:
@@ -470,6 +490,7 @@ def _record_opening_balance(account, original_amount, cny_book_cost, equity_cate
         operator=persisted_operator,
         idempotency_key=idempotency_key,
         return_result=return_result,
+        _writer_gate=False,
     )
 
 
@@ -495,6 +516,7 @@ def exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
 
 def _exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
                      business_date, operator, idempotency_key, description='', return_result=False):
+    _acquire_sqlite_writer_gate()
     persisted_operator, existing = _existing_operation(
         LedgerTransaction.TransactionType.EXCHANGE, business_date, operator, idempotency_key,
     )
@@ -528,6 +550,7 @@ def _exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
         idempotency_key=idempotency_key,
         description=description,
         return_result=return_result,
+        _writer_gate=False,
     )
 
 
@@ -553,6 +576,7 @@ def transfer_same_currency(source_account, target_account, amount, business_date
 
 def _transfer_same_currency(source_account, target_account, amount, business_date,
                             operator, idempotency_key, description='', return_result=False):
+    _acquire_sqlite_writer_gate()
     persisted_operator, existing = _existing_operation(
         LedgerTransaction.TransactionType.TRANSFER, business_date, operator, idempotency_key,
     )
@@ -583,6 +607,7 @@ def _transfer_same_currency(source_account, target_account, amount, business_dat
         idempotency_key=idempotency_key,
         description=description,
         return_result=return_result,
+        _writer_gate=False,
     )
 
 

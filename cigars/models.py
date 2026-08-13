@@ -463,6 +463,10 @@ class SalesOrder(models.Model):
         REFUND_PENDING = 'refund_pending', '待退款'
         REFUNDED = 'refunded', '已退款'
 
+    class TransportPayer(models.TextChoices):
+        CUSTOMER = 'customer', '客户承担'
+        COMPANY = 'company', '公司承担'
+
     customer = models.ForeignKey(
         Customer, on_delete=models.SET_NULL, null=True, blank=True,
         verbose_name='客户'
@@ -479,6 +483,11 @@ class SalesOrder(models.Model):
     )
     goods_amount_cny = models.DecimalField('商品金额 (CNY)', max_digits=14, decimal_places=2, default=0)
     customer_transport_fee_cny = models.DecimalField('客户人肉费 (CNY)', max_digits=14, decimal_places=2, default=0)
+    transport_payer = models.CharField(
+        '人肉费承担方', max_length=12,
+        choices=TransportPayer.choices,
+        default=TransportPayer.COMPANY,
+    )
     amount_due_cny = models.DecimalField('应收总额 (CNY)', max_digits=14, decimal_places=2, default=0)
     fifo_cost_cny = models.DecimalField('FIFO 销售成本 (CNY)', max_digits=14, decimal_places=2, default=0)
     actual_transport_cost_cny = models.DecimalField('实际人肉成本 (CNY)', max_digits=14, decimal_places=2, default=0)
@@ -522,6 +531,17 @@ class SalesOrder(models.Model):
         constraints = [
             models.CheckConstraint(condition=models.Q(goods_amount_cny__gte=0), name='sales_order_goods_amount_gte_zero'),
             models.CheckConstraint(condition=models.Q(customer_transport_fee_cny__gte=0), name='sales_order_customer_transport_gte_zero'),
+            # 公司承担时不能把任何人肉费计入客户应收。
+            models.CheckConstraint(
+                condition=(
+                    models.Q(transport_payer='customer')
+                    | models.Q(
+                        transport_payer='company',
+                        customer_transport_fee_cny=0,
+                    )
+                ),
+                name='sales_order_transport_payer_fee_match',
+            ),
             models.CheckConstraint(condition=models.Q(amount_due_cny__gte=0), name='sales_order_amount_due_gte_zero'),
             models.CheckConstraint(condition=models.Q(fifo_cost_cny__gte=0), name='sales_order_fifo_cost_gte_zero'),
             models.CheckConstraint(condition=models.Q(actual_transport_cost_cny__gte=0), name='sales_order_actual_transport_gte_zero'),

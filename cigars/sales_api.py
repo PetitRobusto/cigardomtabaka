@@ -173,6 +173,7 @@ def _create_handler(body, operator, context):
         payment_method_id=body.get("payment_method_id"),
         payment_manual=body.get("payment_manual") or {},
         customer_transport_fee_cny=body.get("customer_transport_fee_cny", 0),
+        transport_payer=body.get("transport_payer"),
         note=str(body.get("note") or "").strip(), agent_context=context,
     ))
 
@@ -239,6 +240,7 @@ def sales_order_detail(request, order_id):
             payment_method_id=body.get("payment_method_id"),
             payment_manual=body.get("payment_manual") or {},
             customer_transport_fee_cny=body.get("customer_transport_fee_cny", 0),
+            transport_payer=body.get("transport_payer"),
             note=str(body.get("note") or "").strip(), agent_context=context,
         ))
     return _write(request, "update_sales_order_draft", handler)

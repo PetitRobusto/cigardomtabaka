@@ -341,6 +341,11 @@ export interface SearchCigarResult {
   ring_gauge: number | null;
   thumb_url: string | null;
   stock_qty: number;
+  box_options: {
+    box_size: number;
+    available_boxes: number;
+  }[];
+  available_sticks: number;
   batches: {
     batch_id: number;
     box_size: number;

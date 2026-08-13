@@ -7,6 +7,8 @@ from decimal import Decimal
 from datetime import timedelta
 from unittest.mock import patch
 from django.test import TestCase, Client
+from django.test.utils import CaptureQueriesContext
+from django.db import connection
 from django.utils import timezone
 from django.contrib.auth.hashers import check_password
 from django.core.exceptions import ValidationError
@@ -601,6 +603,69 @@ class SearchCigarsTestCase(TestCase):
         # 缺货雪茄不应该出现
         names = [r['name'] for r in data['results']]
         self.assertNotIn('缺货雪茄', names)
+
+    def test_empty_stock_search_returns_autocomplete_inventory_contract(self):
+        self.batch.box_size = 25
+        self.batch.physical_box_quantity = 1
+        self.batch.physical_stick_quantity = 5
+        self.batch.available_box_quantity = 1
+        self.batch.available_stick_quantity = 5
+        self.batch.save(update_fields=[
+            'box_size', 'physical_box_quantity', 'physical_stick_quantity',
+            'available_box_quantity', 'available_stick_quantity',
+        ])
+        second = _create_batch(
+            self.cigar, remaining=53, box_size=25, unit_cost=300.0,
+        )
+        second.box_size = 25
+        second.physical_box_quantity = 2
+        second.physical_stick_quantity = 3
+        second.available_box_quantity = 2
+        second.available_stick_quantity = 3
+        second.save(update_fields=[
+            'box_size', 'physical_box_quantity', 'physical_stick_quantity',
+            'available_box_quantity', 'available_stick_quantity',
+        ])
+
+        response = self.client.get(
+            '/privnote/api/search-cigars/?q=&stock_only=1',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        results = response.json()['results']
+        self.assertLessEqual(len(results), 20)
+        result = next(item for item in results if item['id'] == self.cigar.pk)
+        self.assertEqual(result['box_options'], [
+            {'box_size': 25, 'available_boxes': 3},
+        ])
+        self.assertEqual(result['available_sticks'], 8)
+
+    def test_stock_autocomplete_text_still_filters_results(self):
+        response = self.client.get(
+            '/privnote/api/search-cigars/?q=不存在的过滤词&stock_only=1',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['results'], [])
+
+    def test_stock_autocomplete_batches_candidates_without_n_plus_one_queries(self):
+        brand = Brand.objects.get(english_name='TestBrand')
+        for index in range(4):
+            cigar = Cigar.objects.create(
+                brand=brand.english_name,
+                english_name=f'Query Budget Cigar {index}',
+                name=f'查询预算雪茄 {index}',
+            )
+            _create_batch(cigar, remaining=25, box_size=25, unit_cost=100.0)
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(
+                '/privnote/api/search-cigars/?q=&stock_only=1',
+            )
+
+        self.assertEqual(response.status_code, 200)
+        # 候选数增加时，图片和批次查询不应按雪茄逐条增长。
+        self.assertLessEqual(len(queries), 8)
 
 
 # ═══════════════════════════════════════════════════

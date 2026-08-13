@@ -210,6 +210,7 @@ def serialize_sales_order(order):
         } if getattr(order, 'customer', None) is not None else None),
         'goods_amount_cny': _decimal_to_json(order.goods_amount_cny),
         'customer_transport_fee_cny': _decimal_to_json(order.customer_transport_fee_cny),
+        'transport_payer': order.transport_payer,
         'amount_due_cny': _decimal_to_json(order.amount_due_cny),
         'total_revenue': _decimal_to_json(order.total_revenue),
         'total_cost': _decimal_to_json(order.total_cost),
@@ -325,11 +326,27 @@ def _get_customer(raw_customer_id):
         raise OrderServiceError('客户不存在')
 
 
+def _transport_payer(raw_payer, customer_fee):
+    """Validate explicit payers and infer omitted values for legacy clients."""
+    if raw_payer in (None, ""):
+        # 旧客户端没有承担方字段，按原有收费数据无损推断。
+        return (
+            SalesOrder.TransportPayer.CUSTOMER
+            if customer_fee > 0 else SalesOrder.TransportPayer.COMPANY
+        )
+    payer = str(raw_payer).strip()
+    if payer not in SalesOrder.TransportPayer.values:
+        raise OrderServiceError("人肉费承担方无效")
+    if payer == SalesOrder.TransportPayer.COMPANY and customer_fee != 0:
+        raise OrderServiceError("公司承担人肉费时客户收费必须为零")
+    return payer
+
+
 @transaction.atomic
 def create_sales_order_draft(*, items, operator, customer=None, customer_id=None,
                              customer_name="", payment_method_id=None,
                              payment_manual=None, customer_transport_fee_cny=0,
-                             note="", agent_context=None):
+                             transport_payer=None, note="", agent_context=None):
     """Create a mutable sales draft without reserving inventory."""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="create_sales_order_draft")
@@ -340,6 +357,7 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
     if customer_obj and not customer_name:
         customer_name = customer_obj.name
     transport_fee = _to_money(customer_transport_fee_cny, "客户人肉费")
+    selected_transport_payer = _transport_payer(transport_payer, transport_fee)
     selected_payment_method_id = (
         _to_positive_int(payment_method_id, "收款方式ID")
         if payment_method_id not in (None, "") else None
@@ -395,6 +413,7 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
     goods_amount = goods_amount.quantize(MONEY_PLACES)
     order.goods_amount_cny = goods_amount
     order.customer_transport_fee_cny = transport_fee
+    order.transport_payer = selected_transport_payer
     order.amount_due_cny = (goods_amount + transport_fee).quantize(MONEY_PLACES)
     order.total_revenue = goods_amount
     order.total_cost = Decimal("0.00")
@@ -402,7 +421,8 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
     order.fifo_cost_cny = Decimal("0.00")
     order.contribution_profit_cny = Decimal("0.00")
     order.save(update_fields=[
-        "goods_amount_cny", "customer_transport_fee_cny", "amount_due_cny",
+        "goods_amount_cny", "customer_transport_fee_cny", "transport_payer",
+        "amount_due_cny",
         "total_revenue", "total_cost", "total_profit", "fifo_cost_cny",
         "contribution_profit_cny",
     ])
@@ -419,7 +439,8 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
 @transaction.atomic
 def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, customer_id=None,
                              customer_name="", payment_method_id=None, payment_manual=None,
-                             customer_transport_fee_cny=0, note="", agent_context=None):
+                             customer_transport_fee_cny=0, transport_payer=None,
+                             note="", agent_context=None):
     """Replace all snapshots on an unlocked, unpaid draft."""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="update_sales_order_draft")
@@ -431,6 +452,8 @@ def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, 
         raise OrderServiceError("存在库存分配的订单不能编辑草稿")
     if not isinstance(items, list) or not items:
         raise OrderServiceError("至少需要一个商品")
+    transport_fee = _to_money(customer_transport_fee_cny, "客户人肉费")
+    selected_transport_payer = _transport_payer(transport_payer, transport_fee)
 
     snapshots = []
     for idx, raw_item in enumerate(items, start=1):
@@ -476,7 +499,8 @@ def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, 
     order.payment_method_id = _to_positive_int(payment_method_id, "收款方式ID") if payment_method_id not in (None, "") else None
     order.payment_manual, order.note = payment_manual or {}, note or ""
     order.goods_amount_cny = goods_amount.quantize(MONEY_PLACES)
-    order.customer_transport_fee_cny = _to_money(customer_transport_fee_cny, "客户人肉费")
+    order.customer_transport_fee_cny = transport_fee
+    order.transport_payer = selected_transport_payer
     order.amount_due_cny = (order.goods_amount_cny + order.customer_transport_fee_cny).quantize(MONEY_PLACES)
     order.total_revenue, order.total_cost = order.goods_amount_cny, Decimal("0.00")
     order.total_profit, order.fifo_cost_cny, order.contribution_profit_cny = Decimal("0.00"), Decimal("0.00"), Decimal("0.00")

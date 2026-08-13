@@ -36,7 +36,7 @@ export default function InventoryPage() {
   const brands = data?.brands || [];
 
   return (
-    <div className="animate-fade-in">
+    <div data-guide="inventory-summary" className="animate-fade-in">
       <h1 className="font-display text-2xl font-semibold text-fg mb-6">库存管理</h1>
 
       {/* Stats */}

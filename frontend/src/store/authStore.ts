@@ -1,9 +1,11 @@
 import { create } from 'zustand';
+import type { GuideSummary } from '../api';
 
-interface User {
+export interface User {
   username: string;
   is_staff: boolean;
   is_superuser: boolean;
+  guide?: GuideSummary;
 }
 
 interface AuthState {

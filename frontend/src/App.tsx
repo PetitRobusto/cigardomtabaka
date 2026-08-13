@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PageMetaProvider } from './contexts/PageMetaContext';
 import AppLayout from './components/layout/AppLayout';
@@ -21,6 +21,18 @@ import PriceDashboard from './pages/Dashboard';
 import PriceCigarDetail from './pages/CigarDetail';
 import AlertsPage from './pages/Alerts';
 import SalesAccountingPage from './pages/SalesAccountingPage';
+import HelpPage from './pages/HelpPage';
+import { decideStaffRoute } from './utils/routeGuard';
+import { useAuthStore } from './store/authStore';
+
+function StaffHelpRoute() {
+  const { isLoading, isAuthenticated, user } = useAuthStore();
+  const decision = decideStaffRoute({ isLoading, isAuthenticated, isStaff: Boolean(user?.is_staff) });
+  if (decision === 'loading') return null;
+  if (decision === 'login') return <Navigate to="/login" replace />;
+  if (decision === 'home') return <Navigate to="/" replace />;
+  return <HelpPage />;
+}
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -43,6 +55,7 @@ function AnimatedRoutes() {
           {/* Inventory */}
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/sales" element={<SalesAccountingPage />} />
+          <Route path="/help" element={<StaffHelpRoute />} />
 
           {/* Price Tracker */}
           <Route path="/prices" element={<PriceDashboard />} />

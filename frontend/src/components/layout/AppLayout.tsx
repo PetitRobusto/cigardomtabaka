@@ -7,9 +7,11 @@ import { isSalesAccountingNavActive } from '../sales/salesState';
 import {
   LayoutGrid, Package, TrendingUp, Link2, Settings, LogIn, LogOut, User, Menu, X,
   CircleDollarSign, ClipboardList,
-  MapPin, Phone, MessageCircle
+  MapPin, Phone, MessageCircle, BookOpen
 } from 'lucide-react';
 import { useState } from 'react';
+import GuideController from '../../features/guides/GuideController';
+import { mobileNavItems } from './mobileNav';
 
 const base = import.meta.env.BASE_URL;
 
@@ -38,6 +40,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       { to: '/sales#accounting', label: '账务', icon: ClipboardList },
       { to: '/prices', label: '价格', icon: TrendingUp },
       { to: '/privnote', label: '链接', icon: Link2 },
+      { to: '/help', label: '帮助', icon: BookOpen },
       { to: '/admin/', label: '管理', icon: Settings, external: true },
     ] : []),
   ];
@@ -261,30 +264,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* ===== MOBILE BOTTOM NAV ===== */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-cream/95 backdrop-blur-sm border-t border-border z-50">
         <div className="flex items-center justify-around h-14">
-          {[
-            { to: '/', label: '品牌', icon: LayoutGrid },
-            ...(user?.is_staff ? [
-              { to: '/inventory', label: '库存', icon: Package },
-              { to: '/sales', label: '销售', icon: CircleDollarSign },
-              { to: '/sales#accounting', label: '账务', icon: ClipboardList },
-              { to: '/prices', label: '更多', icon: Menu },
-            ] : []),
-          ].map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive: a }) =>
-                `flex flex-col items-center justify-center gap-0.5 w-full h-full text-[10px] font-medium ${
-                  a ? 'text-accent' : 'text-muted'
-                }`
-              }
-            >
-              <item.icon className="w-5 h-5" />
+          {mobileNavItems(Boolean(user?.is_staff)).map((item) => item.kind === 'menu' ? (
+            <button key={item.label} type="button" onClick={() => setMobileMenuOpen(true)} className="flex flex-col items-center justify-center gap-0.5 w-full h-full text-[10px] font-medium text-muted" aria-label="打开导航菜单">
+              <Menu className="w-5 h-5" />
+              <span>{item.label}</span>
+            </button>
+          ) : (
+            <NavLink key={item.to} to={item.to} className={({ isActive: a }) => `flex flex-col items-center justify-center gap-0.5 w-full h-full text-[10px] font-medium ${a ? 'text-accent' : 'text-muted'}`}>
+              {item.to === '/' ? <LayoutGrid className="w-5 h-5" /> : item.to === '/inventory' ? <Package className="w-5 h-5" /> : item.to === '/sales' ? <CircleDollarSign className="w-5 h-5" /> : <ClipboardList className="w-5 h-5" />}
               <span>{item.label}</span>
             </NavLink>
           ))}
         </div>
       </nav>
+      <GuideController />
     </div>
   );
 }

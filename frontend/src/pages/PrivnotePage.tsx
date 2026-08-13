@@ -329,7 +329,7 @@ export default function PrivnotePage() {
   };
 
   return (
-    <div className="animate-fade-in max-w-4xl mx-auto pb-32">
+    <div data-guide="privnote-create" className="animate-fade-in max-w-4xl mx-auto pb-32">
       {/* Page Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-display font-semibold text-fg">创建私密链接</h1>

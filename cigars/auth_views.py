@@ -3,6 +3,9 @@ from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import ensure_csrf_cookie
+
+from .guide_views import _summary
 
 
 @csrf_exempt
@@ -23,15 +26,18 @@ def api_login(request):
         return JsonResponse({'ok': False, 'error': '账户已禁用'}, status=403)
 
     login(request, user)
+    user_data = {
+        'username': user.username,
+        'display_name': str(user),
+        'is_staff': user.is_staff,
+        'is_superuser': user.is_superuser,
+        'telegram_id': user.telegram_id or '',
+    }
+    if user.is_staff:
+        user_data['guide'] = _summary(user)
     return JsonResponse({
         'ok': True,
-        'user': {
-            'username': user.username,
-            'display_name': str(user),
-            'is_staff': user.is_staff,
-            'is_superuser': user.is_superuser,
-            'telegram_id': user.telegram_id or '',
-        },
+        'user': user_data,
     })
 
 
@@ -43,15 +49,19 @@ def api_logout(request):
     return JsonResponse({'ok': True})
 
 
+@ensure_csrf_cookie
 def api_me(request):
     """GET /api/auth/me/"""
     if request.user.is_authenticated:
+        user_data = {
+            'username': request.user.username,
+            'is_staff': request.user.is_staff,
+            'is_superuser': request.user.is_superuser,
+        }
+        if request.user.is_staff:
+            user_data['guide'] = _summary(request.user)
         return JsonResponse({
             'authenticated': True,
-            'user': {
-                'username': request.user.username,
-                'is_staff': request.user.is_staff,
-                'is_superuser': request.user.is_superuser,
-            },
+            'user': user_data,
         })
     return JsonResponse({'authenticated': False})

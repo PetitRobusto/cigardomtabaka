@@ -6,7 +6,28 @@ from .models import (
     SalesOrder, SalesOrderItem,
     StockAllocation, StockMovement, OrderEvent, IdempotencyRecord,
     AdjustmentRecord, CigarPrice,
+    GuideConfiguration, UserGuideProgress,
 )
+
+
+@admin.register(GuideConfiguration)
+class GuideConfigurationAdmin(admin.ModelAdmin):
+    fields = ('version', 'auto_show_enabled')
+
+    def has_add_permission(self, request):
+        return super().has_add_permission(request) and not GuideConfiguration.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(UserGuideProgress)
+class UserGuideProgressAdmin(admin.ModelAdmin):
+    fields = ('user', 'completed_version', 'force_show_next_time', 'completed_at')
+    readonly_fields = ('completed_version', 'completed_at')
+    list_display = ('user', 'completed_version', 'force_show_next_time', 'completed_at')
+    list_filter = ('force_show_next_time',)
+    search_fields = ('user__username', 'user__first_name', 'user__telegram_id')
 
 
 @admin.register(Cigar)

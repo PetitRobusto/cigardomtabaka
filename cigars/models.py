@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.text import slugify
+from django.core.validators import MinValueValidator
 
 
 def brand_logo_path(instance, filename):
@@ -52,6 +53,49 @@ class User(AbstractUser):
     @property
     def is_operator(self):
         return self.is_staff or self.is_superuser
+
+
+class GuideConfiguration(models.Model):
+    version = models.PositiveIntegerField('引导版本', default=1, validators=[MinValueValidator(1)])
+    auto_show_enabled = models.BooleanField('自动展示', default=True)
+
+    class Meta:
+        verbose_name = '引导配置'
+        verbose_name_plural = '引导配置'
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(id=1), name='guide_configuration_singleton_pk'
+            ),
+            models.CheckConstraint(
+                condition=models.Q(version__gte=1), name='guide_configuration_version_gte_one'
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        return type(self).objects.none().delete()
+
+    def __str__(self):
+        return f'引导配置 v{self.version}'
+
+
+class UserGuideProgress(models.Model):
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name='guide_progress', verbose_name='用户'
+    )
+    completed_version = models.PositiveIntegerField('已完成版本', default=0)
+    force_show_next_time = models.BooleanField('下次强制展示', default=False)
+    completed_at = models.DateTimeField('完成时间', null=True, blank=True)
+
+    class Meta:
+        verbose_name = '用户引导进度'
+        verbose_name_plural = '用户引导进度'
+
+    def __str__(self):
+        return f'{self.user} · 引导 v{self.completed_version}'
 
 
 class Supplier(models.Model):

@@ -6,12 +6,20 @@ import {
   missingTargetAction,
   tourStepsForRoute,
   completionForAction,
+  guideActionPlan,
   isGuideExcludedRoute,
   resolveTourTarget,
   createGuideActionRunner,
 } from './guideInteractions';
 
 describe('guide interaction contracts', () => {
+  it('persists welcome actions but keeps contextual actions local', () => {
+    expect(guideActionPlan('finish', 'welcome')).toEqual({ requiresPersistence: true, close: true });
+    expect(guideActionPlan('escape', 'welcome')).toEqual({ requiresPersistence: true, close: true });
+    expect(guideActionPlan('finish', 'context')).toEqual({ requiresPersistence: false, close: true });
+    expect(guideActionPlan('escape', 'context')).toEqual({ requiresPersistence: false, close: true });
+  });
+
   it('completes and closes for close, skip, and finish', () => {
     expect(completionForAction('close')).toEqual({ complete: true, open: false });
     expect(completionForAction('skip')).toEqual({ complete: true, open: false });

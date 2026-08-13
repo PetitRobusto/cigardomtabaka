@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUSINESS_ROUTE_PATHS, resolveBusinessRoute } from './businessRoutes';
+import { BUSINESS_ROUTE_PATHS, BUSINESS_STAFF_PATHS, resolveBusinessRoute } from './businessRoutes';
 
 describe('business routes', () => {
   it('keeps sales and accounting as separate workspaces', () => {
@@ -8,7 +8,7 @@ describe('business routes', () => {
   });
 
   it('keeps the legal Day 1 route alongside both business workspaces', () => {
-    expect(BUSINESS_ROUTE_PATHS).toEqual({ sales: '/sales', accounting: '/accounting', day1: '/accounting/day1' });
+    expect(BUSINESS_ROUTE_PATHS).toStrictEqual(BUSINESS_STAFF_PATHS);
   });
 
   it('redirects the legacy accounting hash to the accounting workspace', () => {

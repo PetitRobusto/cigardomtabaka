@@ -171,6 +171,12 @@ export function isSalesAccountingNavActive(target: string, hash: string): boolea
 }
 
 
-export function transportPayerTransition(payer: TransportPayer, _currentFee: string): { payer: TransportPayer; fee: string } {
-  return { payer, fee: '0' };
+export function transportPayerChange(currentFee: string, nextPayer: TransportPayer): { payer: TransportPayer; fee: string } {
+  // Once company clears the field, switching back to customer keeps the cleared value.
+  return { payer: nextPayer, fee: nextPayer === 'company' ? '0' : currentFee };
+}
+
+/** @deprecated Use transportPayerChange(currentFee, payer). */
+export function transportPayerTransition(payer: TransportPayer, currentFee: string): { payer: TransportPayer; fee: string } {
+  return transportPayerChange(currentFee, payer);
 }

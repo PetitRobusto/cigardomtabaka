@@ -3,7 +3,7 @@ import { BookOpen, ExternalLink, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MANUAL_CHAPTERS, type ManualChapter } from '../features/guides/guideContent';
 import { usePageMeta } from '../hooks/usePageMeta';
-import { replayGuide } from '../api';
+import { manualTourDecision } from '../features/guides/manualTour';
 
 const quickStartOrder = ['账户入账', '汇率换汇', '采购到货', '库存', '销售', '出库与收款', '对账', '月利润'];
 
@@ -16,12 +16,10 @@ export default function HelpPage() {
   useEffect(() => { setMeta({ title: '使用手册', breadcrumbs: [{ label: '首页', to: '/' }, { label: '使用手册' }] }); }, [setMeta]);
 
   const openFeature = () => navigate(chapter.route);
-  const playTour = async () => {
-    if (!chapter.tourStepId) { setMessage('本章暂无页面引导'); return; }
-    try {
-      await replayGuide();
-      navigate(chapter.route, { state: { guideTourId: chapter.tourStepId } });
-    } catch (error) { setMessage(error instanceof Error ? error.message : '引导重播失败，请稍后重试'); }
+  const playTour = () => {
+    const decision = manualTourDecision(chapter);
+    if (decision.kind === 'unavailable') { setMessage(decision.message); return; }
+    navigate(decision.destination.route, { state: decision.destination.state });
   };
 
   return <div className="animate-fade-in">

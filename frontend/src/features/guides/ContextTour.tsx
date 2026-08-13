@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { tourStepsForRoute } from './guideInteractions';
 import { useLocation } from 'react-router-dom';
 import type { GuideCompletionAction } from './guideInteractions';
+import { createMissingTargetReporter } from './missingTargetReporter';
+import { FOCUSABLE_SELECTOR } from './focusables';
 
 interface Props {
   stepId?: string;
@@ -31,13 +33,15 @@ export default function ContextTour({ stepId, onAction, onMissingTarget, busy = 
   }, []);
 
   useEffect(() => {
-    if (!step) { onMissingTarget(); return () => undefined; }
+    const missingTarget = createMissingTargetReporter(onMissingTarget);
+    if (!step) { missingTarget.report(); return () => missingTarget.cancel(); }
     const updateTarget = () => {
       const nextTarget = document.querySelector<HTMLElement>(step.target);
       if (nextTarget === targetRef.current) { setTargetFound(Boolean(nextTarget)); return; }
       targetRef.current?.classList.remove('guide-target-highlight');
       targetRef.current = nextTarget;
-      if (!nextTarget) { setTargetFound(false); onMissingTarget(); return; }
+      if (!nextTarget) { setTargetFound(false); missingTarget.report(); return; }
+      missingTarget.cancel();
       nextTarget.classList.add('guide-target-highlight');
       nextTarget.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
       setTargetFound(true);
@@ -49,6 +53,7 @@ export default function ContextTour({ stepId, onAction, onMissingTarget, busy = 
     window.addEventListener('scroll', updateTarget, { passive: true });
     return () => {
       observer?.disconnect();
+      missingTarget.cancel();
       window.removeEventListener('resize', updateTarget);
       window.removeEventListener('scroll', updateTarget);
       targetRef.current?.classList.remove('guide-target-highlight');
@@ -60,7 +65,7 @@ export default function ContextTour({ stepId, onAction, onMissingTarget, busy = 
     closeRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Tab' || !dialogRef.current) return;
-      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not(:disabled)'));
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
       if (!focusable.length) return;
       const first = focusable[0]; const last = focusable[focusable.length - 1];
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }

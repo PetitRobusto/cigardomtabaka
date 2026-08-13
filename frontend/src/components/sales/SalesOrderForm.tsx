@@ -83,7 +83,7 @@ export default function SalesOrderForm({ onSubmit, busy = false, error }: Props)
   };
 
   return (
-    <form onSubmit={submit} className="rounded-md border border-border bg-white shadow-sm">
+    <form data-guide="sales-orders" onSubmit={submit} className="rounded-md border border-border bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-border px-5 py-4">
         <div><h2 className="font-display text-lg font-semibold">新建销售单</h2><p className="mt-0.5 text-xs text-muted">先保存草稿，确认时才会预留库存。</p></div>
         <span className="text-[11px] uppercase tracking-wider text-accent">Draft</span>

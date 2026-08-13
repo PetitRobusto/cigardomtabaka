@@ -72,7 +72,7 @@ export default function Dashboard() {
 
   return (
     <PageTransition>
-      <div>
+      <div data-guide="prices-dashboard">
         <StatsBar
           snapshotCount={cigars.reduce((sum, c) => sum + c.sources.length, 0)}
           cigarCount={cigars.length}

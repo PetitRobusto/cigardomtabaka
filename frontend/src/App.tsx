@@ -25,7 +25,7 @@ import AccountingDashboardPage from './pages/AccountingDashboardPage';
 import AccountingDay1Placeholder from './pages/AccountingDay1Placeholder';
 import HelpPage from './pages/HelpPage';
 import { decideStaffRoute } from './utils/routeGuard';
-import { BUSINESS_ROUTE_PATHS, resolveBusinessRoute } from './pages/businessRoutes';
+import { BUSINESS_STAFF_PATHS, resolveBusinessRoute } from './pages/businessRoutes';
 import { useAuthStore } from './store/authStore';
 
 function StaffGate({ children }: { children: React.ReactNode }) {
@@ -68,9 +68,9 @@ function AnimatedRoutes() {
 
           {/* Inventory */}
           <Route path="/inventory" element={<InventoryPage />} />
-          <Route path={BUSINESS_ROUTE_PATHS.sales} element={<StaffGate><LegacySalesRoute /></StaffGate>} />
-          <Route path={BUSINESS_ROUTE_PATHS.accounting} element={<StaffGate><AccountingDashboardPage /></StaffGate>} />
-          <Route path={BUSINESS_ROUTE_PATHS.day1} element={<StaffGate><AccountingDay1Placeholder /></StaffGate>} />
+          <Route path={BUSINESS_STAFF_PATHS.sales} element={<StaffGate><LegacySalesRoute /></StaffGate>} />
+          <Route path={BUSINESS_STAFF_PATHS.accounting} element={<StaffGate><AccountingDashboardPage /></StaffGate>} />
+          <Route path={BUSINESS_STAFF_PATHS.day1} element={<StaffGate><AccountingDay1Placeholder /></StaffGate>} />
           <Route path="/help" element={<StaffHelpRoute />} />
 
           {/* Price Tracker */}

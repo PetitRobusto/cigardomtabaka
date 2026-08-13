@@ -2,16 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { decideStaffRoute } from '../utils/routeGuard';
 import {
   dashboardDay1Action,
+  BUSINESS_STAFF_PATHS,
   dashboardStatDisplay,
+  dashboardRegionStates,
   resolveBusinessRoute,
-  supportQueryState,
 } from './businessRoutes';
-import { transportPayerTransition } from '../components/sales/salesState';
+import { transportPayerChange } from '../components/sales/salesState';
 
 describe('business workspace review boundaries', () => {
   it('resolves the legacy hash and keeps all business entry paths staff-gated', () => {
     expect(resolveBusinessRoute('/sales', '#accounting')).toBe('/accounting');
-    expect(['/sales', '/accounting', '/accounting/day1']).toEqual(expect.arrayContaining(['/sales', '/accounting', '/accounting/day1']));
+    expect(BUSINESS_STAFF_PATHS).toStrictEqual({ sales: '/sales', accounting: '/accounting', day1: '/accounting/day1' });
     expect(decideStaffRoute({ isLoading: false, isAuthenticated: true, isStaff: false })).toBe('home');
   });
 
@@ -24,13 +25,13 @@ describe('business workspace review boundaries', () => {
   });
 
   it('marks supporting query errors for local rendering without treating missing data as zero', () => {
-    expect(supportQueryState({ isError: true, hasData: false })).toBe('error');
-    expect(supportQueryState({ isError: false, hasData: true })).toBe('ready');
+    expect(dashboardRegionStates({ accounts: { isError: false, hasData: true }, summary: { isError: false, hasData: true }, profit: { isError: true, hasData: false }, reconciliation: { isError: false, hasData: true } })).toEqual({ accounts: 'ready', summary: 'ready', profit: 'error', reconciliation: 'ready' });
+    expect(dashboardRegionStates({ accounts: { isError: true, hasData: false }, summary: { isError: false, hasData: true }, profit: { isError: false, hasData: true }, reconciliation: { isError: false, hasData: true } }).profit).toBe('ready');
     expect(dashboardStatDisplay(null)).not.toBe('¥0.00');
   });
 
   it('clears transport fee when company becomes payer and never restores it', () => {
-    expect(transportPayerTransition('company', '80')).toEqual({ payer: 'company', fee: '0' });
-    expect(transportPayerTransition('customer', '0')).toEqual({ payer: 'customer', fee: '0' });
+    expect(transportPayerChange('80', 'company')).toEqual({ payer: 'company', fee: '0' });
+    expect(transportPayerChange('0', 'customer')).toEqual({ payer: 'customer', fee: '0' });
   });
 });

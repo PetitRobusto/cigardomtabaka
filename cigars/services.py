@@ -18,6 +18,7 @@ from .models import (
     Customer,
     OrderEvent,
     PurchaseBatch,
+    SalesShipment,
     PurchaseOrder,
     PurchaseOrderItem,
     SalesOrder,
@@ -155,20 +156,36 @@ def _record_order_event(order, *, operator, context, note='', metadata=None):
 
 def serialize_sales_order(order):
     items = []
-    for item in order.items.select_related('cigar').prefetch_related('allocations__purchase_batch').all():
+    if hasattr(order, '_prefetched_objects_cache') and 'items' in order._prefetched_objects_cache:
+        order_items = order._prefetched_objects_cache['items']
+    else:
+        order_items = order.items.select_related('cigar').prefetch_related('allocations__purchase_batch').all()
+    for item in order_items:
+        if hasattr(item, '_prefetched_objects_cache') and 'allocations' in item._prefetched_objects_cache:
+            item_allocations = item._prefetched_objects_cache['allocations']
+        else:
+            item_allocations = item.allocations.all()
         allocations = [
             {
+                'id': alloc.id,
                 'batch_id': alloc.purchase_batch_id,
                 'quantity': alloc.quantity,
                 'status': alloc.status,
+                'unit_cost_cny': _decimal_to_json(alloc.purchase_batch.unit_cost_cny),
+                'cost_cny': _decimal_to_json(
+                    alloc.purchase_batch.unit_cost_cny * alloc.quantity
+                ),
             }
-            for alloc in item.allocations.all()
+            for alloc in item_allocations
         ]
         items.append({
             'id': item.id,
             'cigar_id': item.cigar_id,
             'cigar_name': item.cigar.name or item.cigar.english_name,
             'quantity': item.quantity,
+            'sale_unit': item.sale_unit,
+            'sale_quantity': item.sale_quantity,
+            'box_size': item.box_size,
             'unit_price': _decimal_to_json(item.unit_price),
             'unit_cost': _decimal_to_json(item.unit_cost),
             'revenue': _decimal_to_json(item.revenue),
@@ -181,19 +198,80 @@ def serialize_sales_order(order):
         'id': order.id,
         'order_number': order.order_number,
         'status': order.status,
+        'display_status': order.display_status,
+        'fulfillment_status': order.fulfillment_status,
+        'payment_status': order.payment_status,
         'customer_id': order.customer_id,
         'customer_name': order.customer_name,
+        'customer': ({
+            'id': order.customer_id,
+            'name': order.customer.name,
+            'phone': order.customer.phone,
+        } if getattr(order, 'customer', None) is not None else None),
+        'goods_amount_cny': _decimal_to_json(order.goods_amount_cny),
+        'customer_transport_fee_cny': _decimal_to_json(order.customer_transport_fee_cny),
+        'amount_due_cny': _decimal_to_json(order.amount_due_cny),
         'total_revenue': _decimal_to_json(order.total_revenue),
         'total_cost': _decimal_to_json(order.total_cost),
         'total_profit': _decimal_to_json(order.total_profit),
+        'fifo_cost': _decimal_to_json(order.fifo_cost_cny),
+        'contribution_profit': _decimal_to_json(order.contribution_profit_cny),
+        'actual_transport_cost_cny': _decimal_to_json(order.actual_transport_cost_cny),
+        'locked': order.locked,
+        'created_at': order.created_at.isoformat() if order.created_at else None,
+        'confirmed_at': order.confirmed_at.isoformat() if order.confirmed_at else None,
+        'cancelled_at': order.cancelled_at.isoformat() if order.cancelled_at else None,
         'note': order.note,
         'items': items,
+        'sales_shipment': ({
+            'id': order.sales_shipment.id,
+            'business_date': order.sales_shipment.business_date.isoformat(),
+            'fifo_cost_cny': _decimal_to_json(order.sales_shipment.fifo_cost_cny),
+        } if hasattr(order, 'sales_shipment') else None),
+        'sales_receipt': ({
+            'id': order.sales_receipt.id,
+            'amount_cny': _decimal_to_json(order.sales_receipt.amount_cny),
+            'business_date': order.sales_receipt.business_date.isoformat(),
+            'fund_account_id': order.sales_receipt.fund_account_id,
+        } if hasattr(order, 'sales_receipt') else None),
+        'sales_refund': ({
+            'id': order.sales_refund.id,
+            'amount_cny': _decimal_to_json(order.sales_refund.amount_cny),
+            'business_date': order.sales_refund.business_date.isoformat(),
+            'fund_account_id': order.sales_refund.fund_account_id,
+        } if hasattr(order, 'sales_refund') else None),
+        'sales_transport_cost': ({
+            'id': order.sales_transport_cost.id,
+            'actual_cost_cny': _decimal_to_json(order.sales_transport_cost.actual_cost_cny),
+            'business_date': order.sales_transport_cost.business_date.isoformat(),
+            'fund_account_id': order.sales_transport_cost.fund_account_id,
+        } if hasattr(order, 'sales_transport_cost') else None),
+        'available_actions': _sales_order_available_actions(order),
     }
 
+
+def _sales_order_available_actions(order):
+    actions = []
+    if order.fulfillment_status == SalesOrder.FulfillmentStatus.DRAFT:
+        actions.append('confirm')
+    if order.fulfillment_status == SalesOrder.FulfillmentStatus.CONFIRMED:
+        actions.extend(['ship', 'cancel'])
+        if order.payment_status == SalesOrder.PaymentStatus.UNPAID:
+            actions.append('receive')
+    if order.fulfillment_status == SalesOrder.FulfillmentStatus.SHIPPED:
+        if order.payment_status == SalesOrder.PaymentStatus.UNPAID:
+            actions.append('receive')
+        if not hasattr(order, 'sales_transport_cost'):
+            actions.append('transport_cost')
+    if order.fulfillment_status == SalesOrder.FulfillmentStatus.CANCELLED and order.payment_status == SalesOrder.PaymentStatus.REFUND_PENDING:
+        actions.append('refund')
+    return actions
 
 def _decimal_to_json(value):
     if value is None:
         return None
+    if not isinstance(value, Decimal):
+        value = Decimal(str(value))
     if value == value.to_integral_value():
         return int(value)
     return float(value)
@@ -248,6 +326,333 @@ def _get_customer(raw_customer_id):
 
 
 @transaction.atomic
+def create_sales_order_draft(*, items, operator, customer=None, customer_id=None,
+                             customer_name="", payment_method_id=None,
+                             payment_manual=None, customer_transport_fee_cny=0,
+                             note="", agent_context=None):
+    """Create a mutable sales draft without reserving inventory."""
+    operator = _require_operator(operator)
+    context = agent_context or AgentContext(command_name="create_sales_order_draft")
+    if not isinstance(items, list) or not items:
+        raise OrderServiceError("至少需要一个商品")
+
+    customer_obj = customer or _get_customer(customer_id)
+    if customer_obj and not customer_name:
+        customer_name = customer_obj.name
+    transport_fee = _to_money(customer_transport_fee_cny, "客户人肉费")
+    selected_payment_method_id = (
+        _to_positive_int(payment_method_id, "收款方式ID")
+        if payment_method_id not in (None, "") else None
+    )
+    order = SalesOrder.objects.create(
+        customer=customer_obj,
+        customer_name=customer_name or "",
+        operator=operator,
+        fulfillment_status=SalesOrder.FulfillmentStatus.DRAFT,
+        payment_status=SalesOrder.PaymentStatus.UNPAID,
+        status="draft",
+        locked=False,
+        note=note or "",
+        payment_method_id=selected_payment_method_id,
+        payment_manual=payment_manual or {},
+    )
+
+    goods_amount = Decimal("0.00")
+    for idx, raw_item in enumerate(items, start=1):
+        if not isinstance(raw_item, dict):
+            raise OrderServiceError(f"第{idx}个商品格式错误")
+        try:
+            cigar = Cigar.objects.get(id=_to_positive_int(raw_item.get("cigar_id"), f"第{idx}个商品ID"))
+        except Cigar.DoesNotExist:
+            raise OrderServiceError(f"第{idx}个商品不存在")
+        fulfillment_type = str(raw_item.get("fulfillment_type") or SalesOrderItem.FulfillmentType.IN_STOCK)
+        if fulfillment_type not in SalesOrderItem.FulfillmentType.values:
+            raise OrderServiceError(f"第{idx}个商品履约类型错误")
+        sale_unit = str(raw_item.get("sale_unit") or SalesOrderItem.SaleUnit.STICK)
+        if sale_unit not in SalesOrderItem.SaleUnit.values:
+            raise OrderServiceError(f"第{idx}个商品销售单位错误")
+        sale_unit_price = _to_money(raw_item.get("unit_price"), f"第{idx}个商品单价")
+        if sale_unit == SalesOrderItem.SaleUnit.BOX:
+            sale_quantity = _to_positive_int(raw_item.get("sale_quantity"), f"第{idx}个商品销售盒数")
+            box_size = _to_positive_int(raw_item.get("box_size"), f"第{idx}个商品包装支数")
+            quantity = sale_quantity * box_size
+            if raw_item.get("quantity") not in (None, "") and _to_positive_int(raw_item.get("quantity"), f"第{idx}个商品数量") != quantity:
+                raise OrderServiceError(f"第{idx}个商品盒装数量与包装快照不一致")
+        else:
+            quantity = _to_positive_int(raw_item.get("quantity"), f"第{idx}个商品数量")
+            sale_quantity = quantity
+            box_size = None
+        revenue = (sale_unit_price * sale_quantity).quantize(MONEY_PLACES)
+        SalesOrderItem.objects.create(
+            sales_order=order, cigar=cigar, quantity=quantity,
+            unit_price=sale_unit_price,
+            unit_cost=Decimal("0.00"), revenue=revenue, cost=Decimal("0.00"), profit=Decimal("0.00"),
+            fulfillment_type=fulfillment_type, sale_unit=sale_unit,
+            sale_quantity=sale_quantity, box_size=box_size,
+        )
+        goods_amount += revenue
+
+    goods_amount = goods_amount.quantize(MONEY_PLACES)
+    order.goods_amount_cny = goods_amount
+    order.customer_transport_fee_cny = transport_fee
+    order.amount_due_cny = (goods_amount + transport_fee).quantize(MONEY_PLACES)
+    order.total_revenue = goods_amount
+    order.total_cost = Decimal("0.00")
+    order.total_profit = Decimal("0.00")
+    order.fifo_cost_cny = Decimal("0.00")
+    order.contribution_profit_cny = Decimal("0.00")
+    order.save(update_fields=[
+        "goods_amount_cny", "customer_transport_fee_cny", "amount_due_cny",
+        "total_revenue", "total_cost", "total_profit", "fifo_cost_cny",
+        "contribution_profit_cny",
+    ])
+    _record_order_event(
+        order, operator=operator, context=context, note=note,
+        metadata={
+            "fulfillment_status": order.fulfillment_status,
+            "payment_status": order.payment_status,
+        },
+    )
+    return order
+
+
+@transaction.atomic
+def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, customer_id=None,
+                             customer_name="", payment_method_id=None, payment_manual=None,
+                             customer_transport_fee_cny=0, note="", agent_context=None):
+    """Replace all snapshots on an unlocked, unpaid draft."""
+    operator = _require_operator(operator)
+    context = agent_context or AgentContext(command_name="update_sales_order_draft")
+    order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, "销售单ID"))
+    if (order.fulfillment_status != SalesOrder.FulfillmentStatus.DRAFT or
+            order.payment_status != SalesOrder.PaymentStatus.UNPAID or order.locked):
+        raise OrderServiceError("当前订单不能编辑草稿")
+    if StockAllocation.objects.filter(sales_order_item__sales_order=order).exists():
+        raise OrderServiceError("存在库存分配的订单不能编辑草稿")
+    if not isinstance(items, list) or not items:
+        raise OrderServiceError("至少需要一个商品")
+
+    snapshots = []
+    for idx, raw_item in enumerate(items, start=1):
+        if not isinstance(raw_item, dict):
+            raise OrderServiceError(f"第{idx}个商品格式错误")
+        try:
+            cigar = Cigar.objects.get(id=_to_positive_int(raw_item.get("cigar_id"), f"第{idx}个商品ID"))
+        except Cigar.DoesNotExist:
+            raise OrderServiceError(f"第{idx}个商品不存在")
+        fulfillment_type = str(raw_item.get("fulfillment_type") or SalesOrderItem.FulfillmentType.IN_STOCK)
+        if fulfillment_type not in SalesOrderItem.FulfillmentType.values:
+            raise OrderServiceError(f"第{idx}个商品履约类型错误")
+        sale_unit = str(raw_item.get("sale_unit") or SalesOrderItem.SaleUnit.STICK)
+        if sale_unit not in SalesOrderItem.SaleUnit.values:
+            raise OrderServiceError(f"第{idx}个商品销售单位错误")
+        sale_unit_price = _to_money(raw_item.get("unit_price"), f"第{idx}个商品单价")
+        if sale_unit == SalesOrderItem.SaleUnit.BOX:
+            sale_quantity = _to_positive_int(raw_item.get("sale_quantity"), f"第{idx}个商品销售盒数")
+            box_size = _to_positive_int(raw_item.get("box_size"), f"第{idx}个商品包装支数")
+            quantity = sale_quantity * box_size
+            if raw_item.get("quantity") not in (None, "") and _to_positive_int(raw_item.get("quantity"), f"第{idx}个商品数量") != quantity:
+                raise OrderServiceError(f"第{idx}个商品盒装数量与包装快照不一致")
+        else:
+            quantity = _to_positive_int(raw_item.get("quantity"), f"第{idx}个商品数量")
+            sale_quantity, box_size = quantity, None
+        revenue = (sale_unit_price * sale_quantity).quantize(MONEY_PLACES)
+        snapshots.append((cigar, quantity, sale_unit, sale_quantity, box_size, sale_unit_price, revenue, fulfillment_type))
+
+    customer_obj = customer or _get_customer(customer_id)
+    if customer_obj and not customer_name:
+        customer_name = customer_obj.name
+    order.items.all().delete()
+    goods_amount = Decimal("0.00")
+    for cigar, quantity, sale_unit, sale_quantity, box_size, sale_unit_price, revenue, fulfillment_type in snapshots:
+        SalesOrderItem.objects.create(
+            sales_order=order, cigar=cigar, quantity=quantity,
+            unit_price=sale_unit_price,
+            unit_cost=Decimal("0.00"), revenue=revenue, cost=Decimal("0.00"), profit=Decimal("0.00"),
+            fulfillment_type=fulfillment_type, sale_unit=sale_unit, sale_quantity=sale_quantity, box_size=box_size,
+        )
+        goods_amount += revenue
+    order.customer, order.customer_name = customer_obj, customer_name or ""
+    order.payment_method_id = _to_positive_int(payment_method_id, "收款方式ID") if payment_method_id not in (None, "") else None
+    order.payment_manual, order.note = payment_manual or {}, note or ""
+    order.goods_amount_cny = goods_amount.quantize(MONEY_PLACES)
+    order.customer_transport_fee_cny = _to_money(customer_transport_fee_cny, "客户人肉费")
+    order.amount_due_cny = (order.goods_amount_cny + order.customer_transport_fee_cny).quantize(MONEY_PLACES)
+    order.total_revenue, order.total_cost = order.goods_amount_cny, Decimal("0.00")
+    order.total_profit, order.fifo_cost_cny, order.contribution_profit_cny = Decimal("0.00"), Decimal("0.00"), Decimal("0.00")
+    order.save()
+    _record_order_event(order, operator=operator, context=context, note=note, metadata={
+        "fulfillment_status": order.fulfillment_status, "payment_status": order.payment_status,
+    })
+    return order
+
+
+
+
+def _allocation_uses_boxes(*, allocation, batch):
+    item = allocation.sales_order_item
+    return bool(
+        item.sale_unit == SalesOrderItem.SaleUnit.BOX and batch.box_size == item.box_size
+        and batch.box_size and allocation.quantity % batch.box_size == 0
+    )
+
+def _reserve_box_stock_fifo(*, order, item, operator, context, note=""):
+    box_size = item.box_size
+    batches = list(PurchaseBatch.objects.select_for_update().filter(
+        cigar=item.cigar, box_size=box_size, available_box_quantity__gt=0,
+    ).order_by("purchased_at", "id"))
+    available_boxes = sum(batch.available_box_quantity for batch in batches)
+    if available_boxes < item.sale_quantity:
+        raise InsufficientStockError(
+            f"{item.cigar.name or item.cigar.english_name} 整盒库存不足",
+            details={"cigar_id": item.cigar_id, "requested": item.sale_quantity, "available": available_boxes, "unit": "boxes"},
+        )
+    remaining_boxes, item_cost = item.sale_quantity, Decimal("0.00")
+    for batch in batches:
+        take_boxes = min(batch.available_box_quantity, remaining_boxes)
+        if not take_boxes:
+            continue
+        quantity = take_boxes * box_size
+        batch.remaining -= quantity
+        batch.available_box_quantity -= take_boxes
+        batch.save(update_fields=["remaining", "available_box_quantity"])
+        StockAllocation.objects.create(sales_order_item=item, purchase_batch=batch, quantity=quantity, status=StockAllocation.Status.RESERVED)
+        _record_movement(
+            movement_type=StockMovement.MovementType.RESERVE, cigar=item.cigar, purchase_batch=batch,
+            sales_order=order, sales_order_item=item, quantity=quantity, operator=operator, context=context, note=note,
+        )
+        item_cost += batch.unit_cost_cny * quantity
+        remaining_boxes -= take_boxes
+        if not remaining_boxes:
+            break
+    return item_cost.quantize(MONEY_PLACES)
+
+
+@transaction.atomic
+def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note=""):
+    """Confirm an unpaid draft and reserve its in-stock stick items."""
+    operator = _require_operator(operator)
+    context = agent_context or AgentContext(command_name="confirm_sales_order")
+    order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, "销售单ID"))
+    if (order.fulfillment_status != SalesOrder.FulfillmentStatus.DRAFT or
+            order.payment_status != SalesOrder.PaymentStatus.UNPAID):
+        raise OrderServiceError("当前订单不能确认")
+    total_cost = Decimal("0.00")
+    for item in order.items.select_for_update().select_related("cigar").order_by("id"):
+        if item.fulfillment_type == SalesOrderItem.FulfillmentType.PREORDER:
+            item_cost = Decimal("0.00")
+        elif item.sale_unit == SalesOrderItem.SaleUnit.BOX:
+            item_cost = _reserve_box_stock_fifo(order=order, item=item, operator=operator, context=context, note=note)
+        else:
+            item_cost = _reserve_stock_fifo(
+                order=order, item=item, cigar=item.cigar, quantity=item.quantity,
+                operator=operator, context=context, note=note,
+            )
+        item.cost = Decimal("0.00")
+        item.unit_cost = Decimal("0.00")
+        item.profit = Decimal("0.00")
+        item.save(update_fields=["cost", "unit_cost", "profit"])
+    now = timezone.now()
+    order.total_cost = Decimal("0.00")
+    order.total_profit = Decimal("0.00")
+    order.fulfillment_status = SalesOrder.FulfillmentStatus.CONFIRMED
+    order.status = "pending_payment"
+    order.confirmed_at = now
+    order.locked, order.locked_by, order.locked_at = True, operator, now
+    if note:
+        order.note = note
+    order.save()
+    _record_order_event(order, operator=operator, context=context, note=note, metadata={
+        "fulfillment_status": order.fulfillment_status, "payment_status": order.payment_status,
+    })
+    return order
+
+
+@transaction.atomic
+def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None, note=""):
+    """Release reservations of a confirmed order before shipment."""
+    operator = _require_operator(operator)
+    context = agent_context or AgentContext(command_name="cancel_confirmed_sales_order")
+    order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, "销售单ID"))
+    if order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED:
+        raise OrderServiceError("当前订单不能取消")
+    if order.payment_status not in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PAID):
+        raise OrderServiceError("当前付款状态不能取消")
+    if StockAllocation.objects.filter(
+        sales_order_item__sales_order=order,
+        status=StockAllocation.Status.FULFILLED,
+    ).exists():
+        raise OrderServiceError("已出库订单不能取消")
+    if SalesShipment.objects.filter(sales_order=order).exists():
+        raise OrderServiceError("已出库订单不能取消")
+    now = timezone.now()
+    allocations = StockAllocation.objects.select_for_update().filter(
+        sales_order_item__sales_order=order, status=StockAllocation.Status.RESERVED,
+    ).select_related("sales_order_item__cigar").order_by("purchase_batch_id", "id")
+    for allocation in allocations:
+        batch = PurchaseBatch.objects.select_for_update().get(id=allocation.purchase_batch_id)
+        batch.remaining += allocation.quantity
+        if _allocation_uses_boxes(allocation=allocation, batch=batch):
+            batch.available_box_quantity += allocation.quantity // batch.box_size
+            fields = ["remaining", "available_box_quantity"]
+        else:
+            batch.available_stick_quantity += allocation.quantity
+            fields = ["remaining", "available_stick_quantity"]
+        batch.save(update_fields=fields)
+        allocation.status, allocation.released_at = StockAllocation.Status.RELEASED, now
+        allocation.save(update_fields=["status", "released_at"])
+        _record_movement(
+            movement_type=StockMovement.MovementType.RELEASE_RESERVATION,
+            cigar=allocation.sales_order_item.cigar, purchase_batch=batch, sales_order=order,
+            sales_order_item=allocation.sales_order_item, quantity=allocation.quantity,
+            operator=operator, context=context, note=note,
+        )
+    order.fulfillment_status = SalesOrder.FulfillmentStatus.CANCELLED
+    order.payment_status = (SalesOrder.PaymentStatus.REFUND_PENDING if order.payment_status == SalesOrder.PaymentStatus.PAID else SalesOrder.PaymentStatus.UNPAID)
+    order.status, order.cancelled_at = "cancelled", now
+    if note:
+        order.note = note
+    order.save()
+    _record_order_event(order, operator=operator, context=context, note=note, metadata={
+        "fulfillment_status": order.fulfillment_status, "payment_status": order.payment_status,
+    })
+    return order
+
+
+@transaction.atomic
+def split_purchase_batch_box(*, batch_id, operator, agent_context=None, note=''):
+    """Convert one fully available physical box into individually available sticks."""
+    operator = _require_operator(operator)
+    context = agent_context or AgentContext(command_name='split_purchase_batch_box')
+    try:
+        batch = PurchaseBatch.objects.select_for_update().get(
+            id=_to_positive_int(batch_id, '批次ID')
+        )
+    except PurchaseBatch.DoesNotExist:
+        raise OrderServiceError('批次不存在')
+    if not batch.box_size:
+        raise OrderServiceError('散支批次不能拆盒')
+    if batch.physical_box_quantity < 1:
+        raise OrderServiceError('批次没有完整物理盒可拆')
+    if batch.available_box_quantity < 1:
+        raise OrderServiceError('批次没有可用完整盒可拆')
+
+    batch.physical_box_quantity -= 1
+    batch.available_box_quantity -= 1
+    batch.physical_stick_quantity += batch.box_size
+    batch.available_stick_quantity += batch.box_size
+    batch.save(update_fields=[
+        'physical_box_quantity', 'available_box_quantity',
+        'physical_stick_quantity', 'available_stick_quantity',
+    ])
+    _record_movement(
+        movement_type=StockMovement.MovementType.SPLIT_BOX,
+        cigar=batch.cigar, purchase_batch=batch, quantity=batch.box_size,
+        operator=operator, context=context, note=note,
+    )
+    return batch
+
+
 def create_purchase_order(*, supplier_id, items, exchange_rate, operator, note='',
                           agent_context=None):
     """Create an immutable purchase order draft. It does not receive stock."""
@@ -346,13 +751,24 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
         fulfillment_type = str(raw_item.get('fulfillment_type') or SalesOrderItem.FulfillmentType.IN_STOCK)
         if fulfillment_type not in SalesOrderItem.FulfillmentType.values:
             raise OrderServiceError(f'第{idx}个商品履约类型错误')
+        sale_unit = str(raw_item.get('sale_unit') or SalesOrderItem.SaleUnit.STICK)
+        if sale_unit not in SalesOrderItem.SaleUnit.values:
+            raise OrderServiceError(f'第{idx}个商品销售单位错误')
+        if sale_unit == SalesOrderItem.SaleUnit.BOX:
+            sale_quantity = _to_positive_int(raw_item.get('sale_quantity'), f'第{idx}个商品销售盒数')
+            box_size = _to_positive_int(raw_item.get('box_size'), f'第{idx}个商品包装支数')
+            if quantity != sale_quantity * box_size:
+                raise OrderServiceError(f'第{idx}个商品盒装数量与包装快照不一致')
+        else:
+            sale_quantity = quantity
+            box_size = None
 
         try:
             cigar = Cigar.objects.get(id=cigar_id)
         except Cigar.DoesNotExist:
             raise OrderServiceError(f'第{idx}个商品不存在')
 
-        revenue = (unit_price * quantity).quantize(MONEY_PLACES)
+        revenue = (unit_price * sale_quantity).quantize(MONEY_PLACES)
         item = SalesOrderItem.objects.create(
             sales_order=order,
             cigar=cigar,
@@ -361,35 +777,44 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
             unit_cost=Decimal('0.00'),
             revenue=revenue,
             cost=Decimal('0.00'),
-            profit=revenue,
+            profit=Decimal('0.00'),
             fulfillment_type=fulfillment_type,
+            sale_unit=sale_unit,
+            sale_quantity=sale_quantity,
+            box_size=box_size,
         )
 
-        item_cost = Decimal('0.00')
         if fulfillment_type == SalesOrderItem.FulfillmentType.IN_STOCK:
-            item_cost = _reserve_stock_fifo(
-                order=order,
-                item=item,
-                cigar=cigar,
-                quantity=quantity,
-                operator=operator,
-                context=context,
-                note=note,
-            )
+            if sale_unit == SalesOrderItem.SaleUnit.BOX:
+                _reserve_box_stock_fifo(
+                    order=order, item=item, operator=operator, context=context, note=note,
+                )
+            else:
+                _reserve_stock_fifo(
+                    order=order, item=item, cigar=cigar, quantity=quantity,
+                    operator=operator, context=context, note=note,
+                )
 
-        unit_cost = (item_cost / quantity).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
-        item.unit_cost = unit_cost
-        item.cost = item_cost.quantize(MONEY_PLACES)
-        item.profit = (revenue - item.cost).quantize(MONEY_PLACES)
+        item.unit_cost = Decimal('0.00')
+        item.cost = Decimal('0.00')
+        item.profit = Decimal('0.00')
         item.save(update_fields=['unit_cost', 'cost', 'profit'])
 
         total_revenue += revenue
         total_cost += item.cost
 
     order.total_revenue = total_revenue.quantize(MONEY_PLACES)
+    order.fulfillment_status = SalesOrder.FulfillmentStatus.CONFIRMED
+    order.payment_status = SalesOrder.PaymentStatus.UNPAID
+    order.locked = True
+    order.locked_by = operator
+    order.confirmed_at = timezone.now()
     order.total_cost = total_cost.quantize(MONEY_PLACES)
-    order.total_profit = (total_revenue - total_cost).quantize(MONEY_PLACES)
-    order.save(update_fields=['total_revenue', 'total_cost', 'total_profit'])
+    order.total_profit = Decimal('0.00')
+    order.goods_amount_cny = order.total_revenue
+    order.customer_transport_fee_cny = Decimal('0.00')
+    order.amount_due_cny = order.total_revenue
+    order.save(update_fields=['total_revenue', 'total_cost', 'total_profit', 'goods_amount_cny', 'customer_transport_fee_cny', 'amount_due_cny', 'fulfillment_status', 'payment_status', 'locked', 'locked_by', 'confirmed_at'])
 
     _record_order_event(
         order,
@@ -404,10 +829,10 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
 def _reserve_stock_fifo(*, order, item, cigar, quantity, operator, context, note=''):
     batches = list(
         PurchaseBatch.objects.select_for_update()
-        .filter(cigar=cigar, remaining__gt=0)
+        .filter(cigar=cigar, available_stick_quantity__gt=0)
         .order_by('purchased_at', 'id')
     )
-    available = sum(batch.remaining for batch in batches)
+    available = sum(batch.available_stick_quantity for batch in batches)
     if available < quantity:
         raise InsufficientStockError(
             f'{cigar.name or cigar.english_name} 现货库存不足',
@@ -423,9 +848,10 @@ def _reserve_stock_fifo(*, order, item, cigar, quantity, operator, context, note
     for batch in batches:
         if remaining_to_allocate <= 0:
             break
-        take = min(batch.remaining, remaining_to_allocate)
+        take = min(batch.available_stick_quantity, remaining_to_allocate)
         batch.remaining -= take
-        batch.save(update_fields=['remaining'])
+        batch.available_stick_quantity -= take
+        batch.save(update_fields=['remaining', 'available_stick_quantity'])
         StockAllocation.objects.create(
             sales_order_item=item,
             purchase_batch=batch,
@@ -448,46 +874,20 @@ def _reserve_stock_fifo(*, order, item, cigar, quantity, operator, context, note
     return item_cost.quantize(MONEY_PLACES)
 
 
+def _remove_remaining_cost(batch, quantity):
+    """Return exact removed cost, assigning rounding residue to the last unit."""
+    if quantity > batch.physical_remaining:
+        raise InsufficientStockError('批次物理库存不足')
+    if quantity == batch.physical_remaining:
+        return batch.remaining_cost_cny
+    return (batch.remaining_cost_cny * quantity / batch.physical_remaining).quantize(MONEY_PLACES)
+
 @transaction.atomic
 def confirm_payment(*, sales_order_id, operator, agent_context=None, note=''):
-    operator = _require_operator(operator)
-    context = agent_context or AgentContext(command_name='confirm_payment')
-    order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, '销售单ID'))
-    if order.status == 'paid':
-        return order
-    if order.status == 'cancelled':
-        raise OrderServiceError('已取消订单不能确认付款')
-    if order.status not in ('pending_payment', 'draft'):
-        raise OrderServiceError(f'当前状态不能确认付款: {order.status}')
-
-    now = timezone.now()
-    allocations = (
-        StockAllocation.objects.select_for_update()
-        .filter(sales_order_item__sales_order=order, status=StockAllocation.Status.RESERVED)
-        .select_related('purchase_batch', 'sales_order_item__cigar')
-    )
-    for alloc in allocations:
-        alloc.status = StockAllocation.Status.FULFILLED
-        alloc.fulfilled_at = now
-        alloc.save(update_fields=['status', 'fulfilled_at'])
-        _record_movement(
-            movement_type=StockMovement.MovementType.SHIP,
-            cigar=alloc.sales_order_item.cigar,
-            purchase_batch=alloc.purchase_batch,
-            sales_order=order,
-            sales_order_item=alloc.sales_order_item,
-            quantity=alloc.quantity,
-            operator=operator,
-            context=context,
-            note=note,
-        )
-
-    order.status = 'paid'
-    if note:
-        order.note = note
-    order.save(update_fields=['status', 'note'] if note else ['status'])
-    _record_order_event(order, operator=operator, context=context, note=note, metadata={'status': order.status})
-    return order
+    """Disabled legacy shortcut; receipt and shipment are independent facts."""
+    _require_operator(operator)
+    SalesOrder.objects.get(id=_to_positive_int(sales_order_id, '销售单ID'))
+    raise OrderServiceError('confirm_payment 已停用；请使用独立的收款与出库服务')
 
 
 @transaction.atomic
@@ -499,6 +899,17 @@ def cancel_sales_order(*, sales_order_id, operator, agent_context=None, note='')
         return order
     if order.status == 'paid':
         raise OrderServiceError('已付款订单不能用第一版取消命令自动回滚库存')
+    if order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED:
+        raise OrderServiceError('当前订单不能取消')
+    if order.payment_status != SalesOrder.PaymentStatus.UNPAID:
+        raise OrderServiceError('当前付款状态不能取消')
+    if StockAllocation.objects.filter(
+        sales_order_item__sales_order=order,
+        status=StockAllocation.Status.FULFILLED,
+    ).exists():
+        raise OrderServiceError('已出库订单不能取消')
+    if SalesShipment.objects.filter(sales_order=order).exists():
+        raise OrderServiceError('已出库订单不能取消')
 
     now = timezone.now()
     allocations = (
@@ -509,7 +920,13 @@ def cancel_sales_order(*, sales_order_id, operator, agent_context=None, note='')
     for alloc in allocations:
         batch = PurchaseBatch.objects.select_for_update().get(id=alloc.purchase_batch_id)
         batch.remaining += alloc.quantity
-        batch.save(update_fields=['remaining'])
+        if _allocation_uses_boxes(allocation=alloc, batch=batch):
+            batch.available_box_quantity += alloc.quantity // batch.box_size
+            shape_field = 'available_box_quantity'
+        else:
+            batch.available_stick_quantity += alloc.quantity
+            shape_field = 'available_stick_quantity'
+        batch.save(update_fields=['remaining', shape_field])
         alloc.status = StockAllocation.Status.RELEASED
         alloc.released_at = now
         alloc.save(update_fields=['status', 'released_at'])
@@ -526,16 +943,17 @@ def cancel_sales_order(*, sales_order_id, operator, agent_context=None, note='')
         )
 
     order.status = 'cancelled'
+    order.fulfillment_status = SalesOrder.FulfillmentStatus.CANCELLED
     if note:
         order.note = note
-    order.save(update_fields=['status', 'note'] if note else ['status'])
+    order.save(update_fields=['status', 'fulfillment_status', 'note'] if note else ['status', 'fulfillment_status'])
     _record_order_event(order, operator=operator, context=context, note=note, metadata={'status': order.status})
     return order
 
 
 @transaction.atomic
 def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None,
-                 unit_cost_cny=None, adjustment_type=AdjustmentRecord.AdjustType.LOSS,
+                 unit_cost_cny=None, adjustment_type=AdjustmentRecord.AdjustType.LOSS, inventory_form='stick',
                  agent_context=None):
     """Adjust available stock. Negative adjustments never allow stock below zero."""
     operator = _require_operator(operator)
@@ -543,6 +961,10 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
     delta = _to_int(quantity_delta, '库存修正数量')
     if delta == 0:
         raise OrderServiceError('库存修正数量不能为 0')
+    if inventory_form not in ('stick', 'box'):
+        raise OrderServiceError('库存修正形态必须是 stick 或 box')
+    if inventory_form == 'box' and not batch_id:
+        raise OrderServiceError('box 修正必须指定批次')
     try:
         cigar = Cigar.objects.get(id=_to_positive_int(cigar_id, '雪茄ID'))
     except Cigar.DoesNotExist:
@@ -556,9 +978,28 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
             batch_id=batch_id,
             unit_cost_cny=unit_cost_cny,
         )
-        batch.quantity += delta
+        if inventory_form == 'box':
+            if not batch.box_size:
+                raise OrderServiceError('散支批次不能按 box 修正')
+            if delta % batch.box_size:
+                raise OrderServiceError('box 修正数量必须是包装支数的整数倍')
+            shape_quantity = delta // batch.box_size
+            available_field, physical_field = 'available_box_quantity', 'physical_box_quantity'
+        else:
+            shape_quantity = delta
+            available_field, physical_field = 'available_stick_quantity', 'physical_stick_quantity'
+        added_cost = (batch.unit_cost_cny * delta).quantize(MONEY_PLACES)
+        batch.positive_adjustment_quantity += delta
+        batch.positive_adjustment_cost_cny += added_cost
         batch.remaining += delta
-        batch.save(update_fields=['quantity', 'remaining'])
+        batch.physical_remaining += delta
+        batch.remaining_cost_cny += added_cost
+        setattr(batch, available_field, getattr(batch, available_field) + shape_quantity)
+        setattr(batch, physical_field, getattr(batch, physical_field) + shape_quantity)
+        batch.save(update_fields=[
+            'positive_adjustment_quantity', 'positive_adjustment_cost_cny',
+            'remaining', 'physical_remaining', available_field, physical_field, 'remaining_cost_cny',
+        ])
         _record_movement(
             movement_type=StockMovement.MovementType.ADJUSTMENT,
             cigar=cigar,
@@ -572,7 +1013,15 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
 
     quantity_to_remove = abs(delta)
     batches = _adjustment_batches(cigar=cigar, batch_id=batch_id)
-    available = sum(batch.remaining for batch in batches)
+    if inventory_form == 'box':
+        batch = batches[0]
+        if not batch.box_size:
+            raise OrderServiceError('散支批次不能按 box 修正')
+        if quantity_to_remove % batch.box_size:
+            raise OrderServiceError('box 修正数量必须是包装支数的整数倍')
+        available = batch.available_box_quantity * batch.box_size
+    else:
+        available = sum(batch.available_stick_quantity for batch in batches)
     if available < quantity_to_remove:
         raise InsufficientStockError(
             f'{cigar.name or cigar.english_name} 可修正库存不足',
@@ -584,9 +1033,28 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
     for batch in batches:
         if remaining_to_remove <= 0:
             break
-        take = min(batch.remaining, remaining_to_remove)
+        if inventory_form == 'box':
+            take = min(batch.available_box_quantity, remaining_to_remove // batch.box_size) * batch.box_size
+        else:
+            take = min(batch.available_stick_quantity, remaining_to_remove)
+        if not take:
+            continue
+        cost = _remove_remaining_cost(batch, take)
+        batch.adjustment_cost_cny += cost
         batch.remaining -= take
-        batch.save(update_fields=['remaining'])
+        if inventory_form == 'box':
+            batch.available_box_quantity -= take // batch.box_size
+            batch.physical_box_quantity -= take // batch.box_size
+            shape_fields = ['available_box_quantity', 'physical_box_quantity']
+        else:
+            batch.available_stick_quantity -= take
+            batch.physical_stick_quantity -= take
+            shape_fields = ['available_stick_quantity', 'physical_stick_quantity']
+        batch.physical_remaining -= take
+        batch.remaining_cost_cny -= cost
+        batch.save(update_fields=[
+            'remaining', 'physical_remaining', *shape_fields, 'remaining_cost_cny', 'adjustment_cost_cny',
+        ])
         last_batch = batch
         _record_movement(
             movement_type=StockMovement.MovementType.ADJUSTMENT,
@@ -603,6 +1071,7 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
             type=adjustment_type,
             quantity=take,
             unit_cost_cny=batch.unit_cost_cny,
+            cost_cny=cost,
             operator=operator,
             reason=reason,
         )
@@ -632,6 +1101,8 @@ def _get_or_create_adjustment_batch(*, cigar, quantity, operator, batch_id=None,
     if unit_cost_cny is None:
         raise OrderServiceError('正向库存修正需要 unit_cost_cny')
     unit_cost = _to_signed_money(unit_cost_cny, '成本单价')
+    if unit_cost < 0:
+        raise OrderServiceError('成本单价不能为负数')
     supplier, _ = Supplier.objects.get_or_create(name='库存修正')
     purchase_order = PurchaseOrder.objects.create(
         supplier=supplier,
@@ -653,8 +1124,15 @@ def _get_or_create_adjustment_batch(*, cigar, quantity, operator, batch_id=None,
     return PurchaseBatch.objects.create(
         purchase_order_item=purchase_item,
         cigar=cigar,
+        original_cost_cny=Decimal('0.00'),
+        positive_adjustment_quantity=0,
+        positive_adjustment_cost_cny=Decimal('0.00'),
+        adjustment_cost_cny=Decimal('0.00'),
         quantity=0,
         remaining=0,
+        physical_remaining=0,
+        remaining_cost_cny=Decimal('0.00'),
+        sold_cost_cny=Decimal('0.00'),
         unit_cost_cny=unit_cost,
     )
 
@@ -686,12 +1164,38 @@ def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, n
 
     batches = []
     for item in items:
+
+        if item.box_size:
+            full_boxes, loose_sticks = divmod(item.quantity, item.box_size)
+            packaging = {
+                'box_size': item.box_size,
+                'original_box_quantity': full_boxes,
+                'original_stick_quantity': loose_sticks,
+                'physical_box_quantity': full_boxes,
+                'available_box_quantity': full_boxes,
+                'physical_stick_quantity': loose_sticks,
+                'available_stick_quantity': loose_sticks,
+            }
+        else:
+            packaging = {
+                'original_stick_quantity': item.quantity,
+                'physical_stick_quantity': item.quantity,
+                'available_stick_quantity': item.quantity,
+            }
         batch = PurchaseBatch.objects.create(
             purchase_order_item=item,
             cigar=item.cigar,
             quantity=item.quantity,
             remaining=item.quantity,
+            physical_remaining=item.quantity,
+            original_cost_cny=(item.quantity * item.unit_price_cny).quantize(MONEY_PLACES),
+            positive_adjustment_quantity=0,
+            positive_adjustment_cost_cny=Decimal('0.00'),
+            adjustment_cost_cny=Decimal('0.00'),
+            remaining_cost_cny=(item.quantity * item.unit_price_cny).quantize(MONEY_PLACES),
+            sold_cost_cny=Decimal('0.00'),
             unit_cost_cny=item.unit_price_cny,
+            **packaging,
         )
         _record_movement(
             movement_type=StockMovement.MovementType.RECEIVE,

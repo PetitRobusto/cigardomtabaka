@@ -137,6 +137,51 @@ class AccountingOperationTest(TestCase):
         self.assertEqual(self.snapshot(self.cny).cny_book_cost, Decimal('0.00'))
         self.assertEqual(self.snapshot(self.rub).cny_book_cost, Decimal('1000.00'))
 
+    def test_exchange_acquires_sqlite_writer_gate_before_locking_accounts(self):
+        call_order = []
+        original_lock_accounts = services._lock_accounts
+
+        def record_writer_gate(*args, **kwargs):
+            call_order.append('writer_gate')
+
+        def record_lock_accounts(*args, **kwargs):
+            call_order.append('lock_accounts')
+            return original_lock_accounts(*args, **kwargs)
+
+        with patch.object(
+            services, '_acquire_sqlite_writer_gate', create=True,
+            side_effect=record_writer_gate,
+        ) as writer_gate, patch.object(
+            services, '_lock_accounts', side_effect=record_lock_accounts,
+        ) as lock_accounts:
+            with self.assertRaises(LedgerError):
+                exchange_to_rub(
+                    self.cny, self.rub, '1', '12', self.business_date,
+                    self.operator, 'writer-gate-ordering',
+                )
+
+        writer_gate.assert_called_once_with()
+        self.assertEqual(lock_accounts.call_count, 1)
+        self.assertLess(call_order.index('writer_gate'), call_order.index('lock_accounts'))
+
+    def test_sqlite_writer_gate_equal_write_does_not_advance_sequence(self):
+        first = services._acquire_sqlite_writer_gate()
+        second = services._acquire_sqlite_writer_gate()
+
+        self.assertEqual(first.next_value, 1)
+        self.assertEqual(second.next_value, 1)
+        self.assertEqual(LedgerSequence.objects.get(name='global').next_value, 1)
+
+    def test_exchange_advances_sequence_once_after_writer_gate(self):
+        self.opening(self.cny, '100', '100', 'gate-sequence-opening')
+        transaction = exchange_to_rub(
+            self.cny, self.rub, '100', '1200', self.business_date,
+            self.operator, 'gate-sequence-exchange',
+        )
+
+        self.assertEqual(transaction.effective_sequence, 2)
+        self.assertEqual(LedgerSequence.objects.get(name='global').next_value, 3)
+
     def test_foreign_partial_and_final_outflow_use_moving_average_then_exact_remainder(self):
         self.opening(self.usdt, '3', '10', 'usdt-opening')
         target = self.account('USDT target', 'USDT', 'operations-usdt-target')

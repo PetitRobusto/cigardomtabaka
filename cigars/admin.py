@@ -82,13 +82,17 @@ class SalesOrderAdmin(admin.ModelAdmin):
 
 @admin.register(PurchaseBatch)
 class PurchaseBatchAdmin(admin.ModelAdmin):
-    list_display = ['cigar', 'quantity', 'remaining', 'unit_cost_cny', 'purchased_at']
+    list_display = [
+        'cigar', 'quantity', 'positive_adjustment_quantity', 'physical_remaining', 'remaining',
+        'original_cost_cny', 'positive_adjustment_cost_cny', 'remaining_cost_cny',
+        'sold_cost_cny', 'adjustment_cost_cny', 'unit_cost_cny', 'purchased_at',
+    ]
     list_filter = ['cigar__brand']
 
 
 @admin.register(AdjustmentRecord)
 class AdjustmentRecordAdmin(admin.ModelAdmin):
-    list_display = ['type', 'cigar', 'quantity', 'unit_cost_cny', 'operator', 'created_at']
+    list_display = ['type', 'cigar', 'quantity', 'unit_cost_cny', 'cost_cny', 'operator', 'created_at']
     list_filter = ['type']
 
 

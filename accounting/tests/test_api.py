@@ -276,6 +276,9 @@ class AccountingApiPermissionTest(TestCase):
         date_filtered = self.client.get('/api/accounting/transactions/?business_date_from=2026-08-10&business_date_to=2026-08-10')
         invalid_filter = self.client.get('/api/accounting/transactions/?account_id=not-an-id')
         inverted_dates = self.client.get('/api/accounting/transactions/?business_date_from=2026-08-11&business_date_to=2026-08-10')
+        limited = self.client.get('/api/accounting/transactions/?limit=1')
+        invalid_limit = self.client.get('/api/accounting/transactions/?limit=0')
+        excessive_limit = self.client.get('/api/accounting/transactions/?limit=501')
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
@@ -293,6 +296,9 @@ class AccountingApiPermissionTest(TestCase):
         self.assertEqual(date_filtered.json(), response.json())
         self.assertEqual(invalid_filter.status_code, 400)
         self.assertEqual(inverted_dates.status_code, 400)
+        self.assertEqual(len(limited.json()['transactions']), 1)
+        self.assertEqual(invalid_limit.status_code, 400)
+        self.assertEqual(excessive_limit.status_code, 400)
 
     def test_all_endpoints_reject_anonymous_and_authenticated_nonstaff_as_json(self):
         endpoints = [

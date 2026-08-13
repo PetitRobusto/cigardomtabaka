@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { tourStepsForRoute } from './guideInteractions';
 import { useLocation } from 'react-router-dom';
 import type { GuideCompletionAction } from './guideInteractions';
+import { shouldReuseTarget } from './targetTransition';
 import { createMissingTargetReporter } from './missingTargetReporter';
 import { FOCUSABLE_SELECTOR } from './focusables';
 
@@ -37,7 +38,7 @@ export default function ContextTour({ stepId, onAction, onMissingTarget, busy = 
     if (!step) { missingTarget.report(); return () => missingTarget.cancel(); }
     const updateTarget = () => {
       const nextTarget = document.querySelector<HTMLElement>(step.target);
-      if (nextTarget === targetRef.current) { setTargetFound(Boolean(nextTarget)); return; }
+      if (shouldReuseTarget(nextTarget, targetRef.current)) { setTargetFound(true); return; }
       targetRef.current?.classList.remove('guide-target-highlight');
       targetRef.current = nextTarget;
       if (!nextTarget) { setTargetFound(false); missingTarget.report(); return; }

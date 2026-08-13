@@ -3,10 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { completeGuide, fetchGuideStatus } from '../../api';
 import { useAuthStore } from '../../store/authStore';
 import { canShowGuide } from './guideState';
-import { completionForAction, createGuideActionRunner, isGuideExcludedRoute } from './guideInteractions';
+import { createGuideActionRunner, guideActionPlan, isGuideExcludedRoute } from './guideInteractions';
 import WelcomeGuide from './WelcomeGuide';
 import ContextTour from './ContextTour';
-import type { GuideCompletionAction } from './guideInteractions';
+import type { GuideActionScope, GuideCompletionAction } from './guideInteractions';
 
 export default function GuideController() {
   const { user, isAuthenticated, isLoading } = useAuthStore();
@@ -41,21 +41,27 @@ export default function GuideController() {
     if (requestedTour) navigate(location.pathname + location.search + location.hash, { replace: true, state: null });
   }, [location.hash, location.pathname, location.search, navigate, requestedTour]);
 
-  const handleAction = useCallback(async (action: GuideCompletionAction): Promise<boolean> => {
+  const handleAction = useCallback(async (action: GuideCompletionAction, scope: GuideActionScope = 'welcome'): Promise<boolean> => {
+    const plan = guideActionPlan(action, scope);
+    if (!plan.requiresPersistence) {
+      if (plan.close) clearTourState();
+      return true;
+    }
     if (actionRunner.isBusy()) return false;
-    const completion = completionForAction(action);
-    if (!completion.open) { setWelcomeOpen(false); clearTourState(); }
     setActionBusy(true);
     const succeeded = await actionRunner.run(action, error => setStatusError(error.message));
     setActionBusy(false);
-    if (succeeded) setStatusError('');
+    if (succeeded) {
+      setStatusError('');
+      if (plan.close) setWelcomeOpen(false);
+    }
     return succeeded;
   }, [actionRunner, clearTourState]);
 
   const onEscape = useCallback((event: KeyboardEvent) => {
     if (event.key !== 'Escape' || (!welcomeOpen && !requestedTour)) return;
     event.preventDefault();
-    void handleAction('escape');
+    void handleAction('escape', welcomeOpen ? 'welcome' : 'context');
   }, [handleAction, requestedTour, welcomeOpen]);
 
   useEffect(() => {
@@ -73,6 +79,6 @@ export default function GuideController() {
   return <>
     {statusError && <div role="status" className="fixed bottom-4 left-4 z-[100] flex max-w-sm items-start gap-3 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span>{statusError} 已安全关闭引导，可稍后从帮助中心重播。</span><button type="button" aria-label="关闭引导错误" onClick={() => setStatusError('')} className="shrink-0 text-lg leading-none">×</button></div>}
     {welcomeOpen && <WelcomeGuide busy={actionBusy} stepIndex={stepIndex} onPrevious={() => setStepIndex(value => Math.max(0, value - 1))} onNext={() => setStepIndex(value => value + 1)} onAction={async action => { const succeeded = await handleAction(action); if (succeeded && action === 'finish') navigate('/sales', { state: { guideTourId: 'sales-orders' } }); }} />}
-    {!welcomeOpen && requestedTour && <><style>{'.guide-target-highlight{position:relative;z-index:70;outline:3px solid #7A1F2E;outline-offset:5px;box-shadow:0 0 0 9999px rgba(44,36,22,.36),0 8px 28px rgba(122,31,46,.25);border-radius:8px;}'}</style><ContextTour busy={actionBusy} stepId={requestedTour} onAction={handleAction} onMissingTarget={handleMissingTarget} /></>}
+    {!welcomeOpen && requestedTour && <><style>{'.guide-target-highlight{position:relative;z-index:70;outline:3px solid #7A1F2E;outline-offset:5px;box-shadow:0 0 0 9999px rgba(44,36,22,.36),0 8px 28px rgba(122,31,46,.25);border-radius:8px;}'}</style><ContextTour busy={actionBusy} stepId={requestedTour} onAction={action => { void handleAction(action, 'context'); }} onMissingTarget={handleMissingTarget} /></>}
   </>;
 }

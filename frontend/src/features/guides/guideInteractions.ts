@@ -34,6 +34,12 @@ export function completionForAction(action: GuideCompletionAction): { complete: 
   return { complete: true, open: false };
 }
 
+export type GuideActionScope = 'welcome' | 'context';
+
+export function guideActionPlan(_action: GuideCompletionAction, scope: GuideActionScope): { requiresPersistence: boolean; close: boolean } {
+  return { requiresPersistence: scope === 'welcome', close: true };
+}
+
 export function createGuideActionRunner(complete: () => Promise<unknown>) {
   let busy = false;
   return {

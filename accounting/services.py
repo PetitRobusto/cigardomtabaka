@@ -371,6 +371,8 @@ def _post_transaction_once(*, transaction_type, business_date, postings, operato
 
 def post_transaction(*, transaction_type, business_date, postings, operator,
                      idempotency_key, description='', source_type='', source_id=''):
+    if transaction_type == LedgerTransaction.TransactionType.DAY1_OPENING:
+        raise LedgerError('Day 1 期初资产只能通过一次性初始化服务入账')
     try:
         postings = tuple(postings)
     except TypeError:
@@ -406,6 +408,62 @@ def _retry_sqlite_locked(operation):
                     raise
                 time.sleep(_sqlite_retry_delay(attempt, 0.1))
     return retrying_operation
+
+
+def _post_day1_opening(*, business_date, postings, operator, idempotency_key,
+                       source_id, description='公司 Day 1 期初资产初始化'):
+    """Use the single ledger writer after enforcing the one-time opening shape."""
+    if not isinstance(source_id, str) or not source_id.isdigit():
+        raise LedgerError('Day 1 初始化来源无效')
+    try:
+        postings = tuple(postings)
+    except TypeError:
+        raise LedgerError('Day 1 分录必须是可迭代对象')
+
+    account_assets = []
+    inventory_assets = []
+    capital = []
+    for posting in postings:
+        if not isinstance(posting, PostingInput):
+            raise LedgerError('Day 1 分录必须是 PostingInput')
+        if posting.account is not None:
+            if posting.category or posting.amount <= 0 or posting.cny_amount < 0:
+                raise LedgerError('Day 1 账户资产分录无效')
+            account_assets.append(posting)
+        elif posting.category == LedgerPosting.Category.INVENTORY:
+            if posting.amount <= 0 or posting.cny_amount <= 0:
+                raise LedgerError('Day 1 库存资产分录必须为正')
+            inventory_assets.append(posting)
+        elif posting.category == LedgerPosting.Category.OPENING_CAPITAL:
+            if posting.amount >= 0 or posting.cny_amount >= 0:
+                raise LedgerError('Day 1 期初资本分录必须为负')
+            capital.append(posting)
+        else:
+            raise LedgerError('Day 1 期初分录包含不允许的内部分类')
+
+    if not account_assets and not inventory_assets:
+        raise LedgerError('Day 1 期初资产必须大于零')
+    if len(inventory_assets) > 1 or len(capital) != 1:
+        raise LedgerError('Day 1 必须包含至多一条库存资产和恰好一条期初资本分录')
+    asset_total = sum(
+        (posting.cny_amount for posting in (*account_assets, *inventory_assets)),
+        Decimal('0.00'),
+    ).quantize(CNY_PLACES)
+    capital_amount = capital[0].cny_amount.quantize(CNY_PLACES)
+    if asset_total <= 0 or capital_amount != -asset_total:
+        raise LedgerError('Day 1 期初资本必须精确抵销全部资产')
+
+    return _post_transaction_once(
+        transaction_type=LedgerTransaction.TransactionType.DAY1_OPENING,
+        business_date=business_date,
+        postings=postings,
+        operator=operator,
+        idempotency_key=idempotency_key,
+        description=description,
+        source_type='day1_initialization',
+        source_id=source_id,
+        _writer_gate=False,
+    )
 
 def _positive_amount(value, currency, field_name):
 

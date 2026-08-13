@@ -5,12 +5,16 @@ Privnote v3 测试套件
 import json
 from decimal import Decimal
 from datetime import timedelta
+from unittest.mock import patch
 from django.test import TestCase, Client
 from django.utils import timezone
 from django.contrib.auth.hashers import check_password
+from django.core.exceptions import ValidationError
 
 from privnote.models import Privnote, PaymentMethod
+from privnote.services import build_payment_data
 from cigars.models import User, Brand, Cigar, SalesOrder, SalesOrderItem, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, CigarPrice
+from accounting.models import FundAccount
 
 
 # ═══════════════════════════════════════════════════
@@ -33,7 +37,7 @@ def _create_cigar():
     return cigar
 
 
-def _create_batch(cigar, remaining=50, box_size=25, unit_cost=200.0):
+def _create_batch(cigar, remaining=50, box_size=25, unit_cost=200.0, loose=False):
     """创建一个进货批次"""
     import uuid
     from cigars.models import Supplier
@@ -46,9 +50,27 @@ def _create_batch(cigar, remaining=50, box_size=25, unit_cost=200.0):
         purchase_order=po, cigar=cigar, quantity=remaining,
         box_size=box_size, unit_price_rub=2400, unit_price_cny=unit_cost
     )
+    packaging = {}
+    if loose:
+        original_boxes, original_sticks = divmod(remaining, box_size)
+        packaging = {
+            'original_box_quantity': original_boxes,
+            'original_stick_quantity': original_sticks,
+            'physical_stick_quantity': remaining,
+            'available_stick_quantity': remaining,
+        }
     batch = PurchaseBatch.objects.create(
         purchase_order_item=poi, cigar=cigar,
-        quantity=remaining, remaining=remaining, unit_cost_cny=unit_cost
+        quantity=remaining, remaining=remaining,
+        physical_remaining=remaining,
+        remaining_cost_cny=Decimal(str(remaining)) * Decimal(str(unit_cost)),
+        original_cost_cny=Decimal(str(remaining)) * Decimal(str(unit_cost)),
+        positive_adjustment_quantity=0,
+        positive_adjustment_cost_cny=Decimal('0.00'),
+        adjustment_cost_cny=Decimal('0.00'),
+        sold_cost_cny=Decimal('0.00'),
+        unit_cost_cny=unit_cost,
+        **packaging,
     )
     return batch
 
@@ -80,38 +102,68 @@ class NoteTypeTestCase(TestCase):
 class PaymentMethodModelTestCase(TestCase):
     """PaymentMethod 模型"""
 
+    def _cny(self, key='pm-cny'):
+        return FundAccount.objects.create(
+            name=f'CNY-{key}', currency='CNY', creation_idempotency_key=key,
+        )
+
     def test_create_bank_card(self):
+        cny = self._cny('pm-bank')
         pm = PaymentMethod.objects.create(
             method_type='bank_card', label='Сбербанк',
-            bank_name='Сбербанк', card_number='1234567890', card_holder='IVAN'
+            bank_name='Сбербанк', card_number='1234567890', card_holder='IVAN',
+            fund_account=cny,
         )
         self.assertEqual(pm.method_type, 'bank_card')
         self.assertEqual(str(pm), '银行卡 · Сбербанк')
 
+    def test_fund_account_persistence_validation(self):
+        cny = FundAccount.objects.create(name='CNY', currency='CNY', creation_idempotency_key='pm-cny')
+        rub = FundAccount.objects.create(name='RUB', currency='RUB', creation_idempotency_key='pm-rub')
+        with self.assertRaises(ValidationError):
+            PaymentMethod.objects.create(method_type='wechat', label='rub', fund_account=rub)
+        with self.assertRaises(ValidationError):
+            PaymentMethod(method_type='wechat', label='unsaved', fund_account=FundAccount(name='RUB2', currency='RUB', creation_idempotency_key='pm-rub2')).save()
+        stale = PaymentMethod(method_type='wechat', label='stale')
+        stale.fund_account_id = 999999
+        with self.assertRaises(ValidationError):
+            stale.save()
+        PaymentMethod.objects.create(method_type='wechat', label='inactive-null', is_active=False)
+        with self.assertRaises(ValidationError):
+            PaymentMethod.objects.create(method_type='wechat', label='active-null')
+        PaymentMethod.objects.create(method_type='wechat', label='cny', fund_account=cny)
+
     def test_create_wechat(self):
+        cny = self._cny('pm-wechat')
         pm = PaymentMethod.objects.create(
-            method_type='wechat', label='微信收款码'
+            method_type='wechat', label='微信收款码', fund_account=cny,
         )
         self.assertEqual(pm.method_type, 'wechat')
         self.assertTrue(pm.is_active)
 
     def test_create_alipay(self):
+        cny = self._cny('pm-alipay')
         pm = PaymentMethod.objects.create(
-            method_type='alipay', label='支付宝收款码'
+            method_type='alipay', label='支付宝收款码', fund_account=cny,
         )
         self.assertEqual(pm.method_type, 'alipay')
 
     def test_ordering_by_sort_order(self):
-        PaymentMethod.objects.create(method_type='bank_card', label='B', sort_order=2)
-        PaymentMethod.objects.create(method_type='bank_card', label='A', sort_order=1)
-        PaymentMethod.objects.create(method_type='wechat', label='C', sort_order=3)
+        for index, (label, method_type, sort_order) in enumerate((('B', 'bank_card', 2), ('A', 'bank_card', 1), ('C', 'wechat', 3)), 1):
+            PaymentMethod.objects.create(
+                method_type=method_type, label=label, sort_order=sort_order,
+                fund_account=self._cny(f'pm-order-{index}'),
+            )
         methods = list(PaymentMethod.objects.filter(is_active=True))
         self.assertEqual(methods[0].label, 'A')
         self.assertEqual(methods[1].label, 'B')
         self.assertEqual(methods[2].label, 'C')
 
     def test_inactive_filtering(self):
-        active = PaymentMethod.objects.create(method_type='bank_card', label='Active', is_active=True)
+        active = PaymentMethod.objects.create(
+            method_type='bank_card', label='Active', is_active=True,
+            fund_account=self._cny('pm-active'),
+        )
         PaymentMethod.objects.create(method_type='wechat', label='Inactive', is_active=False)
         methods = PaymentMethod.objects.filter(is_active=True)
         self.assertEqual(methods.count(), 1)
@@ -334,163 +386,81 @@ class CreateInventoryTestCase(TestCase):
 
 
 class CreatePaymentTestCase(TestCase):
-    """创建收款 privnote"""
+    """创建收款 privnote：只引用已有销售单。"""
 
     def setUp(self):
         self.client = Client()
         self.user, self.password = _create_staff_user()
         self.client.login(username=self.user.username, password=self.password)
         self.cigar = _create_cigar()
-        self.batch = _create_batch(self.cigar, remaining=50, box_size=25, unit_cost=280.0)
+        self.account = FundAccount.objects.create(
+            name='CreatePayment CNY', currency='CNY',
+            creation_idempotency_key='create-payment-cny',
+        )
         self.pm = PaymentMethod.objects.create(
             method_type='bank_card', label='TestBank',
-            bank_name='TestBank', card_number='1111222233334444', card_holder='TEST'
+            bank_name='TestBank', card_number='1111222233334444', card_holder='TEST',
+            fund_account=self.account,
         )
 
+    def _order(self):
+        order = SalesOrder.objects.create(
+            operator=self.user, customer_name='张三',
+            fulfillment_status=SalesOrder.FulfillmentStatus.CONFIRMED,
+            payment_status=SalesOrder.PaymentStatus.UNPAID,
+            status='pending_payment', goods_amount_cny=Decimal('3500.00'),
+            amount_due_cny=Decimal('3500.00'), total_revenue=Decimal('3500.00'),
+        )
+        SalesOrderItem.objects.create(
+            sales_order=order, cigar=self.cigar, quantity=10,
+            sale_unit=SalesOrderItem.SaleUnit.STICK, sale_quantity=10,
+            unit_price=Decimal('350.00'), unit_cost=Decimal('280.00'),
+            revenue=Decimal('3500.00'), cost=Decimal('2800.00'),
+            profit=Decimal('700.00'),
+        )
+        return order
+
     def test_create_payment_success(self):
-        items = [{'cigar_id': self.cigar.id, 'quantity': 10, 'unit_price': 350}]
+        order = self._order()
         resp = self.client.post('/privnote/create/', {
             'note_type': 'payment',
-            'duration': 24,
-            'customer_name': '张三',
-            'items': json.dumps(items),
+            'sales_order_id': str(order.id),
             'payment_method_id': str(self.pm.id),
+            'remark': '请备注销售单号',
+            'images': json.dumps([{'url': '/media/proof.jpg', 'name': '凭证'}]),
         })
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertIn('url', data)
         self.assertIsNotNone(data.get('sales_order_id'))
 
-        # 验证 SalesOrder 创建
-        so = SalesOrder.objects.get(id=data['sales_order_id'])
-        self.assertEqual(so.status, 'pending_payment')
-        self.assertEqual(so.customer_name, '张三')
-        self.assertEqual(so.payment_method_id, self.pm.id)
-        self.assertEqual(so.total_revenue, Decimal('3500.00'))
-
-        # 验证 SalesOrderItem 创建
-        items_qs = so.items.all()
-        self.assertEqual(items_qs.count(), 1)
-        self.assertEqual(items_qs[0].cigar.id, self.cigar.id)
-        self.assertEqual(items_qs[0].quantity, 10)
-        self.assertEqual(items_qs[0].unit_price, Decimal('350.00'))
-
-        # 验证 Privnote 关联
+        self.assertEqual(data['sales_order_id'], order.id)
+        self.assertEqual(SalesOrder.objects.count(), 1)
         note = Privnote.objects.get(token=data['token'])
-        self.assertEqual(note.sales_order.id, so.id)
+        self.assertEqual(note.sales_order_id, order.id)
+        self.assertEqual(note.data_json['payment_method_id'], self.pm.id)
+        self.assertEqual(note.data_json['remark'], '请备注销售单号')
 
-    def test_create_payment_multiple_items(self):
-        cigar2 = Cigar.objects.create(
-            brand='TestBrand', english_name='Cigar2', name='雪茄2'
-        )
-        _create_batch(cigar2, remaining=30, box_size=15, unit_cost=150.0)
-
-        items = [
-            {'cigar_id': self.cigar.id, 'quantity': 5, 'unit_price': 350},
-            {'cigar_id': cigar2.id, 'quantity': 3, 'unit_price': 200},
-        ]
+    def test_create_payment_rejects_legacy_items_without_sales_order(self):
         resp = self.client.post('/privnote/create/', {
             'note_type': 'payment',
-            'duration': 24,
-            'items': json.dumps(items),
+            'items': json.dumps([{'cigar_id': self.cigar.id, 'quantity': 1, 'unit_price': 100}]),
+            'payment_method_id': self.pm.id,
+        })
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(SalesOrder.objects.count(), 0)
+
+    def test_create_payment_ignores_manual_payment_payload(self):
+        order = self._order()
+        resp = self.client.post('/privnote/create/', {
+            'note_type': 'payment',
+            'sales_order_id': order.id,
+            'payment_method_id': self.pm.id,
+            'payment_manual': json.dumps({'bank_name': '不应写入销售单'}),
         })
         self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        so = SalesOrder.objects.get(id=data['sales_order_id'])
-        self.assertEqual(so.items.count(), 2)
-        self.assertEqual(so.total_revenue, Decimal('2350.00'))
-
-    def test_create_payment_with_batch_cost(self):
-        """关联 batch 自动填成本"""
-        items = [{'cigar_id': self.cigar.id, 'quantity': 10, 'unit_price': 350, 'batch_id': self.batch.id}]
-        resp = self.client.post('/privnote/create/', {
-            'note_type': 'payment',
-            'duration': 24,
-            'items': json.dumps(items),
-        })
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        so = SalesOrder.objects.get(id=data['sales_order_id'])
-        item = so.items.first()
-        self.assertEqual(item.unit_cost, Decimal('280.00'))
-        self.assertEqual(item.cost, Decimal('2800.00'))
-
-    def test_create_payment_without_sales_order(self):
-        """可以不绑定 SalesOrder（但当前 create 总是创建一个）"""
-        # 当前实现：payment 类型总是创建 SalesOrder
-        # sales_order FK 在 Privnote 上是 nullable 的，但 create() 总是设值
-        items = [{'cigar_id': self.cigar.id, 'quantity': 1, 'unit_price': 100}]
-        resp = self.client.post('/privnote/create/', {
-            'note_type': 'payment',
-            'duration': 24,
-            'items': json.dumps(items),
-        })
-        self.assertEqual(resp.status_code, 200)
-
-    def test_create_payment_empty_items_rejected(self):
-        resp = self.client.post('/privnote/create/', {
-            'note_type': 'payment',
-            'duration': 24,
-            'items': '[]',
-        })
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn('至少需要一个商品', resp.json()['error'])
-
-    def test_create_payment_invalid_json_rejected(self):
-        resp = self.client.post('/privnote/create/', {
-            'note_type': 'payment',
-            'duration': 24,
-            'items': 'not-json',
-        })
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn('格式错误', resp.json()['error'])
-
-    def test_create_payment_with_manual_payment_info(self):
-        items = [{'cigar_id': self.cigar.id, 'quantity': 5, 'unit_price': 300}]
-        resp = self.client.post('/privnote/create/', {
-            'note_type': 'payment',
-            'duration': 24,
-            'items': json.dumps(items),
-            'payment_manual': json.dumps({
-                'bank_name': 'ManualBank', 'card_number': '9999', 'card_holder': 'Me'
-            }),
-        })
-        self.assertEqual(resp.status_code, 200)
-        so = SalesOrder.objects.get(id=resp.json()['sales_order_id'])
-        self.assertEqual(so.payment_manual['bank_name'], 'ManualBank')
-
-    def test_create_payment_cigar_not_found(self):
-        items = [{'cigar_id': 999999, 'quantity': 1, 'unit_price': 100}]
-        resp = self.client.post('/privnote/create/', {
-            'note_type': 'payment',
-            'duration': 24,
-            'items': json.dumps(items),
-        })
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn('商品不存在', resp.json()['error'])
-
-    def test_create_payment_rejects_negative_price(self):
-        items = [{'cigar_id': self.cigar.id, 'quantity': 1, 'unit_price': -100}]
-        resp = self.client.post('/privnote/create/', {
-            'note_type': 'payment',
-            'duration': 24,
-            'items': json.dumps(items),
-        })
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn('不能为负数', resp.json()['error'])
-
-    def test_create_payment_rejects_mismatched_batch(self):
-        cigar2 = Cigar.objects.create(
-            brand='TestBrand', english_name='Other Cigar', name='其他雪茄'
-        )
-        items = [{'cigar_id': cigar2.id, 'quantity': 1, 'unit_price': 100, 'batch_id': self.batch.id}]
-        resp = self.client.post('/privnote/create/', {
-            'note_type': 'payment',
-            'duration': 24,
-            'items': json.dumps(items),
-        })
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn('批次不存在或不匹配', resp.json()['error'])
+        order.refresh_from_db()
+        self.assertEqual(order.payment_manual, {})
 
 
 class CreateMessageTestCase(TestCase):
@@ -644,11 +614,15 @@ class PaymentMethodsAPITestCase(TestCase):
         self.client = Client()
         self.user, self.password = _create_staff_user()
         self.client.login(username=self.user.username, password=self.password)
+        self.account = FundAccount.objects.create(
+            name='PaymentMethods CNY', currency='CNY',
+            creation_idempotency_key='payment-methods-cny',
+        )
 
     def test_list_active_only(self):
-        PaymentMethod.objects.create(method_type='bank_card', label='A', is_active=True)
+        PaymentMethod.objects.create(method_type='bank_card', label='A', is_active=True, fund_account=self.account)
         PaymentMethod.objects.create(method_type='wechat', label='B', is_active=False)
-        PaymentMethod.objects.create(method_type='alipay', label='C', is_active=True)
+        PaymentMethod.objects.create(method_type='alipay', label='C', is_active=True, fund_account=self.account)
 
         resp = self.client.get('/privnote/api/payment-methods/')
         self.assertEqual(resp.status_code, 200)
@@ -664,7 +638,8 @@ class PaymentMethodsAPITestCase(TestCase):
     def test_list_structure(self):
         PaymentMethod.objects.create(
             method_type='bank_card', label='TestBank',
-            bank_name='TestBank', card_number='1234', card_holder='ME'
+            bank_name='TestBank', card_number='1234', card_holder='ME',
+            fund_account=self.account,
         )
         resp = self.client.get('/privnote/api/payment-methods/')
         data = resp.json()
@@ -689,7 +664,27 @@ class ViewPrivnoteTestCase(TestCase):
         self.client = Client()
         self.staff, self.staff_pass = _create_staff_user()
         self.cigar = _create_cigar()
-        self.batch = _create_batch(self.cigar, remaining=50, unit_cost=280.0)
+        self.batch = _create_batch(self.cigar, remaining=50, unit_cost=280.0, loose=True)
+        self.account = FundAccount.objects.create(
+            name='View CNY', currency='CNY', creation_idempotency_key='view-cny',
+        )
+        self.payment_method = PaymentMethod.objects.create(
+            method_type='bank_card', label='ViewBank', bank_name='ViewBank',
+            card_number='11112222', card_holder='HOLDER', fund_account=self.account,
+        )
+        self.payment_order = SalesOrder.objects.create(
+            operator=self.staff, customer_name='View Customer',
+            fulfillment_status=SalesOrder.FulfillmentStatus.CONFIRMED,
+            payment_status=SalesOrder.PaymentStatus.UNPAID, status='pending_payment',
+            goods_amount_cny=Decimal('1750.00'), amount_due_cny=Decimal('1750.00'),
+            total_revenue=Decimal('1750.00'),
+        )
+        SalesOrderItem.objects.create(
+            sales_order=self.payment_order, cigar=self.cigar, quantity=5,
+            sale_unit=SalesOrderItem.SaleUnit.STICK, sale_quantity=5,
+            unit_price=Decimal('350.00'), unit_cost=Decimal('280.00'),
+            revenue=Decimal('1750.00'), cost=Decimal('1400.00'), profit=Decimal('350.00'),
+        )
 
     def _create_privnote(self, note_type='inventory', data=None, **kwargs):
         """辅助：通过 create view 创建 privnote"""
@@ -698,9 +693,8 @@ class ViewPrivnoteTestCase(TestCase):
         post_data.update(kwargs)
 
         if note_type == 'payment' and 'items' not in post_data:
-            post_data['items'] = json.dumps([
-                {'cigar_id': self.cigar.id, 'quantity': 5, 'unit_price': 350}
-            ])
+            post_data['sales_order_id'] = self.payment_order.id
+            post_data.setdefault('payment_method_id', self.payment_method.id)
 
         resp = self.client.post('/privnote/create/', post_data)
         self.assertEqual(resp.status_code, 200)
@@ -795,30 +789,24 @@ class ViewPrivnoteTestCase(TestCase):
 
     def test_view_payment_with_payment_methods(self):
         """收款 privnote 带预设收款方式"""
-        pm = PaymentMethod.objects.create(
-            method_type='bank_card', label='TestBank',
-            bank_name='TestBank', card_number='11112222', card_holder='HOLDER'
-        )
-        token = self._create_privnote('payment', payment_method_id=str(pm.id))
+        token = self._create_privnote('payment', payment_method_id=str(self.payment_method.id))
         resp = self.client.get(f'/api/privnote/{token}/')
         self.assertEqual(resp.status_code, 200)
         methods = resp.json()['data']['payment_methods']
         self.assertEqual(len(methods), 1)
-        self.assertEqual(methods[0]['bank_name'], 'TestBank')
+        self.assertEqual(methods[0]['bank_name'], 'ViewBank')
         self.assertEqual(methods[0]['card_number'], '11112222')
 
     def test_view_payment_with_manual_payment(self):
-        """收款 privnote 带手动收款方式"""
+        """旧手动收款字段不影响既有销售单的预设收款方式"""
         token = self._create_privnote('payment', payment_manual=json.dumps({
             'bank_name': 'ManualBank', 'card_number': '9999', 'card_holder': 'Me'
         }))
         resp = self.client.get(f'/api/privnote/{token}/')
         self.assertEqual(resp.status_code, 200)
         methods = resp.json()['data']['payment_methods']
-        self.assertGreaterEqual(len(methods), 1)
-        manual = [m for m in methods if m['label'] == '手动填写']
-        self.assertEqual(len(manual), 1)
-        self.assertEqual(manual[0]['bank_name'], 'ManualBank')
+        self.assertEqual(len(methods), 1)
+        self.assertEqual(methods[0]['card_number'], '11112222')
 
 
 # ═══════════════════════════════════════════════════
@@ -832,16 +820,34 @@ class RealTimeRenderingTestCase(TestCase):
         self.client = Client()
         self.staff, self.staff_pass = _create_staff_user()
         self.cigar = _create_cigar()
-        _create_batch(self.cigar, remaining=50, unit_cost=300.0)
+        _create_batch(self.cigar, remaining=50, unit_cost=300.0, loose=True)
+        account = FundAccount.objects.create(
+            name='Realtime CNY', currency='CNY', creation_idempotency_key='realtime-cny',
+        )
+        payment_method = PaymentMethod.objects.create(
+            method_type='bank_card', label='Realtime Bank', fund_account=account,
+        )
+        order = SalesOrder.objects.create(
+            operator=self.staff, customer_name='Realtime Customer',
+            fulfillment_status=SalesOrder.FulfillmentStatus.CONFIRMED,
+            payment_status=SalesOrder.PaymentStatus.UNPAID, status='pending_payment',
+            goods_amount_cny=Decimal('1200.00'), amount_due_cny=Decimal('1200.00'),
+            total_revenue=Decimal('1200.00'),
+        )
+        SalesOrderItem.objects.create(
+            sales_order=order, cigar=self.cigar, quantity=3,
+            sale_unit=SalesOrderItem.SaleUnit.STICK, sale_quantity=3,
+            unit_price=Decimal('400.00'), unit_cost=Decimal('300.00'),
+            revenue=Decimal('1200.00'), cost=Decimal('900.00'), profit=Decimal('300.00'),
+        )
 
         # 创建收款 privnote
         self.client.login(username=self.staff.username, password=self.staff_pass)
         resp = self.client.post('/privnote/create/', {
             'note_type': 'payment',
             'duration': 24,
-            'items': json.dumps([
-                {'cigar_id': self.cigar.id, 'quantity': 3, 'unit_price': 400}
-            ]),
+            'sales_order_id': order.id,
+            'payment_method_id': payment_method.id,
         })
         self.token = resp.json()['token']
         self.so_id = resp.json()['sales_order_id']
@@ -852,8 +858,8 @@ class RealTimeRenderingTestCase(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()['data']['total'], 1200)  # 3 * 400
 
-    def test_real_time_reflects_price_change(self):
-        """修改售价后，客户看到最新价格"""
+    def test_item_price_change_does_not_change_frozen_amount_due(self):
+        """异常修改明细时，客户应收仍以销售单冻结金额为准。"""
         so = SalesOrder.objects.get(id=self.so_id)
         item = so.items.first()
         item.unit_price = 500
@@ -864,14 +870,17 @@ class RealTimeRenderingTestCase(TestCase):
         so.save(update_fields=['total_revenue'])
 
         resp = self.client.get(f'/api/privnote/{self.token}/')
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json()['data']['total'], 1500)
+        self.assertEqual(resp.status_code, 409)
+        self.assertEqual(resp.json()['reason'], 'invalid_payment_order')
 
-    def test_real_time_reflects_quantity_change(self):
-        """修改数量后实时更新"""
+    def test_item_quantity_change_does_not_change_frozen_amount_due(self):
+        """异常修改数量可更新展示明细，但不得改变冻结应收。"""
         so = SalesOrder.objects.get(id=self.so_id)
         item = so.items.first()
         item.quantity = 10
+        item.sale_unit = SalesOrderItem.SaleUnit.STICK
+        item.sale_quantity = 10
+        item.box_size = None
         item.revenue = 10 * item.unit_price
         item.profit = item.revenue - item.cost
         item.save()
@@ -879,8 +888,8 @@ class RealTimeRenderingTestCase(TestCase):
         so.save(update_fields=['total_revenue'])
 
         resp = self.client.get(f'/api/privnote/{self.token}/')
-        self.assertEqual(resp.json()['data']['total'], 4000)
-        self.assertEqual(resp.json()['data']['items'][0]['quantity'], 10)
+        self.assertEqual(resp.status_code, 409)
+        self.assertEqual(resp.json()['reason'], 'invalid_payment_order')
 
 
 # ═══════════════════════════════════════════════════
@@ -1016,3 +1025,337 @@ class QuoteCustomPricesTestCase(TestCase):
         self.assertEqual(item10['wholesale_price'], 1200)
         # 单价 100 + 20 = 120
         self.assertEqual(item10['per_stick_price'], 120)
+
+
+class PaymentSaleUnitRenderingTest(TestCase):
+    def test_box_item_uses_persisted_revenue_and_sale_unit_snapshot(self):
+        operator, _ = _create_staff_user()
+        cigar = _create_cigar()
+        order = SalesOrder.objects.create(
+            operator=operator,
+            goods_amount_cny=Decimal('200.02'),
+            amount_due_cny=Decimal('200.02'),
+        )
+        SalesOrderItem.objects.create(
+            sales_order=order, cigar=cigar, quantity=50,
+            sale_unit=SalesOrderItem.SaleUnit.BOX, sale_quantity=2, box_size=25,
+            unit_price=Decimal('100.01'), unit_cost=Decimal('0.00'),
+            revenue=Decimal('200.02'), cost=Decimal('0.00'), profit=Decimal('200.02'),
+        )
+
+        data = build_payment_data(order)
+
+        item = data['items'][0]
+        self.assertEqual(item['unit_price'], 100.01)
+        self.assertEqual(item['subtotal'], 200.02)
+        self.assertEqual(item['sale_unit'], 'box')
+        self.assertEqual(item['sale_quantity'], 2)
+        self.assertEqual(item['box_size'], 25)
+        self.assertEqual(data['total'], 200.02)
+        self.assertEqual(data['grand_total'], 200.02)
+
+    def test_stick_item_keeps_unit_price_and_persisted_revenue(self):
+        operator, _ = _create_staff_user()
+        cigar = _create_cigar()
+        order = SalesOrder.objects.create(
+            operator=operator,
+            goods_amount_cny=Decimal('1200.00'),
+            amount_due_cny=Decimal('1200.00'),
+        )
+        SalesOrderItem.objects.create(
+            sales_order=order, cigar=cigar, quantity=3,
+            sale_unit=SalesOrderItem.SaleUnit.STICK, sale_quantity=3, box_size=None,
+            unit_price=Decimal('400.00'), unit_cost=Decimal('0.00'),
+            revenue=Decimal('1200.00'), cost=Decimal('0.00'), profit=Decimal('1200.00'),
+        )
+
+        item = build_payment_data(order)['items'][0]
+
+        self.assertEqual(item['unit_price'], 400)
+        self.assertEqual(item['subtotal'], 1200)
+        self.assertEqual(item['sale_unit'], 'stick')
+        self.assertEqual(item['sale_quantity'], 3)
+        self.assertIsNone(item['box_size'])
+
+
+class PaymentSalesOrderBoundaryTestCase(TestCase):
+    """收款单只引用已有销售单，不得在 Privnote 入口制造销售事实。"""
+
+    def setUp(self):
+        self.client = Client()
+        self.staff, password = _create_staff_user()
+        self.client.login(username=self.staff.username, password=password)
+        self.cigar = _create_cigar()
+        self.cny_account = FundAccount.objects.create(
+            name='收款人民币账户', currency='CNY',
+            creation_idempotency_key='payment-boundary-cny',
+        )
+        self.pm = PaymentMethod.objects.create(
+            method_type='bank_card', label='公司人民币卡',
+            bank_name='测试银行', card_number='1234', card_holder='公司',
+            fund_account=self.cny_account,
+        )
+
+    def _order(self, *, fulfillment='confirmed', payment='unpaid'):
+        order = SalesOrder.objects.create(
+            operator=self.staff,
+            customer_name='已有客户',
+            fulfillment_status=fulfillment,
+            payment_status=payment,
+            status='pending_payment',
+            goods_amount_cny=Decimal('200.00'),
+            amount_due_cny=Decimal('200.00'),
+            total_revenue=Decimal('200.00'),
+        )
+        SalesOrderItem.objects.create(
+            sales_order=order, cigar=self.cigar, quantity=2,
+            sale_unit=SalesOrderItem.SaleUnit.STICK, sale_quantity=2,
+            unit_price=Decimal('100.00'), unit_cost=Decimal('50.00'),
+            revenue=Decimal('200.00'), cost=Decimal('100.00'),
+            profit=Decimal('100.00'),
+        )
+        return order
+
+    def test_payment_note_references_existing_order_without_mutating_sales_fact(self):
+        order = self._order()
+        before = {
+            field: getattr(order, field)
+            for field in (
+                'customer_name', 'fulfillment_status', 'payment_status',
+                'status', 'goods_amount_cny', 'amount_due_cny',
+                'total_revenue', 'total_cost', 'total_profit',
+                'payment_method_id', 'payment_manual',
+            )
+        }
+        item_count = order.items.count()
+        sales_order_count = SalesOrder.objects.count()
+
+        response = self.client.post('/privnote/create/', {
+            'note_type': 'payment',
+            'sales_order_id': order.id,
+            'payment_method_id': self.pm.id,
+            'remark': '请备注销售单号',
+            'images': json.dumps([{'url': '/media/proof.jpg', 'name': '凭证'}]),
+        })
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['sales_order_id'], order.id)
+        self.assertEqual(SalesOrder.objects.count(), sales_order_count)
+        order.refresh_from_db()
+        self.assertEqual(item_count, order.items.count())
+        self.assertEqual(before, {
+            field: getattr(order, field)
+            for field in before
+        })
+
+        note = Privnote.objects.get(token=payload['token'])
+        self.assertEqual(note.sales_order_id, order.id)
+        self.assertEqual(note.data_json['payment_method_id'], self.pm.id)
+        self.assertEqual(note.data_json['remark'], '请备注销售单号')
+        self.assertEqual(note.data_json['images'][0]['url'], '/media/proof.jpg')
+
+    def test_new_payment_note_ignores_legacy_extra_fees_and_does_not_snapshot_them(self):
+        order = self._order()
+        response = self.client.post('/privnote/create/', {
+            'note_type': 'payment',
+            'sales_order_id': order.id,
+            'payment_method_id': self.pm.id,
+            'extra_fees': json.dumps([{'name': '恶意费用', 'amount': 99999}]),
+        })
+        self.assertEqual(response.status_code, 200)
+        note = Privnote.objects.get(token=response.json()['token'])
+        self.assertNotIn('extra_fees', note.data_json)
+        view = self.client.get(f'/api/privnote/{note.token}/')
+        self.assertEqual(view.status_code, 200)
+        self.assertEqual(view.json()['data']['total'], 200)
+        self.assertEqual(view.json()['data']['extra_total'], 0)
+        self.assertEqual(view.json()['data']['grand_total'], 200)
+
+    def test_payment_requires_existing_confirmed_or_shipped_unpaid_order(self):
+        cases = (
+            ('missing', None, 400),
+            ('draft', 'draft', 400),
+            ('cancelled', 'cancelled', 400),
+        )
+        for label, fulfillment, expected_status in cases:
+            with self.subTest(label=label):
+                order_id = 999999
+                if fulfillment:
+                    order_id = self._order(fulfillment=fulfillment).id
+                response = self.client.post('/privnote/create/', {
+                    'note_type': 'payment',
+                    'sales_order_id': order_id,
+                    'payment_method_id': self.pm.id,
+                })
+                self.assertEqual(response.status_code, expected_status)
+
+        for payment in ('paid', 'refunded'):
+            with self.subTest(payment=payment):
+                order = self._order(payment=payment)
+                response = self.client.post('/privnote/create/', {
+                    'note_type': 'payment',
+                    'sales_order_id': order.id,
+                    'payment_method_id': self.pm.id,
+                })
+                self.assertEqual(response.status_code, 400)
+
+    def test_payment_requires_active_cny_payment_method(self):
+        inactive_account = FundAccount.objects.create(
+            name='停用人民币账户', currency='CNY', is_active=False,
+            creation_idempotency_key='payment-boundary-inactive-account',
+        )
+        inactive_method = PaymentMethod.objects.create(
+            method_type='wechat', label='停用方式', is_active=False,
+            fund_account=inactive_account,
+        )
+        order = self._order()
+
+        for payment_method_id in (None, inactive_method.id):
+            with self.subTest(payment_method_id=payment_method_id):
+                data = {'note_type': 'payment', 'sales_order_id': order.id}
+                if payment_method_id is not None:
+                    data['payment_method_id'] = payment_method_id
+                response = self.client.post('/privnote/create/', data)
+                self.assertEqual(response.status_code, 400)
+
+    def test_payment_method_list_only_returns_active_cny_account_and_account_id(self):
+        inactive_account = FundAccount.objects.create(
+            name='停用方式账户', currency='CNY', is_active=False,
+            creation_idempotency_key='payment-boundary-list-inactive',
+        )
+        PaymentMethod.objects.create(
+            method_type='wechat', label='停用方式', is_active=False,
+            fund_account=self.cny_account,
+        )
+        with self.assertRaises(ValidationError):
+            PaymentMethod.objects.create(
+                method_type='alipay', label='停用账户方式',
+                fund_account=inactive_account,
+            )
+
+        response = self.client.get('/privnote/api/payment-methods/')
+        self.assertEqual(response.status_code, 200)
+        methods = response.json()['methods']
+        self.assertEqual([method['id'] for method in methods], [self.pm.id])
+        self.assertEqual(methods[0]['fund_account_id'], self.cny_account.id)
+
+    def test_view_uses_note_payment_method_and_never_manual_payment_data(self):
+        order = self._order()
+        response = self.client.post('/privnote/create/', {
+            'note_type': 'payment',
+            'sales_order_id': order.id,
+            'payment_method_id': self.pm.id,
+            'payment_manual': json.dumps({
+                'bank_name': '不应接受', 'card_number': '9999',
+            }),
+        })
+        self.assertEqual(response.status_code, 200)
+        note = Privnote.objects.get(token=response.json()['token'])
+        self.assertNotIn('payment_manual', note.data_json)
+
+        view = self.client.get(f'/api/privnote/{note.token}/')
+        self.assertEqual(view.status_code, 200)
+        methods = view.json()['data']['payment_methods']
+        self.assertEqual(len(methods), 1)
+        self.assertEqual(methods[0]['card_number'], '1234')
+        self.assertNotIn('不应接受', json.dumps(view.json(), ensure_ascii=False))
+        self.assertNotIn('fund_account_id', json.dumps(view.json(), ensure_ascii=False))
+
+    def test_payment_create_locks_order_until_note_is_saved(self):
+        order = self._order()
+        manager = SalesOrder.objects
+        with patch.object(manager, 'select_for_update', wraps=manager.select_for_update) as lock:
+            response = self.client.post('/privnote/create/', {
+                'note_type': 'payment',
+                'sales_order_id': order.id,
+                'payment_method_id': self.pm.id,
+            })
+        self.assertEqual(response.status_code, 200)
+        lock.assert_called_once()
+
+    def test_payment_display_rejects_items_above_authoritative_amount_due(self):
+        order = self._order()
+        order.amount_due_cny = Decimal('99.00')
+        order.save(update_fields=['amount_due_cny'])
+        response = self.client.post('/privnote/create/', {
+            'note_type': 'payment',
+            'sales_order_id': order.id,
+            'payment_method_id': self.pm.id,
+        })
+        self.assertEqual(response.status_code, 200)
+        note = Privnote.objects.get(token=response.json()['token'])
+        views_before = note.view_count
+        view = self.client.get(f"/api/privnote/{response.json()['token']}/")
+        self.assertEqual(view.status_code, 409)
+        self.assertEqual(view.json()['reason'], 'invalid_payment_order')
+        note.refresh_from_db()
+        self.assertEqual(note.view_count, views_before)
+
+    def test_malformed_legacy_payment_payload_does_not_500(self):
+        order = self._order()
+        note = Privnote.objects.create(
+            token='legacy-bad-fees', note_type='payment', title='旧收款单',
+            sales_order=order,
+            data_json={
+                'mode': 'payment',
+                'items': [],
+                'total': 0,
+                'extra_fees': ['坏数据', 123, {'name': '坏金额', 'amount': 'not-money'}],
+                'extra_total': 0,
+                'grand_total': 0,
+                'payment_methods': [],
+                'images': ['坏图片'],
+            },
+            expires_at=timezone.now() + timedelta(hours=1),
+            burn_after_read=False, max_views=0,
+        )
+        response = self.client.get(f'/api/privnote/{note.token}/')
+        self.assertEqual(response.status_code, 200)
+
+
+class PaymentOrdersAPITestCase(TestCase):
+    """创建收款单时供 staff 选择的可收款销售单。"""
+
+    def setUp(self):
+        self.client = Client()
+        self.staff, password = _create_staff_user()
+        self.client.login(username=self.staff.username, password=password)
+        self.cigar = _create_cigar()
+
+    def _order(self, suffix, fulfillment, payment):
+        return SalesOrder.objects.create(
+            operator=self.staff, customer_name=f'客户-{suffix}',
+            fulfillment_status=fulfillment, payment_status=payment,
+            status='pending_payment', amount_due_cny=Decimal('100.00'),
+        )
+
+    def test_lists_all_eligible_orders_without_fixed_100_limit(self):
+        for index in range(101):
+            self._order(
+                index, SalesOrder.FulfillmentStatus.CONFIRMED,
+                SalesOrder.PaymentStatus.UNPAID,
+            )
+        self._order('draft', SalesOrder.FulfillmentStatus.DRAFT, SalesOrder.PaymentStatus.UNPAID)
+        self._order('paid', SalesOrder.FulfillmentStatus.SHIPPED, SalesOrder.PaymentStatus.PAID)
+        response = self.client.get('/privnote/api/payment-orders/')
+        self.assertEqual(response.status_code, 200)
+        orders = response.json()['orders']
+        self.assertEqual(len(orders), 101)
+        self.assertTrue(all(order['payment_status'] == 'unpaid' for order in orders))
+        self.assertTrue(all(order['fulfillment_status'] in ('confirmed', 'shipped') for order in orders))
+        self.assertEqual(set(orders[0]), {
+            'id', 'order_number', 'status', 'display_status',
+            'fulfillment_status', 'payment_status', 'customer_name',
+            'customer', 'amount_due_cny', 'items',
+        })
+        self.assertNotIn('allocations', json.dumps(orders, ensure_ascii=False))
+
+    def test_payment_orders_only_accepts_get(self):
+        response = self.client.post('/privnote/api/payment-orders/')
+        self.assertEqual(response.status_code, 405)
+
+    def test_payment_orders_requires_staff(self):
+        self.client.logout()
+        response = self.client.get('/privnote/api/payment-orders/')
+        self.assertEqual(response.status_code, 403)

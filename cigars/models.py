@@ -327,12 +327,62 @@ class PurchaseBatch(models.Model):
         Cigar, on_delete=models.PROTECT, verbose_name='雪茄'
     )
     quantity = models.IntegerField('原始数量')
+    original_cost_cny = models.DecimalField('原始入库人民币成本', max_digits=22, decimal_places=2, default=0)
+    positive_adjustment_quantity = models.IntegerField('正向调整数量', default=0)
+    positive_adjustment_cost_cny = models.DecimalField('正向调整人民币成本', max_digits=22, decimal_places=2, default=0)
+    adjustment_cost_cny = models.DecimalField('累计损耗人民币成本', max_digits=22, decimal_places=2, default=0)
     remaining = models.IntegerField('剩余数量')
+    physical_remaining = models.IntegerField('物理剩余数量', default=0)
+    box_size = models.IntegerField("包装支数快照", null=True, blank=True)
+    original_box_quantity = models.IntegerField("原始完整盒数", default=0)
+    original_stick_quantity = models.IntegerField("原始散支数", default=0)
+    physical_box_quantity = models.IntegerField("物理完整盒数", default=0)
+    available_box_quantity = models.IntegerField("可用完整盒数", default=0)
+    physical_stick_quantity = models.IntegerField("物理散支数", default=0)
+    available_stick_quantity = models.IntegerField("可用散支数", default=0)
+    remaining_cost_cny = models.DecimalField('剩余人民币成本池', max_digits=22, decimal_places=2, default=0)
+    sold_cost_cny = models.DecimalField('累计销售成本', max_digits=22, decimal_places=2, default=0)
     unit_cost_cny = models.DecimalField('人民币成本单价', max_digits=12, decimal_places=2)
     purchased_at = models.DateTimeField('进货日期', auto_now_add=True)
 
+    def save(self, *args, **kwargs):
+        if self._state.adding and self.box_size is None and self.purchase_order_item_id:
+            self.box_size = self.purchase_order_item.box_size
+        if self._state.adding and not any((
+            self.original_box_quantity, self.original_stick_quantity,
+            self.physical_box_quantity, self.physical_stick_quantity,
+            self.available_box_quantity, self.available_stick_quantity,
+        )):
+            if self.box_size:
+                self.original_box_quantity, self.original_stick_quantity = divmod(self.quantity, self.box_size)
+                self.available_box_quantity, self.available_stick_quantity = divmod(self.remaining, self.box_size)
+                self.physical_box_quantity = self.available_box_quantity
+                self.physical_stick_quantity = self.available_stick_quantity + (self.physical_remaining - self.remaining)
+            else:
+                self.original_stick_quantity = self.quantity
+                self.physical_stick_quantity = self.physical_remaining
+                self.available_stick_quantity = self.remaining
+        super().save(*args, **kwargs)
+
     class Meta:
         ordering = ['purchased_at']
+        constraints = [
+            models.CheckConstraint(condition=models.Q(original_box_quantity__gte=0, original_stick_quantity__gte=0, physical_box_quantity__gte=0, available_box_quantity__gte=0, physical_stick_quantity__gte=0, available_stick_quantity__gte=0), name="purchase_batch_packaging_nonnegative"),
+            models.CheckConstraint(condition=models.Q(available_box_quantity__lte=models.F("physical_box_quantity"), available_stick_quantity__lte=models.F("physical_stick_quantity")), name="purchase_batch_available_shape_lte_physical"),
+            models.CheckConstraint(condition=(models.Q(box_size__gt=0, quantity=models.F("original_box_quantity") * models.F("box_size") + models.F("original_stick_quantity"), physical_remaining=models.F("physical_box_quantity") * models.F("box_size") + models.F("physical_stick_quantity"), remaining=models.F("available_box_quantity") * models.F("box_size") + models.F("available_stick_quantity")) | models.Q(box_size__isnull=True, original_box_quantity=0, physical_box_quantity=0, available_box_quantity=0, original_stick_quantity=models.F("quantity"), physical_stick_quantity=models.F("physical_remaining"), available_stick_quantity=models.F("remaining"))), name="purchase_batch_packaging_shape_matches_aggregate"),
+            models.CheckConstraint(condition=models.Q(quantity__gte=0), name='purchase_batch_quantity_gte_zero'),
+            models.CheckConstraint(condition=models.Q(remaining__gte=0), name='purchase_batch_remaining_gte_zero'),
+            models.CheckConstraint(condition=models.Q(physical_remaining__gte=0), name='purchase_batch_physical_remaining_gte_zero'),
+            models.CheckConstraint(condition=models.Q(remaining__lte=models.F('physical_remaining')), name='purchase_batch_remaining_lte_physical'),
+            models.CheckConstraint(condition=models.Q(positive_adjustment_quantity__gte=0), name='purchase_batch_positive_adjustment_quantity_gte_zero'),
+            models.CheckConstraint(condition=models.Q(physical_remaining__lte=models.F('quantity') + models.F('positive_adjustment_quantity')), name='purchase_batch_physical_lte_capacity'),
+            models.CheckConstraint(condition=models.Q(original_cost_cny__gte=0), name='purchase_batch_original_cost_gte_zero'),
+            models.CheckConstraint(condition=models.Q(positive_adjustment_cost_cny__gte=0), name='purchase_batch_positive_adjustment_cost_gte_zero'),
+            models.CheckConstraint(condition=models.Q(remaining_cost_cny__gte=0), name='purchase_batch_remaining_cost_gte_zero'),
+            models.CheckConstraint(condition=models.Q(sold_cost_cny__gte=0), name='purchase_batch_sold_cost_gte_zero'),
+            models.CheckConstraint(condition=models.Q(adjustment_cost_cny__gte=0), name='purchase_batch_adjustment_cost_gte_zero'),
+            models.CheckConstraint(condition=models.Q(unit_cost_cny__gte=0), name='purchase_batch_unit_cost_gte_zero'),
+        ]
         indexes = [
             models.Index(fields=['cigar', 'remaining']),
         ]
@@ -345,6 +395,18 @@ class PurchaseBatch(models.Model):
 
 class SalesOrder(models.Model):
     """销售单"""
+    class FulfillmentStatus(models.TextChoices):
+        DRAFT = 'draft', '草稿'
+        CONFIRMED = 'confirmed', '已确认/已预留'
+        SHIPPED = 'shipped', '已出库'
+        CANCELLED = 'cancelled', '已取消'
+
+    class PaymentStatus(models.TextChoices):
+        UNPAID = 'unpaid', '未收款'
+        PAID = 'paid', '已收款'
+        REFUND_PENDING = 'refund_pending', '待退款'
+        REFUNDED = 'refunded', '已退款'
+
     customer = models.ForeignKey(
         Customer, on_delete=models.SET_NULL, null=True, blank=True,
         verbose_name='客户'
@@ -353,6 +415,18 @@ class SalesOrder(models.Model):
     total_revenue = models.DecimalField('收入合计', max_digits=12, decimal_places=2, default=0)
     total_cost = models.DecimalField('成本合计', max_digits=12, decimal_places=2, default=0)
     total_profit = models.DecimalField('利润合计', max_digits=12, decimal_places=2, default=0)
+    fulfillment_status = models.CharField(
+        '履约状态', max_length=20, choices=FulfillmentStatus.choices, default=FulfillmentStatus.DRAFT,
+    )
+    payment_status = models.CharField(
+        '收款状态', max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.UNPAID,
+    )
+    goods_amount_cny = models.DecimalField('商品金额 (CNY)', max_digits=14, decimal_places=2, default=0)
+    customer_transport_fee_cny = models.DecimalField('客户人肉费 (CNY)', max_digits=14, decimal_places=2, default=0)
+    amount_due_cny = models.DecimalField('应收总额 (CNY)', max_digits=14, decimal_places=2, default=0)
+    fifo_cost_cny = models.DecimalField('FIFO 销售成本 (CNY)', max_digits=14, decimal_places=2, default=0)
+    actual_transport_cost_cny = models.DecimalField('实际人肉成本 (CNY)', max_digits=14, decimal_places=2, default=0)
+    contribution_profit_cny = models.DecimalField('订单贡献利润 (CNY)', max_digits=14, decimal_places=2, default=0)
     operator = models.ForeignKey(
         User, on_delete=models.PROTECT, related_name='sales_orders',
         null=True, blank=True,
@@ -382,11 +456,20 @@ class SalesOrder(models.Model):
         verbose_name='锁定人'
     )
     locked_at = models.DateTimeField('锁定时间', null=True, blank=True)
+    confirmed_at = models.DateTimeField('确认时间', null=True, blank=True)
+    cancelled_at = models.DateTimeField('取消时间', null=True, blank=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     deleted_at = models.DateTimeField('删除时间', null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.CheckConstraint(condition=models.Q(goods_amount_cny__gte=0), name='sales_order_goods_amount_gte_zero'),
+            models.CheckConstraint(condition=models.Q(customer_transport_fee_cny__gte=0), name='sales_order_customer_transport_gte_zero'),
+            models.CheckConstraint(condition=models.Q(amount_due_cny__gte=0), name='sales_order_amount_due_gte_zero'),
+            models.CheckConstraint(condition=models.Q(fifo_cost_cny__gte=0), name='sales_order_fifo_cost_gte_zero'),
+            models.CheckConstraint(condition=models.Q(actual_transport_cost_cny__gte=0), name='sales_order_actual_transport_gte_zero'),
+        ]
         verbose_name = '销售单'
         verbose_name_plural = '销售单'
 
@@ -398,8 +481,26 @@ class SalesOrder(models.Model):
         return f'SO-{self.id:06d}'
 
 
+    @property
+    def display_status(self):
+        statuses = {
+            (self.FulfillmentStatus.DRAFT, self.PaymentStatus.UNPAID): '草稿',
+            (self.FulfillmentStatus.CONFIRMED, self.PaymentStatus.UNPAID): '待出库',
+            (self.FulfillmentStatus.CONFIRMED, self.PaymentStatus.PAID): '已预收，待出库',
+            (self.FulfillmentStatus.SHIPPED, self.PaymentStatus.UNPAID): '已出库，待收款',
+            (self.FulfillmentStatus.SHIPPED, self.PaymentStatus.PAID): '已完成',
+            (self.FulfillmentStatus.CANCELLED, self.PaymentStatus.UNPAID): '已取消',
+            (self.FulfillmentStatus.CANCELLED, self.PaymentStatus.REFUND_PENDING): '已取消，待退款',
+            (self.FulfillmentStatus.CANCELLED, self.PaymentStatus.REFUNDED): '已取消，已退款',
+        }
+        return statuses.get((self.fulfillment_status, self.payment_status), '状态异常')
+
 class SalesOrderItem(models.Model):
     """销售明细"""
+    class SaleUnit(models.TextChoices):
+        BOX = 'box', '盒'
+        STICK = 'stick', '支'
+
     class FulfillmentType(models.TextChoices):
         IN_STOCK = 'in_stock', '现货'
         PREORDER = 'preorder', '预售'
@@ -412,7 +513,7 @@ class SalesOrderItem(models.Model):
         Cigar, on_delete=models.PROTECT, verbose_name='雪茄'
     )
     quantity = models.IntegerField('数量')
-    unit_price = models.DecimalField('售价/支 (CNY)', max_digits=12, decimal_places=2)
+    unit_price = models.DecimalField('销售单位单价 (CNY)', max_digits=12, decimal_places=2)
     unit_cost = models.DecimalField('成本/支 (CNY)', max_digits=12, decimal_places=2)
     revenue = models.DecimalField('收入', max_digits=12, decimal_places=2)
     cost = models.DecimalField('成本', max_digits=12, decimal_places=2)
@@ -422,7 +523,23 @@ class SalesOrderItem(models.Model):
         default=FulfillmentType.IN_STOCK,
     )
 
+    sale_unit = models.CharField('销售单位', max_length=10, choices=SaleUnit.choices, blank=True, default='')
+    sale_quantity = models.IntegerField('销售数量', null=True, blank=True)
+    box_size = models.IntegerField('包装支数', null=True, blank=True)
     class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(quantity__gt=0), name='sales_item_quantity_gt_zero'),
+            models.CheckConstraint(condition=models.Q(sale_quantity__isnull=True) | models.Q(sale_quantity__gt=0), name='sales_item_sale_quantity_positive_or_null'),
+            models.CheckConstraint(condition=models.Q(box_size__isnull=True) | models.Q(box_size__gt=0), name='sales_item_box_size_positive_or_null'),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(sale_unit='box', sale_quantity__isnull=False, box_size__isnull=False, quantity=models.F('sale_quantity') * models.F('box_size')) |
+                    models.Q(sale_unit='stick', sale_quantity=models.F('quantity'), box_size__isnull=True) |
+                    models.Q(sale_unit='', sale_quantity__isnull=True, box_size__isnull=True)
+                ),
+                name='sales_item_sale_unit_shape_matches_quantity',
+            ),
+        ]
         verbose_name = '销售明细'
         verbose_name_plural = '销售明细'
 
@@ -430,6 +547,72 @@ class SalesOrderItem(models.Model):
         return f'{self.cigar} ×{self.quantity} ¥{self.revenue}'
 
 
+class SalesShipment(models.Model):
+    """销售单实际出库与 FIFO 成本确认事实。"""
+    sales_order = models.OneToOneField(SalesOrder, on_delete=models.PROTECT, related_name='sales_shipment', verbose_name='销售单')
+    business_date = models.DateField('业务日期')
+    fifo_cost_cny = models.DecimalField('FIFO 成本 (CNY)', max_digits=14, decimal_places=2)
+    ledger_transaction = models.OneToOneField('accounting.LedgerTransaction', on_delete=models.PROTECT, related_name='sales_shipment', verbose_name='账务交易')
+    operator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='sales_shipments', verbose_name='操作人')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(fifo_cost_cny__gte=0), name='sales_shipment_fifo_cost_gte_zero'),
+        ]
+        verbose_name = '销售出库'
+        verbose_name_plural = '销售出库'
+
+class SalesReceipt(models.Model):
+    """一张销售单的一次整单人民币收款事实。"""
+    sales_order = models.OneToOneField(SalesOrder, on_delete=models.PROTECT, related_name='sales_receipt', verbose_name='销售单')
+    amount_cny = models.DecimalField('收款金额 (CNY)', max_digits=14, decimal_places=2)
+    fund_account = models.ForeignKey('accounting.FundAccount', on_delete=models.PROTECT, related_name='sales_receipts', verbose_name='收款资金账户')
+    business_date = models.DateField('业务日期')
+    ledger_transaction = models.OneToOneField('accounting.LedgerTransaction', on_delete=models.PROTECT, related_name='sales_receipt', verbose_name='账务交易')
+    operator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='sales_receipts', verbose_name='操作人')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(amount_cny__gt=0), name='sales_receipt_amount_gt_zero'),
+        ]
+        verbose_name = '销售收款'
+        verbose_name_plural = '销售收款'
+class SalesRefund(models.Model):
+    """一张已取消销售单的一次全额退款事实。"""
+    sales_order = models.OneToOneField(SalesOrder, on_delete=models.PROTECT, related_name='sales_refund', verbose_name='销售单')
+    amount_cny = models.DecimalField('退款金额 (CNY)', max_digits=14, decimal_places=2)
+    fund_account = models.ForeignKey('accounting.FundAccount', on_delete=models.PROTECT, related_name='sales_refunds', verbose_name='退款资金账户')
+    business_date = models.DateField('业务日期')
+    ledger_transaction = models.OneToOneField('accounting.LedgerTransaction', on_delete=models.PROTECT, related_name='sales_refund', verbose_name='账务交易')
+    operator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='sales_refunds', verbose_name='操作人')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(amount_cny__gt=0), name='sales_refund_amount_gt_zero'),
+        ]
+        verbose_name = '销售退款'
+        verbose_name_plural = '销售退款'
+
+class SalesTransportCost(models.Model):
+    """销售单的人肉实际成本及其人民币支付事实。"""
+    sales_order = models.OneToOneField(SalesOrder, on_delete=models.PROTECT, related_name='sales_transport_cost', verbose_name='销售单')
+    actual_cost_cny = models.DecimalField('实际人肉成本 (CNY)', max_digits=14, decimal_places=2)
+    fund_account = models.ForeignKey('accounting.FundAccount', on_delete=models.PROTECT, related_name='sales_transport_costs', verbose_name='付款资金账户')
+    business_date = models.DateField('业务日期')
+    ledger_transaction = models.OneToOneField('accounting.LedgerTransaction', on_delete=models.PROTECT, related_name='sales_transport_cost', verbose_name='账务交易')
+    operator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='sales_transport_costs', verbose_name='操作人')
+    note = models.TextField('备注', blank=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(actual_cost_cny__gte=0), name='sales_transport_cost_actual_gte_zero'),
+        ]
+        verbose_name = '销售人肉成本'
+        verbose_name_plural = '销售人肉成本'
 class StockAllocation(models.Model):
     """销售明细与采购批次之间的库存分配"""
     class Status(models.TextChoices):
@@ -472,6 +655,7 @@ class StockMovement(models.Model):
         RELEASE_RESERVATION = 'release_reservation', '释放预留'
         SHIP = 'ship', '出库'
         ADJUSTMENT = 'adjustment', '库存修正'
+        SPLIT_BOX = 'split_box', '拆盒'
 
     movement_type = models.CharField('类型', max_length=30, choices=MovementType.choices)
     cigar = models.ForeignKey(Cigar, on_delete=models.PROTECT, verbose_name='雪茄')
@@ -595,6 +779,7 @@ class AdjustmentRecord(models.Model):
     type = models.CharField('类型', max_length=20, choices=AdjustType.choices)
     quantity = models.IntegerField('数量')
     unit_cost_cny = models.DecimalField('成本/支 (CNY)', max_digits=12, decimal_places=2)
+    cost_cny = models.DecimalField('损耗总成本 (CNY)', max_digits=22, decimal_places=2, default=0)
     operator = models.ForeignKey(
         User, on_delete=models.PROTECT, related_name='adjustments',
         verbose_name='操作人'
@@ -603,6 +788,9 @@ class AdjustmentRecord(models.Model):
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
     class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(cost_cny__gte=0), name='adjustment_record_cost_gte_zero'),
+        ]
         verbose_name = '库存修正'
         verbose_name_plural = '库存修正'
 

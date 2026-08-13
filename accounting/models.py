@@ -114,6 +114,29 @@ class LedgerSequenceQuerySet(models.QuerySet):
         raise LedgerMutationError('账务顺序仅可由入账服务推进')
 
 
+class AccountReconciliationQuerySet(models.QuerySet):
+    def create(self, **kwargs):
+        raise LedgerMutationError('对账只能通过受控对账流程创建')
+
+    def get_or_create(self, defaults=None, **kwargs):
+        raise LedgerMutationError('对账只能通过受控对账流程创建')
+
+    def update(self, **kwargs):
+        raise LedgerMutationError('对账只能通过受控对账流程修改')
+
+    def delete(self):
+        raise LedgerMutationError('对账只能通过受控对账流程删除')
+
+    def bulk_create(self, objs, **kwargs):
+        raise LedgerMutationError('对账只能通过受控对账流程创建')
+
+    def bulk_update(self, objs, fields, **kwargs):
+        raise LedgerMutationError('对账只能通过受控对账流程修改')
+
+    def update_or_create(self, defaults=None, **kwargs):
+        raise LedgerMutationError('对账禁止通过 UPSERT 修改')
+
+
 class FundAccount(models.Model):
     class Currency(models.TextChoices):
         CNY = 'CNY', '人民币'
@@ -185,6 +208,10 @@ class LedgerTransaction(models.Model):
         EXCHANGE = 'exchange', '换汇'
         TRANSFER = 'transfer', '同币种转账'
 
+        SALES_SHIPMENT = 'sales_shipment', '销售出库'
+        SALES_RECEIPT = 'sales_receipt', '销售收款'
+        SALES_TRANSPORT_COST = 'sales_transport_cost', '销售人肉费'
+        SALES_REFUND = 'sales_refund', '销售退款'
     class Status(models.TextChoices):
         DRAFT = 'draft', '草稿'
         POSTED = 'posted', '已入账'
@@ -242,6 +269,14 @@ class LedgerPosting(models.Model):
         OPENING_CAPITAL = 'opening_capital', '期初投入资本'
         OPENING_RETAINED_EARNINGS = 'opening_retained_earnings', '期初未分配利润'
 
+        ACCOUNTS_RECEIVABLE = 'accounts_receivable', '应收款'
+        CUSTOMER_PREPAYMENTS = 'customer_prepayments', '客户预收款'
+        INVENTORY = 'inventory', '库存'
+        FUND_ACCOUNT = '', '资金账户'
+        SALES_REVENUE = 'sales_revenue', '销售收入'
+        CUSTOMER_TRANSPORT_REVENUE = 'customer_transport_revenue', '客户人肉费收入'
+        COST_OF_GOODS_SOLD = 'cost_of_goods_sold', '销售成本'
+        TRANSPORT_EXPENSE = 'transport_expense', '人肉费用'
     objects = LedgerPostingQuerySet.as_manager()
 
     transaction = models.ForeignKey(LedgerTransaction, on_delete=models.PROTECT, related_name='postings', verbose_name='交易')
@@ -280,3 +315,68 @@ class LedgerPosting(models.Model):
         if self._transaction_is_finalized():
             raise LedgerMutationError('已入账流水的分录不可修改或删除')
         return super().delete(*args, **kwargs)
+
+
+class AccountReconciliation(models.Model):
+    """资金账户在某一业务日的账面余额与实盘余额快照。"""
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', '待确认'
+        CONFIRMED = 'confirmed', '已确认'
+
+    account = models.ForeignKey(
+        FundAccount, on_delete=models.PROTECT, related_name='reconciliations',
+        verbose_name='资金账户',
+    )
+    business_date = models.DateField('业务日期')
+    system_amount = models.DecimalField('系统余额', max_digits=20, decimal_places=8)
+    actual_amount = models.DecimalField('实际余额', max_digits=20, decimal_places=8)
+    difference = models.DecimalField('差异', max_digits=20, decimal_places=8)
+    status = models.CharField(
+        '状态', max_length=12, choices=Status.choices, default=Status.PENDING,
+    )
+    operator = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name='account_reconciliations', verbose_name='操作人',
+    )
+    confirmer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='confirmed_account_reconciliations', verbose_name='确认人',
+    )
+    note = models.TextField('备注', blank=True)
+    creation_idempotency_key = models.CharField(
+        '创建幂等键', max_length=128, unique=True,
+    )
+    confirmation_idempotency_key = models.CharField(
+        '确认幂等键', max_length=128, unique=True, null=True, blank=True,
+    )
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    objects = AccountReconciliationQuerySet.as_manager()
+
+    class Meta:
+        base_manager_name = 'objects'
+        ordering = ['-business_date', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['account', 'business_date'],
+                name='accounting_reconciliation_account_date_unique',
+            ),
+        ]
+        verbose_name = '账户对账'
+        verbose_name_plural = '账户对账'
+
+    @property
+    def system_balance(self):
+        return self.system_amount
+
+    @property
+    def actual_balance(self):
+        return self.actual_amount
+
+    def save(self, *args, **kwargs):
+        raise LedgerMutationError('对账只能通过受控对账流程保存')
+
+    def delete(self, *args, **kwargs):
+        raise LedgerMutationError('对账只能通过受控对账流程删除')

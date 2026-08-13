@@ -2,16 +2,17 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Copy, Check,
-  Package, Search, Plus,
+  Search, Plus,
   X, Upload, ImageIcon, ClipboardList, Wallet, Send
 } from 'lucide-react';
 import {
-  fetchPaymentMethods, searchCigars, createPrivnote, searchCustomers,
-  fetchQuoteProducts, uploadPrivnoteImage
+  fetchPaymentMethods, createPrivnote, fetchQuoteProducts, fetchEligiblePaymentOrders,
+  uploadPrivnoteImage
 } from '../api';
 import { useAuthStore } from '../store/authStore';
 import { usePageMeta } from '../hooks/usePageMeta';
-import type { SearchCigarResult, PaymentItem, CustomerResult, ExtraFee, QuoteProduct } from '../types';
+import type { PaymentMethod, QuoteProduct, PaymentOrder } from '../types';
+import { canSubmitPayment, eligiblePaymentOrders, paymentOrderSummary } from './privnotePayment';
 
 const DURATIONS = [
   { value: '1', label: '1 小时' },
@@ -30,8 +31,6 @@ const TABS = [
 
 type TabKey = typeof TABS[number]['key'];
 type QuoteMode = 'full' | 'custom';
-type PaymentAddMode = 'stock' | 'manual';
-
 /* ─── Image Upload Hook ─── */
 function useImageUpload() {
   const [images, setImages] = useState<{ url: string; name: string }[]>([]);
@@ -151,29 +150,12 @@ export default function PrivnotePage() {
   const [result, setResult] = useState<{ url: string; token: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   // Payment tab state
-  const [searchQ, setSearchQ] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchCigarResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [paymentItems, setPaymentItems] = useState<PaymentItem[]>([]);
-  const [customerName, setCustomerName] = useState('');
-  const [customerQuery, setCustomerQuery] = useState('');
-  const [customerResults, setCustomerResults] = useState<CustomerResult[]>([]);
-  const [customerSearching, setCustomerSearching] = useState(false);
+  const [selectedPaymentOrderId, setSelectedPaymentOrderId] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
-  const [useShipping, setUseShipping] = useState(false);
-  const [shippingAmount, setShippingAmount] = useState(0);
-  const [useCourier, setUseCourier] = useState(false);
-  const [courierAmount, setCourierAmount] = useState(0);
-  const [customFees, setCustomFees] = useState<ExtraFee[]>([]);
   const [remark, setRemark] = useState('');
-  const [paymentAddMode, setPaymentAddMode] = useState<PaymentAddMode>('stock');
-  const [manualName, setManualName] = useState('');
-  const [manualQty, setManualQty] = useState(1);
-  const [manualPrice, setManualPrice] = useState(0);
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const customerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const paymentImages = useImageUpload();
 
   const { data: paymentMethods } = useQuery({
@@ -181,6 +163,13 @@ export default function PrivnotePage() {
     queryFn: fetchPaymentMethods,
     enabled: activeTab === 'payment',
   });
+  const { data: salesOrders = [], isLoading: ordersLoading } = useQuery({
+    queryKey: ['privnote-payment-orders'],
+    queryFn: fetchEligiblePaymentOrders,
+    enabled: activeTab === 'payment',
+  });
+  const eligibleOrders = eligiblePaymentOrders(salesOrders);
+  const selectedPaymentOrder: PaymentOrder | null = eligibleOrders.find(order => String(order.id) === selectedPaymentOrderId) || null;
 
   // Message tab state
   const [messageText, setMessageText] = useState('');
@@ -214,48 +203,6 @@ export default function PrivnotePage() {
 
 
 
-  // Debounced cigar search
-  useEffect(() => {
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (!searchQ.trim()) {
-      setSearchResults([]);
-      return;
-    }
-    setSearching(true);
-    searchTimer.current = setTimeout(async () => {
-      try {
-        const res = await searchCigars(searchQ, false);
-        setSearchResults(res);
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setSearching(false);
-      }
-    }, 300);
-    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
-  }, [searchQ]);
-
-  // Debounced customer search
-  useEffect(() => {
-    if (customerTimer.current) clearTimeout(customerTimer.current);
-    if (!customerQuery.trim()) {
-      setCustomerResults([]);
-      return;
-    }
-    setCustomerSearching(true);
-    customerTimer.current = setTimeout(async () => {
-      try {
-        const res = await searchCustomers(customerQuery);
-        setCustomerResults(res);
-      } catch {
-        setCustomerResults([]);
-      } finally {
-        setCustomerSearching(false);
-      }
-    }, 300);
-    return () => { if (customerTimer.current) clearTimeout(customerTimer.current); };
-  }, [customerQuery]);
-
   if (!user?.is_staff) {
     return (
       <div className="text-center py-20">
@@ -286,61 +233,6 @@ export default function PrivnotePage() {
     }
   };
 
-  const addPaymentItem = (cigar: SearchCigarResult, batchId?: number) => {
-    const batch = batchId ? cigar.batches.find(b => b.batch_id === batchId) : cigar.batches[0];
-    const boxSize = batch?.box_size || 25;
-    const unitCost = batch?.unit_cost_cny || 0;
-    const unitPrice = batch ? Math.round(unitCost * 1.5) : 0;
-    const exists = paymentItems.find(i => i.cigar_id === cigar.id && i.batch_id === batchId);
-    if (exists) return;
-    setPaymentItems(prev => [...prev, {
-      cigar_id: cigar.id,
-      batch_id: batchId || batch?.batch_id,
-      name: cigar.name,
-      english_name: cigar.english_name,
-      brand: cigar.brand,
-      brand_cn: cigar.brand_cn,
-      vitola: cigar.vitola,
-      length: cigar.length,
-      ring_gauge: cigar.ring_gauge,
-      thumb_url: cigar.thumb_url,
-      quantity: 1,
-      unit_price: unitPrice,
-      box_size: boxSize,
-    }]);
-    setSearchQ('');
-    setSearchResults([]);
-  };
-
-  const addManualPaymentItem = () => {
-    if (!manualName.trim() || manualPrice <= 0) return;
-    setPaymentItems(prev => [...prev, {
-      cigar_id: 0,
-      name: manualName.trim(),
-      english_name: '',
-      brand: '',
-      brand_cn: '',
-      vitola: '',
-      length: null,
-      ring_gauge: null,
-      thumb_url: null,
-      quantity: manualQty,
-      unit_price: manualPrice,
-      box_size: 1,
-    }]);
-    setManualName('');
-    setManualQty(1);
-    setManualPrice(0);
-  };
-
-  const removePaymentItem = (idx: number) => {
-    setPaymentItems(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  const updatePaymentItem = (idx: number, field: keyof PaymentItem, value: string | number) => {
-    setPaymentItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
-  };
-
   const addAttachment = () => {
     if (!attachName.trim() || !attachUrl.trim()) return;
     setAttachments(prev => [...prev, { name: attachName.trim(), url: attachUrl.trim() }]);
@@ -352,30 +244,10 @@ export default function PrivnotePage() {
     setAttachments(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const addCustomFee = () => {
-    setCustomFees(prev => [...prev, { name: '', amount: 0 }]);
-  };
-
-  const updateCustomFee = (idx: number, field: keyof ExtraFee, value: string | number) => {
-    setCustomFees(prev => prev.map((f, i) => i === idx ? { ...f, [field]: value } : f));
-  };
-
-  const removeCustomFee = (idx: number) => {
-    setCustomFees(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  const getExtraFees = (): ExtraFee[] => {
-    const fees: ExtraFee[] = [];
-    if (useShipping && shippingAmount > 0) fees.push({ name: '运费', amount: shippingAmount });
-    if (useCourier && courierAmount > 0) fees.push({ name: '人肉费', amount: courierAmount });
-    for (const f of customFees) {
-      if (f.name.trim() && f.amount > 0) fees.push({ name: f.name.trim(), amount: f.amount });
-    }
-    return fees;
-  };
-
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canSubmit()) return;
+    setError('');
     setLoading(true);
     const form = new FormData();
 
@@ -385,15 +257,8 @@ export default function PrivnotePage() {
     form.append('burn', burn ? 'on' : 'off');
 
     if (activeTab === 'payment') {
-      form.append('items', JSON.stringify(paymentItems.map(i => ({
-        cigar_id: i.cigar_id,
-        batch_id: i.batch_id,
-        quantity: i.quantity,
-        unit_price: i.unit_price,
-      }))));
-      form.append('customer_name', customerName);
+      form.append('sales_order_id', selectedPaymentOrderId);
       form.append('payment_method_id', paymentMethodId);
-      form.append('extra_fees', JSON.stringify(getExtraFees()));
       form.append('remark', remark);
       form.append('images', JSON.stringify(paymentImages.images));
     } else if (activeTab === 'message') {
@@ -415,6 +280,9 @@ export default function PrivnotePage() {
     try {
       const res = await createPrivnote(form);
       if (res.url) setResult({ url: res.url, token: res.token });
+      else setError('私密链接创建失败：服务器未返回链接');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '私密链接创建失败，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -422,15 +290,13 @@ export default function PrivnotePage() {
 
   const resetAll = () => {
     setResult(null);
+    setError('');
     setPassword('');
-    setPaymentItems([]);
-    setCustomerName('');
+    setSelectedPaymentOrderId('');
     setPaymentMethodId('');
     setMessageText('');
     setAttachments([]);
     setShowAttachments(false);
-    setSearchQ('');
-    setSearchResults([]);
     setQuoteMode('full');
     setShippingIncluded(false);
     setQuoteSearchQ('');
@@ -440,16 +306,11 @@ export default function PrivnotePage() {
     paymentImages.setImages([]);
     messageImages.setImages([]);
     setRemark('');
-    setUseShipping(false);
-    setUseCourier(false);
-    setCustomFees([]);
-    setShippingAmount(0);
-    setCourierAmount(0);
     setActiveTab('quote');
   };
 
   const canSubmit = () => {
-    if (activeTab === 'payment') return paymentItems.length > 0;
+    if (activeTab === 'payment') return canSubmitPayment(selectedPaymentOrder, paymentMethodId);
     if (activeTab === 'message') return !!messageText.trim() || attachments.length > 0 || messageImages.images.length > 0;
     if (activeTab === 'quote') {
       if (quoteMode === 'full') return true;
@@ -463,11 +324,9 @@ export default function PrivnotePage() {
       if (quoteMode === 'full') return '将生成包含全部 72 款雪茄的完整报价单';
       return selectedIds.length > 0 ? `已选 ${selectedIds.length} 项商品` : '请勾选要包含在报价单中的雪茄';
     }
-    if (activeTab === 'payment') return paymentItems.length > 0 ? `已选 ${paymentItems.length} 项商品` : '添加商品并选择收款方式';
+    if (activeTab === 'payment') return selectedPaymentOrder ? '已选择销售单，可生成收款链接' : '选择待收款销售单和收款方式';
     return '输入消息内容并上传附件';
   };
-
-  const totalPayment = paymentItems.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
 
   return (
     <div className="animate-fade-in max-w-4xl mx-auto pb-32">
@@ -741,376 +600,53 @@ export default function PrivnotePage() {
             {/* ── PAYMENT TAB ── */}
             {activeTab === 'payment' && (
               <div className="space-y-4">
-                {/* Add Product */}
                 <div className="bg-white border border-border rounded-sm overflow-hidden">
-                  <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
-                    <span className="text-xs text-muted uppercase tracking-wider font-medium">添加商品</span>
-                    <div className="inline-flex bg-accent-light rounded-sm p-1 gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setPaymentAddMode('stock')}
-                        className={`px-4 py-2 text-xs font-medium rounded-sm transition-all ${
-                          paymentAddMode === 'stock'
-                            ? 'bg-white text-fg shadow-sm'
-                            : 'text-muted hover:text-fg'
-                        }`}
-                      >
-                        从库存选
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPaymentAddMode('manual')}
-                        className={`px-4 py-2 text-xs font-medium rounded-sm transition-all ${
-                          paymentAddMode === 'manual'
-                            ? 'bg-white text-fg shadow-sm'
-                            : 'text-muted hover:text-fg'
-                        }`}
-                      >
-                        手动输入
-                      </button>
-                    </div>
+                  <div className="px-5 py-4 border-b border-border">
+                    <span className="text-xs text-muted uppercase tracking-wider font-medium">选择既有销售单</span>
                   </div>
-                  <div className="p-5">
-                    {paymentAddMode === 'stock' ? (
-                      <div>
-                        <div className="relative mb-3">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-                          <input
-                            type="text"
-                            value={searchQ}
-                            onChange={e => setSearchQ(e.target.value)}
-                            placeholder="搜索品牌 + 款式，如：高希霸 罗布图 / Cohiba D4"
-                            className="w-full pl-9 pr-4 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent"
-                          />
-                        </div>
-                        {searching && <p className="text-xs text-muted mb-2">搜索中…</p>}
-                        {Array.isArray(searchResults) && searchResults.length > 0 && (
-                          <div className="border border-border rounded-sm bg-white max-h-72 overflow-y-auto">
-                            {searchResults.map(c => (
-                              <div
-                                key={c.id}
-                                className="px-4 py-3 hover:bg-accent-light cursor-pointer border-b border-border last:border-0"
-                                onClick={() => addPaymentItem(c)}
-                              >
-                                {/* 品牌 · 名称 */}
-                                <div className="text-sm font-medium">
-                                  {c.brand_cn ? `${c.brand_cn} · ${c.name}` : `${c.brand} · ${c.name}`}
-                                </div>
-                                {/* 品型 · 尺寸 */}
-                                <div className="text-xs text-muted mt-0.5">
-                                  {c.vitola}
-                                  {c.length && c.ring_gauge ? ` · ${c.length}mm × ${c.ring_gauge}环径` : ''}
-                                  {' · '}库存 {c.stock_qty} 支
-                                </div>
-                                {/* 图片 + 批次按钮 */}
-                                <div className="flex items-start gap-3 mt-2">
-                                  <div className="w-12 h-12 rounded-sm bg-accent-light flex items-center justify-center shrink-0 overflow-hidden">
-                                    {c.thumb_url ? (
-                                      <img src={c.thumb_url} alt={c.name} className="w-full h-full object-contain p-0.5" />
-                                    ) : (
-                                      <Package className="w-5 h-5 text-muted" />
-                                    )}
-                                  </div>
-                                  {c.batches.length > 1 && (
-                                    <div className="flex gap-1 flex-wrap flex-1">
-                                      {c.batches.map(b => (
-                                        <button
-                                          key={b.batch_id}
-                                          type="button"
-                                          onClick={ev => { ev.stopPropagation(); addPaymentItem(c, b.batch_id); }}
-                                          className="text-[10px] px-2 py-1 rounded-sm bg-accent/10 text-accent hover:bg-accent/20"
-                                        >
-                                          {b.box_size}支/盒 · 余{b.remaining}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-xs text-muted uppercase tracking-wider mb-2">雪茄名称</label>
-                          <input
-                            type="text"
-                            value={manualName}
-                            onChange={e => setManualName(e.target.value)}
-                            placeholder="输入雪茄名称"
-                            className="w-full px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-muted uppercase tracking-wider mb-2">数量</label>
-                          <input
-                            type="number"
-                            min={1}
-                            value={manualQty}
-                            onChange={e => setManualQty(parseInt(e.target.value) || 1)}
-                            placeholder="1"
-                            className="w-full px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-muted uppercase tracking-wider mb-2">单价 (CNY)</label>
-                          <input
-                            type="number"
-                            min={0}
-                            value={manualPrice}
-                            onChange={e => setManualPrice(parseInt(e.target.value) || 0)}
-                            placeholder="0"
-                            className="w-full px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent"
-                          />
-                        </div>
-                        <div className="col-span-3 text-right">
-                          <button
-                            type="button"
-                            onClick={addManualPaymentItem}
-                            className="px-4 py-2 bg-accent text-white rounded-sm text-sm font-medium hover:bg-accent-hover transition-colors"
-                          >
-                            加入订单
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                  <div className="p-5 space-y-3">
+                    <select
+                      value={selectedPaymentOrderId}
+                      onChange={e => setSelectedPaymentOrderId(e.target.value)}
+                      disabled={ordersLoading}
+                      className="w-full px-3 py-2.5 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent"
+                    >
+                      <option value="">{ordersLoading ? '销售单加载中…' : '请选择待收款销售单'}</option>
+                      {eligibleOrders.map(order => (
+                        <option key={order.id} value={order.id}>
+                          {order.order_number || `SO-${order.id}`} · {order.customer_name || '散客'} · ¥{Number(order.amount_due_cny).toLocaleString()} · {order.display_status || order.status}
+                        </option>
+                      ))}
+                    </select>
+                    {!ordersLoading && eligibleOrders.length === 0 && <p className="text-xs text-muted">暂无已确认/已出库且未收款的销售单。</p>}
                   </div>
                 </div>
 
-                {/* Order List */}
-                {paymentItems.length > 0 && (
+                {selectedPaymentOrder && (
                   <div className="bg-white border border-border rounded-sm overflow-hidden">
-                    <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-                      <span className="text-xs text-muted uppercase tracking-wider font-medium">已选商品</span>
-                      <span className="text-sm text-muted">{paymentItems.length} 项</span>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse text-sm">
-                        <thead>
-                          <tr className="bg-accent-light">
-                            <th className="px-4 py-3 text-left text-xs text-muted uppercase tracking-wider font-medium">雪茄</th>
-                            <th className="px-4 py-3 text-right text-xs text-muted uppercase tracking-wider font-medium">数量</th>
-                            <th className="px-4 py-3 text-right text-xs text-muted uppercase tracking-wider font-medium">单价</th>
-                            <th className="px-4 py-3 text-right text-xs text-muted uppercase tracking-wider font-medium">小计</th>
-                            <th className="px-4 py-3 text-center text-xs text-muted uppercase tracking-wider font-medium w-10"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {paymentItems.map((item, idx) => (
-                            <tr key={`${item.cigar_id}-${item.batch_id}-${idx}`} className="border-b border-border hover:bg-accent-light/30">
-                              <td className="px-4 py-3">
-                                <div className="flex flex-col gap-1">
-                                  <div className="text-sm font-medium">
-                                    {item.brand_cn ? `${item.brand_cn} · ${item.name}` : (item.brand ? `${item.brand} · ${item.name}` : item.name)}
-                                  </div>
-                                  <div className="text-xs text-muted">
-                                    {item.vitola}
-                                    {item.length && item.ring_gauge ? ` · ${item.length}mm × ${item.ring_gauge}环径` : ''}
-                                  </div>
-                                  {item.thumb_url ? (
-                                    <img src={item.thumb_url} alt={item.name} className="w-12 h-12 object-contain rounded-sm bg-accent-light p-0.5 mt-0.5" />
-                                  ) : (
-                                    <div className="w-12 h-12 rounded-sm bg-accent-light flex items-center justify-center mt-0.5">
-                                      <Package className="w-4 h-4 text-muted" />
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <input
-                                  type="number"
-                                  min={1}
-                                  value={item.quantity}
-                                  onChange={e => updatePaymentItem(idx, 'quantity', parseInt(e.target.value) || 1)}
-                                  className="w-16 px-2 py-1 border border-border rounded-sm text-sm text-center focus:outline-none focus:border-accent"
-                                />
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <div className="flex items-center justify-end gap-1">
-                                  <span className="text-xs text-muted">¥</span>
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    value={item.unit_price}
-                                    onChange={e => updatePaymentItem(idx, 'unit_price', parseInt(e.target.value) || 0)}
-                                    className="w-20 px-2 py-1 border border-border rounded-sm text-sm text-right focus:outline-none focus:border-accent"
-                                  />
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-right font-mono font-semibold">
-                                ¥{(item.quantity * item.unit_price).toLocaleString()}
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => removePaymentItem(idx)}
-                                  className="text-muted hover:text-accent transition-colors"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                          <tr className="bg-accent-light font-semibold">
-                            <td colSpan={3} className="px-4 py-3 text-right text-sm text-muted">合计</td>
-                            <td className="px-4 py-3 text-right font-display text-lg text-accent">¥{totalPayment.toLocaleString()}</td>
-                            <td></td>
-                          </tr>
-                        </tbody>
-                      </table>
+                    <div className="px-5 py-4 border-b border-border"><span className="text-xs text-muted uppercase tracking-wider font-medium">订单摘要（只读）</span></div>
+                    <div className="p-5 space-y-3 text-sm">
+                      {(() => { const summary = paymentOrderSummary(selectedPaymentOrder); return <>
+                        <div className="grid gap-2 sm:grid-cols-3"><div><span className="text-xs text-muted">订单号</span><p className="font-mono font-semibold">{summary.order_number}</p></div><div><span className="text-xs text-muted">客户</span><p>{summary.customer_name}</p></div><div><span className="text-xs text-muted">应收金额</span><p className="font-mono font-semibold text-accent">¥{Number(summary.amount_due_cny).toLocaleString()}</p></div></div>
+                        <div className="rounded border border-border divide-y divide-border">{summary.items.map((item, index) => <div key={index} className="flex items-center justify-between px-3 py-2 text-xs"><span>{item.name}</span><span className="text-muted">{item.quantity} {item.sale_unit === 'box' ? '盒' : '支'} · ¥{Number(item.unit_price).toLocaleString()}</span></div>)}{summary.items.length === 0 && <p className="px-3 py-3 text-xs text-muted">暂无商品明细</p>}</div>
+                      </>; })()}
                     </div>
                   </div>
                 )}
 
-                {/* Extra Fees */}
                 <div className="bg-white border border-border rounded-sm overflow-hidden">
-                  <div className="px-5 py-4 border-b border-border">
-                    <span className="text-xs text-muted uppercase tracking-wider font-medium">额外费用</span>
-                  </div>
-                  <div className="p-5 space-y-3">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <div className="relative">
-                        <input type="checkbox" className="sr-only" checked={useShipping} onChange={e => setUseShipping(e.target.checked)} />
-                        <span className={`block w-10 h-[22px] rounded-full transition-colors ${useShipping ? 'bg-accent' : 'bg-border'}`}>
-                          <span className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform ${useShipping ? 'translate-x-[18px]' : 'translate-x-0'}`} />
-                        </span>
-                      </div>
-                      <span className="text-sm">运费</span>
-                      {useShipping && (
-                        <input
-                          type="number"
-                          min={0}
-                          value={shippingAmount}
-                          onChange={e => setShippingAmount(parseInt(e.target.value) || 0)}
-                          className="w-20 px-2 py-1 border border-border rounded-sm text-sm text-right focus:outline-none focus:border-accent"
-                        />
-                      )}
-                    </label>
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <div className="relative">
-                        <input type="checkbox" className="sr-only" checked={useCourier} onChange={e => setUseCourier(e.target.checked)} />
-                        <span className={`block w-10 h-[22px] rounded-full transition-colors ${useCourier ? 'bg-accent' : 'bg-border'}`}>
-                          <span className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform ${useCourier ? 'translate-x-[18px]' : 'translate-x-0'}`} />
-                        </span>
-                      </div>
-                      <span className="text-sm">人肉费</span>
-                      {useCourier && (
-                        <input
-                          type="number"
-                          min={0}
-                          value={courierAmount}
-                          onChange={e => setCourierAmount(parseInt(e.target.value) || 0)}
-                          className="w-20 px-2 py-1 border border-border rounded-sm text-sm text-right focus:outline-none focus:border-accent"
-                        />
-                      )}
-                    </label>
-                    {customFees.map((f, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={f.name}
-                          onChange={e => updateCustomFee(idx, 'name', e.target.value)}
-                          placeholder="费用名"
-                          className="flex-1 px-3 py-1.5 border border-border rounded-sm text-sm focus:outline-none focus:border-accent"
-                        />
-                        <input
-                          type="number"
-                          min={0}
-                          value={f.amount}
-                          onChange={e => updateCustomFee(idx, 'amount', parseInt(e.target.value) || 0)}
-                          placeholder="金额"
-                          className="w-24 px-3 py-1.5 border border-border rounded-sm text-sm text-right focus:outline-none focus:border-accent"
-                        />
-                        <button type="button" onClick={() => removeCustomFee(idx)} className="p-1 text-muted hover:text-accent transition-colors">
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                    <button type="button" onClick={addCustomFee} className="text-xs text-accent hover:underline flex items-center gap-1">
-                      <Plus className="w-3 h-3" /> 添加费用
-                    </button>
-                  </div>
-                </div>
-
-                {/* Customer */}
-                <div className="bg-white border border-border rounded-sm overflow-hidden">
-                  <div className="px-5 py-4 border-b border-border">
-                    <span className="text-xs text-muted uppercase tracking-wider font-medium">客户信息</span>
-                  </div>
-                  <div className="p-5">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-                      <input
-                        type="text"
-                        value={customerQuery}
-                        onChange={e => { setCustomerQuery(e.target.value); setCustomerName(e.target.value); }}
-                        placeholder="搜索客户（输入名字，选已有或输入新名）"
-                        className="w-full pl-9 pr-4 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent"
-                      />
-                    </div>
-                    {customerSearching && <p className="text-xs text-muted mt-2">搜索中…</p>}
-                    {Array.isArray(customerResults) && customerResults.length > 0 && (
-                      <div className="mt-2 border border-border rounded-sm bg-white max-h-36 overflow-y-auto">
-                        {customerResults.map(c => (
-                          <div
-                            key={c.id}
-                            className="px-4 py-2.5 hover:bg-accent-light cursor-pointer border-b border-border last:border-0"
-                            onClick={() => { setCustomerName(c.name); setCustomerQuery(c.name); setCustomerResults([]); }}
-                          >
-                            <div className="text-sm font-medium">{c.name}</div>
-                            {c.phone && <div className="text-xs text-muted">{c.phone}</div>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Payment Method */}
-                <div className="bg-white border border-border rounded-sm overflow-hidden">
-                  <div className="px-5 py-4 border-b border-border">
-                    <span className="text-xs text-muted uppercase tracking-wider font-medium">收款方式</span>
-                  </div>
+                  <div className="px-5 py-4 border-b border-border"><span className="text-xs text-muted uppercase tracking-wider font-medium">收款方式</span></div>
                   <div className="p-5 space-y-4">
-                    <div>
-                      <label className="block text-xs text-muted uppercase tracking-wider mb-2">选择预设收款方式</label>
-                      <select
-                        value={paymentMethodId}
-                        onChange={e => setPaymentMethodId(e.target.value)}
-                        className="w-full px-3 py-2.5 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent appearance-none"
-                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A7E6E' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center', paddingRight: 36 }}
-                      >
-                        <option value="">手动填写</option>
-                        {paymentMethods?.map(pm => (
-                          <option key={pm.id} value={pm.id}>{pm.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Remark */}
-                    <div>
-                      <label className="block text-xs text-muted uppercase tracking-wider mb-2">备注</label>
-                      <textarea
-                        value={remark}
-                        onChange={e => setRemark(e.target.value)}
-                        rows={3}
-                        placeholder="备注信息…"
-                        className="w-full px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent resize-none leading-relaxed"
-                      />
-                    </div>
-
-                    {/* Remark Images */}
-                    <div>
-                      <label className="block text-xs text-muted uppercase tracking-wider mb-2">备注图片</label>
-                      <FileUploadArea {...paymentImages} />
-                    </div>
+                    <select required value={paymentMethodId} onChange={e => setPaymentMethodId(e.target.value)} className="w-full px-3 py-2.5 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent">
+                      <option value="">请选择已绑定的 CNY 收款账户</option>
+                      {paymentMethods?.map((pm: PaymentMethod) => <option key={pm.id} value={pm.id}>{pm.label}{pm.remark ? ` · ${pm.remark}` : ''}</option>)}
+                    </select>
+                    <label className="block text-xs text-muted uppercase tracking-wider">备注<textarea value={remark} onChange={e => setRemark(e.target.value)} rows={3} placeholder="备注信息…" className="mt-2 w-full px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent resize-none" /></label>
+                    <div><label className="block text-xs text-muted uppercase tracking-wider mb-2">备注图片</label><FileUploadArea {...paymentImages} /></div>
                   </div>
                 </div>
               </div>
             )}
-
             {/* ── MESSAGE TAB ── */}
             {activeTab === 'message' && (
               <div className="space-y-4">
@@ -1210,7 +746,7 @@ export default function PrivnotePage() {
 
           {/* Action Bar */}
           <div className="sticky bottom-0 bg-white border-t border-border px-6 py-4 flex items-center justify-between gap-4 z-50">
-            <div className="text-sm text-muted">{actionHint()}</div>
+            <div className="min-w-0 text-sm text-muted">{error ? <span className="text-red-700">{error}</span> : actionHint()}</div>
             <div className="flex gap-3">
               <button
                 type="button"

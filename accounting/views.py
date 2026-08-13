@@ -2,24 +2,59 @@ import json
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, OperationalError, transaction
 from django.db.models import Prefetch
 from django.http import JsonResponse
 
 from accounting.decorators import staff_json_required
-from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
+from accounting.models import (
+    AccountReconciliation, FundAccount, LedgerPosting, LedgerTransaction,
+)
+from accounting.selectors import accounting_summary, monthly_profit
 from accounting.serializers import serialize_account, serialize_snapshot, serialize_transaction
 from accounting.services import (
     LedgerError,
+    ReconciliationConflictError,
     _exchange_to_rub_with_result,
     _record_opening_balance_with_result,
     _transfer_same_currency_with_result,
+    confirm_reconciliation,
+    create_reconciliation,
 )
 from cigars.models import User
 
 
 class ApiInputError(Exception):
     pass
+
+
+def _json_value(value):
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: _json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_value(item) for item in value]
+    return value
+
+
+def _serialize_reconciliation(record):
+    return {
+        'id': record.id,
+        'account_id': record.account_id,
+        'business_date': record.business_date.isoformat(),
+        'system_amount': format(record.system_amount, '.8f'),
+        'actual_amount': format(record.actual_amount, '.8f'),
+        'difference': format(record.difference, '.8f'),
+        'status': record.status,
+        'operator_id': record.operator_id,
+        'confirmer_id': record.confirmer_id,
+        'note': record.note,
+        'created_at': record.created_at.isoformat(),
+        'updated_at': record.updated_at.isoformat(),
+    }
 
 
 def _json_object(request):
@@ -239,8 +274,15 @@ def overview(request):
 @staff_json_required
 def transactions(request):
     if request.method != 'GET':
-        return JsonResponse({'error': '请求方法不支持'}, status=400)
+        return JsonResponse({'error': '请求方法不支持'}, status=405)
     try:
+        raw_limit = request.GET.get('limit', '100')
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError):
+            raise ApiInputError('limit 必须是整数')
+        if not 1 <= limit <= 500:
+            raise ApiInputError('limit 必须在1到500之间')
         records = LedgerTransaction.objects.select_related('operator').prefetch_related(
             Prefetch('postings', queryset=LedgerPosting.objects.select_related('account').order_by('id')),
         )
@@ -257,7 +299,96 @@ def transactions(request):
             records = records.filter(business_date__lte=date_to)
         if date_from is not None and date_to is not None and date_from > date_to:
             raise ApiInputError('business_date范围无效')
-        records = records.distinct().order_by('business_date', 'effective_sequence', 'id')
+        records = records.distinct().order_by(
+            'business_date', 'effective_sequence', 'id',
+        )[:limit]
         return JsonResponse({'transactions': [serialize_transaction(record) for record in records]})
     except (ApiInputError, InvalidOperation, ValueError) as error:
+        return JsonResponse({'error': str(error)}, status=400)
+
+
+@staff_json_required
+def monthly_profit_report(request):
+    if request.method != 'GET':
+        return JsonResponse({'error': '请求方法不支持'}, status=405)
+    value = request.GET.get('month')
+    try:
+        if not isinstance(value, str) or len(value) != 7:
+            raise ValueError
+        month = date.fromisoformat(f'{value}-01')
+        return JsonResponse(_json_value(monthly_profit(month=month)))
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'month 必须是 YYYY-MM'}, status=400)
+
+
+@staff_json_required
+def summary_report(request):
+    if request.method != 'GET':
+        return JsonResponse({'error': '请求方法不支持'}, status=405)
+    try:
+        as_of = _parse_iso_date(request.GET.get('as_of'), 'as_of')
+        return JsonResponse(_json_value(accounting_summary(as_of=as_of)))
+    except (ApiInputError, TypeError, ValueError) as error:
+        return JsonResponse({'error': str(error)}, status=400)
+
+
+@staff_json_required
+def reconciliations(request):
+    if request.method == 'GET':
+        raw_limit = request.GET.get('limit', '50')
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError):
+            return JsonResponse({'error': 'limit 必须是整数'}, status=400)
+        if not 1 <= limit <= 500:
+            return JsonResponse({'error': 'limit 必须在1到500之间'}, status=400)
+        records = AccountReconciliation.objects.select_related('account', 'operator')
+        records = records[:limit]
+        return JsonResponse({
+            'reconciliations': [_serialize_reconciliation(record) for record in records],
+        })
+    if request.method != 'POST':
+        return JsonResponse({'error': '请求方法不支持'}, status=405)
+    try:
+        payload = _json_object(request)
+        key = _idempotency_key(request)
+        note = payload.get('note', '')
+        if not isinstance(note, str):
+            raise ApiInputError('note无效')
+        result = create_reconciliation(
+            account=FundAccount.objects.get(pk=_required_id(payload, 'account_id')),
+            business_date=_required_business_date(payload),
+            actual_amount=_required_decimal_string(payload, 'actual_amount'),
+            operator=request.accounting_operator,
+            idempotency_key=key,
+            note=note,
+            return_result=True,
+        )
+        return JsonResponse({'reconciliation': _serialize_reconciliation(result.reconciliation)}, status=201 if result.created else 200)
+    except ReconciliationConflictError as error:
+        return JsonResponse({'error': str(error)}, status=409)
+    except OperationalError:
+        return JsonResponse({'error': '账务系统繁忙，请重试'}, status=503)
+    except (ApiInputError, LedgerError, FundAccount.DoesNotExist, InvalidOperation, ValueError) as error:
+        return JsonResponse({'error': str(error)}, status=400)
+
+
+@staff_json_required
+def reconciliation_confirm(request, reconciliation_id):
+    if request.method != 'POST':
+        return JsonResponse({'error': '请求方法不支持'}, status=405)
+    try:
+        _json_object(request)
+        result = confirm_reconciliation(
+            reconciliation_id=reconciliation_id,
+            operator=request.accounting_operator,
+            idempotency_key=_idempotency_key(request),
+            return_result=True,
+        )
+        return JsonResponse({'reconciliation': _serialize_reconciliation(result.reconciliation)})
+    except ReconciliationConflictError as error:
+        return JsonResponse({'error': str(error)}, status=409)
+    except OperationalError:
+        return JsonResponse({'error': '账务系统繁忙，请重试'}, status=503)
+    except (ApiInputError, LedgerError, InvalidOperation, ValueError) as error:
         return JsonResponse({'error': str(error)}, status=400)

@@ -10,7 +10,10 @@ from django.db import IntegrityError, OperationalError, connection, models, tran
 from django.db.models import Sum
 from django.utils import timezone
 
-from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
+from accounting.models import (
+    AccountReconciliation, FundAccount, LedgerPosting, LedgerSequence,
+    LedgerTransaction,
+)
 from accounting.selectors import account_snapshot
 
 
@@ -53,6 +56,16 @@ class _OperationResult:
     created: bool
 
 
+@dataclass(frozen=True)
+class _ReconciliationOperationResult:
+    reconciliation: AccountReconciliation
+    created: bool
+
+
+class ReconciliationConflictError(LedgerError):
+    pass
+
+
 def _decimal(value, places, field_name):
     try:
         decimal_value = Decimal(str(value)).quantize(places, rounding=ROUND_HALF_UP)
@@ -74,6 +87,18 @@ def _strict_external_decimal(value, places, field_name):
     if original_value != amount:
         raise LedgerError(f'{field_name}小数位数超出允许精度')
     return amount
+
+
+def _reconciliation_key(value, field_name):
+    if not isinstance(value, str) or not value or len(value) > 128:
+        raise LedgerError(f'{field_name}无效')
+    return value
+
+
+def _reconciliation_result(record, created, return_result):
+    if return_result:
+        return _ReconciliationOperationResult(reconciliation=record, created=created)
+    return record
 
 
 def _require_operator(operator):
@@ -234,6 +259,22 @@ def _sqlite_retry_delay(attempt, base_delay):
     return base_delay * (attempt + 1) + random.uniform(0, base_delay / 2)
 
 
+def _acquire_sqlite_writer_gate():
+    """Acquire the ledger writer gate without consuming a ledger sequence.
+
+    SQLite has no useful row-level lock for ``select_for_update``.  A controlled
+    equal-value write upgrades the current outer transaction to a writer before
+    account/history reads, so concurrent operations retry as whole transactions.
+    ``LedgerSequence`` ordinary writes are intentionally guarded; this is the
+    trusted low-level persistence boundary.
+    """
+    sequence, created = LedgerSequence.objects.select_for_update().get_or_create(name='global')
+    if connection.vendor == 'sqlite' and not created:
+        # Trusted low-level persistence boundary: equal write acquires SQLite writer lock.
+        models.Model.save(sequence, update_fields=['next_value'])
+    return sequence
+
+
 def _validate_opening_balance_postings(business_date, prepared):
     if business_date != CUTOVER_DATE:
         raise LedgerError('期初余额只能记录在账务切换日')
@@ -258,7 +299,10 @@ def _validate_opening_balance_postings(business_date, prepared):
 
 @transaction.atomic
 def _post_transaction_once(*, transaction_type, business_date, postings, operator,
-                           idempotency_key, description='', source_type='', source_id='', return_result=False):
+                           idempotency_key, description='', source_type='', source_id='', return_result=False,
+                           _writer_gate=True):
+    if _writer_gate:
+        _acquire_sqlite_writer_gate()
     _validate_metadata(transaction_type, business_date, idempotency_key)
     persisted_operator = _require_operator(operator)
     existing = _existing_transaction(idempotency_key, transaction_type)
@@ -433,6 +477,7 @@ def record_opening_balance(account, original_amount, cny_book_cost, equity_categ
 
 def _record_opening_balance(account, original_amount, cny_book_cost, equity_category,
                             business_date, operator, idempotency_key, return_result=False):
+    _acquire_sqlite_writer_gate()
     _validate_metadata(LedgerTransaction.TransactionType.OPENING_BALANCE, business_date, idempotency_key)
     persisted_operator = _require_operator(operator)
     if business_date != CUTOVER_DATE:
@@ -470,6 +515,7 @@ def _record_opening_balance(account, original_amount, cny_book_cost, equity_cate
         operator=persisted_operator,
         idempotency_key=idempotency_key,
         return_result=return_result,
+        _writer_gate=False,
     )
 
 
@@ -495,6 +541,7 @@ def exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
 
 def _exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
                      business_date, operator, idempotency_key, description='', return_result=False):
+    _acquire_sqlite_writer_gate()
     persisted_operator, existing = _existing_operation(
         LedgerTransaction.TransactionType.EXCHANGE, business_date, operator, idempotency_key,
     )
@@ -528,6 +575,7 @@ def _exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
         idempotency_key=idempotency_key,
         description=description,
         return_result=return_result,
+        _writer_gate=False,
     )
 
 
@@ -553,6 +601,7 @@ def transfer_same_currency(source_account, target_account, amount, business_date
 
 def _transfer_same_currency(source_account, target_account, amount, business_date,
                             operator, idempotency_key, description='', return_result=False):
+    _acquire_sqlite_writer_gate()
     persisted_operator, existing = _existing_operation(
         LedgerTransaction.TransactionType.TRANSFER, business_date, operator, idempotency_key,
     )
@@ -583,6 +632,7 @@ def _transfer_same_currency(source_account, target_account, amount, business_dat
         idempotency_key=idempotency_key,
         description=description,
         return_result=return_result,
+        _writer_gate=False,
     )
 
 
@@ -594,3 +644,123 @@ def _transfer_same_currency_with_result(source_account, target_account, amount, 
         source_account, target_account, amount, business_date,
         operator, idempotency_key, description, return_result=True,
     )
+
+
+@_retry_sqlite_locked
+@transaction.atomic
+def create_reconciliation(*, account, business_date, actual_amount, operator,
+                          idempotency_key, note='', return_result=False):
+    """记录账户实盘余额快照，不修改或生成账务流水。"""
+    _acquire_sqlite_writer_gate()
+    persisted_operator = _require_operator(operator)
+    if type(business_date) is not date:
+        raise LedgerError('业务日期必须是 date')
+    if business_date < CUTOVER_DATE:
+        raise LedgerError('业务日期不能早于账务切换日')
+    key = _reconciliation_key(idempotency_key, '创建幂等键')
+    if not isinstance(account, FundAccount) or not account.pk:
+        raise LedgerError('对账账户必须是已保存的资金账户')
+    locked_account = FundAccount.objects.select_for_update().filter(pk=account.pk).first()
+    if locked_account is None:
+        raise LedgerError('对账账户不存在')
+    if not locked_account.is_active:
+        raise LedgerError('账户已停用')
+    actual = _strict_external_decimal(
+        actual_amount, ORIGINAL_PLACES[locked_account.currency], '实际余额',
+    )
+    if abs(actual) >= MAX_ORIGINAL_ABS:
+        raise LedgerError('实际余额超出范围')
+    if actual < 0:
+        raise LedgerError('实际余额不能为负')
+    existing_key = AccountReconciliation.objects.select_for_update().filter(
+        creation_idempotency_key=key,
+    ).first()
+    if existing_key is not None:
+        if (
+            existing_key.account_id != locked_account.pk
+            or existing_key.business_date != business_date
+            or existing_key.actual_amount != actual
+            or existing_key.operator_id != persisted_operator.pk
+            or existing_key.note != (note or '')
+        ):
+            raise ReconciliationConflictError('创建对账幂等键参数不匹配')
+        return _reconciliation_result(existing_key, False, return_result)
+    if AccountReconciliation.objects.select_for_update().filter(
+        account=locked_account, business_date=business_date,
+    ).exists():
+        raise ReconciliationConflictError('该账户在此业务日已经对账')
+    system = account_snapshot(
+        locked_account, as_of_business_date=business_date,
+    ).original_balance
+    places = ORIGINAL_PLACES[locked_account.currency]
+    difference = (actual - system).quantize(places)
+    record = AccountReconciliation(
+            account=locked_account,
+            business_date=business_date,
+            system_amount=system,
+            actual_amount=actual,
+            difference=difference,
+            operator=persisted_operator,
+            note=note or '',
+            creation_idempotency_key=key,
+        )
+    try:
+        with transaction.atomic():
+            # Trusted persistence boundary; ordinary ORM creation is guarded.
+            models.Model.save(record, force_insert=True)
+    except IntegrityError as error:
+        existing_key = AccountReconciliation.objects.filter(
+            creation_idempotency_key=key,
+        ).first()
+        if existing_key is not None:
+            if (
+                existing_key.account_id == locked_account.pk
+                and existing_key.business_date == business_date
+                and existing_key.actual_amount == actual
+                and existing_key.operator_id == persisted_operator.pk
+                and existing_key.note == (note or '')
+            ):
+                return _reconciliation_result(existing_key, False, return_result)
+            raise ReconciliationConflictError('创建对账幂等键参数不匹配') from error
+        raise ReconciliationConflictError('该账户在此业务日已经对账') from error
+    return _reconciliation_result(record, True, return_result)
+
+
+@_retry_sqlite_locked
+@transaction.atomic
+def confirm_reconciliation(*, reconciliation_id, operator, idempotency_key,
+                           return_result=False):
+    """确认对账快照；确认不会调整或覆盖任何账务流水。"""
+    _acquire_sqlite_writer_gate()
+    persisted_operator = _require_operator(operator)
+    key = _reconciliation_key(idempotency_key, '确认幂等键')
+    try:
+        reconciliation = AccountReconciliation.objects.select_for_update().get(
+            pk=int(reconciliation_id),
+        )
+    except (AccountReconciliation.DoesNotExist, TypeError, ValueError):
+        raise LedgerError('对账记录不存在')
+    if reconciliation.status == AccountReconciliation.Status.CONFIRMED:
+        if (
+            reconciliation.confirmation_idempotency_key == key
+            and reconciliation.confirmer_id == persisted_operator.pk
+        ):
+            return _reconciliation_result(reconciliation, False, return_result)
+        raise ReconciliationConflictError('对账记录已经确认')
+    if reconciliation.status != AccountReconciliation.Status.PENDING:
+        raise LedgerError('对账记录状态无效')
+    if AccountReconciliation.objects.filter(
+        confirmation_idempotency_key=key,
+    ).exclude(pk=reconciliation.pk).exists():
+        raise ReconciliationConflictError('确认幂等键已用于其他对账记录')
+    reconciliation.status = AccountReconciliation.Status.CONFIRMED
+    reconciliation.confirmation_idempotency_key = key
+    reconciliation.confirmer = persisted_operator
+    # The model guard protects ordinary callers; this is the service's controlled boundary.
+    try:
+        models.Model.save(reconciliation, update_fields=[
+            'status', 'confirmation_idempotency_key', 'confirmer', 'updated_at',
+        ])
+    except IntegrityError as error:
+        raise ReconciliationConflictError('确认幂等键已用于其他对账记录') from error
+    return _reconciliation_result(reconciliation, True, return_result)

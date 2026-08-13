@@ -7,11 +7,13 @@ from urllib.parse import urlencode
 
 from cigars import views
 from cigars import agent_api
+from cigars import sales_api
 from cigars.auth_views import api_login, api_logout, api_me
 from privnote.views import (
     api_privnote, create as privnote_create,
     search_cigars as privnote_search_cigars,
     list_payment_methods as privnote_payment_methods,
+    list_payment_orders as privnote_payment_orders,
     search_customers as privnote_search_customers,
     list_quote_products as privnote_quote_products,
     upload_image as privnote_upload_image,
@@ -56,6 +58,14 @@ urlpatterns = [
     path('api/agent/orders/cancel/', agent_api.cancel_sales_order_command, name='agent_cancel_sales_order'),
     path('api/agent/stock/adjust/', agent_api.adjust_stock_command, name='agent_adjust_stock'),
     path('api/agent/reports/basic/', agent_api.business_report, name='agent_business_report'),
+    path('api/sales/orders/', sales_api.sales_orders, name='sales_orders'),
+    path('api/sales/orders/<int:order_id>/', sales_api.sales_order_detail, name='sales_order_detail'),
+    path('api/sales/orders/<int:order_id>/confirm/', sales_api.sales_order_confirm, name='sales_order_confirm'),
+    path('api/sales/orders/<int:order_id>/cancel/', sales_api.sales_order_cancel, name='sales_order_cancel'),
+    path('api/sales/orders/<int:order_id>/ship/', sales_api.sales_order_ship, name='sales_order_ship'),
+    path('api/sales/orders/<int:order_id>/receive/', sales_api.sales_order_receive, name='sales_order_receive'),
+    path('api/sales/orders/<int:order_id>/refund/', sales_api.sales_order_refund, name='sales_order_refund'),
+    path('api/sales/orders/<int:order_id>/transport-cost/', sales_api.sales_order_transport_cost, name='sales_order_transport_cost'),
     path('api/accounting/', include('accounting.urls')),
     path('api/prices/', include('price_tracker.urls')),
     # Privnote — JSON API + customer view API (frontend handled by React SPA)
@@ -63,6 +73,7 @@ urlpatterns = [
     path('privnote/create/', privnote_create, name='privnote_create'),
     path('privnote/api/search-cigars/', privnote_search_cigars, name='privnote_search_cigars'),
     path('privnote/api/payment-methods/', privnote_payment_methods, name='privnote_payment_methods'),
+    path('privnote/api/payment-orders/', privnote_payment_orders, name='privnote_payment_orders'),
     path('privnote/api/search-customers/', privnote_search_customers, name='privnote_search_customers'),
     path('privnote/api/quote-products/', privnote_quote_products, name='privnote_quote_products'),
     path('privnote/api/upload-image/', privnote_upload_image, name='privnote_upload_image'),

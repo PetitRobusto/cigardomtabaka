@@ -9,6 +9,7 @@ from cigars import views
 from cigars import agent_api
 from cigars import sales_api
 from cigars.auth_views import api_login, api_logout, api_me
+from cigars.guide_views import guide_status, guide_complete, guide_replay
 from privnote.views import (
     api_privnote, create as privnote_create,
     search_cigars as privnote_search_cigars,
@@ -44,6 +45,9 @@ urlpatterns = [
     path('api/login/', api_login, name='api_login'),
     path('api/logout/', api_logout, name='api_logout'),
     path('api/auth/me/', api_me, name='api_auth_me'),
+    path('api/guides/status/', guide_status, name='guide_status'),
+    path('api/guides/complete/', guide_complete, name='guide_complete'),
+    path('api/guides/replay/', guide_replay, name='guide_replay'),
     path('api/brands/', views.api_brand_list, name='api_brand_list'),
     path('api/brands/<slug:slug>/', views.api_brand_detail, name='api_brand_detail'),
     path('api/cigars/<int:cigar_id>/', views.api_cigar_detail, name='api_cigar_detail'),

@@ -4,6 +4,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from .guide_views import _summary
+
 
 @csrf_exempt
 @require_POST
@@ -46,12 +48,15 @@ def api_logout(request):
 def api_me(request):
     """GET /api/auth/me/"""
     if request.user.is_authenticated:
+        user_data = {
+            'username': request.user.username,
+            'is_staff': request.user.is_staff,
+            'is_superuser': request.user.is_superuser,
+        }
+        if request.user.is_staff:
+            user_data['guide'] = _summary(request.user)
         return JsonResponse({
             'authenticated': True,
-            'user': {
-                'username': request.user.username,
-                'is_staff': request.user.is_staff,
-                'is_superuser': request.user.is_superuser,
-            },
+            'user': user_data,
         })
     return JsonResponse({'authenticated': False})

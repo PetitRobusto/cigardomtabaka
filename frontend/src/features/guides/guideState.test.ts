@@ -83,6 +83,28 @@ describe('guide API clients', () => {
     });
   });
 
+  it('surfaces the server error for a non-2xx JSON response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({ error: 'Forbidden' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchGuideStatus()).rejects.toThrow('Forbidden');
+  });
+
+  it('uses a stable Chinese error for a non-JSON non-2xx response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => { throw new Error('unexpected html'); },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchGuideStatus()).rejects.toThrow('引导状态加载失败');
+  });
+
   it('uses the current CSRF cookie and same-origin credentials for status/complete/replay', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValue({ ok: true, json: async () => ({ version: 3 }) });

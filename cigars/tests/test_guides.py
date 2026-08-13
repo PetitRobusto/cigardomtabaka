@@ -200,6 +200,31 @@ class GuideApiTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('guide', response.json()['user'])
 
+    def test_staff_login_embeds_current_guide_summary(self):
+        UserGuideProgress.objects.create(user=self.staff, completed_version=0)
+
+        response = self.client.post(reverse('api_login'), {
+            'username': 'guide-staff', 'password': 'pass',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['user']['guide'], {
+            'version': 1,
+            'auto_show_enabled': True,
+            'should_show': True,
+            'completed_version': 0,
+            'force_show_next_time': False,
+        })
+
+    def test_non_staff_login_does_not_create_guide_progress(self):
+        response = self.client.post(reverse('api_login'), {
+            'username': 'guide-operator', 'password': 'pass',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('guide', response.json()['user'])
+        self.assertFalse(UserGuideProgress.objects.filter(user=self.operator).exists())
+
 
 class GuideAdminTest(TestCase):
     def test_only_guide_settings_are_editable(self):

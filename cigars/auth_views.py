@@ -26,15 +26,18 @@ def api_login(request):
         return JsonResponse({'ok': False, 'error': '账户已禁用'}, status=403)
 
     login(request, user)
+    user_data = {
+        'username': user.username,
+        'display_name': str(user),
+        'is_staff': user.is_staff,
+        'is_superuser': user.is_superuser,
+        'telegram_id': user.telegram_id or '',
+    }
+    if user.is_staff:
+        user_data['guide'] = _summary(user)
     return JsonResponse({
         'ok': True,
-        'user': {
-            'username': user.username,
-            'display_name': str(user),
-            'is_staff': user.is_staff,
-            'is_superuser': user.is_superuser,
-            'telegram_id': user.telegram_id or '',
-        },
+        'user': user_data,
     })
 
 

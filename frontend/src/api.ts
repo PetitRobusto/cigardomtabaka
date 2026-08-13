@@ -11,7 +11,7 @@ import type {
 import { writeWithIdempotency } from './api/idempotency';
 
 function getCSRFToken(): string {
-  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  const match = typeof document === 'undefined' ? null : document.cookie.match(/csrftoken=([^;]+)/);
   return match ? match[1] : '';
 }
 
@@ -203,3 +203,30 @@ export const uploadPrivnoteImage = (file: File): Promise<{ url: string; name: st
     headers: { 'X-CSRFToken': getCSRFToken() },
   }).then(r => r.json());
 };
+export interface GuideSummary {
+  version: number;
+  auto_show_enabled: boolean;
+  should_show: boolean;
+  completed_version: number;
+  force_show_next_time: boolean;
+}
+
+async function fetchGuideEndpoint(path: string, method: 'GET' | 'POST'): Promise<GuideSummary> {
+  const response = await fetch(path, {
+    method,
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': getCSRFToken() },
+  });
+  let data: GuideSummary & { error?: string } = {} as GuideSummary & { error?: string };
+  try {
+    data = await response.json() as GuideSummary & { error?: string };
+  } catch {
+    throw new Error('引导状态加载失败');
+  }
+  if (!response.ok) throw new Error(data.error || '引导状态加载失败');
+  return data;
+}
+
+export const fetchGuideStatus = (): Promise<GuideSummary> => fetchGuideEndpoint('/api/guides/status/', 'GET');
+export const completeGuide = (): Promise<GuideSummary> => fetchGuideEndpoint('/api/guides/complete/', 'POST');
+export const replayGuide = (): Promise<GuideSummary> => fetchGuideEndpoint('/api/guides/replay/', 'POST');

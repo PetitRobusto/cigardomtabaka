@@ -169,3 +169,8 @@ export function actionNeedsFundAccount(action: string): boolean {
 export function isSalesAccountingNavActive(target: string, hash: string): boolean {
   return target === '/sales#accounting' ? hash === 'accounting' : target === '/sales' && hash !== 'accounting';
 }
+
+
+export function transportPayerTransition(payer: TransportPayer, _currentFee: string): { payer: TransportPayer; fee: string } {
+  return { payer, fee: '0' };
+}

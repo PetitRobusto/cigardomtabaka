@@ -15,7 +15,7 @@ class GuideConfigurationAdmin(admin.ModelAdmin):
     fields = ('version', 'auto_show_enabled')
 
     def has_add_permission(self, request):
-        return not GuideConfiguration.objects.exists()
+        return super().has_add_permission(request) and not GuideConfiguration.objects.exists()
 
     def has_delete_permission(self, request, obj=None):
         return False

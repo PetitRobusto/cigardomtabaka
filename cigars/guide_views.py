@@ -3,7 +3,6 @@ from functools import wraps
 
 from django.http import JsonResponse
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from .models import GuideConfiguration, UserGuideProgress
@@ -21,9 +20,7 @@ def _staff_only(view):
 
 
 def _summary(user):
-    config = GuideConfiguration.objects.first()
-    if config is None:
-        config = GuideConfiguration.objects.create()
+    config, _ = GuideConfiguration.objects.get_or_create(pk=1)
     progress, _ = UserGuideProgress.objects.get_or_create(user=user)
     return {
         'version': config.version,
@@ -42,13 +39,10 @@ def guide_status(request):
     return JsonResponse(_summary(request.user))
 
 
-@csrf_exempt
 @require_POST
 @_staff_only
 def guide_complete(request):
-    config = GuideConfiguration.objects.first()
-    if config is None:
-        config = GuideConfiguration.objects.create()
+    config, _ = GuideConfiguration.objects.get_or_create(pk=1)
     progress, _ = UserGuideProgress.objects.get_or_create(user=request.user)
     if progress.completed_version < config.version:
         progress.completed_version = config.version
@@ -60,7 +54,6 @@ def guide_complete(request):
     return JsonResponse({'completed': True, **_summary(request.user)})
 
 
-@csrf_exempt
 @require_POST
 @_staff_only
 def guide_replay(request):

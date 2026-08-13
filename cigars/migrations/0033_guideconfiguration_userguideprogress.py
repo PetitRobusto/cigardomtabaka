@@ -6,6 +6,11 @@ from django.conf import settings
 from django.db import migrations, models
 
 
+def seed_guide_configuration(apps, schema_editor):
+    GuideConfiguration = apps.get_model('cigars', 'GuideConfiguration')
+    GuideConfiguration.objects.get_or_create(pk=1, defaults={'version': 1, 'auto_show_enabled': True})
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -23,6 +28,10 @@ class Migration(migrations.Migration):
             options={
                 'verbose_name': '引导配置',
                 'verbose_name_plural': '引导配置',
+                'constraints': [
+                    models.CheckConstraint(condition=models.Q(('id', 1)), name='guide_configuration_singleton_pk'),
+                    models.CheckConstraint(condition=models.Q(('version__gte', 1)), name='guide_configuration_version_gte_one'),
+                ],
             },
         ),
         migrations.CreateModel(
@@ -39,4 +48,5 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': '用户引导进度',
             },
         ),
+        migrations.RunPython(seed_guide_configuration, migrations.RunPython.noop),
     ]

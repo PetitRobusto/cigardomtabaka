@@ -241,8 +241,14 @@ def receive_purchase_order_command(request):
             note=str(body.get('note') or '').strip(),
             agent_context=context,
         )
-        purchase_order = batches[0].purchase_order_item.purchase_order if batches else None
-        return {'purchase_order': serialize_purchase_order(purchase_order)}
+        purchase_order = (
+            batches[0].purchase_order_item.purchase_order
+            if batches and batches[0].purchase_order_item_id else None
+        )
+        return {
+            'purchase_order': serialize_purchase_order(purchase_order) if purchase_order else None,
+            'batch_source': batches[0].source if batches else None,
+        }
 
     return _idempotent_command(request, 'receive_purchase_order', handler)
 

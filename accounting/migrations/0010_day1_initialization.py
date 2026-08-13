@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('accounting', '0009_accountreconciliation_confirmer'),
-        ('cigars', '0034_purchase_batch_source'),
+        ('cigars', '0033_guideconfiguration_userguideprogress'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -96,6 +96,10 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name='day1draftaccount',
             constraint=models.CheckConstraint(condition=models.Q(('slot__in', ['owner_cny', 'partner_cny', 'rub', 'usdt'])), name='day1_draft_account_slot_valid'),
+        ),
+        migrations.AddConstraint(
+            model_name='day1draftaccount',
+            constraint=models.CheckConstraint(condition=models.Q(models.Q(('currency', 'CNY'), ('slot__in', ['owner_cny', 'partner_cny'])), models.Q(('currency', 'RUB'), ('slot', 'rub')), models.Q(('currency', 'USDT'), ('slot', 'usdt')), _connector='OR'), name='day1_draft_account_slot_currency_match'),
         ),
         migrations.AddConstraint(
             model_name='day1draftaccount',

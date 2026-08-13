@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 import json
 import threading
@@ -16,6 +16,7 @@ from accounting.models import (
     Day1Initialization, Day1DraftAccount, Day1DraftInventory, FundAccount,
     LedgerPosting, LedgerTransaction,
 )
+from accounting.business_time import moscow_business_date
 from accounting.selectors import account_snapshot
 from accounting.services import CUTOVER_DATE, LedgerError, PostingInput, post_transaction
 from cigars.models import StockMovement
@@ -361,6 +362,19 @@ class Day1ServiceTest(TestCase):
         self.assertFalse(Day1Initialization.objects.exists())
         self.assertFalse(Day1DraftAccount.objects.exists())
         self.assertFalse(Day1DraftInventory.objects.exists())
+
+    def test_draft_rejects_future_moscow_business_date(self):
+        from accounting.day1 import Day1ValidationError
+
+        invalid = self.payload()
+        invalid['business_date'] = (
+            moscow_business_date() + timedelta(days=1)
+        ).isoformat()
+
+        with self.assertRaises(Day1ValidationError) as raised:
+            self.save_draft(invalid)
+
+        self.assertIn('business_date', raised.exception.details)
 
     def test_opening_batches_work_in_search_and_privnote_inventory(self):
         from privnote.helpers import serialize_cigar_minimal

@@ -207,7 +207,7 @@ class Day1Initialization(models.Model):
 
     def save(self, *args, **kwargs):
         self.singleton_key = 'company'
-        super().save(*args, **kwargs)
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return f'期初初始化 v{self.version}'
@@ -233,6 +233,14 @@ class Day1DraftAccount(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['initialization', 'slot'], name='day1_draft_account_init_slot_unique'),
             models.CheckConstraint(condition=models.Q(slot__in=['owner_cny', 'partner_cny', 'rub', 'usdt']), name='day1_draft_account_slot_valid'),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(slot__in=['owner_cny', 'partner_cny'], currency='CNY')
+                    | models.Q(slot='rub', currency='RUB')
+                    | models.Q(slot='usdt', currency='USDT')
+                ),
+                name='day1_draft_account_slot_currency_match',
+            ),
             models.CheckConstraint(condition=models.Q(original_amount__gte=0, cny_book_cost__gte=0), name='day1_draft_account_amounts_gte_zero'),
         ]
 

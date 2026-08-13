@@ -4,6 +4,23 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
+def refuse_opening_batches_on_reverse(apps, schema_editor):
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT 1 FROM cigars_purchasebatch WHERE source = 'opening' LIMIT 1"
+        )
+        has_opening_batch = cursor.fetchone() is not None
+    if has_opening_batch:
+        raise RuntimeError(
+            'Cannot reverse purchase batch source migration while opening batches exist; '
+            'remove or migrate opening batches explicitly first.'
+        )
+
+
+def noop_forward(apps, schema_editor):
+    return None
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -25,4 +42,5 @@ class Migration(migrations.Migration):
             model_name='purchasebatch',
             constraint=models.CheckConstraint(condition=models.Q(models.Q(('purchase_order_item__isnull', False), ('source', 'purchase')), models.Q(('purchase_order_item__isnull', True), ('source', 'opening')), _connector='OR'), name='purchase_batch_source_item_match'),
         ),
+        migrations.RunPython(noop_forward, refuse_opening_batches_on_reverse),
     ]

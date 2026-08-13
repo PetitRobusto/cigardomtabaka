@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { GUIDE_STEPS } from './guideContent';
 import type { GuideCompletionAction } from './guideInteractions';
+import { FOCUSABLE_SELECTOR } from './focusables';
 
 interface Props {
   stepIndex: number;
@@ -26,7 +27,7 @@ export default function WelcomeGuide({ stepIndex, onPrevious, onNext, onAction, 
     closeRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Tab' || !dialogRef.current) return;
-      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not(:disabled)'));
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
       if (!focusable.length) return;
       const first = focusable[0]; const last = focusable[focusable.length - 1];
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }

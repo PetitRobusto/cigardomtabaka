@@ -74,3 +74,17 @@ describe('summarizeSalesOrders', () => {
     expect(isSalesAccountingNavActive('/sales#accounting', '')).toBe(false);
   });
 });
+
+
+describe('sales business state', () => {
+  it('计算人肉费承担方对应的客户费用和应收', async () => {
+    const { transportSummary } = await import('./salesState');
+    expect(transportSummary('customer', 1000, 80)).toEqual({ goodsAmount: 1000, customerTransport: 80, amountDue: 1080 });
+    expect(transportSummary('company', 1000, 80)).toEqual({ goodsAmount: 1000, customerTransport: 0, amountDue: 1000 });
+  });
+  it('focus 搜索使用空 query 且只搜现货', async () => {
+    const { cigarSearchParams } = await import('./salesState');
+    expect(cigarSearchParams('focus')).toEqual({ q: '', stock_only: true });
+    expect(cigarSearchParams('input', 'Partagas')).toEqual({ q: 'Partagas', stock_only: true });
+  });
+});

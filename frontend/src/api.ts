@@ -6,7 +6,7 @@ import type {
   PaymentMethod, SearchCigarResult, InventoryViewData,
   CustomerResult, QuoteProduct, RecentChangesResponse,
   SalesOrder, PaymentOrder, SalesOrderPayload, FundAccount, MonthlyProfitReport,
-  AccountingSummary, Reconciliation,
+  AccountingSummary, AccountingDashboard, Reconciliation,
 } from './types';
 import { writeWithIdempotency } from './api/idempotency';
 
@@ -93,6 +93,9 @@ export const shipSalesOrder = (id: number, business_date: string): Promise<Sales
 export const receiveSalesOrder = (id: number, payload: { amount_cny: string; fund_account_id: number; business_date: string }): Promise<SalesOrder> => salesAction(id, 'receive', payload);
 export const refundSalesOrder = (id: number, business_date: string): Promise<SalesOrder> => salesAction(id, 'refund', { business_date });
 export const recordSalesTransportCost = (id: number, payload: { actual_cost_cny: string; fund_account_id: number; business_date: string }): Promise<SalesOrder> => salesAction(id, 'transport-cost', payload);
+
+export const fetchAccountingDashboard = (): Promise<AccountingDashboard> =>
+  api.get('/accounting/dashboard/').then(r => r.data);
 
 export const fetchAccountingAccounts = (): Promise<FundAccount[]> =>
   api.get('/accounting/accounts/').then(r => r.data.accounts || []);

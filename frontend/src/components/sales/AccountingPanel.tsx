@@ -11,13 +11,14 @@ interface Props {
   reconciliations: Reconciliation[];
   month: string;
   onChanged: () => void;
+  showStats?: boolean;
 }
 
 const today = () => { const date = new Date(); return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 const incomeMoney = (value: string | number | null | undefined) => formatCny(Math.abs(Number(value || 0)));
 const expenseMoney = (value: string | number | null | undefined) => formatCny(Math.abs(Number(value || 0)));
 
-export default function AccountingPanel({ accounts, summary, profit, reconciliations, month, onChanged }: Props) {
+export default function AccountingPanel({ accounts, summary, profit, reconciliations, month, onChanged, showStats = true }: Props) {
   const [showRecon, setShowRecon] = useState(false);
   const [accountId, setAccountId] = useState(accounts.find(account => account.is_active)?.id ?? 0);
   const [actual, setActual] = useState('');
@@ -46,12 +47,12 @@ export default function AccountingPanel({ accounts, summary, profit, reconciliat
   };
 
   return <div className="space-y-5">
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+{showStats && <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <div className="rounded-md border border-border bg-white p-4 shadow-sm"><p className="text-[11px] uppercase tracking-wider text-muted">可用余额（CNY 账面）</p><p className="mt-2 font-mono text-2xl font-semibold">{formatCny(availableCny)}</p><p className="mt-1 text-[11px] text-muted">{balances.length} 个账户 · 截至 {summary?.as_of || '—'}</p></div>
       <div className="rounded-md border border-border bg-white p-4 shadow-sm"><p className="text-[11px] uppercase tracking-wider text-muted">本月净利润</p><p className="mt-2 font-mono text-2xl font-semibold text-success">{formatSignedCny(profit?.net_profit_cny)}</p><p className="mt-1 text-[11px] text-muted">收入 {incomeMoney(profit?.sales_revenue_cny)} · {month}</p></div>
       <div className="rounded-md border border-border bg-white p-4 shadow-sm"><p className="text-[11px] uppercase tracking-wider text-muted">库存剩余成本</p><p className="mt-2 font-mono text-2xl font-semibold">{formatCny(summary?.inventory_remaining_cost_cny)}</p><p className="mt-1 text-[11px] text-muted">在途 {formatCny(summary?.purchase_in_transit_cny)}</p></div>
       <div className="rounded-md border border-border bg-[#FFFAF3] p-4 shadow-sm"><p className="text-[11px] uppercase tracking-wider text-muted">待核对差额</p><p className="mt-2 font-mono text-2xl font-semibold text-accent">{reconciliations.filter(item => item.status === 'pending').length}</p><p className="mt-1 text-[11px] text-muted">应收 {formatCny(summary?.accounts_receivable_cny)} · 预收 {formatCny(summary?.customer_prepayments_cny)}</p></div>
-    </section>
+    </section>}
     <section className="grid gap-5 lg:grid-cols-[1fr_1.15fr]">
       <div className="rounded-md border border-border bg-white shadow-sm"><div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 className="font-display text-lg font-semibold">资金账户</h2><p className="text-xs text-muted">余额来自账务摘要接口</p></div><button type="button" disabled={!activeAccounts.length} onClick={() => setShowRecon(true)} className="inline-flex items-center gap-1 rounded border border-border px-3 py-1.5 text-xs font-semibold hover:border-gold"><Plus className="h-3.5 w-3.5" />新建对账</button></div><div className="divide-y divide-border">{balances.length === 0 ? <p className="px-5 py-8 text-center text-sm text-muted">暂无账户余额</p> : balances.map(account => <div key={account.account_id} className="flex items-center justify-between px-5 py-3"><div><p className="text-sm font-semibold">{account.name}</p><p className="text-[11px] text-muted">{account.currency}</p></div><p className="font-mono text-sm">{account.currency === 'CNY' ? formatCny(account.cny_book_cost) : `${account.original_balance} ${account.currency}`}</p></div>)}</div></div>
       <div data-guide="accounting-profit" className="rounded-md border border-border bg-white shadow-sm"><div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 className="font-display text-lg font-semibold">月度利润</h2><p className="text-xs text-muted">FIFO 成本和人肉成本均来自已入账流水</p></div><span className="font-mono text-xs text-muted">{profit?.transaction_count ?? 0} 笔流水</span></div><div className="grid grid-cols-2 gap-3 p-5"><Metric label="销售收入" value={incomeMoney(profit?.sales_revenue_cny)} /><Metric label="客户人肉费收入" value={incomeMoney(profit?.customer_transport_revenue_cny)} /><Metric label="销售成本" value={expenseMoney(profit?.cost_of_goods_sold_cny)} /><Metric label="人肉费用" value={expenseMoney(profit?.transport_expense_cny)} /><div className="col-span-2 rounded border border-green-100 bg-green-50 p-3"><p className="text-[11px] text-muted">净利润</p><p className="mt-1 font-mono text-xl font-semibold text-success">{formatSignedCny(profit?.net_profit_cny)}</p></div></div></div>

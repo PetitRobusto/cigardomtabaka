@@ -566,6 +566,7 @@ export interface SalesOrder {
   customer?: { id: number; name: string; phone: string } | null;
   goods_amount_cny: number;
   customer_transport_fee_cny: number;
+  transport_payer: 'customer' | 'company';
   amount_due_cny: number;
   total_revenue: number;
   total_cost: number;
@@ -593,6 +594,7 @@ export interface SalesOrderPayload {
   payment_method_id?: number | null;
   payment_manual?: Record<string, string>;
   customer_transport_fee_cny?: string;
+  transport_payer?: 'customer' | 'company';
   note?: string;
 }
 
@@ -616,6 +618,25 @@ export interface MonthlyProfitReport {
   transport_expense_cny: string;
   net_profit_cny: string;
   transaction_count: number;
+}
+
+export interface AccountingDashboardStats {
+  cny_funds_total: string | null;
+  inventory_book_cost_cny: string | null;
+  accounts_receivable_cny: string | null;
+  month_net_profit_cny: string | null;
+}
+
+export interface AccountingDashboard {
+  requires_day1: boolean;
+  day1_status: 'not_started' | 'draft' | 'completed' | string;
+  stats: AccountingDashboardStats;
+  accounts: (FundAccount & { original_balance: string; cny_book_cost: string })[];
+  monthly_profit: MonthlyProfitReport | null;
+  reconciliation: {
+    pending_count: number;
+    latest: { id: number; account_id: number; account_name: string; business_date: string; system_amount: string; actual_amount: string; difference: string; status: string }[];
+  };
 }
 
 export interface AccountingSummary {

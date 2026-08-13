@@ -1,5 +1,25 @@
 export type SalesStatus = string;
 
+export type TransportPayer = 'customer' | 'company';
+
+export interface TransportSummary {
+  goodsAmount: number;
+  customerTransport: number;
+  amountDue: number;
+}
+
+// Company-paid transport never becomes customer receivable, even when a draft contains a fee.
+export function transportSummary(payer: TransportPayer, goodsAmount: number, transportFee: number): TransportSummary {
+  const goods = Number.isFinite(Number(goodsAmount)) ? Number(goodsAmount) : 0;
+  const transport = Number.isFinite(Number(transportFee)) ? Number(transportFee) : 0;
+  const customerTransport = payer === 'company' ? 0 : transport;
+  return { goodsAmount: goods, customerTransport, amountDue: goods + customerTransport };
+}
+
+export function cigarSearchParams(trigger: 'focus' | 'input', query = ''): { q: string; stock_only: boolean } {
+  return { q: trigger === 'focus' ? '' : query.trim(), stock_only: true };
+}
+
 export interface SalesOrderSummaryInput {
   fulfillment_status: SalesStatus;
   payment_status: SalesStatus;

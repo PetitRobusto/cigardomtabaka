@@ -20,10 +20,17 @@ import PrivnoteViewPage from './pages/PrivnoteViewPage';
 import PriceDashboard from './pages/Dashboard';
 import PriceCigarDetail from './pages/CigarDetail';
 import AlertsPage from './pages/Alerts';
-import SalesAccountingPage from './pages/SalesAccountingPage';
+import SalesPage from './pages/SalesPage';
+import AccountingDashboardPage from './pages/AccountingDashboardPage';
 import HelpPage from './pages/HelpPage';
 import { decideStaffRoute } from './utils/routeGuard';
 import { useAuthStore } from './store/authStore';
+
+function LegacySalesRoute() {
+  const location = useLocation();
+  // Hash links from the old combined workspace remain valid after the split.
+  return location.hash === '#accounting' ? <Navigate to="/accounting" replace /> : <SalesPage />;
+}
 
 function StaffHelpRoute() {
   const { isLoading, isAuthenticated, user } = useAuthStore();
@@ -54,7 +61,8 @@ function AnimatedRoutes() {
 
           {/* Inventory */}
           <Route path="/inventory" element={<InventoryPage />} />
-          <Route path="/sales" element={<SalesAccountingPage />} />
+          <Route path="/sales" element={<LegacySalesRoute />} />
+          <Route path="/accounting" element={<AccountingDashboardPage />} />
           <Route path="/help" element={<StaffHelpRoute />} />
 
           {/* Price Tracker */}

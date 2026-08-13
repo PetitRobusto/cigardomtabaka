@@ -7,9 +7,10 @@ import { isSalesAccountingNavActive } from '../sales/salesState';
 import {
   LayoutGrid, Package, TrendingUp, Link2, Settings, LogIn, LogOut, User, Menu, X,
   CircleDollarSign, ClipboardList,
-  MapPin, Phone, MessageCircle
+  MapPin, Phone, MessageCircle, BookOpen
 } from 'lucide-react';
 import { useState } from 'react';
+import GuideController from '../../features/guides/GuideController';
 
 const base = import.meta.env.BASE_URL;
 
@@ -38,6 +39,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       { to: '/sales#accounting', label: '账务', icon: ClipboardList },
       { to: '/prices', label: '价格', icon: TrendingUp },
       { to: '/privnote', label: '链接', icon: Link2 },
+      { to: '/help', label: '帮助', icon: BookOpen },
       { to: '/admin/', label: '管理', icon: Settings, external: true },
     ] : []),
   ];
@@ -285,6 +287,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           ))}
         </div>
       </nav>
+      <GuideController />
     </div>
   );
 }

@@ -21,6 +21,7 @@ import PriceDashboard from './pages/Dashboard';
 import PriceCigarDetail from './pages/CigarDetail';
 import AlertsPage from './pages/Alerts';
 import SalesAccountingPage from './pages/SalesAccountingPage';
+import HelpPage from './pages/HelpPage';
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -43,6 +44,7 @@ function AnimatedRoutes() {
           {/* Inventory */}
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/sales" element={<SalesAccountingPage />} />
+          <Route path="/help" element={<HelpPage />} />
 
           {/* Price Tracker */}
           <Route path="/prices" element={<PriceDashboard />} />

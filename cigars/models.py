@@ -62,20 +62,17 @@ class GuideConfiguration(models.Model):
     class Meta:
         verbose_name = '引导配置'
         verbose_name_plural = '引导配置'
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(id=1), name='guide_configuration_singleton_pk'
+            ),
+            models.CheckConstraint(
+                condition=models.Q(version__gte=1), name='guide_configuration_version_gte_one'
+            ),
+        ]
 
     def save(self, *args, **kwargs):
         self.pk = 1
-        if type(self).objects.filter(pk=1).exists():
-            update_fields = kwargs.get('update_fields')
-            values = {
-                'version': self.version,
-                'auto_show_enabled': self.auto_show_enabled,
-            }
-            if update_fields is not None:
-                values = {key: value for key, value in values.items() if key in update_fields}
-            type(self).objects.filter(pk=1).update(**values)
-            self._state.adding = False
-            return
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):

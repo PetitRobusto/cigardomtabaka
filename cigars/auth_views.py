@@ -3,6 +3,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from .guide_views import _summary
 
@@ -45,6 +46,7 @@ def api_logout(request):
     return JsonResponse({'ok': True})
 
 
+@ensure_csrf_cookie
 def api_me(request):
     """GET /api/auth/me/"""
     if request.user.is_authenticated:

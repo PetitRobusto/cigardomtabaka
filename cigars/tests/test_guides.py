@@ -2,7 +2,9 @@ from datetime import datetime
 
 from django.contrib import admin
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.db import IntegrityError
+from django.test import RequestFactory, TestCase
+from django.contrib.auth.models import AnonymousUser
 from django.urls import reverse
 from django.utils import timezone
 
@@ -12,10 +14,15 @@ from cigars.models import GuideConfiguration, User, UserGuideProgress
 
 class GuideModelTest(TestCase):
     def test_configuration_is_singleton_and_version_must_be_positive(self):
-        first = GuideConfiguration.objects.create(version=1)
-        second = GuideConfiguration.objects.create(version=3, auto_show_enabled=False)
+        first, _ = GuideConfiguration.objects.update_or_create(
+            pk=1, defaults={'version': 1, 'auto_show_enabled': True}
+        )
+        second, created = GuideConfiguration.objects.update_or_create(
+            pk=1, defaults={'version': 3, 'auto_show_enabled': False}
+        )
 
         self.assertEqual(GuideConfiguration.objects.count(), 1)
+        self.assertFalse(created)
         first.refresh_from_db()
         self.assertEqual(first.pk, second.pk)
         self.assertEqual(first.version, 3)
@@ -24,6 +31,21 @@ class GuideModelTest(TestCase):
         invalid = GuideConfiguration(version=0)
         with self.assertRaises(ValidationError):
             invalid.full_clean()
+        with self.assertRaises(IntegrityError):
+            GuideConfiguration.objects.filter(pk=1).update(version=0)
+
+    def test_database_rejects_non_singleton_primary_key(self):
+        with self.assertRaises(IntegrityError):
+            GuideConfiguration.objects.bulk_create([GuideConfiguration(id=2, version=1)])
+
+    def test_lazy_initialization_is_stable_when_configuration_is_absent(self):
+        GuideConfiguration.objects.all().delete()
+        user = User.objects.create_user('guide-lazy-user', is_staff=True)
+        from cigars.guide_views import _summary
+
+        self.assertEqual(_summary(user)['version'], 1)
+        self.assertEqual(_summary(user)['version'], 1)
+        self.assertEqual(GuideConfiguration.objects.count(), 1)
 
     def test_progress_is_one_to_one_with_user(self):
         user = User.objects.create_user('guide-model-user')
@@ -38,7 +60,9 @@ class GuideModelTest(TestCase):
 
 class GuideApiTest(TestCase):
     def setUp(self):
-        self.config = GuideConfiguration.objects.create(version=1, auto_show_enabled=True)
+        self.config, _ = GuideConfiguration.objects.update_or_create(
+            pk=1, defaults={'version': 1, 'auto_show_enabled': True}
+        )
         self.staff = User.objects.create_user('guide-staff', password='pass', is_staff=True)
         self.operator = User.objects.create_user('guide-operator', password='pass', is_staff=False)
 
@@ -133,6 +157,22 @@ class GuideApiTest(TestCase):
             response = self.client.post(reverse(name), data={}, content_type='application/json')
             self.assertEqual(response.status_code, 403)
 
+    def test_mutations_require_csrf_token(self):
+        client = self.client_class(enforce_csrf_checks=True)
+        client.force_login(self.staff)
+        for name in ('guide_complete', 'guide_replay'):
+            response = client.post(reverse(name), data={}, content_type='application/json')
+            self.assertEqual(response.status_code, 403)
+
+        client.get(reverse('api_auth_me'))
+        token = client.cookies['csrftoken'].value
+        for name in ('guide_complete', 'guide_replay'):
+            response = client.post(
+                reverse(name), data={}, content_type='application/json',
+                HTTP_X_CSRFTOKEN=token,
+            )
+            self.assertEqual(response.status_code, 200)
+
     def test_api_me_embeds_guide_summary_for_staff(self):
         UserGuideProgress.objects.create(user=self.staff, completed_version=1)
 
@@ -174,3 +214,9 @@ class GuideAdminTest(TestCase):
         self.assertEqual(progress_admin.fields, (
             'user', 'completed_version', 'force_show_next_time', 'completed_at'
         ))
+
+    def test_add_permission_requires_model_permission_and_singleton_slot(self):
+        request = RequestFactory().get('/admin/')
+        request.user = User.objects.create_user('admin-permission', is_staff=True)
+        config_admin = admin.site._registry[GuideConfiguration]
+        self.assertFalse(config_admin.has_add_permission(request))

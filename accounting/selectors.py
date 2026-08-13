@@ -2,9 +2,10 @@ from dataclasses import dataclass
 import calendar
 from decimal import Decimal
 
-from django.utils import timezone
-
-from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
+from accounting.business_time import moscow_business_date
+from accounting.models import (
+    AccountReconciliation, FundAccount, LedgerPosting, LedgerTransaction,
+)
 from cigars.models import PurchaseBatch, PurchaseOrder
 
 
@@ -87,18 +88,40 @@ def monthly_profit(*, month):
     }
 
 
-def accounting_summary(*, as_of):
-    if not hasattr(as_of, 'year') or not hasattr(as_of, 'month'):
-        raise ValueError('as_of 必须是 date')
-    if as_of != timezone.localdate():
-        raise ValueError('as_of 仅支持当前日期')
-    fund_accounts = []
+def _account_rows(*, as_of):
+    """Read each active account snapshot once for summary and dashboard consumers."""
+    rows = []
     for account in FundAccount.objects.filter(is_active=True).order_by('currency', 'id'):
         snapshot = account_snapshot(account, as_of_business_date=as_of)
-        fund_accounts.append({
-            'account_id': account.id, 'name': account.name, 'currency': account.currency,
-            'original_balance': snapshot.original_balance, 'cny_book_cost': snapshot.cny_book_cost,
+        rows.append({
+            'id': account.pk,
+            'account_id': account.pk,
+            'name': account.name,
+            'currency': account.currency,
+            'custodian_id': account.custodian_id,
+            'original_balance': snapshot.original_balance,
+            'cny_book_cost': snapshot.cny_book_cost,
+            'moving_average_cny': snapshot.moving_average_cny,
         })
+    return rows
+
+
+def accounting_summary(*, as_of, require_current=True, account_rows=None):
+    if not hasattr(as_of, 'year') or not hasattr(as_of, 'month'):
+        raise ValueError('as_of 必须是 date')
+    if require_current and as_of != moscow_business_date():
+        raise ValueError('as_of 仅支持当前日期')
+    account_rows = account_rows if account_rows is not None else _account_rows(as_of=as_of)
+    fund_accounts = [
+        {
+            'account_id': row['account_id'],
+            'name': row['name'],
+            'currency': row['currency'],
+            'original_balance': row['original_balance'],
+            'cny_book_cost': row['cny_book_cost'],
+        }
+        for row in account_rows
+    ]
     inventory = sum((v for v in PurchaseBatch.objects.filter(remaining__gt=0).values_list('remaining_cost_cny', flat=True)), Decimal('0.00')).quantize(Decimal('0.01'))
     in_transit = sum((v for v in PurchaseOrder.objects.filter(status=PurchaseOrder.Status.DRAFT).values_list('cny_total', flat=True)), Decimal('0.00')).quantize(Decimal('0.01'))
     return {
@@ -106,4 +129,52 @@ def accounting_summary(*, as_of):
         'accounts_receivable_cny': _sum_category(LedgerPosting.Category.ACCOUNTS_RECEIVABLE, end=as_of),
         'customer_prepayments_cny': -_sum_category(LedgerPosting.Category.CUSTOMER_PREPAYMENTS, end=as_of),
         'inventory_remaining_cost_cny': inventory, 'purchase_in_transit_cny': in_transit,
+    }
+
+
+def accounting_dashboard(*, as_of):
+    """Build trusted dashboard totals after Day 1 has established opening facts."""
+    # The HTTP boundary computes today's Moscow date once for a consistent snapshot.
+    accounts = _account_rows(as_of=as_of)
+    summary = accounting_summary(
+        as_of=as_of, require_current=False, account_rows=accounts,
+    )
+    profit = monthly_profit(month=as_of.replace(day=1))
+    cny_funds_total = Decimal('0.00')
+    for row in accounts:
+        if row['currency'] == FundAccount.Currency.CNY:
+            cny_funds_total += row['original_balance']
+
+    # Pending reconciliation records are actionable; latest records provide context.
+    reconciliation_rows = AccountReconciliation.objects.select_related(
+        'account',
+    ).filter(business_date__lte=as_of).order_by('-business_date', '-id')
+    latest = [
+        {
+            'id': row.pk,
+            'account_id': row.account_id,
+            'account_name': row.account.name,
+            'business_date': row.business_date,
+            'system_amount': row.system_amount,
+            'actual_amount': row.actual_amount,
+            'difference': row.difference,
+            'status': row.status,
+        }
+        for row in reconciliation_rows[:5]
+    ]
+    return {
+        'stats': {
+            'cny_funds_total': cny_funds_total.quantize(Decimal('0.01')),
+            'inventory_book_cost_cny': summary['inventory_remaining_cost_cny'],
+            'accounts_receivable_cny': summary['accounts_receivable_cny'],
+            'month_net_profit_cny': profit['net_profit_cny'],
+        },
+        'accounts': accounts,
+        'monthly_profit': profit,
+        'reconciliation': {
+            'pending_count': reconciliation_rows.filter(
+                status=AccountReconciliation.Status.PENDING,
+            ).count(),
+            'latest': latest,
+        },
     }

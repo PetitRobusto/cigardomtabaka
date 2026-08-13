@@ -9,6 +9,7 @@ import json
 from django.db import transaction
 from django.utils import timezone
 
+from accounting.business_time import moscow_business_date
 from accounting.models import (
     Day1DraftAccount, Day1DraftInventory, Day1Initialization,
     FundAccount, LedgerPosting, LedgerTransaction,
@@ -99,6 +100,8 @@ def _date(value):
         raise Day1ValidationError(details={'business_date': '必须是日期'})
     if result < CUTOVER_DATE:
         raise Day1ValidationError(details={'business_date': '不能早于账务切换日'})
+    if result > moscow_business_date():
+        raise Day1ValidationError(details={'business_date': '不能晚于莫斯科当前业务日'})
     return result
 
 

@@ -128,7 +128,7 @@ class SalesReportsAndReconciliationTest(TestCase):
             ],
             'summary-receivable-prepayment',
         )
-        with patch('accounting.selectors.timezone.localdate', return_value=date(2026, 8, 10)):
+        with patch('accounting.selectors.moscow_business_date', return_value=date(2026, 8, 10)):
             summary = accounting_summary(as_of=date(2026, 8, 10))
         self.assertIn('fund_accounts', summary)
         self.assertIn('accounts_receivable_cny', summary)
@@ -142,14 +142,14 @@ class SalesReportsAndReconciliationTest(TestCase):
     def test_summary_rejects_non_today_as_of(self):
         from accounting.selectors import accounting_summary
 
-        with patch('accounting.selectors.timezone.localdate', return_value=date(2026, 8, 12)):
+        with patch('accounting.selectors.moscow_business_date', return_value=date(2026, 8, 12)):
             with self.assertRaisesRegex(ValueError, 'as_of 仅支持当前日期'):
                 accounting_summary(as_of=date(2026, 8, 11))
 
     def test_summary_api_rejects_non_today_as_of(self):
         self.client.force_login(self.operator)
 
-        with patch('accounting.selectors.timezone.localdate', return_value=date(2026, 8, 12)):
+        with patch('accounting.selectors.moscow_business_date', return_value=date(2026, 8, 12)):
             response = self.client.get('/api/accounting/reports/summary/?as_of=2026-08-11')
 
         self.assertEqual(response.status_code, 400)
@@ -164,7 +164,7 @@ class SalesReportsAndReconciliationTest(TestCase):
         )
         self.client.force_login(self.operator)
 
-        with patch('accounting.selectors.timezone.localdate', return_value=date(2026, 8, 12)):
+        with patch('accounting.selectors.moscow_business_date', return_value=date(2026, 8, 12)):
             response = self.client.get('/api/accounting/reports/summary/?as_of=2026-08-12')
 
         self.assertEqual(response.status_code, 200)
@@ -267,7 +267,7 @@ class SalesReportsAndReconciliationTest(TestCase):
         self.assertEqual(monthly.status_code, 200)
         self.assertEqual(monthly.json()['period_start'], '2026-08-01')
         self.assertEqual(monthly.json()['net_profit_cny'], '0.00')
-        with patch('accounting.selectors.timezone.localdate', return_value=date(2026, 8, 10)):
+        with patch('accounting.selectors.moscow_business_date', return_value=date(2026, 8, 10)):
             summary = self.client.get('/api/accounting/reports/summary/?as_of=2026-08-10')
         self.assertEqual(summary.status_code, 200)
         self.assertEqual(summary.json()['fund_accounts'][0]['original_balance'], '100.00000000')

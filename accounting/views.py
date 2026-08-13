@@ -6,11 +6,19 @@ from django.db import IntegrityError, OperationalError, transaction
 from django.db.models import Prefetch
 from django.http import JsonResponse
 
+from accounting.business_time import moscow_business_date
 from accounting.decorators import staff_json_required
+from accounting.day1 import (
+    Day1Conflict, Day1ValidationError, Day1VersionConflict,
+    confirm_day1, get_day1_state, save_day1_draft,
+)
+from accounting.day1_serializers import serialize_day1_state
 from accounting.models import (
     AccountReconciliation, FundAccount, LedgerPosting, LedgerTransaction,
 )
-from accounting.selectors import accounting_summary, monthly_profit
+from accounting.selectors import (
+    accounting_dashboard, accounting_summary, monthly_profit,
+)
 from accounting.serializers import serialize_account, serialize_snapshot, serialize_transaction
 from accounting.services import (
     LedgerError,
@@ -78,6 +86,20 @@ def _idempotency_key(request):
     return key
 
 
+def _if_match_version(request):
+    """Use the shared draft version to prevent silent operator overwrites."""
+    raw = request.headers.get('If-Match', '').strip()
+    if not raw:
+        raise ApiInputError('If-Match 版本不能为空')
+    # Bound the input before int() to avoid Python's huge-integer conversion limit.
+    if len(raw) > 19 or not raw.isdecimal():
+        raise ApiInputError('If-Match 版本无效')
+    value = int(raw)
+    if value < 0:
+        raise ApiInputError('If-Match 版本无效')
+    return value
+
+
 def _required_id(payload, field_name):
     value = payload.get(field_name)
     if type(value) is int:
@@ -140,6 +162,105 @@ def _description(payload):
     if not isinstance(value, str):
         raise ApiInputError('description无效')
     return value
+
+
+def _day1_error_response(error):
+    """Map domain failures to a stable API shape for the setup wizard."""
+    if isinstance(error, Day1VersionConflict):
+        return JsonResponse({
+            'error': str(error), 'code': 'version_conflict',
+        }, status=409)
+    if isinstance(error, Day1Conflict):
+        return JsonResponse({
+            'error': str(error),
+            'code': 'day1_conflict',
+            'conflicts': list(error.conflicts),
+        }, status=409)
+    if isinstance(error, Day1ValidationError):
+        return JsonResponse({
+            'error': str(error),
+            'code': 'validation_error',
+            'details': error.details,
+        }, status=400)
+    return JsonResponse({
+        'error': str(error), 'code': 'input_error',
+    }, status=400)
+
+
+@staff_json_required
+def day1_status(request):
+    if request.method != 'GET':
+        return JsonResponse({'error': '请求方法不支持'}, status=405)
+    return JsonResponse(serialize_day1_state(get_day1_state()))
+
+
+@staff_json_required
+def day1_draft(request):
+    if request.method != 'PUT':
+        return JsonResponse({'error': '请求方法不支持'}, status=405)
+    try:
+        saved = save_day1_draft(
+            payload=_json_object(request),
+            expected_version=_if_match_version(request),
+            operator=request.accounting_operator,
+        )
+        # Re-read with prefetched children so the response exactly matches GET.
+        return JsonResponse(serialize_day1_state(get_day1_state() or saved))
+    except (ApiInputError, Day1ValidationError, Day1VersionConflict, Day1Conflict) as error:
+        return _day1_error_response(error)
+    except OperationalError:
+        return JsonResponse({'error': '账务系统繁忙，请重试'}, status=503)
+
+
+@staff_json_required
+def day1_confirm(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': '请求方法不支持'}, status=405)
+    try:
+        payload = _json_object(request)
+        version = payload.get('version')
+        if isinstance(version, bool) or not isinstance(version, int) or version < 0:
+            raise ApiInputError('version 无效')
+        confirm_day1(
+            expected_version=version,
+            operator=request.accounting_operator,
+            idempotency_key=_idempotency_key(request),
+        )
+        return JsonResponse(serialize_day1_state(get_day1_state()))
+    except (ApiInputError, Day1ValidationError, Day1VersionConflict, Day1Conflict) as error:
+        return _day1_error_response(error)
+    except OperationalError:
+        return JsonResponse({'error': '账务系统繁忙，请重试'}, status=503)
+
+
+@staff_json_required
+def dashboard(request):
+    if request.method != 'GET':
+        return JsonResponse({'error': '请求方法不支持'}, status=405)
+    initialization = get_day1_state()
+    status = initialization.status if initialization else 'not_started'
+    if status != 'completed':
+        # Unknown opening values must remain null instead of looking like real zeros.
+        return JsonResponse({
+            'requires_day1': True,
+            'day1_status': status,
+            'stats': {
+                'cny_funds_total': None,
+                'inventory_book_cost_cny': None,
+                'accounts_receivable_cny': None,
+                'month_net_profit_cny': None,
+            },
+            'accounts': [],
+            'monthly_profit': None,
+            'reconciliation': {'pending_count': 0, 'latest': []},
+        })
+    # Accounting periods follow the Moscow operation, not Django's site timezone.
+    data = accounting_dashboard(as_of=moscow_business_date())
+    return JsonResponse(_json_value({
+        'requires_day1': False,
+        'day1_status': status,
+        **data,
+    }))
 
 
 @staff_json_required

@@ -287,6 +287,7 @@ class LedgerSequence(models.Model):
 class LedgerTransaction(models.Model):
     class TransactionType(models.TextChoices):
         OPENING_BALANCE = 'opening_balance', '期初余额'
+        DAY1_OPENING = 'day1_opening', 'Day 1 期初资产'
         EXCHANGE = 'exchange', '换汇'
         TRANSFER = 'transfer', '同币种转账'
 

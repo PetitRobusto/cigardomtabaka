@@ -27,7 +27,9 @@ def build_inventory_data():
 
     keyed = OrderedDict()
     for b in batches:
-        box_size = b.purchase_order_item.box_size or 25
+        box_size = b.box_size or (
+            b.purchase_order_item.box_size if b.purchase_order_item_id else None
+        ) or 25
         key = (b.cigar.brand, b.cigar.english_name, box_size)
         if key not in keyed:
             keyed[key] = {'cigar': b.cigar, 'box_size': box_size, 'remaining': 0, 'cost': Decimal('0.00')}

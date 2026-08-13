@@ -125,7 +125,9 @@ def serialize_cigar_minimal(cigar, include_batches=False, stock_only=False):
         qs = cigar.purchasebatch_set.filter(remaining__gt=0)
         if stock_only:
             for b in qs.select_related('purchase_order_item'):
-                box_size = b.purchase_order_item.box_size or 25
+                box_size = b.box_size or (
+                    b.purchase_order_item.box_size if b.purchase_order_item_id else None
+                ) or 25
                 batches.append({
                     'batch_id': b.id,
                     'box_size': box_size,

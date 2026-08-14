@@ -21,6 +21,8 @@ describe('Day1 page rendering boundary', () => {
       </PageMetaProvider>,
     );
     expect(html).toContain('初始化已完成');
+    // The completed summary is the focus target when confirmation removes its trigger.
+    expect(html).toContain('tabindex="-1"');
     expect(html).not.toContain('保存草稿');
     expect(html).not.toContain('准备生效');
     expect(html).not.toContain('确认并一次性生效');

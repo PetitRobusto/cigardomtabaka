@@ -38,6 +38,26 @@ export function createDay1InventoryMountGuard() {
   };
 }
 
+interface Day1InventoryAddFlow {
+  loadBoxSizes: () => Promise<number[]>;
+  isMounted: () => boolean;
+  run: (update: () => void) => boolean;
+  onSuccess: (boxSizes: number[]) => void;
+  onError: () => void;
+  onFinally: () => void;
+}
+
+export function runDay1InventoryAdd({ loadBoxSizes, isMounted, run, onSuccess, onError, onFinally }: Day1InventoryAddFlow): Promise<void> {
+  return loadBoxSizes().then(boxSizes => {
+    // A resolved detail response after unmount is discarded before any form callback runs.
+    if (isMounted()) run(() => onSuccess(boxSizes));
+  }).catch(() => {
+    run(onError);
+  }).finally(() => {
+    run(onFinally);
+  });
+}
+
 export function resolveDay1BoxState(hasCatalogOverride: boolean, state: 'loading' | 'loaded' | 'error' | undefined): 'loading' | 'loaded' | 'error' {
   // An unknown state means the detail response is still pending, so manual box sizes stay locked.
   return hasCatalogOverride ? 'loaded' : (state || 'loading');
@@ -104,18 +124,18 @@ export default function Day1InventoryStep({ inventory, onChange, fieldErrors = {
   }, [query, readOnly]);
   const add = (cigar: SearchCigarResult) => {
     setAdding(true); setFeedback('');
-    // Keep every completion path behind the mounted guard, including failure and cleanup.
-    loadBoxSizes(cigar.id).then(boxSizes => {
-      const boxSize = boxSizes[0] || 0;
-      mountGuardRef.current.run(() => {
+    runDay1InventoryAdd({
+      loadBoxSizes: () => loadBoxSizes(cigar.id),
+      isMounted: mountGuardRef.current.isMounted,
+      run: mountGuardRef.current.run,
+      onSuccess: boxSizes => {
+        const boxSize = boxSizes[0] || 0;
         if (!boxSize) setFeedback('目录未声明包装规格，请按实物填写盒规。');
         onChange([...inventory, { cigar_id: cigar.id, cigar_name: cigar.name, box_size: boxSize, box_quantity: 0, loose_sticks: 0, unit_cost_cny: String(cigar.batches[0]?.unit_cost_cny || '') }]);
         setQuery(''); setResults([]);
-      });
-    }).catch(() => {
-      mountGuardRef.current.run(() => setFeedback('雪茄详情加载失败，请重试后再添加。'));
-    }).finally(() => {
-      mountGuardRef.current.run(() => setAdding(false));
+      },
+      onError: () => setFeedback('雪茄详情加载失败，请重试后再添加。'),
+      onFinally: () => setAdding(false),
     });
   };
   const update = (index: number, key: keyof Day1InventoryInput, value: string) => onChange(inventory.map((line, i) => i === index ? { ...line, [key]: key === 'cigar_name' ? value : (key === 'unit_cost_cny' ? value : Number(value)) } : line));

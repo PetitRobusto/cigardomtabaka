@@ -11,6 +11,40 @@ export function day1DialogFocusIndexForActiveElement(currentIndex: number, focus
   return nextDay1DialogFocusIndex(currentIndex < 0 ? (reverse ? 0 : -1) : currentIndex, focusableCount, reverse);
 }
 
+export function createDay1DialogFocusController(dialog: HTMLElement, documentRef: Document = document) {
+  const focusableControls = () => Array.from(dialog.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href]'))
+    .filter(element => !element.hasAttribute('disabled') && element.tabIndex !== -1);
+  const handleTab = (event: KeyboardEvent) => {
+    if (event.key !== 'Tab') return;
+    const focusable = focusableControls();
+    if (!focusable.length) return;
+    const currentIndex = focusable.indexOf(documentRef.activeElement as HTMLElement);
+    const nextIndex = day1DialogFocusIndexForActiveElement(currentIndex, focusable.length, event.shiftKey);
+    event.preventDefault();
+    focusable[nextIndex]?.focus();
+  };
+  const handleFocusIn = (event: FocusEvent) => {
+    if (dialog.contains(event.target as Node)) return;
+    focusableControls()[0]?.focus();
+  };
+  return {
+    attach() {
+      // Capture at document level so an aria-modal cannot leak focus from outside its subtree.
+      documentRef.addEventListener('keydown', handleTab, true);
+      documentRef.addEventListener('focusin', handleFocusIn, true);
+      return () => {
+        documentRef.removeEventListener('keydown', handleTab, true);
+        documentRef.removeEventListener('focusin', handleFocusIn, true);
+      };
+    },
+  };
+}
+
+export function restoreDay1DialogTriggerFocus(wasOpen: boolean, isOpen: boolean, focus: () => void): void {
+  // Closing returns keyboard focus to the button that opened the irreversible confirmation.
+  if (wasOpen && !isOpen) focus();
+}
+
 interface Props {
   draft: Day1DraftInput;
   errors: string[];
@@ -31,29 +65,7 @@ export default function Day1ReviewStep({ draft, errors, readOnly = false, confir
     if (!confirmationOpen) return;
     const dialog = dialogRef.current;
     if (!dialog) return;
-    const focusableControls = () => Array.from(dialog.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href]'))
-      .filter(element => !element.hasAttribute('disabled') && element.tabIndex !== -1);
-    const handleTab = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab') return;
-      const focusable = focusableControls();
-      if (!focusable.length) return;
-      const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
-      const nextIndex = day1DialogFocusIndexForActiveElement(currentIndex, focusable.length, event.shiftKey);
-      event.preventDefault();
-      focusable[nextIndex]?.focus();
-    };
-    const handleFocusIn = (event: FocusEvent) => {
-      if (dialog.contains(event.target as Node)) return;
-      const focusable = focusableControls();
-      focusable[0]?.focus();
-    };
-    // Capture at document level so Tab and focusin cannot escape when focus starts outside.
-    document.addEventListener('keydown', handleTab, true);
-    document.addEventListener('focusin', handleFocusIn, true);
-    return () => {
-      document.removeEventListener('keydown', handleTab, true);
-      document.removeEventListener('focusin', handleFocusIn, true);
-    };
+    return createDay1DialogFocusController(dialog).attach();
   }, [confirmationOpen]);
   const total = draft.inventory.reduce((sum, line) => sum + Number(inventoryLineTotal(line).cost), 0).toFixed(2);
   return <section className="rounded-md border border-border bg-white p-5 shadow-sm">

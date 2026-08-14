@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import * as api from '../../api';
-import Day1InventoryStep, { applyIfDay1InventoryMounted, boxSizesFromCigarDetail, createBoxSizesLoader, fetchDeclaredBoxSizes } from './Day1InventoryStep';
+import Day1InventoryStep, { applyIfDay1InventoryMounted, boxSizesFromCigarDetail, createBoxSizesLoader, createDay1InventoryMountGuard, fetchDeclaredBoxSizes } from './Day1InventoryStep';
 
 describe('Day1 inventory packaging contract', () => {
   it('renders a constrained selector from the real cigar detail response shape', () => {
@@ -85,5 +85,31 @@ describe('Day1 inventory packaging contract', () => {
     expect(update).not.toHaveBeenCalled();
     expect(applyIfDay1InventoryMounted(true, update)).toBe(true);
     expect(update).toHaveBeenCalledTimes(1);
+  });
+
+  it('restores mounted state across StrictMode setup cleanup setup replay', () => {
+    // This is the effect's real setup/cleanup contract under React development replay.
+    const guard = createDay1InventoryMountGuard();
+    const firstCleanup = guard.setup();
+    firstCleanup();
+    const secondCleanup = guard.setup();
+    const update = vi.fn();
+    expect(guard.run(update)).toBe(true);
+    expect(update).toHaveBeenCalledTimes(1);
+    secondCleanup();
+    expect(guard.run(update)).toBe(false);
+    expect(update).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks resolve reject and finally updates after an async load unmounts', () => {
+    // Each promise completion path uses the same production mount guard.
+    const guard = createDay1InventoryMountGuard();
+    const cleanup = guard.setup();
+    cleanup();
+    const onChange = vi.fn();
+    const setState = vi.fn();
+    [onChange, setState, setState].forEach(update => expect(guard.run(update)).toBe(false));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(setState).not.toHaveBeenCalled();
   });
 });

@@ -266,7 +266,7 @@ def test_posted_purchase_order_orm_bypass_is_rejected(self):
         PurchaseOrder.objects.bulk_create([order])
 ```
 
-Run: `.venv/bin/python manage.py test accounting.tests.test_action_models -v 2`
+Run: `.venv/bin/python manage.py test accounting.tests.test_action_models accounting.tests.test_draft_action_models -v 2`
 
 Expected: FAIL，动作模型和 QuerySet 保护尚未实现。
 
@@ -413,9 +413,9 @@ Expected: `0012` 依赖 accounting 最新迁移和 `cigars 0036`，有金额/状
 
 测试先用普通 ORM 验证所有旁路失败，再调用一个最小 `post_test_fact()` 受控 helper 验证合法服务写入成功；测试 `bulk_update` 和 `bulk_create` 不会误杀草稿构建。
 
-Run: `.venv/bin/python manage.py test accounting.tests.test_action_models -v 2`
+Run: `.venv/bin/python manage.py test accounting.tests.test_action_models accounting.tests.test_draft_action_models -v 2`
 
-Expected: 旁路全部拒绝，受控 posting 可保存，终态事实字段保持不变。
+Expected: 旁路全部拒绝，PurchaseDraftAction/DividendDraftAction append-only 测试通过，受控 posting 可保存，终态事实字段保持不变。
 
 ### Step 6（2–5 分钟）：Task 2 双审查与提交
 
@@ -511,7 +511,7 @@ git commit -m "功能：实现采购草稿盒数语义与幂等"
 
 **Files:** `accounting/purchase_actions.py`、`cigars/services.py`；Test: `accounting/tests/test_purchase_actions.py`、`cigars/tests/test_agent_order_inventory.py`
 
-`PurchaseReceiptTest.setUp()` 统一调用 `create_completed_day1_fixture()`；所有付款/到货测试共享 completed Day1，确保首个 arrival test 也通过 service gate。销售 draft 的 `agent_context` 为 optional，测试省略；若实际签名必需，则完整 import 并构造 `AgentContext(command_name=...)`。
+PurchasePaymentTest 与 PurchaseReceiptTest 继承共享 `PurchaseActionTestBase.setUp()`，由 base 统一调用 `create_completed_day1_fixture()`；所有付款/到货测试共享 completed Day1，首个 payment replay 与首个 arrival test 都必须通过 service gate。销售 draft 的 `agent_context` 为 optional，测试省略；若实际签名必需，则完整 import 并构造 `AgentContext(command_name=...)`。
 
 ### Step 1（2–5 分钟）：写付款 RED
 

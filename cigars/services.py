@@ -12,6 +12,8 @@ from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
 
+from accounting.mutation_scope import ledger_mutation_scope
+
 from .models import (
     AdjustmentRecord,
     Cigar,
@@ -1242,7 +1244,8 @@ def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, n
         batches.append(batch)
     purchase_order.status = PurchaseOrder.Status.RECEIVED
     purchase_order.legacy_received = False
-    purchase_order.save(update_fields=['status', 'legacy_received'])
+    with ledger_mutation_scope(reason='purchase_receipt', model='cigars.PurchaseOrder', operator=operator, allowed_fields={'status', 'legacy_received'}):
+        purchase_order.save(update_fields=['status', 'legacy_received'])
     return batches
 
 

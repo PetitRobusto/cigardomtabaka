@@ -2,10 +2,12 @@ import json
 from datetime import date
 from decimal import Decimal
 
+from django.db import models, transaction
 from django.test import Client, TestCase
 from django.utils import timezone
 
 from accounting.models import LedgerTransaction
+from accounting.mutation_scope import ledger_mutation_scope
 from cigars.models import (
     Brand,
     AdjustmentRecord,
@@ -760,38 +762,41 @@ class PurchaseReceivingServiceTest(TestCase):
         self.supplier = Supplier.objects.get(name='Habanos')
         self.cigar = create_cigar()
 
-    def _paid_in_transit_order(self):
+    def _paid_in_transit_order(self, item_updates=None):
         order = create_purchase_order(
             supplier_id=self.supplier.id, exchange_rate='0.0800',
             operator=self.operator,
             items=[{'cigar_id': self.cigar.id, 'quantity': 25, 'box_size': 25, 'unit_price_rub': '1000.00'}],
         )
+        if item_updates:
+            item = order.items.get()
+            for name, value in item_updates.items():
+                setattr(item, name, value)
+            item.save(update_fields=list(item_updates))
         order.status = PurchaseOrder.Status.IN_TRANSIT
         order.paid_cny_cost = Decimal('80.00')
         order.paid_at = timezone.now()
-        order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
+        with transaction.atomic(), ledger_mutation_scope(
+            reason='purchase_payment', model='cigars.PurchaseOrder',
+            operator=self.operator, allowed_fields={'status', 'paid_cny_cost', 'paid_at'},
+        ):
+            order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
         return order
 
     def test_receive_rejects_review_required_packaging_before_stock_loop(self):
-        order = self._paid_in_transit_order()
-        item = order.items.get()
-        item.packaging_status = PurchaseOrderItem.PackagingStatus.REVIEW_REQUIRED
-        item.box_quantity = None
-        item.unit_price_rub_per_box = None
-        item.save(update_fields=['packaging_status', 'box_quantity', 'unit_price_rub_per_box'])
-
+        order = self._paid_in_transit_order({
+            'packaging_status': PurchaseOrderItem.PackagingStatus.REVIEW_REQUIRED,
+            'box_quantity': None, 'unit_price_rub_per_box': None,
+        })
         with self.assertRaisesMessage(OrderServiceError, 'packaging_review_required'):
             receive_purchase_order(purchase_order_id=order.id, operator=self.operator)
         self.assertFalse(PurchaseBatch.objects.exists())
 
     def test_receive_rejects_unrepresentable_packaging_without_negative_cost(self):
-        order = self._paid_in_transit_order()
-        item = order.items.get()
-        item.packaging_status = PurchaseOrderItem.PackagingStatus.UNREPRESENTABLE
-        item.unit_price_rub = None
-        item.unit_price_cny = None
-        item.save(update_fields=['packaging_status', 'unit_price_rub', 'unit_price_cny'])
-
+        order = self._paid_in_transit_order({
+            'packaging_status': PurchaseOrderItem.PackagingStatus.UNREPRESENTABLE,
+            'unit_price_rub': None, 'unit_price_cny': None,
+        })
         with self.assertRaisesMessage(OrderServiceError, 'packaging_review_required'):
             receive_purchase_order(purchase_order_id=order.id, operator=self.operator)
         self.assertFalse(PurchaseBatch.objects.exists())
@@ -799,11 +804,7 @@ class PurchaseReceivingServiceTest(TestCase):
     def test_receive_rejects_null_or_negative_legacy_cost(self):
         for value in (None, Decimal('-1.00')):
             with self.subTest(value=value):
-                order = self._paid_in_transit_order()
-                item = order.items.get()
-                item.unit_price_cny = value
-                item.save(update_fields=['unit_price_cny'])
-
+                order = self._paid_in_transit_order({'unit_price_cny': value})
                 with self.assertRaisesMessage(OrderServiceError, 'legacy_cost_snapshot_missing'):
                     receive_purchase_order(purchase_order_id=order.id, operator=self.operator)
                 self.assertFalse(PurchaseBatch.objects.exists())
@@ -859,7 +860,11 @@ class PurchaseReceivingServiceTest(TestCase):
         order.status = PurchaseOrder.Status.IN_TRANSIT
         order.paid_cny_cost = Decimal('2000.00')
         order.paid_at = timezone.now()
-        order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
+        with transaction.atomic(), ledger_mutation_scope(
+            reason='purchase_payment', model='cigars.PurchaseOrder',
+            operator=self.operator, allowed_fields={'status', 'paid_cny_cost', 'paid_at'},
+        ):
+            order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
 
         batches = receive_purchase_order(
             purchase_order_id=order.id,
@@ -923,6 +928,10 @@ class AgentCommandApiTest(TestCase):
             'items': [{'cigar_id': self.cigar.id, 'quantity': quantity, 'unit_price': 180}],
             'note': 'API 创建',
         }
+
+    def _save_paid(self, order):
+        with transaction.atomic(), ledger_mutation_scope(reason='purchase_payment', model='cigars.PurchaseOrder', operator=self.operator, allowed_fields={'status', 'paid_cny_cost', 'paid_at'}):
+            order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
 
     def post_json(self, path, body):
         return self.client.post(path, data=json.dumps(body), content_type='application/json')
@@ -991,6 +1000,10 @@ class AgentPurchaseReceivingApiTest(TestCase):
         self.supplier = Supplier.objects.get(name='Habanos')
         self.cigar = create_cigar()
 
+    def _save_paid(self, order):
+        with transaction.atomic(), ledger_mutation_scope(reason='purchase_payment', model='cigars.PurchaseOrder', operator=self.operator, allowed_fields={'status', 'paid_cny_cost', 'paid_at'}):
+            order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
+
     def post_json(self, path, body):
         return self.client.post(path, data=json.dumps(body), content_type='application/json')
 
@@ -1029,7 +1042,7 @@ class AgentPurchaseReceivingApiTest(TestCase):
         purchase_order.status = PurchaseOrder.Status.IN_TRANSIT
         purchase_order.paid_cny_cost = Decimal('1000.00')
         purchase_order.paid_at = timezone.now()
-        purchase_order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
+        self._save_paid(purchase_order)
 
         receive_body = {
             'idempotency_key': 'po-receive-api',
@@ -1076,7 +1089,7 @@ class AgentPurchaseReceivingApiTest(TestCase):
         purchase_order.status = PurchaseOrder.Status.IN_TRANSIT
         purchase_order.paid_cny_cost = Decimal('1000.00')
         purchase_order.paid_at = timezone.now()
-        purchase_order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
+        self._save_paid(purchase_order)
         body = {
             'idempotency_key': 'po-receive-retry',
             'operator_id': self.operator.id,

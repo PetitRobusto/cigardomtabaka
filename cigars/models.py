@@ -2,10 +2,161 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import AbstractUser
 from django.utils.text import slugify
 from django.core.validators import MinValueValidator
+
+
+def _raise_ledger_mutation(message):
+    from accounting.models import LedgerMutationError
+    raise LedgerMutationError(message)
+
+
+def _scoped_purchase_write(reason, model, fields, operator=None):
+    # Ledger scope actor is the approved operator who records the action; it is
+    # intentionally independent from PurchaseOrder.operator (the order owner).
+    from accounting.mutation_scope import scope_allows
+    return scope_allows(reason=reason, model=model, fields=fields, operator=operator)
+
+
+def _concrete_fields(instance, kwargs):
+    requested = kwargs.get('update_fields')
+    if requested is None or not requested:
+        return {field.name for field in instance._meta.concrete_fields}
+    return set(requested)
+
+
+_PURCHASE_FINAL_Q = models.Q(status__in=('in_transit', 'received', 'cancelled')) | models.Q(
+    paid_at__isnull=False
+) | models.Q(paid_cny_cost__gt=0)
+_PURCHASE_ORDER_PROTECTED = {
+    'status', 'paid_cny_cost', 'paid_at', 'payment_idempotency_key',
+    'arrival_idempotency_key',
+}
+_PURCHASE_PAYMENT_FIELDS = {
+    'status', 'paid_cny_cost', 'paid_at', 'payment_idempotency_key',
+}
+_PURCHASE_RECEIPT_FIELDS = {'status', 'arrival_idempotency_key', 'legacy_received'}
+
+
+def _requested_field_names(instance, kwargs):
+    requested = kwargs.get('update_fields')
+    if requested is None:
+        return {field.name for field in instance._meta.concrete_fields}
+    return set(requested)
+
+
+def _persisted_values(instance, field_names):
+    """Return DB values for the named concrete fields, including FK ids."""
+    if not instance.pk:
+        return None
+    fields = {field.name: field for field in instance._meta.concrete_fields}
+    names = [name for name in field_names if name in fields]
+    if not names:
+        return {}
+    selected = [fields[name].attname for name in names]
+    return type(instance).objects.filter(pk=instance.pk).values(*selected).first()
+
+
+def _changed_field_names(instance, requested, persisted):
+    if persisted is None:
+        return set(requested)
+    field_by_name = {field.name: field for field in instance._meta.concrete_fields}
+    changed = set()
+    for name in requested:
+        field = field_by_name.get(name)
+        if field is None:
+            continue
+        if getattr(instance, field.attname) != persisted.get(field.attname):
+            changed.add(name)
+    return changed
+
+
+def _update_values(instance, fields):
+    field_by_name = {field.name: field for field in instance._meta.concrete_fields}
+    return {
+        field_by_name[name].attname: getattr(instance, field_by_name[name].attname)
+        for name in fields
+        if name in field_by_name
+    }
+
+
+def _conditional_update(queryset, **values):
+    """Internal state-conditional write; never exposed on the public manager."""
+    return models.QuerySet.update(queryset, **values)
+
+
+class PurchaseOrderQuerySet(models.QuerySet):
+    def _reject_finalized(self):
+        if self.filter(_PURCHASE_FINAL_Q).exists():
+            _raise_ledger_mutation('付款或到货后的采购单不可通过普通 ORM 修改或删除')
+
+    def update(self, **kwargs):
+        if _PURCHASE_ORDER_PROTECTED & kwargs.keys() or kwargs.get('status') == 'cancelled':
+            _raise_ledger_mutation('采购终态字段必须通过实例受控写入')
+        with transaction.atomic():
+            target_count = self.count()
+            if not target_count:
+                return 0
+            affected = _conditional_update(self.filter(status=PurchaseOrder.Status.DRAFT), **kwargs)
+            if affected != target_count:
+                _raise_ledger_mutation('采购单状态在更新期间发生变化，拒绝普通 ORM 修改')
+            return affected
+
+    def delete(self):
+        _raise_ledger_mutation('采购单禁止物理删除，请使用取消动作')
+
+    def bulk_update(self, objs, fields, **kwargs):
+        _raise_ledger_mutation('采购单禁止通过 bulk_update 修改')
+
+    def _finalized(self):
+        return self.filter(_PURCHASE_FINAL_Q)
+
+    def bulk_create(self, objs, **kwargs):
+        _raise_ledger_mutation('采购单禁止通过 bulk_create 或 UPSERT')
+
+    def update_or_create(self, defaults=None, **kwargs):
+        _raise_ledger_mutation('采购单禁止通过 update_or_create')
+
+    def get_or_create(self, defaults=None, **kwargs):
+        _raise_ledger_mutation('采购单禁止通过 get_or_create')
+
+
+class PurchaseOrderItemQuerySet(models.QuerySet):
+    def _finalized(self):
+        return self.filter(
+            models.Q(purchase_order__status__in=('in_transit', 'received', 'cancelled'))
+            | models.Q(purchase_order__paid_at__isnull=False)
+            | models.Q(purchase_order__paid_cny_cost__gt=0)
+        )
+
+    def update(self, **kwargs):
+        if {'purchase_order', 'purchase_order_id'} & kwargs.keys():
+            _raise_ledger_mutation('采购明细必须通过实例受控写入')
+        with transaction.atomic():
+            target_count = self.count()
+            if not target_count:
+                return 0
+            affected = _conditional_update(self.filter(purchase_order__status=PurchaseOrder.Status.DRAFT), **kwargs)
+            if affected != target_count:
+                _raise_ledger_mutation('采购明细所属采购单状态在更新期间发生变化，拒绝普通 ORM 修改')
+            return affected
+
+    def delete(self):
+        _raise_ledger_mutation('采购明细禁止物理删除，请使用采购单取消动作')
+
+    def bulk_update(self, objs, fields, **kwargs):
+        _raise_ledger_mutation('采购明细禁止通过 bulk_update 修改')
+
+    def bulk_create(self, objs, **kwargs):
+        _raise_ledger_mutation('采购明细禁止通过 bulk_create 或 UPSERT')
+
+    def update_or_create(self, defaults=None, **kwargs):
+        _raise_ledger_mutation('采购明细禁止通过 update_or_create')
+
+    def get_or_create(self, defaults=None, **kwargs):
+        _raise_ledger_mutation('采购明细禁止通过 get_or_create')
 
 
 def brand_logo_path(instance, filename):
@@ -299,6 +450,7 @@ class CigarImage(models.Model):
 
 class PurchaseOrder(models.Model):
     """进货单"""
+    objects = PurchaseOrderQuerySet.as_manager()
     class Status(models.TextChoices):
         DRAFT = 'draft', '草稿'
         IN_TRANSIT = 'in_transit', '在途'
@@ -341,6 +493,7 @@ class PurchaseOrder(models.Model):
     deleted_at = models.DateTimeField('删除时间', null=True, blank=True)
 
     class Meta:
+        base_manager_name = 'objects'
         ordering = ['-created_at']
         constraints = [
             models.CheckConstraint(
@@ -358,6 +511,69 @@ class PurchaseOrder(models.Model):
         verbose_name = '进货单'
         verbose_name_plural = '进货单'
 
+    def save(self, *args, **kwargs):
+        requested = _requested_field_names(self, kwargs)
+        if kwargs.get('update_fields') == set() or kwargs.get('update_fields') == []:
+            return None
+        if self._state.adding:
+            changed = requested
+            persisted = None
+        else:
+            persisted = _persisted_values(self, requested | {'status', 'paid_at', 'paid_cny_cost'})
+            if persisted is None:
+                _raise_ledger_mutation('采购单记录已被删除或不存在，禁止 stale resurrection')
+            changed = _changed_field_names(self, requested, persisted)
+            if not changed:
+                return None
+
+        payment_allowed = _scoped_purchase_write(
+            'purchase_payment', 'cigars.PurchaseOrder', changed
+        )
+        receipt_allowed = _scoped_purchase_write(
+            'purchase_receipt', 'cigars.PurchaseOrder', changed
+        )
+        current_final = (
+            self.status != self.Status.DRAFT
+            or (self.paid_cny_cost or 0) > 0
+            or self.paid_at is not None
+        )
+        persisted_final = bool(
+            persisted and (
+                persisted.get('status') != self.Status.DRAFT
+                or persisted.get('paid_at') is not None
+                or (persisted.get('paid_cny_cost') or 0) > 0
+            )
+        )
+        if self._state.adding:
+            if current_final and not (payment_allowed or receipt_allowed):
+                _raise_ledger_mutation('付款或到货后的采购单只能在受控作用域内写入')
+            return super().save(*args, **kwargs)
+        if persisted_final and not (payment_allowed or receipt_allowed):
+            _raise_ledger_mutation('付款或到货后的采购单不可通过普通 ORM 修改')
+        if payment_allowed or receipt_allowed:
+            # Payment starts from draft; receipt transitions an in-transit paid order.
+            if receipt_allowed and not payment_allowed:
+                condition = models.Q(status=self.Status.IN_TRANSIT)
+            else:
+                condition = models.Q(status=self.Status.DRAFT)
+            affected = _conditional_update(
+                type(self).objects.filter(pk=self.pk).filter(condition),
+                **_update_values(self, changed)
+            )
+            if affected != 1:
+                _raise_ledger_mutation('采购单状态在受控写入期间发生变化，拒绝更新')
+            return None
+        # Ordinary draft writes are conditional on the parent remaining a draft.
+        affected = type(self).objects.filter(pk=self.pk, status=self.Status.DRAFT).update(
+            **_update_values(self, changed)
+        )
+        if affected != 1:
+            _raise_ledger_mutation('采购单状态在更新期间发生变化，拒绝普通 ORM 修改')
+        return None
+
+    def delete(self, *args, **kwargs):
+        _raise_ledger_mutation('采购单禁止物理删除，请使用取消动作')
+
     def __str__(self):
         return f'PO-{self.id:06d}'
 
@@ -368,6 +584,7 @@ class PurchaseOrder(models.Model):
 
 class PurchaseOrderItem(models.Model):
     """进货明细"""
+    objects = PurchaseOrderItemQuerySet.as_manager()
     class PackagingStatus(models.TextChoices):
         NORMALIZED = 'normalized', '已规范化'
         REVIEW_REQUIRED = 'review_required', '需人工复核'
@@ -399,6 +616,7 @@ class PurchaseOrderItem(models.Model):
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
     class Meta:
+        base_manager_name = 'objects'
         constraints = [
             models.CheckConstraint(condition=(models.Q(packaging_status='review_required', box_quantity__isnull=True, unit_price_rub_per_box__isnull=True) | models.Q(packaging_status='normalized', box_size__isnull=False, box_size__gt=0, box_quantity__isnull=False, box_quantity__gt=0, unit_price_rub_per_box__isnull=False, unit_price_rub_per_box__gte=0) | models.Q(packaging_status='unrepresentable', box_size__isnull=False, box_size__gt=0, box_quantity__isnull=False, box_quantity__gt=0, unit_price_rub_per_box__isnull=False, unit_price_rub_per_box__gte=0, unit_price_rub__isnull=True, unit_price_cny__isnull=True)), name='purchase_item_packaging_consistent'),
             models.CheckConstraint(condition=models.Q(actual_cost_cny__gte=0), name='purchase_item_actual_cost_nonnegative'),
@@ -406,6 +624,68 @@ class PurchaseOrderItem(models.Model):
         ]
         verbose_name = '进货明细'
         verbose_name_plural = '进货明细'
+
+    def save(self, *args, **kwargs):
+        requested = _requested_field_names(self, kwargs)
+        if kwargs.get('update_fields') == set() or kwargs.get('update_fields') == []:
+            return None
+        if self._state.adding:
+            persisted = None
+            changed = requested
+            persisted_parent_id = None
+            persisted_cigar_id = None
+        else:
+            persisted = _persisted_values(self, requested | {'purchase_order', 'cigar'})
+            if persisted is None:
+                _raise_ledger_mutation('采购明细记录已被删除或不存在，禁止 stale resurrection')
+            changed = _changed_field_names(self, requested, persisted)
+            persisted_parent_id = persisted.get('purchase_order_id')
+            persisted_cigar_id = persisted.get('cigar_id')
+            if self.purchase_order_id != persisted_parent_id:
+                _raise_ledger_mutation('采购明细不可通过 ORM 改挂采购单')
+            if self.cigar_id != persisted_cigar_id:
+                _raise_ledger_mutation('采购明细不可通过 ORM 更换雪茄')
+            if not changed:
+                return None
+
+        parent_ids = {value for value in (persisted_parent_id, self.purchase_order_id) if value}
+        parent_rows = type(self.purchase_order).objects.filter(pk__in=parent_ids)
+        parent_final = parent_rows.filter(_PURCHASE_FINAL_Q).exists()
+        payment_allowed = _scoped_purchase_write(
+            'purchase_payment', 'cigars.PurchaseOrderItem', changed
+        )
+        receipt_allowed = _scoped_purchase_write(
+            'purchase_receipt', 'cigars.PurchaseOrderItem', changed
+        )
+        if parent_final and not (payment_allowed or receipt_allowed):
+            _raise_ledger_mutation('付款或到货后的采购明细只能在受控作用域内写入')
+        if self._state.adding:
+            if parent_final and not (payment_allowed or receipt_allowed):
+                _raise_ledger_mutation('付款或到货后的采购明细只能在受控作用域内写入')
+            return super().save(*args, **kwargs)
+        if payment_allowed or receipt_allowed:
+            # Actual cost may be corrected by either payment or receipt action;
+            # preserve the parent state predicate so a concurrent transition wins.
+            parent_condition = _PURCHASE_FINAL_Q
+            affected = _conditional_update(
+                type(self).objects.filter(
+                    pk=self.pk, purchase_order_id=persisted_parent_id
+                ).filter(purchase_order__in=parent_rows.filter(parent_condition)),
+                **_update_values(self, changed)
+            )
+            if affected != 1:
+                _raise_ledger_mutation('采购明细所属采购单状态在受控写入期间发生变化，拒绝更新')
+            return None
+        affected = type(self).objects.filter(
+            pk=self.pk, purchase_order_id=persisted_parent_id,
+            purchase_order__status=self.purchase_order.Status.DRAFT,
+        ).update(**_update_values(self, changed))
+        if affected != 1:
+            _raise_ledger_mutation('采购明细所属采购单状态在更新期间发生变化，拒绝普通 ORM 修改')
+        return None
+
+    def delete(self, *args, **kwargs):
+        _raise_ledger_mutation('采购明细禁止物理删除，请使用采购单取消动作')
 
     def __str__(self):
         return f'{self.cigar} ×{self.quantity}'

@@ -246,7 +246,9 @@ export interface CigarDetailResponse {
     release_type_cn: string;
     release_name: string;
     production_method: string;
+    /** Human-facing descriptions; accounting uses box_sizes below. */
     packagings: string[];
+    box_sizes: number[];
   };
   brand: {
     english_name: string;

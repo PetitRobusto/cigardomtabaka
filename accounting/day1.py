@@ -21,6 +21,7 @@ from accounting.services import (
     _strict_external_decimal,
 )
 from cigars.models import Cigar, PurchaseBatch, StockMovement
+from cigars.packaging import declared_box_sizes
 
 
 class Day1Error(LedgerError):
@@ -114,25 +115,7 @@ def _integer(value, field, positive=False):
 
 
 def _declared_box_sizes(cigar):
-    if not cigar.packagings:
-        return set()
-    try:
-        data = json.loads(cigar.packagings)
-    except (TypeError, json.JSONDecodeError):
-        return set()
-    if isinstance(data, dict):
-        candidates = data.get('box_sizes', [])
-    elif isinstance(data, list):
-        candidates = [
-            item.get('size') if isinstance(item, dict) else item
-            for item in data
-        ]
-    else:
-        return set()
-    return {
-        value for value in candidates
-        if isinstance(value, int) and not isinstance(value, bool) and value > 0
-    }
+    return set(declared_box_sizes(cigar.packagings))
 
 
 def _normalize_payload(payload):

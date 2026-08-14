@@ -55,24 +55,45 @@ describe('guide state', () => {
 describe('manual content', () => {
   it('contains the required chapters with actual application routes and tour mappings', () => {
     expect(MANUAL_CHAPTERS.map(chapter => chapter.id)).toEqual(
-      expect.arrayContaining(['quickstart', 'inventory', 'sales', 'accounting', 'privnote']),
+      expect.arrayContaining(['quickstart', 'day1', 'exchange-purchase', 'first-order', 'accounting', 'privnote']),
     );
 
     expect(getManualChapter('quickstart')?.route).toBe('/');
     expect(getManualChapter('inventory')?.route).toBe('/inventory');
-    expect(getManualChapter('sales')?.route).toBe('/sales');
-    expect(getManualChapter('accounting')?.route).toBe('/sales#accounting');
+    expect(getManualChapter('first-order')?.route).toBe('/sales');
+    expect(getManualChapter('accounting')?.route).toBe('/accounting');
     expect(getManualChapter('privnote')?.route).toBe('/privnote');
-    expect(getManualChapter('sales')?.tourStepId).toBe('sales-orders');
+    expect(getManualChapter('first-order')?.tourStepId).toBe('sales-orders');
     expect(getManualChapter('accounting')?.tourStepId).toBe('accounting-reconciliation');
   });
 
-  it('resolves hash routes and does not mistake public privnote links for the staff page', () => {
-    expect(getManualChapterForRoute('/sales#accounting')?.id).toBe('accounting');
-    expect(getManualChapterForRoute('/sales')?.id).toBe('sales');
-    expect(getManualChapterForRoute('/p/example-token')).toBeUndefined();
+  it("documents the complete order workflow with stable section titles", () => {
+    expect(getManualChapter("first-order")?.sections.map(section => section.title)).toEqual([
+      "创建销售草稿", "添加现货", "设置人肉费", "确认并预留", "出库与收款",
+    ]);
+    const text = getManualChapter("first-order")?.sections.flatMap(section => section.paragraphs).join(" ") || "";
+    expect(text).toContain("/sales");
+    expect(text).toContain("客户承担");
+    expect(text).toContain("公司承担");
+    expect(text).toContain("一次性人民币收款");
+  });
+
+  it("keeps Day 1 readable while exposing the four required business flows", () => {
+    expect(getManualChapter("day1")?.route).toBe("/accounting/day1");
+    expect(getManualChapter("exchange-purchase")?.route).toBe("/accounting");
+    expect(getManualChapter("accounting")?.sections.map(section => section.title)).toEqual([
+      "记录实际人肉成本", "记录日常费用", "完成对账", "查看月利润",
+    ]);
+  });
+
+  it("resolves canonical routes and does not mistake public privnote links for the staff page", () => {
+    expect(getManualChapterForRoute("/accounting")?.id).toBe("accounting");
+    expect(getManualChapterForRoute("/sales")?.id).toBe("first-order");
+    expect(getManualChapterForRoute("/sales#accounting")).toBeUndefined();
+    expect(getManualChapterForRoute("/p/example-token")).toBeUndefined();
   });
 });
+
 
 describe('guide API clients', () => {
   beforeEach(() => {

@@ -40,7 +40,8 @@ describe('guide interaction contracts', () => {
 
   it('only resolves a tour sequence for the current route', () => {
     expect(tourStepsForRoute('/sales', 'sales-orders').map(step => step.id)).toEqual(['sales-orders', 'sales-fulfillment']);
-    expect(tourStepsForRoute('/inventory', 'inventory-summary').map(step => step.id)).toEqual(['inventory-summary']);
+    expect(tourStepsForRoute('/accounting', 'accounting-reconciliation').map(step => step.id)).toEqual(['accounting-reconciliation', 'accounting-profit']);
+    expect(tourStepsForRoute('/sales#accounting', 'accounting-reconciliation')).toEqual([]);
     expect(tourStepsForRoute('/prices', 'sales-orders')).toEqual([]);
     expect(tourStepsForRoute('/unknown', 'sales-orders')).toEqual([]);
   });

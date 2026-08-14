@@ -4,9 +4,12 @@ The API intentionally exposes business commands instead of model CRUD.
 """
 import hashlib
 import json
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
+from accounting.business_time import moscow_business_date
+from accounting.services import _acquire_sqlite_writer_gate, _retry_sqlite_locked
+from accounting.purchase_actions import PurchaseActionError, canonical_purchase_item, normalize_legacy_purchase_item
 from django.db.models import Count, Q, Sum
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -79,6 +82,25 @@ def _resolve_operator(request, body):
     raise OrderServiceError('必须提供真实 operator_id')
 
 
+def _purchase_error_status(code):
+    if code in {'supplier_not_found', 'purchase_order_not_found'}:
+        return 404
+    if code in {
+        'invalid_state', 'idempotency_conflict', 'packaging_review_required',
+        'version_conflict', 'day1_incomplete',
+    }:
+        return 409
+    return 400
+
+
+def _purchase_error_body(exc):
+    return {
+        'error': '供应商不存在' if exc.code == 'supplier_not_found' else exc.code,
+        'code': exc.code,
+        'details': exc.details,
+    }
+
+
 def _agent_context(body, command_name):
     agent = body.get('agent') or {}
     idempotency_key = str(body.get('idempotency_key') or '').strip()
@@ -94,13 +116,56 @@ def _agent_context(body, command_name):
     return context
 
 
-def _idempotent_command(request, command_name, handler):
+@_retry_sqlite_locked
+def _idempotent_command(request, command_name, handler, *, canonical_action=False):
     try:
         body = _load_json(request)
         operator = _resolve_operator(request, body)
         context = _agent_context(body, command_name)
     except OrderServiceError as exc:
         return _json_response({'error': str(exc), 'details': exc.details}, status=400)
+
+    if canonical_action:
+        body_hash = _request_hash(body)
+        try:
+            with transaction.atomic():
+                _acquire_sqlite_writer_gate()
+                record = IdempotencyRecord.objects.select_for_update().filter(
+                    key=context.idempotency_key,
+                ).first()
+                if record is not None:
+                    if record.command_name != command_name or record.request_hash != body_hash:
+                        return _json_response({
+                            'error': 'idempotency_conflict', 'code': 'idempotency_conflict',
+                            'details': {'idempotency_key': context.idempotency_key},
+                        }, status=409)
+                    return _json_response(record.response_body, status=record.status_code)
+                if record is None:
+                    record = IdempotencyRecord.objects.create(
+                        key=context.idempotency_key, command_name=command_name,
+                        request_hash=body_hash, request_body=body,
+                        response_body={}, status_code=202, operator=operator,
+                        agent_name=context.agent_name, agent_run_id=context.agent_run_id,
+                        agent_request_id=context.agent_request_id,
+                    )
+                try:
+                    response_body = handler(body, operator, context)
+                    status_code = 200
+                except PurchaseActionError as exc:
+                    response_body = _purchase_error_body(exc)
+                    status_code = _purchase_error_status(exc.code)
+                except OrderServiceError as exc:
+                    response_body = {'error': str(exc), 'details': exc.details}
+                    status_code = 400
+                IdempotencyRecord.objects.filter(pk=record.pk).update(
+                    response_body=response_body, status_code=status_code,
+                )
+            return _json_response(response_body, status=status_code)
+        except PurchaseActionError as exc:
+            response_body = _purchase_error_body(exc)
+            return _json_response(response_body, status=_purchase_error_status(exc.code))
+        except OrderServiceError as exc:
+            return _json_response({'error': str(exc), 'details': exc.details}, status=400)
 
     body_hash = _request_hash(body)
     with transaction.atomic():
@@ -119,6 +184,9 @@ def _idempotent_command(request, command_name, handler):
         except InsufficientStockError as exc:
             response_body = {'error': str(exc), 'details': exc.details}
             status_code = 400
+        except PurchaseActionError as exc:
+            response_body = _purchase_error_body(exc)
+            status_code = _purchase_error_status(exc.code)
         except OrderServiceError as exc:
             response_body = {'error': str(exc), 'details': exc.details}
             status_code = 400
@@ -215,9 +283,37 @@ def create_purchase_order_command(request):
         return _json_response({'error': 'Method not allowed'}, status=405)
 
     def handler(body, operator, context):
+        canonical_items = []
+        for index, raw_item in enumerate(body.get('items') or []):
+            if not isinstance(raw_item, dict):
+                raise PurchaseActionError('packaging_review_required', {'item_index': index})
+            if 'box_quantity' in raw_item or 'unit_price_rub_per_box' in raw_item:
+                canonical_items.append(canonical_purchase_item(
+                    box_size=raw_item.get('box_size'),
+                    box_quantity=raw_item.get('box_quantity'),
+                    unit_price_rub_per_box=raw_item.get('unit_price_rub_per_box'),
+                ) | {'cigar_id': raw_item.get('cigar_id')})
+            else:
+                legacy_cny = raw_item.get('unit_price_cny')
+                if legacy_cny in (None, '') and body.get('exchange_rate') not in (None, ''):
+                    try:
+                        exchange_rate = Decimal(str(body.get('exchange_rate')))
+                        if not exchange_rate.is_finite() or exchange_rate <= 0:
+                            raise ValueError
+                        legacy_cny = Decimal(str(raw_item.get('unit_price_rub'))) * exchange_rate
+                    except (InvalidOperation, TypeError, ValueError):
+                        raise PurchaseActionError('invalid_exchange_rate')
+                canonical_items.append(normalize_legacy_purchase_item(
+                    box_size=raw_item.get('box_size'),
+                    quantity_sticks=raw_item.get('quantity'),
+                    unit_price_rub_per_stick=raw_item.get('unit_price_rub'),
+                    unit_price_cny_per_stick=legacy_cny,
+                ) | {'cigar_id': raw_item.get('cigar_id')})
         purchase_order = create_purchase_order(
             supplier_id=body.get('supplier_id'),
-            items=body.get('items'),
+            items=canonical_items,
+            business_date=body.get('business_date') or moscow_business_date(),
+            idempotency_key=context.idempotency_key,
             exchange_rate=body.get('exchange_rate'),
             operator=operator,
             note=str(body.get('note') or '').strip(),
@@ -225,7 +321,48 @@ def create_purchase_order_command(request):
         )
         return {'purchase_order': serialize_purchase_order(purchase_order)}
 
-    return _idempotent_command(request, 'create_purchase_order', handler)
+    return _idempotent_command(request, 'create_purchase_order', handler, canonical_action=True)
+
+
+@csrf_exempt
+@staff_required
+def update_purchase_order_command(request):
+    if request.method != 'POST':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+
+    def handler(body, operator, context):
+        from accounting.purchase_actions import update_purchase_order_draft
+        order = update_purchase_order_draft(
+            purchase_order_id=body.get('purchase_order_id'),
+            items=body.get('items'),
+            expected_version=body.get('expected_version'),
+            idempotency_key=context.idempotency_key,
+            operator=operator,
+            note=str(body.get('note') or '').strip(),
+        )
+        return {'purchase_order': serialize_purchase_order(order)}
+
+    return _idempotent_command(request, 'update_purchase_order', handler, canonical_action=True)
+
+
+@csrf_exempt
+@staff_required
+def cancel_purchase_order_command(request):
+    if request.method != 'POST':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+
+    def handler(body, operator, context):
+        from accounting.purchase_actions import cancel_purchase_order
+        order = cancel_purchase_order(
+            purchase_order_id=body.get('purchase_order_id'),
+            expected_version=body.get('expected_version'),
+            idempotency_key=context.idempotency_key,
+            operator=operator,
+            note=str(body.get('note') or '').strip(),
+        )
+        return {'purchase_order': serialize_purchase_order(order)}
+
+    return _idempotent_command(request, 'cancel_purchase_order', handler, canonical_action=True)
 
 
 @csrf_exempt

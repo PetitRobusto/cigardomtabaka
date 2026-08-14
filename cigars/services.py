@@ -11,6 +11,8 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
+from uuid import uuid4
+from accounting.business_time import moscow_business_date
 
 from accounting.mutation_scope import ledger_mutation_scope
 
@@ -298,7 +300,15 @@ def serialize_purchase_order(order):
             'cigar_id': item.cigar_id,
             'cigar_name': item.cigar.name or item.cigar.english_name,
             'quantity': item.quantity,
+            'sticks': item.quantity,
             'box_size': item.box_size,
+            'box_quantity': item.box_quantity,
+            'unit_price_rub_per_box': _decimal_to_json(item.unit_price_rub_per_box),
+            'rub_subtotal': _decimal_to_json(
+                (Decimal(item.box_quantity) * item.unit_price_rub_per_box)
+                if item.box_quantity is not None and item.unit_price_rub_per_box is not None else None
+            ),
+            'packaging_status': item.packaging_status,
             'unit_price_rub': _decimal_to_json(item.unit_price_rub),
             'unit_price_cny': _decimal_to_json(item.unit_price_cny),
             'batches': batches,
@@ -314,6 +324,8 @@ def serialize_purchase_order(order):
         'cny_total': _decimal_to_json(order.cny_total),
         'operator_id': order.operator_id,
         'note': order.note,
+        'version': order.version,
+        'business_date': order.draft_business_date.isoformat() if order.draft_business_date else None,
         'items': items,
     }
 
@@ -679,75 +691,62 @@ def split_purchase_batch_box(*, batch_id, operator, agent_context=None, note='')
     return batch
 
 
-@transaction.atomic
-def create_purchase_order(*, supplier_id, items, exchange_rate, operator, note='',
-                          agent_context=None):
-    """Create an immutable purchase order draft. It does not receive stock."""
-    operator = _require_operator(operator)
-    context = agent_context or AgentContext(command_name='create_purchase_order')
-    if not isinstance(items, list) or not items:
-        raise OrderServiceError('至少需要一个采购明细')
-
-    supplier_pk = _to_positive_int(supplier_id, '供应商ID')
-    try:
-        supplier = Supplier.objects.get(id=supplier_pk, deleted_at__isnull=True)
-    except Supplier.DoesNotExist:
-        raise OrderServiceError('供应商不存在')
-
-    rate = _to_exchange_rate(exchange_rate, '汇率')
-    purchase_order = PurchaseOrder.objects.create(
-        supplier=supplier,
-        rub_total=Decimal('0.00'),
-        exchange_rate=rate,
-        cny_total=Decimal('0.00'),
-        operator=operator,
-        note=note or '',
-        status=PurchaseOrder.Status.DRAFT,
+def create_purchase_order(*, supplier_id, items, business_date=None, operator,
+                          idempotency_key=None, expected_version=None, note='',
+                          exchange_rate=None, agent_context=None):
+    from accounting.purchase_actions import (
+        PurchaseActionError, create_purchase_order as create_draft,
+        normalize_legacy_purchase_item,
     )
-
-    rub_total = Decimal('0.00')
-    cny_total = Decimal('0.00')
-    for idx, raw_item in enumerate(items, start=1):
-        if not isinstance(raw_item, dict):
-            raise OrderServiceError(f'第{idx}个采购明细格式错误')
-        cigar_id = _to_positive_int(raw_item.get('cigar_id'), f'第{idx}个采购明细雪茄ID')
-        quantity = _to_positive_int(raw_item.get('quantity'), f'第{idx}个采购明细数量')
-        unit_price_rub = _to_money(raw_item.get('unit_price_rub'), f'第{idx}个采购明细卢布单价')
-        raw_box_size = raw_item.get('box_size')
-        box_size = None if raw_box_size in (None, '') else _to_positive_int(raw_box_size, f'第{idx}个采购明细盒装支数')
-
-        try:
-            cigar = Cigar.objects.get(id=cigar_id)
-        except Cigar.DoesNotExist:
-            raise OrderServiceError(f'第{idx}个采购明细雪茄不存在')
-
-        unit_price_cny = (unit_price_rub * rate).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
-        packaging_status = PurchaseOrderItem.PackagingStatus.REVIEW_REQUIRED
-        box_quantity = None
-        unit_price_rub_per_box = None
-        if box_size and quantity % box_size == 0:
-            packaging_status = PurchaseOrderItem.PackagingStatus.NORMALIZED
-            box_quantity = quantity // box_size
-            unit_price_rub_per_box = (unit_price_rub * box_size).quantize(MONEY_PLACES)
-        PurchaseOrderItem.objects.create(
-            purchase_order=purchase_order,
-            cigar=cigar,
-            quantity=quantity,
-            box_size=box_size,
-            unit_price_rub=unit_price_rub,
-            unit_price_cny=unit_price_cny,
-            box_quantity=box_quantity,
-            unit_price_rub_per_box=unit_price_rub_per_box,
-            packaging_status=packaging_status,
-            legacy_snapshot_status=PurchaseOrderItem.LegacySnapshotStatus.EXPLICIT,
+    if not idempotency_key:
+        # 仅兼容旧内部调用；canonical/API 仍必须显式提供 key/date。
+        idempotency_key = (
+            getattr(agent_context, 'idempotency_key', None)
+            or f'legacy-purchase-{uuid4().hex}'
         )
-        rub_total += (unit_price_rub * quantity)
-        cny_total += (unit_price_cny * quantity)
-
-    purchase_order.rub_total = rub_total.quantize(MONEY_PLACES)
-    purchase_order.cny_total = cny_total.quantize(MONEY_PLACES)
-    purchase_order.save(update_fields=['rub_total', 'cny_total'])
-    return purchase_order
+        if business_date is None:
+            business_date = moscow_business_date()
+    elif business_date is None:
+        raise PurchaseActionError('invalid_business_date', {'business_date': '必须显式提供'})
+    normalized_items = []
+    legacy_input = False
+    for index, raw in enumerate(items or []):
+        if not isinstance(raw, dict):
+            raise PurchaseActionError('invalid_items', {'item_index': index})
+        if 'box_quantity' in raw or 'unit_price_rub_per_box' in raw:
+            normalized_items.append(raw)
+        else:
+            legacy_input = True
+            legacy_cny = raw.get('unit_price_cny')
+            if legacy_cny in (None, '') and exchange_rate not in (None, ''):
+                try:
+                    legacy_cny = Decimal(str(raw.get('unit_price_rub'))) * Decimal(str(exchange_rate))
+                except (InvalidOperation, TypeError, ValueError):
+                    raise PurchaseActionError('invalid_exchange_rate')
+            normalized_items.append(
+                normalize_legacy_purchase_item(
+                    box_size=raw.get('box_size'),
+                    quantity_sticks=raw.get('quantity'),
+                    unit_price_rub_per_stick=raw.get('unit_price_rub'),
+                    unit_price_cny_per_stick=legacy_cny,
+                ) | {'cigar_id': raw.get('cigar_id')}
+            )
+    try:
+        order = create_draft(
+            supplier_id=supplier_id, items=normalized_items, business_date=business_date,
+            operator=operator, idempotency_key=idempotency_key,
+            expected_version=expected_version, note=note, exchange_rate=exchange_rate,
+        )
+    except PurchaseActionError as error:
+        if legacy_input:
+            if error.code == 'supplier_not_found':
+                raise OrderServiceError('供应商不存在', details=error.details)
+            if error.code == 'cigar_not_found':
+                index = error.details.get('item_index', 0) + 1
+                raise OrderServiceError(f'第{index}个采购明细雪茄不存在', details=error.details)
+            raise OrderServiceError(error.code, details=error.details)
+        raise
+    return order
 
 
 @transaction.atomic
@@ -1270,3 +1269,23 @@ def get_stock_summary(*, query='', limit=50):
             'available_stock': total,
         })
     return results
+
+
+def update_purchase_order_draft(*, purchase_order_id, items, expected_version,
+                               idempotency_key, operator, note=''):
+    from accounting.purchase_actions import update_purchase_order_draft as update_draft
+    return update_draft(
+        purchase_order_id=purchase_order_id, items=items,
+        expected_version=expected_version, idempotency_key=idempotency_key,
+        operator=operator, note=note,
+    )
+
+
+def cancel_purchase_order(*, purchase_order_id, operator, idempotency_key,
+                          expected_version, note=''):
+    from accounting.purchase_actions import cancel_purchase_order as cancel_draft
+    return cancel_draft(
+        purchase_order_id=purchase_order_id, operator=operator,
+        idempotency_key=idempotency_key, expected_version=expected_version,
+        note=note,
+    )

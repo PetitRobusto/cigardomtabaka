@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import * as api from '../../api';
-import Day1InventoryStep, { boxSizesFromCigarDetail, createBoxSizesLoader, fetchDeclaredBoxSizes } from './Day1InventoryStep';
+import Day1InventoryStep, { applyIfDay1InventoryMounted, boxSizesFromCigarDetail, createBoxSizesLoader, fetchDeclaredBoxSizes } from './Day1InventoryStep';
 
 describe('Day1 inventory packaging contract', () => {
   it('renders a constrained selector from the real cigar detail response shape', () => {
@@ -37,6 +37,19 @@ describe('Day1 inventory packaging contract', () => {
     expect(html).toContain('type="number"');
   });
 
+  it('keeps an existing draft row in loading state before its detail response arrives', () => {
+    // SSR has no effect pass, so this locks the first render against unsafe manual input.
+    const html = renderToStaticMarkup(
+      <Day1InventoryStep
+        inventory={[{ cigar_id: 4, cigar_name: '已有草稿', box_size: 25, box_quantity: 1, loose_sticks: 0, unit_cost_cny: '10.00' }]}
+        onChange={() => {}}
+      />,
+    );
+    expect(html).toContain('正在读取目录包装规格');
+    expect(html).not.toContain('min="1" step="1"');
+    expect(html).not.toContain('<select');
+  });
+
   it('loads existing draft rows from the real detail API response', async () => {
     const fetchDetail = vi.spyOn(api, 'fetchCigarDetail').mockResolvedValue({
       cigar: { box_sizes: [10, 25] },
@@ -63,5 +76,14 @@ describe('Day1 inventory packaging contract', () => {
     await expect(second).rejects.toThrow('network');
     await expect(load(4)).resolves.toEqual([10, 25]);
     expect(fetchSizes).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not run inventory updates after the component has unmounted', () => {
+    // Async detail completion must not mutate a form that navigation already removed.
+    const update = vi.fn();
+    expect(applyIfDay1InventoryMounted(false, update)).toBe(false);
+    expect(update).not.toHaveBeenCalled();
+    expect(applyIfDay1InventoryMounted(true, update)).toBe(true);
+    expect(update).toHaveBeenCalledTimes(1);
   });
 });

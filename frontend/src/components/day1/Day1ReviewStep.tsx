@@ -6,6 +6,11 @@ export function nextDay1DialogFocusIndex(currentIndex: number, focusableCount: n
   return (currentIndex + (reverse ? -1 : 1) + focusableCount) % focusableCount;
 }
 
+export function day1DialogFocusIndexForActiveElement(currentIndex: number, focusableCount: number, reverse: boolean): number {
+  // A focus jump from outside the aria-modal enters at the corresponding edge.
+  return nextDay1DialogFocusIndex(currentIndex < 0 ? (reverse ? 0 : -1) : currentIndex, focusableCount, reverse);
+}
+
 interface Props {
   draft: Day1DraftInput;
   errors: string[];
@@ -26,18 +31,29 @@ export default function Day1ReviewStep({ draft, errors, readOnly = false, confir
     if (!confirmationOpen) return;
     const dialog = dialogRef.current;
     if (!dialog) return;
+    const focusableControls = () => Array.from(dialog.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href]'))
+      .filter(element => !element.hasAttribute('disabled') && element.tabIndex !== -1);
     const handleTab = (event: KeyboardEvent) => {
       if (event.key !== 'Tab') return;
-      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href]'))
-        .filter(element => !element.hasAttribute('disabled') && element.tabIndex !== -1);
+      const focusable = focusableControls();
       if (!focusable.length) return;
       const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
-      const nextIndex = nextDay1DialogFocusIndex(currentIndex < 0 ? (event.shiftKey ? 0 : -1) : currentIndex, focusable.length, event.shiftKey);
+      const nextIndex = day1DialogFocusIndexForActiveElement(currentIndex, focusable.length, event.shiftKey);
       event.preventDefault();
       focusable[nextIndex]?.focus();
     };
-    dialog.addEventListener('keydown', handleTab);
-    return () => dialog.removeEventListener('keydown', handleTab);
+    const handleFocusIn = (event: FocusEvent) => {
+      if (dialog.contains(event.target as Node)) return;
+      const focusable = focusableControls();
+      focusable[0]?.focus();
+    };
+    // Capture at document level so Tab and focusin cannot escape when focus starts outside.
+    document.addEventListener('keydown', handleTab, true);
+    document.addEventListener('focusin', handleFocusIn, true);
+    return () => {
+      document.removeEventListener('keydown', handleTab, true);
+      document.removeEventListener('focusin', handleFocusIn, true);
+    };
   }, [confirmationOpen]);
   const total = draft.inventory.reduce((sum, line) => sum + Number(inventoryLineTotal(line).cost), 0).toFixed(2);
   return <section className="rounded-md border border-border bg-white p-5 shadow-sm">

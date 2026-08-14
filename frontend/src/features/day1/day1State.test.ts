@@ -13,8 +13,9 @@ import {
   validateDay1Draft,
   declaredBoxSizes,
   isLatestDay1SearchRequest,
+  uniqueDay1InventoryCigarIds,
 } from './day1State';
-import type { Day1DraftInput } from './day1State';
+import type { Day1DraftInput, Day1InventoryInput } from './day1State';
 
 describe('Day 1 state rules', () => {
   it('advances through the four fixed wizard steps', () => {
@@ -116,5 +117,13 @@ describe('Day 1 state rules', () => {
   it('rejects stale search responses after the query request changes', () => {
     expect(isLatestDay1SearchRequest(1, 2)).toBe(false);
     expect(isLatestDay1SearchRequest(2, 2)).toBe(true);
+  });
+
+  it('deduplicates catalog detail loads for existing inventory rows', () => {
+    expect(uniqueDay1InventoryCigarIds([
+      { cigar_id: 4, box_size: 10, box_quantity: 1, loose_sticks: 0, unit_cost_cny: '1.00' },
+      { cigar_id: 4, box_size: 25, box_quantity: 1, loose_sticks: 0, unit_cost_cny: '1.00' },
+      { cigar_id: 9, box_size: 25, box_quantity: 1, loose_sticks: 0, unit_cost_cny: '1.00' },
+    ] as Day1InventoryInput[])).toEqual([4, 9]);
   });
 });

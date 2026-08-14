@@ -1,3 +1,5 @@
+import type { Day1CompletionSummary } from '../../types';
+
 export const day1StepTotal = 4;
 
 export type Day1Status = 'not_started' | 'draft' | 'completed' | string;
@@ -76,7 +78,8 @@ function summaryAmount(summary: Record<string, unknown>, key: string): string {
   return value == null ? '0.00' : String(value);
 }
 
-export function completionSummaryViewModel(summary: Record<string, any>): Day1CompletionViewModel {
+export function completionSummaryViewModel(summary: Day1CompletionSummary | null): Day1CompletionViewModel {
+  if (!summary) return { accounts: [], inventory: [], totals: { openingCapital: '0.00', totalNetAssets: '0.00', accountsTotal: '0.00', inventoryTotal: '0.00' } };
   return {
     accounts: Array.isArray(summary.accounts) ? summary.accounts.map(account => ({
       name: String(account.name || '未命名账户'), currency: String(account.currency || '—'),

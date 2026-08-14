@@ -196,6 +196,10 @@ export function isLatestDay1SearchRequest(requestId: number, currentRequestId: n
   return requestId === currentRequestId;
 }
 
+export function uniqueDay1InventoryCigarIds(inventory: Pick<Day1InventoryInput, 'cigar_id'>[]): number[] {
+  return Array.from(new Set(inventory.map(line => line.cigar_id)));
+}
+
 export function buildDay1Payload(state: Day1DraftInput): Day1Payload {
   const accounts = ACCOUNT_SLOTS.map(({ slot, currency }) => {
     const source = state.accounts.find(account => account.slot === slot) || {

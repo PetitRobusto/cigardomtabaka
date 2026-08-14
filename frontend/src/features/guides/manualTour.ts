@@ -22,7 +22,7 @@ export function manualTourDestination(chapter: ManualChapter): ManualTourDestina
 export function manualTourDecision(chapter: ManualChapter, context: ManualTourContext = {}): ManualTourDecision {
   // Completed Day 1 can only open the frozen read-only summary; guides never write business data.
   if (chapter.id === "day1" && context.day1Status === "completed") {
-    return { kind: "readonly", destination: { route: "/accounting/day1", state: { guideTourId: "day1-summary", readOnly: true } } };
+    return { kind: "readonly", destination: { route: "/accounting/day1", state: { readOnly: true } } };
   }
   // Unfinished Day 1 opens the editable page without a tour id or write action.
   if (chapter.id === "day1") return { kind: "navigate", destination: { route: "/accounting", state: {} } };

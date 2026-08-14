@@ -55,6 +55,8 @@ rub_subtotal = box_quantity * unit_price_rub_per_box
 
 ### Step 1（2–5 分钟）：写 canonical RED 测试
 
+完整 imports 为 `Decimal`、`IntegrityError`、`ValidationError`、`TestCase`、`TransactionTestCase`、`PurchaseOrder`、`PurchaseOrderItem`、`Supplier`、`Cigar`、`get_user_model`、`connection`、`MigrationExecutor`，供真实 MigrationExecutor 测试使用。
+
 新增 `cigars/tests/test_purchase_packaging.py` 中的 `PurchasePackagingModelTest`，完整 imports 为 `Decimal`、`IntegrityError`、`ValidationError`、`TestCase`、`PurchaseOrder`、`PurchaseOrderItem`、`Supplier`、`Cigar`、`get_user_model`、`connection`、`MigrationExecutor`；`setUp()` 用真实必填 `supplier`、`rub_total`、`exchange_rate`、`cny_total`、`operator` 和 `cigar` 工厂创建行。Task 1 RED 只覆盖真实 model `full_clean()`/CheckConstraint 与 `MigrationExecutor`；不引入 `PurchasePayment`、pay/cancel、canonical service helper、`BusinessRuleError` 或未定义 fixture。
 
 ```python
@@ -471,12 +473,18 @@ Expected: FAIL，服务仍以旧每支字段建单。
 
 ### Step 2（2–5 分钟）：实现 canonical normalizer
 
-在 Task1 已归属的 `cigars/services.py` canonical value-object 区域定义：
+在 Task3 新建的 `accounting/purchase_actions.py` 定义统一异常和 canonical value-object；`cigars/services.py` 只 import 并调用它们：
 
 ```python
+class PurchaseActionError(Exception):
+    def __init__(self, code: str, details: dict[str, object] | None = None):
+        super().__init__(code)
+        self.code = code
+        self.details = details or {}
+
 def normalize_legacy_purchase_item(*, box_size: int | None, quantity_sticks: int, unit_price_rub_per_stick: Decimal) -> dict:
     if box_size is None or box_size <= 0 or quantity_sticks <= 0 or quantity_sticks % box_size:
-        raise BusinessRuleError(code='packaging_review_required', details={'quantity_sticks': quantity_sticks, 'box_size': box_size})
+        raise PurchaseActionError(code='packaging_review_required', details={'quantity_sticks': quantity_sticks, 'box_size': box_size})
     return canonical_purchase_item(box_size=box_size, box_quantity=quantity_sticks // box_size,
                                    unit_price_rub_per_box=unit_price_rub_per_stick * box_size,
                                    legacy_unit_price_rub=unit_price_rub_per_stick)
@@ -492,9 +500,9 @@ def canonical_purchase_item(*, box_size: int, box_quantity: int, unit_price_rub_
                                                      for value in (legacy_unit_price_rub, legacy_unit_price_cny)):
         raise ValueError('采购金额必须是有限 Decimal')
     if box_size <= 0 or box_quantity <= 0 or unit_price_rub_per_box < 0:
-        raise BusinessRuleError(code='invalid_packaging', details={'box_size': box_size, 'box_quantity': box_quantity})
+        raise PurchaseActionError(code='invalid_packaging', details={'box_size': box_size, 'box_quantity': box_quantity})
     if legacy_unit_price_rub is not None and legacy_unit_price_rub * box_size != unit_price_rub_per_box:
-        raise BusinessRuleError(code='legacy_snapshot_conflict', details={'unit_price_rub': str(legacy_unit_price_rub)})
+        raise PurchaseActionError(code='legacy_snapshot_conflict', details={'unit_price_rub': str(legacy_unit_price_rub)})
     return {'sticks': box_size * box_quantity, 'rub_subtotal': Decimal(box_quantity) * unit_price_rub_per_box,
             'box_size': box_size, 'box_quantity': box_quantity, 'unit_price_rub_per_box': unit_price_rub_per_box,
             'unit_price_rub': legacy_unit_price_rub, 'unit_price_cny': legacy_unit_price_cny,
@@ -548,7 +556,9 @@ git commit -m "功能：实现采购草稿盒数语义与幂等"
 
 **Objective:** 用付款前 RUB 移动平均建立在途成本，按 canonical RUB 小计分配 CNY 尾差，并让付款/到货重放返回原事实。
 
-**Files:** Modify: `accounting/purchase_actions.py`、`cigars/sales_accounting.py`；Test: `accounting/tests/test_purchase_actions.py`、`cigars/tests/test_agent_order_inventory.py`、`cigars/tests/test_sales_accounting.py`
+**Files:** Modify: `accounting/purchase_actions.py`、`cigars/services.py`、`cigars/sales_accounting.py`；Test: `accounting/tests/test_purchase_actions.py`、`cigars/tests/test_agent_order_inventory.py`、`cigars/tests/test_sales_accounting.py`
+
+付款/到货测试从 `accounting.purchase_actions` import 同一 `PurchaseActionError`，不再定义第二个异常类。
 
 `accounting/tests/test_purchase_actions.py` 的 `PurchaseActionTestBase.setUp()` 完整 import `create_completed_day1_fixture` 并保存 `self.operator/self.day/self.rub_account`；所有付款/到货测试共享 completed Day1，首个 payment replay 与首个 arrival test 都必须通过 service gate。销售 fixture 直接调用现有 `create_sales_order_draft(items, operator, customer_name, customer_transport_fee_cny)`，不使用未确认的 `agent_context` 分支。
 
@@ -673,7 +683,7 @@ Expected: 付款前移动平均、canonical RUB/CNY 守恒、库存 FIFO 包装�
 Luna A 审查资金/在途/库存不变量，Luna B 独立审查幂等优先顺序、锁重试、尾差和旧入口兼容；通过后提交。
 
 ```bash
-git add accounting/purchase_actions.py cigars/sales_accounting.py accounting/tests/test_purchase_actions.py cigars/tests/test_agent_order_inventory.py cigars/tests/test_sales_accounting.py
+git add accounting/purchase_actions.py cigars/services.py cigars/sales_accounting.py accounting/tests/test_purchase_actions.py cigars/tests/test_agent_order_inventory.py cigars/tests/test_sales_accounting.py
 git commit -m "功能：实现采购付款在途与整单到货"
 ```
 
@@ -732,8 +742,13 @@ from decimal import Decimal
 class DividendPreview:
     retained_earnings_cny: Decimal
     requested_cny: Decimal
-    warning: str | None
+    warning: dict[str, object] | None
     warning_fingerprint: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {'retained_earnings_cny': str(self.retained_earnings_cny),
+                'requested_cny': str(self.requested_cny), 'warning': self.warning,
+                'warning_fingerprint': self.warning_fingerprint}
 
 class DividendActionError(Exception):
     def __init__(self, code: str, details: dict[str, object] | None = None):
@@ -835,6 +850,8 @@ git commit -m "功能：实现分红草稿预览与确认"
 
 ### Step 1（2–5 分钟）：写 selector RED
 
+Task7 同时 Modify `cigars/sales_accounting.py`，并由本 Task 的 `git add` 纳入其 gate 修改。
+
 新增测试 fixture：销售收入 500、销售成本 0、工资 100、销售单实际人肉成本 20、库存调整收益 7、库存调整损失 3、资金对账收益 2、资金对账损失 1、确认分红 50。
 
 ```python
@@ -842,10 +859,10 @@ def test_profit_formula_keeps_adjustment_and_reconciliation_gain_loss(self):
     seed_profit_facts(sales=Decimal('500.00'), salary=Decimal('100.00'), transport=Decimal('20.00'),
                       inventory_gain=Decimal('7.00'), inventory_loss=Decimal('3.00'),
                       reconciliation_gain=Decimal('2.00'), reconciliation_loss=Decimal('1.00'))
-    self.assertEqual(monthly_profit(month=self.month)['net_profit_cny'], Decimal('385.00'))
-    before = monthly_profit(month=self.month)
+    self.assertEqual(monthly_profit(month=date(2026, 8, 1))['net_profit_cny'], Decimal('385.00'))
+    before = monthly_profit(month=date(2026, 8, 1))
     confirm_dividend_fixture(total_cny=Decimal('50.00'), business_date=self.day)
-    after = monthly_profit(month=self.month)
+    after = monthly_profit(month=date(2026, 8, 1))
     self.assertEqual(before['net_profit_cny'], after['net_profit_cny'])
     self.assertEqual(after['retained_earnings_cny'], before['retained_earnings_cny'] - Decimal('50.00'))
 ```
@@ -892,6 +909,7 @@ Luna A 对照两份 spec、CONTEXT 和真实 service/API 检查公式及门禁�
 
 ```bash
 git add accounting/selectors.py accounting/guards.py accounting/views.py accounting/urls.py accounting/action_serializers.py cigars/sales_api.py accounting/tests/test_action_api.py accounting/tests/test_api.py accounting/tests/test_sales_reports_reconciliation.py cigars/tests/test_sales_refund_transport.py cigars/tests/test_sales_order_api.py
+git add cigars/sales_accounting.py
 git commit -m "功能：提供利润选择器与账务动作接口"
 ```
 
@@ -935,7 +953,7 @@ Expected: FAIL，helpers 和统一错误解析尚未存在。
 
 ### Step 3（2–5 分钟）：写动作卡 RED
 
-组件测试实际选择 USDT、输入实际 source/rub 数量，断言 API 收到真实字符串；费用卡模拟 `currency_rule` 后只显示自己的错误，采购/换汇/分红卡保持输入和既有数据。测试 purchase card 隐藏分期/分批 controls，dividend card 展示 preview warning 并要求确认 ack。
+组件测试只渲染已注入 props 的 presentational markup，并测试 `actionState`/纯 helper contract：Decimal 保持 string、局部 error 不覆盖 sibling state、purchase card 不输出分期/分批 controls、dividend props 输出 warning/ack 要求；不声称真实选择、模拟交互或 QueryClient 行为。
 
 Run: `cd frontend && npm test -- --run src/components/accounting`
 
@@ -1022,7 +1040,7 @@ Run:
 .venv/bin/python manage.py makemigrations --check
 .venv/bin/python manage.py check
 .venv/bin/python manage.py showmigrations accounting cigars
-rg -n 'unit_price_rub\\s*\\*\\s*quantity|quantity\\s*\\*\\s*unit_price_rub|unit_price_rub.*quantity' docs/superpowers/plans/2026-08-14-accounting-actions.md
+rg -n -e 'unit_price_rub\s*\*\s*quantity|quantity\s*\*\s*unit_price_rub|unit_price_rub.*quantity' docs/superpowers/plans/2026-08-14-accounting-actions.md
 .venv/bin/python -c "from pathlib import Path; p=Path('docs/superpowers/plans/2026-08-14-accounting-actions.md'); t=p.read_text(); bad=('T'+'BD','TO'+'DO','Similar'+' to','适'+'当处理','待'+'定','Divided'+'Action'); found=[x for x in bad if x in t]; raise SystemExit('placeholder: '+','.join(found)) if found else print('placeholder scan: clean')"
 ```
 

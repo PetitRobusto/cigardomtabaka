@@ -2,7 +2,7 @@ import type { ManualChapter } from "./guideContent";
 
 export interface ManualTourDestination {
   route: string;
-  state: { guideTourId: string; readOnly?: boolean };
+  state: { guideTourId?: string; readOnly?: boolean };
 }
 
 export interface ManualTourContext {
@@ -24,8 +24,9 @@ export function manualTourDecision(chapter: ManualChapter, context: ManualTourCo
   if (chapter.id === "day1" && context.day1Status === "completed") {
     return { kind: "readonly", destination: { route: "/accounting/day1", state: { guideTourId: "day1-summary", readOnly: true } } };
   }
+  // Unfinished Day 1 opens the editable page without a tour id or write action.
+  if (chapter.id === "day1") return { kind: "navigate", destination: { route: "/accounting", state: {} } };
   const destination = manualTourDestination(chapter);
-  if (chapter.id === "day1" && destination) return { kind: "navigate", destination: { ...destination, state: { ...destination.state, readOnly: false } } };
   return destination
     ? { kind: "navigate", destination }
     : { kind: "unavailable", message: "本章暂无页面引导" };

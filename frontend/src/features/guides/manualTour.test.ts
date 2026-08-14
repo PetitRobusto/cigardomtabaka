@@ -37,7 +37,7 @@ describe('manual tour navigation', () => {
     const chapter = MANUAL_CHAPTERS.find(item => item.id === 'day1');
     expect(manualTourDecision(chapter!, { day1Status: 'draft' })).toEqual({
       kind: 'navigate',
-      destination: { route: '/accounting/day1', state: { guideTourId: 'day1', readOnly: false } },
+      destination: { route: '/accounting', state: {} },
     });
   });
 

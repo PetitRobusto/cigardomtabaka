@@ -122,6 +122,16 @@ export function day1ErrorMessage(error: unknown, fallback = 'Day 1 保存失败�
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+export function day1ValidationDetails(error: unknown): Record<string, string> {
+  if (!axios.isAxiosError(error)) return {};
+  const details = error.response?.data?.details;
+  if (!details || typeof details !== 'object' || Array.isArray(details)) return {};
+  return Object.fromEntries(Object.entries(details).map(([key, value]) => [
+    key,
+    Array.isArray(value) ? value.join('、') : String(value),
+  ]));
+}
+
 export const fetchAccountingAccounts = (): Promise<FundAccount[]> =>
   api.get('/accounting/accounts/').then(r => r.data.accounts || []);
 

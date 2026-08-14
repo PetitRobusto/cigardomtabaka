@@ -11,7 +11,9 @@ import {
   emptyDay1Draft,
   nextDay1Step,
   validateDay1Draft,
+  declaredBoxSizes,
 } from './day1State';
+import type { Day1DraftInput } from './day1State';
 
 describe('Day 1 state rules', () => {
   it('advances through the four fixed wizard steps', () => {
@@ -31,7 +33,7 @@ describe('Day 1 state rules', () => {
   });
 
   it('builds the four fixed account slots and validates non-negative values', () => {
-    const state = {
+    const state: Day1DraftInput = {
       business_date: '2026-08-14',
       accounts: [
         { slot: 'owner_cny', name: '我的人民币账户', currency: 'CNY', original_amount: '100', cny_book_cost: '' },
@@ -88,5 +90,25 @@ describe('Day 1 state rules', () => {
     expect(errors).toContain('rub账户外币余额与账面成本必须同时为零或同时为正');
     expect(errors).toContain('库存第 1 行库存数量必须大于零');
     expect(errors).toContain('库存第 1 行单支成本必须大于零');
+  });
+
+  it('uses only declared directory box sizes and rejects duplicate inventory rows', () => {
+    expect(declaredBoxSizes([{ size: 25, type: 'box' }, { size: 10, type: 'tube' }])).toEqual([25, 10]);
+    expect(declaredBoxSizes([])).toEqual([]);
+    const draft = emptyDay1Draft('2026-08-14');
+    draft.accounts = draft.accounts.map(account => ({ ...account, original_amount: '0', cny_book_cost: account.currency === 'CNY' ? '' : '0' }));
+    draft.inventory = [
+      { cigar_id: 4, box_size: 25, box_quantity: 1, loose_sticks: 0, unit_cost_cny: '1.00' },
+      { cigar_id: 4, box_size: 25, box_quantity: 1, loose_sticks: 0, unit_cost_cny: '1.00' },
+    ];
+    expect(validateDay1Draft(draft)).toContain('库存第 2 行雪茄和包装规格不可重复');
+  });
+
+  it('matches backend cutover date and decimal precision boundaries', () => {
+    const draft = emptyDay1Draft('2026-08-09');
+    draft.accounts = draft.accounts.map(account => ({ ...account, original_amount: account.currency === 'USDT' ? '1.123456789' : '1.234', cny_book_cost: account.currency === 'CNY' ? '1.234' : '1.00' }));
+    expect(validateDay1Draft(draft)).toContain('业务日期不能早于账务切换日');
+    expect(validateDay1Draft({ ...draft, business_date: '2099-01-01' })).toContain('业务日期不能晚于莫斯科当前业务日');
+    expect(validateDay1Draft(draft).some(error => error.includes('小数位数超出允许精度'))).toBe(true);
   });
 });

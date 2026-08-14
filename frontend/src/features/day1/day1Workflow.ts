@@ -9,6 +9,18 @@ import {
 type SaveDay1 = (payload: Day1Payload, expectedVersion: number) => Promise<Day1State>;
 type ConfirmDay1 = (version: number, idempotencyKey: string) => Promise<Day1State>;
 
+export function saveDay1DraftAtBase({
+  draft,
+  baseVersion,
+  save,
+}: {
+  draft: Day1DraftInput;
+  baseVersion: number;
+  save: SaveDay1;
+}): Promise<Day1State> {
+  return save(buildDay1Payload(draft), baseVersion);
+}
+
 export function saveThenConfirmDay1({
   draft,
   baseVersion,

@@ -11,10 +11,11 @@ const labels: Record<Day1AccountSlot, string> = {
 interface Props {
   accounts: Day1AccountInput[];
   onChange: (accounts: Day1AccountInput[]) => void;
+  fieldErrors?: Record<string, string>;
   readOnly?: boolean;
 }
 
-export default function Day1AccountsStep({ accounts, onChange, readOnly = false }: Props) {
+export default function Day1AccountsStep({ accounts, onChange, fieldErrors = {}, readOnly = false }: Props) {
   const update = (slot: Day1AccountSlot, key: 'name' | 'original_amount' | 'cny_book_cost', value: string) => {
     onChange(accounts.map(account => {
       if (account.slot !== slot) return account;
@@ -30,6 +31,8 @@ export default function Day1AccountsStep({ accounts, onChange, readOnly = false 
     <div className="space-y-4">
       {day1AccountSlots.map(({ slot, currency }) => {
         const account = accounts.find(item => item.slot === slot) || { slot, currency, name: defaultAccountName(slot), original_amount: '', cny_book_cost: '' };
+        const accountIndex = day1AccountSlots.findIndex(item => item.slot === slot);
+        const rowError = Object.entries(fieldErrors).find(([key]) => key === `accounts[${accountIndex}]` || key.startsWith(`accounts[${accountIndex}].`))?.[1];
         return <div key={slot} className="grid gap-3 border-b border-border pb-4 last:border-0 sm:grid-cols-[1.25fr_90px_1fr_1fr] sm:items-end">
           <div><p className="font-medium text-fg">{labels[slot]}</p><p className="mt-1 text-xs text-muted">{slot}</p></div>
           <div><label className="mb-1 block text-xs font-medium text-muted">币种</label><div className="rounded border border-border bg-cream px-3 py-2 text-sm font-semibold">{currency}</div></div>
@@ -38,6 +41,7 @@ export default function Day1AccountsStep({ accounts, onChange, readOnly = false 
             <label className="text-xs font-medium text-muted">原币余额<input disabled={readOnly} type="number" min="0" step="any" value={account.original_amount} onChange={event => update(slot, 'original_amount', event.target.value)} className="mt-1 w-full rounded border border-border px-3 py-2 text-sm text-fg" /></label>
             <label className="text-xs font-medium text-muted">账面成本 CNY<input disabled={readOnly || currency === 'CNY'} type="number" min="0" step="any" value={account.cny_book_cost} onChange={event => update(slot, 'cny_book_cost', event.target.value)} className="mt-1 w-full rounded border border-border px-3 py-2 text-sm text-fg disabled:bg-cream" /></label>
           </div>
+          {rowError && <p className="text-xs text-red-700 sm:col-span-4">{rowError}</p>}
         </div>;
       })}
     </div>

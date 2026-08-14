@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { day1ErrorMessage, day1ValidationDetails, day1WriteHeaders } from '../api';
+import { clearDay1ValidationDetails, day1ErrorMessage, day1ValidationDetails, day1WriteHeaders } from '../api';
 
 describe('Day 1 API contract helpers', () => {
   it('builds optimistic version and idempotency headers', () => {
@@ -23,6 +23,17 @@ describe('Day 1 API contract helpers', () => {
     expect(day1ValidationDetails(error)).toEqual({
       business_date: '不能晚于当前业务日',
       'inventory[1]': '库存数量必须大于零',
+    });
+  });
+
+  it('clears stale details when the corresponding local section is edited', () => {
+    expect(clearDay1ValidationDetails({
+      business_date: '日期错误',
+      'inventory[1].box_size': '包装错误',
+      'accounts[0].name': '账户错误',
+    }, 'inventory')).toEqual({
+      business_date: '日期错误',
+      'accounts[0].name': '账户错误',
     });
   });
 });

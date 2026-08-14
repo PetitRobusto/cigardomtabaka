@@ -12,6 +12,7 @@ import {
   nextDay1Step,
   validateDay1Draft,
   declaredBoxSizes,
+  isLatestDay1SearchRequest,
 } from './day1State';
 import type { Day1DraftInput } from './day1State';
 
@@ -93,7 +94,7 @@ describe('Day 1 state rules', () => {
   });
 
   it('uses only declared directory box sizes and rejects duplicate inventory rows', () => {
-    expect(declaredBoxSizes([{ size: 25, type: 'box' }, { size: 10, type: 'tube' }])).toEqual([25, 10]);
+    expect(declaredBoxSizes([25, 10])).toEqual([25, 10]);
     expect(declaredBoxSizes([])).toEqual([]);
     const draft = emptyDay1Draft('2026-08-14');
     draft.accounts = draft.accounts.map(account => ({ ...account, original_amount: '0', cny_book_cost: account.currency === 'CNY' ? '' : '0' }));
@@ -110,5 +111,10 @@ describe('Day 1 state rules', () => {
     expect(validateDay1Draft(draft)).toContain('业务日期不能早于账务切换日');
     expect(validateDay1Draft({ ...draft, business_date: '2099-01-01' })).toContain('业务日期不能晚于莫斯科当前业务日');
     expect(validateDay1Draft(draft).some(error => error.includes('小数位数超出允许精度'))).toBe(true);
+  });
+
+  it('rejects stale search responses after the query request changes', () => {
+    expect(isLatestDay1SearchRequest(1, 2)).toBe(false);
+    expect(isLatestDay1SearchRequest(2, 2)).toBe(true);
   });
 });

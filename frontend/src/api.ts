@@ -132,6 +132,10 @@ export function day1ValidationDetails(error: unknown): Record<string, string> {
   ]));
 }
 
+export function clearDay1ValidationDetails(details: Record<string, string>, prefix: string): Record<string, string> {
+  return Object.fromEntries(Object.entries(details).filter(([key]) => key !== prefix && !key.startsWith(prefix + '[') && !key.startsWith(prefix + '.')));
+}
+
 export const fetchAccountingAccounts = (): Promise<FundAccount[]> =>
   api.get('/accounting/accounts/').then(r => r.data.accounts || []);
 

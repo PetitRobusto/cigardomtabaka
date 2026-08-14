@@ -184,17 +184,16 @@ export function validateDay1Draft(state: Day1DraftInput): string[] {
   return errors;
 }
 
-export function declaredBoxSizes(packagings: unknown[]): number[] {
+export function declaredBoxSizes(boxSizes: unknown[]): number[] {
   const sizes: number[] = [];
-  for (const packaging of packagings) {
-    const candidate = packaging && typeof packaging === 'object' && 'size' in packaging
-      ? (packaging as { size?: unknown }).size
-      : packaging;
-    const text = typeof candidate === 'string' ? candidate.trim() : '';
-    const parsed = typeof candidate === 'number' ? candidate : (/^\d+(?:\.0+)?\s*(?:支|sticks?)?$/i.test(text) ? Number.parseInt(text, 10) : NaN);
-    if (Number.isInteger(parsed) && parsed > 0 && !sizes.includes(parsed)) sizes.push(parsed);
+  for (const candidate of boxSizes) {
+    if (typeof candidate === 'number' && Number.isInteger(candidate) && candidate > 0 && !sizes.includes(candidate)) sizes.push(candidate);
   }
   return sizes;
+}
+
+export function isLatestDay1SearchRequest(requestId: number, currentRequestId: number): boolean {
+  return requestId === currentRequestId;
 }
 
 export function buildDay1Payload(state: Day1DraftInput): Day1Payload {

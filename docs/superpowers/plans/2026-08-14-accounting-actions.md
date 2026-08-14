@@ -276,3 +276,229 @@ git commit -m "功能：记录人民币与卢布经营费用"
 - [ ] **Step 4 验收**：逐项确认实际换汇金额、一次采购付款/整单到货、费用币种、分红草稿与非利润确认、留存利润派生、幂等/负余额/尾差/不可变/原子回滚，以及无分期/分批/手续费/市场重估；独立代码审查资金、成本、库存和分红不变量。
 ## 验收与注释要求
 - 新代码必须有简短中文注释，说明原子付款/到货、RUB 移动平均及最后尾差、幂等/posted 不可变、旧报价字段只读兼容、局部错误不伪装零值；注释不能替代测试。前端沿用 OpenDesign；用户文案/文档/commit 中文，标识符/API/枚举英文。未有上述验证证据不得宣称完成；本计划不 push/merge，实际实现另开分支。
+
+## 修订补充：采购包装语义与不可变 QuerySet
+
+下面的补充详细步骤是对上方压缩摘要的替代执行清单；实现者按本节逐项执行。
+
+### Task 1 补充：采购包装转换和 QuerySet 保护
+
+- [ ] **Step 7（2–5 分钟）：先固定包装事实测试**
+
+```python
+def test_legacy_purchase_row_converts_without_changing_rub_total(self):
+    order = legacy_order(quantity=25, box_size=25, unit_price_rub='1000.00')
+    normalize_purchase_item(order.items.get())
+    item = order.items.get()
+    self.assertEqual((item.box_quantity, item.unit_price_rub_per_box), (1, Decimal('25000.00')))
+    self.assertEqual(item.quantity * item.unit_price_rub, Decimal('25000.00'))
+
+def test_non_divisible_legacy_row_is_blocked_until_manual_packaging_review(self):
+    item = legacy_item(quantity=26, box_size=25, unit_price_rub='1000.00')
+    with self.assertRaisesRegex(OrderServiceError, '包装数量无法无损转换'):
+        normalize_purchase_item(item)
+```
+
+- [ ] **Step 8（2–5 分钟）：实现安全 canonical 字段**
+
+在 PurchaseOrderItem 新增 `box_quantity`、`unit_price_rub_per_box`，两者可空以容纳历史未转换行；新建/新保存的采购单必须有 `box_size > 0`、`box_quantity > 0`，并令 `quantity = box_size * box_quantity`。保留旧 `quantity` 和 `unit_price_rub` 作为 legacy 只读兼容列。新增 `normalize_purchase_item(item)`：若 canonical 已有值只校验；若旧行的 `quantity % box_size == 0`，写 `box_quantity=quantity//box_size`、`unit_price_rub_per_box=unit_price_rub*box_size`；若 box_size 为空或有余数，保留原值并返回 `packaging_review_required`，付款接口拒绝。
+
+注释说明旧服务当前把 quantity 当支数、unit_price_rub 当每支价；转换只把每支价乘盒规，不改 rub_total，防止历史订单成本漂移。
+
+- [ ] **Step 9（2–5 分钟）：迁移和新输入转换**
+
+`cigars/migrations/0036_purchase_payment_state.py` 先添加 canonical nullable 字段，再用 RunPython 逐行转换可整除旧数据；不可整除/无盒规行保持 null 并写入状态标志，不静默猜盒数。新 API payload 只接受 `{box_size, box_quantity, unit_price_rub_per_box}`，计算 `sticks = box_size * box_quantity`、`rub_subtotal = box_quantity * unit_price_rub_per_box`；兼容旧 agent payload 时先调用 normalize，非整除行返回明确 409，旧字段继续返回以供查询。
+
+- [ ] **Step 10（2–5 分钟）：测试 RUB/CNY 守恒**
+
+```python
+def test_purchase_totals_use_boxes_and_last_cny_line_tail(self):
+    order = create_purchase_order(items=[
+        {'cigar_id': self.a.id, 'box_size': 25, 'box_quantity': 1, 'unit_price_rub_per_box': '100.00'},
+        {'cigar_id': self.b.id, 'box_size': 10, 'box_quantity': 2, 'unit_price_rub_per_box': '100.00'},
+    ], exchange_rate='1.0000', supplier_id=self.supplier.id, operator=self.operator)
+    self.assertEqual(order.rub_total, Decimal('300.00'))
+    costs = allocate_paid_cny(order, Decimal('100.00'))
+    self.assertEqual(costs, [Decimal('33.33'), Decimal('66.67')])
+    self.assertEqual(sum(costs), Decimal('100.00'))
+```
+
+Run: `.venv/bin/python manage.py test cigars.tests.test_purchase_packaging accounting.tests.test_purchase_actions -v 2`.
+Expected: legacy整除行无损转换，非整除行阻断，盒数×每盒价精确等于 RUB 总额，CNY 最后一行承接尾差。
+
+- [ ] **Step 11（2–5 分钟）：落实 QuerySet/Manager posted 保护**
+
+在 `accounting/models.py` 写实际保护类，而非只依赖实例 save/delete：
+
+```python
+class ExpenseQuerySet(models.QuerySet):
+    def _reject_posted(self):
+        if self.filter(ledger_transaction__status__in=('posted', 'reversed')).exists():
+            raise LedgerMutationError('已入账费用不可修改或删除')
+    def update(self, **kwargs):
+        self._reject_posted(); return super().update(**kwargs)
+    def delete(self):
+        self._reject_posted(); return super().delete()
+    def bulk_update(self, objs, fields, **kwargs):
+        self._reject_posted(); return super().bulk_update(objs, fields, **kwargs)
+    def bulk_create(self, objs, **kwargs):
+        raise LedgerMutationError('费用必须通过受控服务创建')
+
+class DividendQuerySet(models.QuerySet):
+    def _reject_posted(self):
+        if self.filter(status='posted').exists():
+            raise LedgerMutationError('已确认分红不可修改或删除')
+    def update(self, **kwargs):
+        self._reject_posted(); return super().update(**kwargs)
+    def delete(self):
+        self._reject_posted(); return super().delete()
+    def bulk_update(self, objs, fields, **kwargs):
+        self._reject_posted(); return super().bulk_update(objs, fields, **kwargs)
+    def bulk_create(self, objs, **kwargs):
+        raise LedgerMutationError('分红必须通过草稿/确认服务创建')
+```
+
+将 `objects = ExpenseQuerySet.as_manager()`/`DividendQuerySet.as_manager()` 接到模型，并测试 `filter(pk).update()`、`delete()`、`bulk_update()`、`bulk_create()` 四条旁路均抛错；这是验收必需项。
+
+### Task 4 详细执行：分红
+
+- [ ] **Step 1（2–5 分钟）：写 RED 测试**
+
+```python
+def test_dividend_draft_split_and_confirmation(self):
+    draft = create_dividend_draft(total_cny='101.01', business_date=self.day, operator=self.alice)
+    self.assertEqual((draft.partner_a_amount_cny, draft.partner_b_amount_cny), (Decimal('50.51'), Decimal('50.50')))
+    update_dividend_draft(dividend_id=draft.id, total_cny='101.01', partner_a_amount_cny='30.00', partner_b_amount_cny='71.01', partner_a_account=self.cny_a, partner_b_account=self.cny_b, operator=self.alice)
+    result = confirm_dividend(dividend_id=draft.id, operator=self.alice, idempotency_key='div-1')
+    self.assertEqual(sum(p.cny_amount for p in result.ledger_transaction.postings.all()), Decimal('0.00'))
+    self.assertFalse(monthly_profit(month=self.day.replace(day=1))['dividend_cny'])
+```
+
+- [ ] **Step 2（2–5 分钟）：运行 RED**
+
+Run: `.venv/bin/python manage.py test accounting.tests.test_dividend_actions.DividedActionTest.test_dividend_draft_split_and_confirmation -v 2`.
+Expected: FAIL，Dividend service/model 尚未实现。
+
+- [ ] **Step 3（2–5 分钟）：写最小服务签名和状态机**
+
+```python
+def create_dividend_draft(*, total_cny, business_date, operator, note='') -> Dividend: ...
+def update_dividend_draft(*, dividend_id, total_cny, partner_a_amount_cny, partner_b_amount_cny, partner_a_account, partner_b_account, operator, note='') -> Dividend: ...
+def confirm_dividend(*, dividend_id, operator, idempotency_key) -> Dividend: ...
+```
+
+实现每一步都包 `transaction.atomic()`；confirm 先 writer gate 再按 id 排序锁两账户和 Dividend，posting 使用 `_post_transaction_once()`，超留存利润只产生 warning。注释只解释并发锁顺序、草稿不触达资金和尾差规则。
+
+- [ ] **Step 4（2–5 分钟）：补 API 错误测试并 GREEN**
+
+测试合计不等、同账户、非 CNY、余额不足、重复 key 参数冲突分别得到 400/409；重复相同 key 返回同一 ledger id。运行 `.venv/bin/python manage.py test accounting.tests.test_dividend_actions accounting.tests.test_action_api -v 2`，Expected: PASS。
+
+- [ ] **Step 5（2–5 分钟）：提交**
+
+```bash
+git add accounting/models.py accounting/dividend_actions.py accounting/tests/test_dividend_actions.py accounting/tests/test_action_api.py
+git commit -m "功能：完成分红草稿确认与不可变保护"
+```
+
+### Task 5 详细执行：报表与动作 API
+
+- [ ] **Step 1（2–5 分钟）：写选择器 RED**
+
+```python
+def test_profit_and_retained_earnings_exclude_dividend_and_purchase(self):
+    post_sale_profit('500.00', self.day); post_salary('100.00', self.day); confirm_dividend_fixture('50.00', self.day)
+    report = monthly_profit(month=self.day.replace(day=1))
+    self.assertEqual(report['net_profit_cny'], Decimal('400.00'))
+    self.assertEqual(report['retained_earnings_cny'], Decimal('350.00'))
+```
+
+- [ ] **Step 2（2–5 分钟）：实现并跑 GREEN**
+
+在 `selectors.py` 增加 `_sum_category` 映射和 `retained_earnings(as_of)`；符号固定为收入负、费用正，月利润只在 selector 中转为展示正负。`accounting_summary` 改为聚合 `PurchaseOrder.objects.filter(status=IN_TRANSIT).paid_cny_cost`。运行 `.venv/bin/python manage.py test accounting.tests.test_sales_reports_reconciliation -v 2`，Expected: PASS。
+
+- [ ] **Step 3（2–5 分钟）：写 API contract RED**
+
+```python
+def test_actions_endpoint_returns_pending_purchase_and_dividend(self):
+    self.client.force_login(self.operator)
+    data = self.client.get('/api/accounting/actions/').json()
+    self.assertIn('purchase_drafts', data); self.assertIn('dividend_drafts', data)
+```
+
+Run: `.venv/bin/python manage.py test accounting.tests.test_action_api.ActionApiTest -v 2`。
+Expected: FAIL with 404 until urls/view are wired.
+
+- [ ] **Step 4（2–5 分钟）：实现 API 和错误映射**
+
+新增 `/actions/`、采购 pay/receive、expense、dividend CRUD/confirm views；每个 view 调用已定义 service，错误转换为 `{error, code, details}`，Decimal `str()`；所有写入检查 staff 和 `Idempotency-Key`。加入注释说明 API 不从流水自行拼财务数字。
+
+- [ ] **Step 5（2–5 分钟）：验证并提交**
+
+Run: `.venv/bin/python manage.py test accounting.tests.test_action_api accounting.tests.test_api accounting.tests.test_sales_reports_reconciliation -v 2`。
+Expected: PASS；提交 `git add accounting/selectors.py accounting/action_serializers.py accounting/views.py accounting/urls.py accounting/tests/test_action_api.py && git commit -m '功能：完成动作列表与留存利润接口'`。
+
+### Task 6 详细执行：React 与帮助链接
+
+- [ ] **Step 1（2–5 分钟）：写 API helper RED**
+
+```ts
+it('sends exchange amounts as strings and uses idempotency helper', async () => {
+  await exchangeToRub({source_account_id: 2, rub_account_id: 3, source_amount: '1.00000000', rub_amount: '1200.00', business_date: '2026-08-14'})
+  expect(writeWithIdempotency).toHaveBeenCalled()
+})
+```
+
+Run: `cd frontend && npm test -- --run src/api/accountingActions.test.ts`。Expected: FAIL because helper is absent.
+
+- [ ] **Step 2（2–5 分钟）：实现 API/types**
+
+在 `types.ts` 定义所有 Decimal 为 string；在 `api.ts` 实现 `fetchAccountingActions`、`exchangeToRub`、`payPurchaseOrder`、`receivePurchaseOrder`、`recordExpense`、`create/update/confirmDividend`，所有写函数调用现有 `writeWithIdempotency`。运行同一测试，Expected: PASS。
+
+- [ ] **Step 3（2–5 分钟）：写动作卡 RED**
+
+```tsx
+it('keeps a currency error in the expense card', async () => {
+  mockExpenseRequest.rejects({response:{data:{error:'工资只能从人民币账户支付', code:'currency_rule'}}})
+  render(<AccountingActionCenter />)
+  await user.click(screen.getByRole('button', {name:'记录费用'}))
+  expect(await screen.findByText('工资只能从人民币账户支付')).toBeVisible()
+})
+```
+
+- [ ] **Step 4（2–5 分钟）：实现动作卡并连接真实控件**
+
+`ExchangeAction` 只列 CNY/USDT→固定 RUB；`PurchaseAction` 只让 DRAFT 付款、IN_TRANSIT 到货；`ExpenseAction` 根据分类过滤账户；`DividendAction` 保存草稿后确认。每卡保留输入/局部 error/loading，注释说明错误隔离与幂等，不做视觉重设计。运行 `cd frontend && npm test -- --run src/components/accounting`，Expected: PASS。
+
+- [ ] **Step 5（2–5 分钟）：更新并测试帮助链接**
+
+在 `frontend/src/features/guides/guideContent.ts` 将换汇、采购、费用章节的 target 指向动作卡真实 `data-guide` 控件；在 `guideInteractions.test.ts` 增加三项断言，确认点击帮助链接能定位并聚焦真实控件，不能触发提交。运行 `cd frontend && npm test -- --run src/features/guides`，Expected: PASS。
+
+### Task 7 详细执行：验证与当前功能分支收尾
+
+- [ ] **Step 1（2–5 分钟）：migration/check**
+
+```bash
+.venv/bin/python manage.py makemigrations --check
+.venv/bin/python manage.py check
+.venv/bin/python manage.py showmigrations accounting cigars
+```
+
+Expected: 无未生成迁移、无 system check 错误、cigars 0036 在 accounting 0012 之前且无循环依赖。
+
+- [ ] **Step 2（2–5 分钟）：后端回归**
+
+Run: `.venv/bin/python manage.py test accounting cigars.tests.test_sales_accounting cigars.tests.test_sales_order_workflow cigars.tests.test_agent_order_inventory -v 2`。
+Expected: 全部 PASS，覆盖移动平均、尾差、采购在途、库存 FIFO、销售、对账、Day1。
+
+- [ ] **Step 3（2–5 分钟）：前端回归**
+
+Run: `cd frontend && npm test -- --run && npm run lint && npm run build`。
+Expected: Vitest PASS、lint 0 error、production build exit 0。
+
+- [ ] **Step 4（2–5 分钟）：spec coverage/self-review**
+
+逐项对照批准设计 §§4–7、10、12–13、15 与 workspace/day1 §3：换汇真实金额、采购盒规/每盒价/整单守恒、费用币种、分红非利润、留存利润派生、幂等/负余额/posted QuerySet 不可变、局部错误和帮助链接。搜索常见未完成占位词时排除本条自检说明本身，Expected: 无真正的占位项；再检查每个函数名和类型与前文一致。
+
+- [ ] **Step 5（2–5 分钟）：继续当前功能分支收尾**
+
+只 stage 计划文件，确认 `git diff --cached --name-only` 只有该文件；提交中文 commit。实现完成后的分支流程是：在当前 `feature/business-workspace-day1` 本地完成验证后合并 main、删除该功能分支；不 push、不另开分支。

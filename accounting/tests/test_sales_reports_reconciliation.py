@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone as dt_timezone
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -7,6 +7,7 @@ from django.db import OperationalError
 from django.db.migrations.executor import MigrationExecutor
 from django.test import Client, TestCase
 from django.test import TransactionTestCase
+from django.utils import timezone
 from django.core.exceptions import ValidationError
 
 from accounting.models import (
@@ -115,9 +116,16 @@ class SalesReportsAndReconciliationTest(TestCase):
         )
         supplier = Supplier.objects.create(name='摘要供应商')
         PurchaseOrder.objects.create(
-            supplier=supplier, status='draft', rub_total=Decimal('100.00'),
-            exchange_rate=Decimal('12.0000'), cny_total=Decimal('100.00'),
-            operator=self.operator,
+            supplier=supplier, status=PurchaseOrder.Status.IN_TRANSIT,
+            rub_total=Decimal('100.00'), exchange_rate=Decimal('12.0000'),
+            cny_total=Decimal('100.00'), paid_cny_cost=Decimal('88.00'),
+            paid_at=datetime(2026, 8, 10, 20, 30, tzinfo=dt_timezone.utc), operator=self.operator,
+        )
+        PurchaseOrder.objects.create(
+            supplier=supplier, status=PurchaseOrder.Status.IN_TRANSIT,
+            rub_total=Decimal('50.00'), exchange_rate=Decimal('12.0000'),
+            cny_total=Decimal('50.00'), paid_cny_cost=Decimal('44.00'),
+            paid_at=timezone.make_aware(datetime(2026, 8, 11, 12)), operator=self.operator,
         )
         self.posted_transaction(
             LedgerTransaction.TransactionType.SALES_RECEIPT,
@@ -138,6 +146,7 @@ class SalesReportsAndReconciliationTest(TestCase):
         self.assertEqual(summary['fund_accounts'][0]['account_id'], account.id)
         self.assertEqual(summary['accounts_receivable_cny'], Decimal('50.00'))
         self.assertEqual(summary['customer_prepayments_cny'], Decimal('50.00'))
+        self.assertEqual(summary['purchase_in_transit_cny'], Decimal('88.00'))
 
     def test_summary_rejects_non_today_as_of(self):
         from accounting.selectors import accounting_summary
@@ -158,9 +167,10 @@ class SalesReportsAndReconciliationTest(TestCase):
     def test_summary_api_allows_today_current_snapshot(self):
         supplier = Supplier.objects.create(name='今日摘要供应商')
         PurchaseOrder.objects.create(
-            supplier=supplier, status=PurchaseOrder.Status.DRAFT,
+            supplier=supplier, status=PurchaseOrder.Status.IN_TRANSIT,
             rub_total=Decimal('120.00'), exchange_rate=Decimal('12.0000'),
-            cny_total=Decimal('120.00'), operator=self.operator,
+            cny_total=None, paid_cny_cost=Decimal('120.00'),
+            paid_at=timezone.make_aware(datetime(2026, 8, 12, 12)), operator=self.operator,
         )
         self.client.force_login(self.operator)
 

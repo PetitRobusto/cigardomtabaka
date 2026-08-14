@@ -43,6 +43,8 @@ rub_subtotal = box_quantity * unit_price_rub_per_box
 
 ## Task 1：建立 canonical 采购字段、状态约束和迁移
 
+本计划所有 Python/TypeScript fenced code 均是“插入现有文件的实现片段”，不是独立脚本；实现时必须补齐该文件已有 imports、基类、factory 和 decorator，以下每段只在其标注的真实文件上下文中执行。
+
 **Objective:** 让数据库能表达盒数语义、付款/在途/到货状态和不可转换历史行，且迁移不伪造历史事实。
 
 **Files:**
@@ -61,16 +63,19 @@ class PurchasePackagingModelTest(TestCase):
         User = get_user_model()
         self.operator = User.objects.create_user(username='purchase-model')
         self.supplier = Supplier.objects.create(name='测试供应商')
-        self.cigar = Cigar.objects.create(english_name='Test Cigar', chinese_name='测试雪茄', brand='Test')
+        self.cigar = Cigar.objects.create(english_name='Test Cigar', name='测试雪茄', brand='Test')
         self.order = PurchaseOrder.objects.create(supplier=self.supplier, operator=self.operator,
             rub_total='100.00', exchange_rate='12.0000', cny_total='8.33')
 
 def test_quantity_box_check_and_model_clean_reject_mismatch(self):
     item = PurchaseOrderItem.objects.create(purchase_order=self.order, cigar=self.cigar,
-        quantity=24, box_size=25, box_quantity=1, unit_price_rub='100.00', unit_price_cny='8.00',
+        quantity=25, box_size=25, box_quantity=1, unit_price_rub='100.00', unit_price_cny='8.00',
         unit_price_rub_per_box='100.00', packaging_status='normalized')
+    item.quantity = 24
     with self.assertRaises(ValidationError):
         item.full_clean()
+    item.quantity = 25
+    item.save(update_fields=['quantity'])
     with self.assertRaises(IntegrityError):
         PurchaseOrderItem.objects.filter(pk=item.pk).update(quantity=24)
 
@@ -78,13 +83,14 @@ def test_purchase_order_status_constraint_uses_paid_facts(self):
     with self.assertRaises(IntegrityError):
         PurchaseOrder.objects.filter(pk=self.order.pk).update(status='received', legacy_received=False)
 
-class PurchaseMigrationTest(TestCase):
+class PurchaseMigrationTest(TransactionTestCase):
     def test_0036_preserves_real_received_quote_and_marks_legacy(self):
         executor = MigrationExecutor(connection)
-        executor.migrate([('cigars', '0035_previous')])
-        old_apps = executor.loader.project_state([('cigars', '0035_previous')]).apps
+        self.addCleanup(lambda: executor.migrate(executor.loader.graph.leaf_nodes('cigars')))
+        executor.migrate([('cigars', '0035_sales_order_transport_payer')])
+        old_apps = executor.loader.project_state([('cigars', '0035_sales_order_transport_payer')]).apps
         OldSupplier = old_apps.get_model('cigars', 'Supplier')
-        OldUser = old_apps.get_model('auth', 'User')
+        OldUser = old_apps.get_model('cigars', 'User')
         old_supplier = OldSupplier.objects.create(name='迁移供应商')
         old_operator = OldUser.objects.create(username='migration-operator')
         OldOrder = old_apps.get_model('cigars', 'PurchaseOrder')
@@ -436,7 +442,7 @@ git commit -m "功能：建立采购费用分红事实与不可变边界"
 
 **Objective:** 让采购草稿创建/编辑只接受 canonical payload，旧 agent 明确转换，整单写入原子且可 replay。
 
-**Files:** `cigars/agent_api.py`；Test: `accounting/tests/test_purchase_draft_actions.py`、`cigars/tests/test_agent_api.py`
+**Files:** Modify: `cigars/services.py`、`cigars/agent_api.py`；Create: `accounting/purchase_actions.py`；Test: `accounting/tests/test_purchase_draft_actions.py`、`cigars/tests/test_agent_api.py`
 
 ### Step 1（2–5 分钟）：写草稿 contract RED
 
@@ -534,7 +540,7 @@ Expected: canonical 总额正确、重复参数返回原订单、冲突为 409�
 Luna A 审查 canonical 公式和兼容边界，Luna B 审查幂等 fingerprint、版本锁和 atomic 回滚；通过后提交。
 
 ```bash
-git add cigars/services.py cigars/agent_api.py accounting/tests/test_purchase_draft_actions.py cigars/tests/test_agent_api.py
+git add cigars/services.py cigars/agent_api.py accounting/purchase_actions.py accounting/tests/test_purchase_draft_actions.py cigars/tests/test_agent_api.py
 git commit -m "功能：实现采购草稿盒数语义与幂等"
 ```
 
@@ -542,7 +548,7 @@ git commit -m "功能：实现采购草稿盒数语义与幂等"
 
 **Objective:** 用付款前 RUB 移动平均建立在途成本，按 canonical RUB 小计分配 CNY 尾差，并让付款/到货重放返回原事实。
 
-**Files:** `accounting/purchase_actions.py`、`cigars/sales_accounting.py`；Test: `accounting/tests/test_purchase_actions.py`、`cigars/tests/test_agent_order_inventory.py`、`cigars/tests/test_sales_accounting.py`
+**Files:** Modify: `accounting/purchase_actions.py`、`cigars/sales_accounting.py`；Test: `accounting/tests/test_purchase_actions.py`、`cigars/tests/test_agent_order_inventory.py`、`cigars/tests/test_sales_accounting.py`
 
 `accounting/tests/test_purchase_actions.py` 的 `PurchaseActionTestBase.setUp()` 完整 import `create_completed_day1_fixture` 并保存 `self.operator/self.day/self.rub_account`；所有付款/到货测试共享 completed Day1，首个 payment replay 与首个 arrival test 都必须通过 service gate。销售 fixture 直接调用现有 `create_sales_order_draft(items, operator, customer_name, customer_transport_fee_cny)`，不使用未确认的 `agent_context` 分支。
 
@@ -675,7 +681,7 @@ git commit -m "功能：实现采购付款在途与整单到货"
 
 **Objective:** 固定费用币种矩阵，沿用销售单记录人民币实际人肉费，并让费用动作幂等、原子和可重放。
 
-**Files:** `accounting/expense_actions.py`、`accounting/services.py`；Test: `accounting/tests/test_expense_actions.py`、`accounting/tests/test_operations.py`
+**Files:** Modify: `accounting/services.py`；Create: `accounting/expense_actions.py`；Test: `accounting/tests/test_expense_actions.py`、`accounting/tests/test_operations.py`
 
 ### Step 1（2–5 分钟）：写费用和人肉费 RED
 
@@ -710,7 +716,7 @@ git commit -m "功能：实现费用币种矩阵与销售人肉费路径"
 
 **Objective:** 用统一 Dividend 契约支持可编辑草稿、超留存预览 warning 和一次性确认付款，不把分红计入经营净利润。
 
-**Files:** `accounting/dividend_actions.py`；Create: `accounting/dividend_types.py`、`accounting/errors.py`；Test: `accounting/tests/test_dividend_actions.py`
+**Files:** Create: `accounting/dividend_actions.py`、`accounting/dividend_types.py`、`accounting/errors.py`；Test: `accounting/tests/test_dividend_actions.py`
 
 ### Step 1（2–5 分钟）：写统一字段/服务 RED
 
@@ -817,7 +823,7 @@ Expected: 分红字段/返回契约一致，确认可重放且不进入经营净
 Luna A 审查 warning/confirm 来源和利润边界，Luna B 审查版本幂等、锁顺序、posted bypass 和跨月测试；通过后提交。
 
 ```bash
-git add accounting/dividend_actions.py accounting/tests/test_dividend_actions.py
+git add accounting/dividend_actions.py accounting/dividend_types.py accounting/errors.py accounting/tests/test_dividend_actions.py
 git commit -m "功能：实现分红草稿预览与确认"
 ```
 
@@ -825,7 +831,7 @@ git commit -m "功能：实现分红草稿预览与确认"
 
 **Objective:** 统一利润公式与 JSON 错误响应，并让所有后端正式动作在 Day 1 未完成时稳定阻断。
 
-**Files:** `accounting/selectors.py`、`accounting/views.py`、`accounting/urls.py`、`accounting/action_serializers.py`、`accounting/guards.py`、`cigars/sales_api.py`；Test: `accounting/tests/test_sales_reports_reconciliation.py`、`accounting/tests/test_action_api.py`、`accounting/tests/test_api.py`、`cigars/tests/test_sales_refund_transport.py`、`cigars/tests/test_sales_order_api.py`
+**Files:** Modify: `accounting/selectors.py`、`accounting/views.py`、`accounting/urls.py`、`cigars/sales_api.py`；Create: `accounting/action_serializers.py`、`accounting/guards.py`；Test: `accounting/tests/test_sales_reports_reconciliation.py`、`accounting/tests/test_action_api.py`、`accounting/tests/test_api.py`、`cigars/tests/test_sales_refund_transport.py`、`cigars/tests/test_sales_order_api.py`
 
 ### Step 1（2–5 分钟）：写 selector RED
 
@@ -855,6 +861,8 @@ Expected: FAIL，选择器还没有全部分类和实际人肉费路径。
 在 `accounting/selectors.py` 增加 `_sum_category()`、`monthly_profit(*, month)`（调用统一使用 `monthly_profit(month='2026-08')`）、`retained_earnings(as_of='2026-08-31')` 和 `accounting_summary()`。`GET /api/accounting/actions/` 单独查询 pending actions，不能复用或覆盖现有 dashboard query。展示公式明确为：销售收入 + 客户人肉费收入 − FIFO 销售成本 − `TRANSPORT_EXPENSE` − 工资/房租/水电/其他 + 库存调整收益 − 库存调整损失 + 资金对账收益 − 资金对账损失。实际人民币人肉费只从 `SalesTransportCost`/`SALES_TRANSPORT_COST` 关联事实读取。换汇、采购在途、库存转移、分红和资金本金不进入净利润。
 
 注释说明资产转移不等于损益，库存和对账 gain/loss 是批准规格中的显式经营结果。
+
+日期契约固定为 `monthly_profit(month=date(2026, 8, 1))` 与 `retained_earnings(as_of=date(2026, 8, 31))`；API 输入字符串 `2026-08` 在 serializer 中解析为上述 date，selector 不接收未解析字符串。
 
 ### Step 3（2–5 分钟）：实现 Day 1 service guard
 
@@ -897,7 +905,7 @@ git commit -m "功能：提供利润选择器与账务动作接口"
 - Create: `.opendesign/accounting-action-center.html`、`frontend/src/components/accounting/AccountingActionCenter.tsx`、`frontend/src/components/accounting/ExchangeAction.tsx`、`frontend/src/components/accounting/PurchaseAction.tsx`、`frontend/src/components/accounting/ExpenseAction.tsx`、`frontend/src/components/accounting/DividendAction.tsx`
 - Create: `frontend/src/features/accounting/actionState.ts`、`frontend/src/features/guides/guideFocusController.ts`
 - Modify: `frontend/src/features/guides/guideInteractions.ts`、`frontend/src/features/guides/ContextTour.tsx`；`guideContent.ts` 无文案变化，不修改、不列为 Task 文件。
-- Test: `frontend/src/api/accountingActions.test.ts`、`frontend/src/features/accounting/actionState.test.ts`、`frontend/src/features/guides/guideFocusController.test.ts`、`frontend/src/components/accounting/AccountingActionCenter.test.tsx`、`frontend/src/components/accounting/ExchangeAction.test.tsx`、`frontend/src/components/accounting/PurchaseAction.test.tsx`、`frontend/src/components/accounting/ExpenseAction.test.tsx`、`frontend/src/components/accounting/DividendAction.test.tsx`、`frontend/src/features/guides/guideInteractions.test.ts`、`frontend/src/features/guides/ContextTour.test.tsx`、`frontend/src/pages/AccountingDashboardPage.test.tsx`
+- Test: `frontend/src/api/accountingActions.test.ts`、`frontend/src/features/accounting/actionState.test.ts`、`frontend/src/features/guides/guideFocusController.test.ts`、`frontend/src/components/accounting/AccountingActionCenter.test.tsx`、`frontend/src/components/accounting/ExchangeAction.test.tsx`、`frontend/src/components/accounting/PurchaseAction.test.tsx`、`frontend/src/components/accounting/ExpenseAction.test.tsx`、`frontend/src/components/accounting/DividendAction.test.tsx`、`frontend/src/features/guides/guideInteractions.test.ts`、`frontend/src/features/guides/ContextTour.test.tsx`
 
 OpenDesign 项目使用批准的 `CigarDomTabaka (570372ce-21b8-4752-a21a-bd254f061568)`；先在 `.opendesign/accounting-action-center.html` 验证现有奶油色/勃艮第红/金色 token 和动作卡布局，再把已验证结构接入 React，不在本 Task 直接进行未经原型验证的视觉重设计。
 
@@ -906,18 +914,13 @@ OpenDesign 项目使用批准的 `CigarDomTabaka (570372ce-21b8-4752-a21a-bd254f
 测试所有 Decimal 类型为 string；
 
 ```tsx
-import { renderToStaticMarkup } from 'react-dom/server';
-import { vi, it, expect } from 'vitest';
-import AccountingDashboardPage from './AccountingDashboardPage';
+import { expect, it } from 'vitest';
+import { initialActionState, reduceActionState } from '../features/accounting/actionState';
 
-const { mockFetchAccountingActions } = vi.hoisted(() => ({ mockFetchAccountingActions: vi.fn() }));
-vi.mock('../../api', () => ({ fetchAccountingActions: mockFetchAccountingActions }));
-
-it('keeps dashboard data when actions query fails', async () => {
-  mockFetchAccountingActions.mockRejectedValue({ code: 'busy', error: '动作区暂时不可用' });
-  const html = renderToStaticMarkup(<AccountingDashboardPage />);
-  expect(html).toContain('本月净利润');
-  expect(html).not.toContain('¥0.00');
+it('keeps local input and isolates action error', () => {
+  const state = reduceActionState(initialActionState(), { type: 'error', code: 'busy', message: '动作区暂时不可用' });
+  expect(state.error?.code).toBe('busy');
+  expect(state.input).toEqual(initialActionState().input);
 });
 ```
 `exchangeToRub({source_account_id, rub_account_id, source_amount:'1.00000000', rub_amount:'1200.00', business_date})` 必须使用现有 `writeWithIdempotency()` 并发送 `Idempotency-Key`。同样测试 purchase pay/receive/cancel、expense、dividend create/update/preview/confirm helpers；采购草稿操作区提供明确取消按钮，其他卡不新增取消入口。
@@ -944,7 +947,7 @@ Expected: FAIL，动作卡尚未连接。
 
 ### Step 5（2–5 分钟）：实现 OpenDesign prototype 验证记录
 
-在 `.opendesign/accounting-action-center.html` 保留动作卡、Day 1 waiting 状态和 warning 状态的可操作预览；实现者在提交前记录截图/手工验证结果于 Task commit body 或 plan review，不把 prototype 产物当生产 API。
+在 `.opendesign/accounting-action-center.html` 保留动作卡、Day 1 waiting 状态和 warning 状态的可操作预览；实现者在提交前将截图/手工验证结果固定写入 `docs/reviews/2026-08-14-accounting-actions-review-a.md` 的 `## OpenDesign evidence` 小节，不把 prototype 产物当生产 API。
 
 ### Step 6（2–5 分钟）：修正 guide selector 和非提交控件
 
@@ -954,7 +957,7 @@ Expected: FAIL，动作卡尚未连接。
 
 `AccountingDashboardPage.tsx` 调用纯 `actionState.ts` controller；动作状态测试只输入/输出 plain objects。`ContextTour.tsx` 调用纯 `guideFocusController.ts` 的 `resolveTarget(selector) -> {selector, restoreId}` 与 `restoreTarget(restoreId)` contract；其测试不声称执行 DOM effect/focus，只断言 controller 的 selector、restore id 和“不提交” action。组件页面只用 `renderToStaticMarkup` 测 SSR markup，完全不引入 DOM/testing-library 依赖，也不直接测试 QueryClient/provider。
 
-Run: `cd frontend && npm test -- --run src/features/guides/guideInteractions.test.ts src/features/guides/ContextTour.test.tsx src/components/accounting src/pages/AccountingDashboardPage.test.tsx && npm run lint`
+Run: `cd frontend && npm test -- --run src/features/accounting/actionState.test.ts src/features/guides/guideFocusController.test.ts src/features/guides/guideInteractions.test.ts src/features/guides/ContextTour.test.tsx src/components/accounting && npm run lint`
 
 Expected: API、动作卡、guide selector 和 lint 全部通过。
 
@@ -963,7 +966,7 @@ Expected: API、动作卡、guide selector 和 lint 全部通过。
 Luna A 审查 OpenDesign 与 React 交互边界，Luna B 独立审查实际金额、局部错误、guide focus 和非提交控件；通过后提交。
 
 ```bash
-git add .opendesign/accounting-action-center.html frontend/src/types.ts frontend/src/api.ts frontend/src/pages/AccountingDashboardPage.tsx frontend/src/pages/AccountingDashboardPage.test.tsx frontend/src/components/sales/AccountingPanel.tsx frontend/src/components/accounting/AccountingActionCenter.tsx frontend/src/components/accounting/AccountingActionCenter.test.tsx frontend/src/components/accounting/ExchangeAction.tsx frontend/src/components/accounting/ExchangeAction.test.tsx frontend/src/components/accounting/PurchaseAction.tsx frontend/src/components/accounting/PurchaseAction.test.tsx frontend/src/components/accounting/ExpenseAction.tsx frontend/src/components/accounting/ExpenseAction.test.tsx frontend/src/components/accounting/DividendAction.tsx frontend/src/components/accounting/DividendAction.test.tsx frontend/src/features/accounting/actionState.ts frontend/src/features/accounting/actionState.test.ts frontend/src/api/accountingActions.test.ts frontend/src/features/guides/guideInteractions.ts frontend/src/features/guides/guideInteractions.test.ts frontend/src/features/guides/guideFocusController.ts frontend/src/features/guides/guideFocusController.test.ts frontend/src/features/guides/ContextTour.tsx frontend/src/features/guides/ContextTour.test.tsx
+git add .opendesign/accounting-action-center.html frontend/src/types.ts frontend/src/api.ts frontend/src/pages/AccountingDashboardPage.tsx frontend/src/components/sales/AccountingPanel.tsx frontend/src/components/accounting/AccountingActionCenter.tsx frontend/src/components/accounting/AccountingActionCenter.test.tsx frontend/src/components/accounting/ExchangeAction.tsx frontend/src/components/accounting/ExchangeAction.test.tsx frontend/src/components/accounting/PurchaseAction.tsx frontend/src/components/accounting/PurchaseAction.test.tsx frontend/src/components/accounting/ExpenseAction.tsx frontend/src/components/accounting/ExpenseAction.test.tsx frontend/src/components/accounting/DividendAction.tsx frontend/src/components/accounting/DividendAction.test.tsx frontend/src/features/accounting/actionState.ts frontend/src/features/accounting/actionState.test.ts frontend/src/api/accountingActions.test.ts frontend/src/features/guides/guideInteractions.ts frontend/src/features/guides/guideInteractions.test.ts frontend/src/features/guides/guideFocusController.ts frontend/src/features/guides/guideFocusController.test.ts frontend/src/features/guides/ContextTour.tsx frontend/src/features/guides/ContextTour.test.tsx
 git commit -m "前端：接入账务动作中心与真实帮助引导"
 ```
 

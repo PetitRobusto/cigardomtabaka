@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import * as api from '../../api';
-import Day1InventoryStep, { applyIfDay1InventoryMounted, boxSizesFromCigarDetail, createBoxSizesLoader, createDay1InventoryMountGuard, fetchDeclaredBoxSizes } from './Day1InventoryStep';
+import Day1InventoryStep, { applyIfDay1InventoryMounted, boxSizesFromCigarDetail, createBoxSizesLoader, createDay1InventoryMountGuard, fetchDeclaredBoxSizes, runDay1InventoryAdd } from './Day1InventoryStep';
 
 describe('Day1 inventory packaging contract', () => {
   it('renders a constrained selector from the real cigar detail response shape', () => {
@@ -111,5 +111,52 @@ describe('Day1 inventory packaging contract', () => {
     [onChange, setState, setState].forEach(update => expect(guard.run(update)).toBe(false));
     expect(onChange).not.toHaveBeenCalled();
     expect(setState).not.toHaveBeenCalled();
+  });
+
+  it('drops resolve success and finally callbacks after the real add flow unmounts', async () => {
+    // The production add chain must discard every completion after navigation cleanup.
+    const guard = createDay1InventoryMountGuard();
+    const cleanup = guard.setup();
+    let resolve: (sizes: number[]) => void = () => {};
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+    const onFinally = vi.fn();
+    const pending = runDay1InventoryAdd({
+      loadBoxSizes: () => new Promise<number[]>(res => { resolve = res; }),
+      isMounted: guard.isMounted,
+      run: guard.run,
+      onSuccess,
+      onError,
+      onFinally,
+    });
+    cleanup();
+    resolve([10, 25]);
+    await pending;
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+    expect(onFinally).not.toHaveBeenCalled();
+  });
+
+  it('drops reject error and finally callbacks after the real add flow unmounts', async () => {
+    const guard = createDay1InventoryMountGuard();
+    const cleanup = guard.setup();
+    let reject: (reason: Error) => void = () => {};
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+    const onFinally = vi.fn();
+    const pending = runDay1InventoryAdd({
+      loadBoxSizes: () => new Promise<number[]>((_, rej) => { reject = rej; }),
+      isMounted: guard.isMounted,
+      run: guard.run,
+      onSuccess,
+      onError,
+      onFinally,
+    });
+    cleanup();
+    reject(new Error('network'));
+    await pending;
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+    expect(onFinally).not.toHaveBeenCalled();
   });
 });

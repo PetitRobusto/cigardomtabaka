@@ -40,9 +40,9 @@ export function createDay1DialogFocusController(dialog: HTMLElement, documentRef
   };
 }
 
-export function restoreDay1DialogTriggerFocus(wasOpen: boolean, isOpen: boolean, focus: () => void): void {
-  // Closing returns keyboard focus to the button that opened the irreversible confirmation.
-  if (wasOpen && !isOpen) focus();
+export function restoreDay1DialogTriggerFocus(wasOpen: boolean, isOpen: boolean, trigger: () => HTMLElement | null, fallback?: () => HTMLElement | null): void {
+  // A completed confirmation unmounts its trigger; focus the frozen summary as the accessible fallback.
+  if (wasOpen && !isOpen) (trigger() || fallback?.())?.focus();
 }
 
 interface Props {

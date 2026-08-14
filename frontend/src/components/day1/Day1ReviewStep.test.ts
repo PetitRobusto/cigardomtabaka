@@ -58,10 +58,17 @@ describe('Day1 confirmation dialog keyboard loop', () => {
   it('restores the trigger only when the confirmation dialog closes', () => {
     // Closing must return keyboard focus without stealing it during ordinary renders.
     const focus = vi.fn();
-    restoreDay1DialogTriggerFocus(true, false, focus);
+    restoreDay1DialogTriggerFocus(true, false, () => ({ focus } as unknown as HTMLElement));
     expect(focus).toHaveBeenCalledTimes(1);
-    restoreDay1DialogTriggerFocus(false, false, focus);
-    restoreDay1DialogTriggerFocus(true, true, focus);
+    restoreDay1DialogTriggerFocus(false, false, () => ({ focus } as unknown as HTMLElement));
+    restoreDay1DialogTriggerFocus(true, true, () => ({ focus } as unknown as HTMLElement));
     expect(focus).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the completed summary when confirmation unmounts its trigger', () => {
+    // Successful confirmation replaces the trigger, so the frozen summary receives focus.
+    const summary = { focus: vi.fn() };
+    restoreDay1DialogTriggerFocus(true, false, () => null, () => summary as unknown as HTMLElement);
+    expect(summary.focus).toHaveBeenCalledTimes(1);
   });
 });

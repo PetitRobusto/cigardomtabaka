@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Day1StatusNotice, day1StatusErrorState, day1StatusLoadingState, day1StatusReadyState, type Day1StatusState } from './helpState';
 import { BookOpen, ExternalLink, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MANUAL_CHAPTERS, type ManualChapter } from '../features/guides/guideContent';
@@ -13,11 +14,16 @@ export default function HelpPage() {
   const navigate = useNavigate();
   const [chapterId, setChapterId] = useState('quickstart');
   const [message, setMessage] = useState('');
-  const [day1Status, setDay1Status] = useState<string | undefined>();
+  const [day1State, setDay1State] = useState<Day1StatusState>(day1StatusLoadingState());
   const chapter = MANUAL_CHAPTERS.find(item => item.id === chapterId) || MANUAL_CHAPTERS[0];
   useEffect(() => { setMeta({ title: '使用手册', breadcrumbs: [{ label: '首页', to: '/' }, { label: '使用手册' }] }); }, [setMeta]);
-  useEffect(() => { fetchDay1State().then(data => setDay1Status(data.status)).catch(() => undefined); }, []);
+  const loadDay1Status = useCallback(() => {
+    setDay1State(day1StatusLoadingState());
+    void fetchDay1State().then(data => setDay1State(day1StatusReadyState(data.status))).catch(() => setDay1State(day1StatusErrorState()));
+  }, []);
+  useEffect(() => { loadDay1Status(); }, [loadDay1Status]);
 
+  const day1Status = day1State.status === "ready" ? day1State.day1Status : undefined;
   const decideChapter = () => manualTourDecision(chapter, { day1Status });
   const openFeature = () => {
     const decision = decideChapter();
@@ -33,6 +39,7 @@ export default function HelpPage() {
 
   return <div className="animate-fade-in">
     <header className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.15em] text-gold">帮助中心 · 内部手册</p><h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">让每一步，都有答案。</h1><p className="mt-2 text-sm text-muted">查找工作流程、字段解释和常用操作。</p></div><button type="button" onClick={playTour} className="inline-flex items-center justify-center gap-2 rounded bg-accent px-4 py-2.5 text-sm font-semibold text-white"><Play className="h-4 w-4" />播放本页引导</button></header>
+    <Day1StatusNotice state={day1State} onRetry={loadDay1Status} />
     {message && <p role="status" className="mb-4 rounded border border-border bg-white px-4 py-3 text-sm text-muted">{message}</p>}
     <div className="grid gap-7 lg:grid-cols-[240px_1fr]">
       <aside className="hidden border-r border-border pr-5 lg:block"><ChapterNav chapters={MANUAL_CHAPTERS} active={chapterId} onSelect={setChapterId} /></aside>

@@ -55,9 +55,7 @@ rub_subtotal = box_quantity * unit_price_rub_per_box
 
 ### Step 1（2–5 分钟）：写 canonical RED 测试
 
-完整 imports 为 `Decimal`、`IntegrityError`、`ValidationError`、`TestCase`、`TransactionTestCase`、`PurchaseOrder`、`PurchaseOrderItem`、`Supplier`、`Cigar`、`get_user_model`、`connection`、`MigrationExecutor`，供真实 MigrationExecutor 测试使用。
-
-新增 `cigars/tests/test_purchase_packaging.py` 中的 `PurchasePackagingModelTest`，完整 imports 为 `Decimal`、`IntegrityError`、`ValidationError`、`TestCase`、`PurchaseOrder`、`PurchaseOrderItem`、`Supplier`、`Cigar`、`get_user_model`、`connection`、`MigrationExecutor`；`setUp()` 用真实必填 `supplier`、`rub_total`、`exchange_rate`、`cny_total`、`operator` 和 `cigar` 工厂创建行。Task 1 RED 只覆盖真实 model `full_clean()`/CheckConstraint 与 `MigrationExecutor`；不引入 `PurchasePayment`、pay/cancel、canonical service helper、`BusinessRuleError` 或未定义 fixture。
+新增 `cigars/tests/test_purchase_packaging.py` 中的 `PurchasePackagingModelTest`，完整 imports 为 `Decimal`、`IntegrityError`、`ValidationError`、`TestCase`、`TransactionTestCase`、`PurchaseOrder`、`PurchaseOrderItem`、`Supplier`、`Cigar`、`get_user_model`、`connection`、`MigrationExecutor`；`setUp()` 用真实必填 `supplier`、`rub_total`、`exchange_rate`、`cny_total`、`operator` 和 `cigar` 工厂创建行。Task 1 RED 只覆盖真实 model `full_clean()`/CheckConstraint 与 `MigrationExecutor`；不引入 `PurchasePayment`、pay/cancel、canonical service helper、`PurchaseActionError` 或未定义 fixture。
 
 ```python
 class PurchasePackagingModelTest(TestCase):
@@ -509,7 +507,7 @@ def canonical_purchase_item(*, box_size: int, box_quantity: int, unit_price_rub_
             'packaging_status': 'normalized' if legacy_unit_price_rub is not None else 'unrepresentable'}
 ```
 
-canonical helper 返回 `sticks`、`rub_subtotal`、`packaging_status` 和旧价格兼容快照，只从盒规、盒数、每盒价计算；无法无损表示旧两位快照时返回 NULL + `unrepresentable`。legacy helper 仅在 `quantity_sticks % box_size == 0` 时返回 canonical；无盒规/不可整除抛 `BusinessRuleError(code='packaging_review_required')`，错误 details 包含 item index、旧数量、盒规，禁止静默猜测。
+canonical helper 返回 `sticks`、`rub_subtotal`、`packaging_status` 和旧价格兼容快照，只从盒规、盒数、每盒价计算；无法无损表示旧两位快照时返回 NULL + `unrepresentable`。legacy helper 仅在 `quantity_sticks % box_size == 0` 时返回 canonical；无盒规/不可整除抛 `PurchaseActionError(code='packaging_review_required')`，错误 details 包含 item index、旧数量、盒规，禁止静默猜测。
 
 注释说明旧 agent 只在兼容边界转换，主流程不会再读取旧字段。
 
@@ -846,7 +844,7 @@ git commit -m "功能：实现分红草稿预览与确认"
 
 **Objective:** 统一利润公式与 JSON 错误响应，并让所有后端正式动作在 Day 1 未完成时稳定阻断。
 
-**Files:** Modify: `accounting/selectors.py`、`accounting/views.py`、`accounting/urls.py`、`cigars/sales_api.py`；Create: `accounting/action_serializers.py`、`accounting/guards.py`；Test: `accounting/tests/test_sales_reports_reconciliation.py`、`accounting/tests/test_action_api.py`、`accounting/tests/test_api.py`、`cigars/tests/test_sales_refund_transport.py`、`cigars/tests/test_sales_order_api.py`
+**Files:** Modify: `accounting/selectors.py`、`accounting/views.py`、`accounting/urls.py`、`cigars/sales_api.py`、`cigars/sales_accounting.py`；Create: `accounting/action_serializers.py`、`accounting/guards.py`；Test: `accounting/tests/test_sales_reports_reconciliation.py`、`accounting/tests/test_action_api.py`、`accounting/tests/test_api.py`、`cigars/tests/test_sales_refund_transport.py`、`cigars/tests/test_sales_order_api.py`
 
 ### Step 1（2–5 分钟）：写 selector RED
 
@@ -875,7 +873,7 @@ Expected: FAIL，选择器还没有全部分类和实际人肉费路径。
 
 ### Step 2（2–5 分钟）：实现利润与 retained selectors
 
-在 `accounting/selectors.py` 增加 `_sum_category()`、`monthly_profit(*, month)`（调用统一使用 `monthly_profit(month='2026-08')`）、`retained_earnings(as_of='2026-08-31')` 和 `accounting_summary()`。`GET /api/accounting/actions/` 单独查询 pending actions，不能复用或覆盖现有 dashboard query。展示公式明确为：销售收入 + 客户人肉费收入 − FIFO 销售成本 − `TRANSPORT_EXPENSE` − 工资/房租/水电/其他 + 库存调整收益 − 库存调整损失 + 资金对账收益 − 资金对账损失。实际人民币人肉费只从 `SalesTransportCost`/`SALES_TRANSPORT_COST` 关联事实读取。换汇、采购在途、库存转移、分红和资金本金不进入净利润。
+在 `accounting/selectors.py` 增加 `_sum_category()`、`monthly_profit(*, month)`（调用统一使用 `monthly_profit(month=date(2026, 8, 1))`）、`retained_earnings(as_of=date(2026, 8, 31))` 和 `accounting_summary()`。`GET /api/accounting/actions/` 单独查询 pending actions，不能复用或覆盖现有 dashboard query。展示公式明确为：销售收入 + 客户人肉费收入 − FIFO 销售成本 − `TRANSPORT_EXPENSE` − 工资/房租/水电/其他 + 库存调整收益 − 库存调整损失 + 资金对账收益 − 资金对账损失。实际人民币人肉费只从 `SalesTransportCost`/`SALES_TRANSPORT_COST` 关联事实读取。换汇、采购在途、库存转移、分红和资金本金不进入净利润。
 
 注释说明资产转移不等于损益，库存和对账 gain/loss 是批准规格中的显式经营结果。
 
@@ -908,7 +906,7 @@ Expected: API 错误结构统一，选择器公式和服务层门禁通过。
 Luna A 对照两份 spec、CONTEXT 和真实 service/API 检查公式及门禁；Luna B 独立检查所有 endpoint、错误 code、Decimal 序列化和回滚测试；通过后提交。
 
 ```bash
-git add accounting/selectors.py accounting/guards.py accounting/views.py accounting/urls.py accounting/action_serializers.py cigars/sales_api.py accounting/tests/test_action_api.py accounting/tests/test_api.py accounting/tests/test_sales_reports_reconciliation.py cigars/tests/test_sales_refund_transport.py cigars/tests/test_sales_order_api.py
+git add accounting/selectors.py accounting/guards.py accounting/views.py accounting/urls.py accounting/action_serializers.py cigars/sales_api.py cigars/sales_accounting.py accounting/tests/test_action_api.py accounting/tests/test_api.py accounting/tests/test_sales_reports_reconciliation.py cigars/tests/test_sales_refund_transport.py cigars/tests/test_sales_order_api.py
 git add cigars/sales_accounting.py
 git commit -m "功能：提供利润选择器与账务动作接口"
 ```

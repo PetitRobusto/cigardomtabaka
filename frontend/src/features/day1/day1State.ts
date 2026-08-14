@@ -62,6 +62,17 @@ export function day1RouteMode(status: Day1Status): Day1RouteMode {
   return status === 'completed' ? 'readonly-summary' : 'editable-wizard';
 }
 
+export function day1BackgroundInteractionDisabled(dialogOpen: boolean): boolean {
+  // aria-modal does not block mouse events, so confirmation explicitly freezes the wizard background.
+  return dialogOpen;
+}
+
+export function runDay1BackgroundAction(dialogOpen: boolean, action: () => void): boolean {
+  if (day1BackgroundInteractionDisabled(dialogOpen)) return false;
+  action();
+  return true;
+}
+
 export function buildDay1ConfirmationPlan(currentVersion: number, savedVersion: number): { saveExpectedVersion: number; confirmExpectedVersion: number } {
   return { saveExpectedVersion: currentVersion, confirmExpectedVersion: savedVersion };
 }

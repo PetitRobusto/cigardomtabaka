@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildDay1Payload,
   buildDay1ConfirmationPlan,
@@ -14,6 +14,8 @@ import {
   declaredBoxSizes,
   isLatestDay1SearchRequest,
   uniqueDay1InventoryCigarIds,
+  day1BackgroundInteractionDisabled,
+  runDay1BackgroundAction,
 } from './day1State';
 import type { Day1DraftInput, Day1InventoryInput } from './day1State';
 
@@ -32,6 +34,16 @@ describe('Day 1 state rules', () => {
     expect(day1RouteMode('completed')).toBe('readonly-summary');
     expect(day1RouteMode('draft')).toBe('editable-wizard');
     expect(day1RouteMode('not_started')).toBe('editable-wizard');
+  });
+
+  it('freezes background actions while the confirmation dialog is open', () => {
+    const action = vi.fn();
+    expect(day1BackgroundInteractionDisabled(false)).toBe(false);
+    expect(runDay1BackgroundAction(false, action)).toBe(true);
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(day1BackgroundInteractionDisabled(true)).toBe(true);
+    expect(runDay1BackgroundAction(true, action)).toBe(false);
+    expect(action).toHaveBeenCalledTimes(1);
   });
 
   it('builds the four fixed account slots and validates non-negative values', () => {

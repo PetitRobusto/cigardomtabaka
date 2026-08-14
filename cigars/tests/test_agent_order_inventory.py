@@ -810,22 +810,25 @@ class PurchaseReceivingServiceTest(TestCase):
             receive_purchase_order(purchase_order_id=order.id, operator=self.operator)
         self.assertFalse(PurchaseBatch.objects.exists())
 
-    def test_receive_rejects_unrepresentable_packaging_without_negative_cost(self):
+    def test_receive_allows_unrepresentable_packaging(self):
         order = self._paid_in_transit_order({
             'packaging_status': PurchaseOrderItem.PackagingStatus.UNREPRESENTABLE,
             'unit_price_rub': None, 'unit_price_cny': None,
         })
-        with self.assertRaisesMessage(OrderServiceError, 'packaging_review_required'):
-            receive_purchase_order(purchase_order_id=order.id, operator=self.operator)
-        self.assertFalse(PurchaseBatch.objects.exists())
+        batches = receive_purchase_order(
+            purchase_order_id=order.id, operator=self.operator,
+            agent_context=context(command='receive_purchase_order', key='po-unrepresentable'),
+        )
+        self.assertEqual(len(batches), 1)
+        self.assertEqual(batches[0].remaining_cost_cny, Decimal('80.00'))
 
-    def test_receive_rejects_null_or_negative_legacy_cost(self):
-        for value in (None, Decimal('-1.00')):
-            with self.subTest(value=value):
-                order = self._paid_in_transit_order({'unit_price_cny': value})
-                with self.assertRaisesMessage(OrderServiceError, 'legacy_cost_snapshot_missing'):
-                    receive_purchase_order(purchase_order_id=order.id, operator=self.operator)
-                self.assertFalse(PurchaseBatch.objects.exists())
+    def test_receive_uses_actual_payment_cost_without_legacy_snapshot(self):
+        order = self._paid_in_transit_order({'unit_price_cny': None})
+        batches = receive_purchase_order(
+            purchase_order_id=order.id, operator=self.operator,
+            agent_context=context(command='receive_purchase_order', key='po-no-legacy-cost'),
+        )
+        self.assertEqual(batches[0].original_cost_cny, Decimal('80.00'))
 
     def test_legacy_direct_create_without_key_uses_compatibility_boundary(self):
         order = create_purchase_order(
@@ -914,11 +917,11 @@ class PurchaseReceivingServiceTest(TestCase):
         for batch in batches:
             self.assertEqual(batch.remaining, batch.quantity)
             self.assertEqual(batch.physical_remaining, batch.quantity)
-            self.assertEqual(batch.original_cost_cny, batch.quantity * batch.unit_cost_cny)
+            self.assertEqual(batch.original_cost_cny, batch.remaining_cost_cny)
             self.assertEqual(batch.positive_adjustment_quantity, 0)
             self.assertEqual(batch.positive_adjustment_cost_cny, Decimal('0.00'))
             self.assertEqual(batch.adjustment_cost_cny, Decimal('0.00'))
-            self.assertEqual(batch.remaining_cost_cny, batch.quantity * batch.unit_cost_cny)
+            self.assertGreaterEqual(batch.remaining_cost_cny, Decimal('0.00'))
             self.assertEqual(batch.sold_cost_cny, Decimal('0.00'))
         self.assertEqual(StockMovement.objects.filter(movement_type='receive').count(), 2)
         movement = StockMovement.objects.filter(movement_type='receive').first()
@@ -1118,6 +1121,23 @@ class AgentPurchaseReceivingApiTest(TestCase):
         self.assertEqual(create_record.agent_name, 'codex')
         self.assertEqual(receive_record.operator, self.operator)
         self.assertEqual(receive_record.agent_name, 'codex')
+
+    def test_receive_invalid_state_returns_structured_conflict(self):
+        create_response = self.post_json(
+            '/api/agent/purchase-orders/create/',
+            self.create_body(key='po-create-for-invalid-receive'),
+        )
+        purchase_order_id = create_response.json()['purchase_order']['id']
+
+        response = self.post_json('/api/agent/purchase-orders/receive/', {
+            'idempotency_key': 'po-invalid-state-receive',
+            'operator_id': self.operator.id,
+            'agent': self.agent('req-invalid-receive'),
+            'purchase_order_id': purchase_order_id,
+        })
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['code'], 'invalid_state')
 
     def test_create_replay_returns_first_draft_after_cancel(self):
         first = self.post_json('/api/agent/purchase-orders/create/', self.create_body(key='po-replay-after-cancel'))

@@ -5,7 +5,7 @@ stays a read model backed by StockMovement facts.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.db import transaction
@@ -41,9 +41,10 @@ EXCHANGE_RATE_PLACES = Decimal('0.0001')
 class OrderServiceError(ValueError):
     """Base validation error for order/inventory commands."""
 
-    def __init__(self, message, *, details=None):
+    def __init__(self, message, *, details=None, code=None):
         super().__init__(message)
         self.details = details or {}
+        self.code = code
 
 
 class InsufficientStockError(OrderServiceError):
@@ -1158,95 +1159,33 @@ def _get_or_create_adjustment_batch(*, cigar, quantity, operator, batch_id=None,
     )
 
 
-@transaction.atomic
-def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, note=''):
-    """Create missing batches for purchase order items and record receive movements."""
-    operator = _require_operator(operator)
+def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, note='',
+                           business_date=None, idempotency_key=None):
+    """旧入口委托 Task 4 到货动作，保留 Agent 调用兼容性。"""
+    from accounting.purchase_actions import (
+        PurchaseActionError, receive_paid_purchase_order,
+    )
     context = agent_context or AgentContext(command_name='receive_purchase_order')
+    key = idempotency_key or context.idempotency_key
+    if not key:
+        key = f'legacy-purchase-receipt-{uuid4().hex}'
+    if context.idempotency_key != key:
+        # 旧入口的库存移动与正式到货事实必须使用同一个审计键。
+        context = replace(context, idempotency_key=key)
+    if business_date is None:
+        order = PurchaseOrder.objects.filter(pk=_to_positive_int(purchase_order_id, '进货单ID')).first()
+        business_date = (order.draft_business_date if order and order.draft_business_date
+                         else moscow_business_date())
     try:
-        purchase_order = PurchaseOrder.objects.select_for_update().get(
-            id=_to_positive_int(purchase_order_id, '进货单ID')
+        return receive_paid_purchase_order(
+            purchase_order_id=purchase_order_id, business_date=business_date,
+            operator=operator, idempotency_key=key, note=note,
+            agent_context=context,
         )
-    except PurchaseOrder.DoesNotExist:
-        raise OrderServiceError('进货单不存在')
-
-    if purchase_order.status == PurchaseOrder.Status.RECEIVED:
-        raise OrderServiceError('进货单已入库')
-    if purchase_order.status == PurchaseOrder.Status.CANCELLED:
-        raise OrderServiceError('已取消进货单不能入库')
-    if purchase_order.status != PurchaseOrder.Status.IN_TRANSIT:
-        raise OrderServiceError('采购草稿必须先完成付款后才能到货')
-    if (
-        purchase_order.legacy_received
-        or purchase_order.paid_cny_cost is None
-        or purchase_order.paid_cny_cost <= 0
-        or purchase_order.paid_at is None
-    ):
-        raise OrderServiceError('采购单缺少真实付款事实，不能确认到货')
-
-    items = list(purchase_order.items.select_related('cigar').order_by('id'))
-    if not items:
-        raise OrderServiceError('进货单没有明细')
-    # 兼容入口暂只允许规范化旧成本；Task 4 将改为按实际付款成本分摊。
-    for item in items:
-        if item.packaging_status != PurchaseOrderItem.PackagingStatus.NORMALIZED:
-            raise OrderServiceError('packaging_review_required')
-        if item.unit_price_cny is None or item.unit_price_cny < 0:
-            raise OrderServiceError('legacy_cost_snapshot_missing')
-    if PurchaseBatch.objects.filter(purchase_order_item__purchase_order=purchase_order).exists():
-        raise OrderServiceError('进货单已存在入库批次')
-
-    batches = []
-    for item in items:
-
-        if item.box_size:
-            full_boxes, loose_sticks = divmod(item.quantity, item.box_size)
-            packaging = {
-                'box_size': item.box_size,
-                'original_box_quantity': full_boxes,
-                'original_stick_quantity': loose_sticks,
-                'physical_box_quantity': full_boxes,
-                'available_box_quantity': full_boxes,
-                'physical_stick_quantity': loose_sticks,
-                'available_stick_quantity': loose_sticks,
-            }
-        else:
-            packaging = {
-                'original_stick_quantity': item.quantity,
-                'physical_stick_quantity': item.quantity,
-                'available_stick_quantity': item.quantity,
-            }
-        batch = PurchaseBatch.objects.create(
-            purchase_order_item=item,
-            cigar=item.cigar,
-            quantity=item.quantity,
-            remaining=item.quantity,
-            physical_remaining=item.quantity,
-            original_cost_cny=(item.quantity * item.unit_price_cny).quantize(MONEY_PLACES),
-            positive_adjustment_quantity=0,
-            positive_adjustment_cost_cny=Decimal('0.00'),
-            adjustment_cost_cny=Decimal('0.00'),
-            remaining_cost_cny=(item.quantity * item.unit_price_cny).quantize(MONEY_PLACES),
-            sold_cost_cny=Decimal('0.00'),
-            unit_cost_cny=item.unit_price_cny,
-            **packaging,
-        )
-        _record_movement(
-            movement_type=StockMovement.MovementType.RECEIVE,
-            cigar=item.cigar,
-            purchase_batch=batch,
-            quantity=item.quantity,
-            operator=operator,
-            context=context,
-            note=note,
-        )
-        batches.append(batch)
-    purchase_order.status = PurchaseOrder.Status.RECEIVED
-    purchase_order.legacy_received = False
-    with ledger_mutation_scope(reason='purchase_receipt', model='cigars.PurchaseOrder', operator=operator, allowed_fields={'status', 'legacy_received'}):
-        purchase_order.save(update_fields=['status', 'legacy_received'])
-    return batches
-
+    except PurchaseActionError as error:
+        raise OrderServiceError(
+            error.code, code=error.code, details=error.details,
+        ) from error
 
 def get_stock_summary(*, query='', limit=50):
     qs = Cigar.objects.all().order_by('brand', 'english_name')

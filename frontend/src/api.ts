@@ -7,6 +7,7 @@ import type {
   CustomerResult, QuoteProduct, RecentChangesResponse,
   SalesOrder, PaymentOrder, SalesOrderPayload, FundAccount, MonthlyProfitReport,
   AccountingSummary, AccountingDashboard, Reconciliation,
+  Day1State,
 } from './types';
 import { writeWithIdempotency } from './api/idempotency';
 
@@ -96,6 +97,30 @@ export const recordSalesTransportCost = (id: number, payload: { actual_cost_cny:
 
 export const fetchAccountingDashboard = (): Promise<AccountingDashboard> =>
   api.get('/accounting/dashboard/').then(r => r.data);
+
+export const fetchDay1State = (): Promise<Day1State> =>
+  api.get('/accounting/day1/').then(r => r.data);
+
+export function day1WriteHeaders(version: number, idempotencyKey?: string): Record<string, string> {
+  const headers: Record<string, string> = { 'If-Match': String(version) };
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  return headers;
+}
+
+export const saveDay1Draft = (payload: unknown, version: number): Promise<Day1State> =>
+  api.put('/accounting/day1/draft/', payload, { headers: day1WriteHeaders(version) }).then(r => r.data);
+
+export const confirmDay1 = (version: number, idempotencyKey: string): Promise<Day1State> =>
+  api.post('/accounting/day1/confirm/', { version }, { headers: day1WriteHeaders(version, idempotencyKey) }).then(r => r.data);
+
+export function day1ErrorMessage(error: unknown, fallback = 'Day 1 保存失败，请稍后重试'): string {
+  if (axios.isAxiosError(error)) {
+    if (error.response?.status === 409 && error.response.data?.code === 'version_conflict') return '另一位经营者已更新，请刷新';
+    const message = error.response?.data?.error;
+    if (typeof message === 'string' && message) return message;
+  }
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 
 export const fetchAccountingAccounts = (): Promise<FundAccount[]> =>
   api.get('/accounting/accounts/').then(r => r.data.accounts || []);

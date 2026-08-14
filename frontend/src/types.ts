@@ -639,6 +639,34 @@ export interface AccountingDashboard {
   };
 }
 
+export interface Day1AccountDraft {
+  slot: 'owner_cny' | 'partner_cny' | 'rub' | 'usdt';
+  name: string;
+  currency: 'CNY' | 'RUB' | 'USDT';
+  original_amount: string;
+  cny_book_cost: string;
+}
+
+export interface Day1InventoryDraft {
+  cigar_id: number;
+  box_size: number;
+  box_quantity: number;
+  loose_sticks: number;
+  unit_cost_cny: string;
+}
+
+export interface Day1CompletionSummary {
+  [key: string]: string | number | null | undefined;
+}
+
+export interface Day1State {
+  status: 'not_started' | 'draft' | 'completed' | string;
+  version: number;
+  business_date: string | null;
+  draft: { accounts: Day1AccountDraft[]; inventory: Day1InventoryDraft[] } | null;
+  completion_summary: Day1CompletionSummary | null;
+}
+
 export interface AccountingSummary {
   as_of: string;
   fund_accounts: (FundAccount & { original_balance: string; cny_book_cost: string })[];

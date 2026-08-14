@@ -22,7 +22,7 @@ import PriceCigarDetail from './pages/CigarDetail';
 import AlertsPage from './pages/Alerts';
 import SalesPage from './pages/SalesPage';
 import AccountingDashboardPage from './pages/AccountingDashboardPage';
-import AccountingDay1Placeholder from './pages/AccountingDay1Placeholder';
+import Day1SetupPage from './pages/Day1SetupPage';
 import HelpPage from './pages/HelpPage';
 import { decideStaffRoute } from './utils/routeGuard';
 import { BUSINESS_STAFF_PATHS, resolveBusinessRoute } from './pages/businessRoutes';
@@ -70,7 +70,7 @@ function AnimatedRoutes() {
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path={BUSINESS_STAFF_PATHS.sales} element={<StaffGate><LegacySalesRoute /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.accounting} element={<StaffGate><AccountingDashboardPage /></StaffGate>} />
-          <Route path={BUSINESS_STAFF_PATHS.day1} element={<StaffGate><AccountingDay1Placeholder /></StaffGate>} />
+          <Route path={BUSINESS_STAFF_PATHS.day1} element={<StaffGate><Day1SetupPage /></StaffGate>} />
           <Route path="/help" element={<StaffHelpRoute />} />
 
           {/* Price Tracker */}

@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
 
 from cigars.models import Cigar, PurchaseOrder, PurchaseOrderItem, Supplier
@@ -47,9 +47,11 @@ class PurchasePackagingModelTest(TestCase):
 
     def test_purchase_order_status_constraint_uses_paid_facts(self):
         with self.assertRaises(IntegrityError):
-            PurchaseOrder.objects.filter(pk=self.order.pk).update(
-                status="received", legacy_received=False
-            )
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    'UPDATE cigars_purchaseorder SET status = %s, legacy_received = %s WHERE id = %s',
+                    ['received', False, self.order.pk],
+                )
 
 
     def test_database_constraints_reject_null_or_mismatched_canonical_fields(self):
@@ -73,6 +75,8 @@ class PurchasePackagingModelTest(TestCase):
                 )
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                PurchaseOrder.objects.filter(pk=self.order.pk).update(
-                    payment_idempotency_key='draft-payment-key',
-                )
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        'UPDATE cigars_purchaseorder SET payment_idempotency_key = %s WHERE id = %s',
+                        ['draft-payment-key', self.order.pk],
+                    )

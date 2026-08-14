@@ -2,7 +2,7 @@ from datetime import date, datetime, timezone as dt_timezone
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.db import connection
+from django.db import connection, transaction
 from django.db import OperationalError
 from django.db.migrations.executor import MigrationExecutor
 from django.test import Client, TestCase
@@ -19,6 +19,7 @@ from accounting.models import (
 )
 from accounting.services import PostingInput
 from cigars.models import PurchaseOrder, Supplier, User
+from accounting.mutation_scope import ledger_mutation_scope
 
 
 class SalesReportsAndReconciliationTest(TestCase):
@@ -28,6 +29,26 @@ class SalesReportsAndReconciliationTest(TestCase):
             'reports-operator', password='pass', is_staff=True,
         )
         self.non_staff = User.objects.create_user('reports-customer', password='pass')
+
+    def in_transit_order(self, **values):
+        order = PurchaseOrder(
+            supplier=values.pop('supplier'), operator=self.operator,
+            rub_total=values.pop('rub_total'),
+            exchange_rate=values.pop('exchange_rate'),
+            cny_total=values.pop('cny_total'),
+        )
+        order.save(force_insert=True)
+        order.status = PurchaseOrder.Status.IN_TRANSIT
+        order.paid_cny_cost = values.pop('paid_cny_cost')
+        order.paid_at = values.pop('paid_at')
+        self.assertFalse(values)
+        with transaction.atomic(), ledger_mutation_scope(
+            reason='purchase_payment', model='cigars.PurchaseOrder',
+            operator=self.operator,
+            allowed_fields={'status', 'paid_cny_cost', 'paid_at'},
+        ):
+            order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
+        return order
 
     def posted_transaction(self, transaction_type, business_date, postings, key):
         from accounting.services import post_transaction
@@ -115,17 +136,15 @@ class SalesReportsAndReconciliationTest(TestCase):
             creation_idempotency_key='summary-cny',
         )
         supplier = Supplier.objects.create(name='摘要供应商')
-        PurchaseOrder.objects.create(
-            supplier=supplier, status=PurchaseOrder.Status.IN_TRANSIT,
-            rub_total=Decimal('100.00'), exchange_rate=Decimal('12.0000'),
+        self.in_transit_order(
+            supplier=supplier, rub_total=Decimal('100.00'), exchange_rate=Decimal('12.0000'),
             cny_total=Decimal('100.00'), paid_cny_cost=Decimal('88.00'),
-            paid_at=datetime(2026, 8, 10, 20, 30, tzinfo=dt_timezone.utc), operator=self.operator,
+            paid_at=datetime(2026, 8, 10, 20, 30, tzinfo=dt_timezone.utc),
         )
-        PurchaseOrder.objects.create(
-            supplier=supplier, status=PurchaseOrder.Status.IN_TRANSIT,
-            rub_total=Decimal('50.00'), exchange_rate=Decimal('12.0000'),
+        self.in_transit_order(
+            supplier=supplier, rub_total=Decimal('50.00'), exchange_rate=Decimal('12.0000'),
             cny_total=Decimal('50.00'), paid_cny_cost=Decimal('44.00'),
-            paid_at=timezone.make_aware(datetime(2026, 8, 11, 12)), operator=self.operator,
+            paid_at=timezone.make_aware(datetime(2026, 8, 11, 12)),
         )
         self.posted_transaction(
             LedgerTransaction.TransactionType.SALES_RECEIPT,
@@ -166,11 +185,10 @@ class SalesReportsAndReconciliationTest(TestCase):
 
     def test_summary_api_allows_today_current_snapshot(self):
         supplier = Supplier.objects.create(name='今日摘要供应商')
-        PurchaseOrder.objects.create(
-            supplier=supplier, status=PurchaseOrder.Status.IN_TRANSIT,
-            rub_total=Decimal('120.00'), exchange_rate=Decimal('12.0000'),
+        self.in_transit_order(
+            supplier=supplier, rub_total=Decimal('120.00'), exchange_rate=Decimal('12.0000'),
             cny_total=None, paid_cny_cost=Decimal('120.00'),
-            paid_at=timezone.make_aware(datetime(2026, 8, 12, 12)), operator=self.operator,
+            paid_at=timezone.make_aware(datetime(2026, 8, 12, 12)),
         )
         self.client.force_login(self.operator)
 

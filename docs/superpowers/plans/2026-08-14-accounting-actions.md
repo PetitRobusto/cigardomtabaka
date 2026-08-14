@@ -76,16 +76,16 @@ def test_unrepresentable_legacy_snapshots_do_not_block_canonical_payment(self):
 
 def test_cancel_only_unpaid_draft_and_clears_no_payment_facts(self):
     order = canonical_draft()
-    cancelled = cancel_purchase_order(purchase_order_id=order.id, operator=self.operator)
+    cancelled = cancel_purchase_order(purchase_order_id=order.id, operator=self.operator, idempotency_key='cancel-1', expected_version=order.version)
     self.assertEqual(cancelled.status, PurchaseOrder.Status.CANCELLED)
     self.assertIsNone(cancelled.payment_idempotency_key)
     self.assertIsNone(cancelled.arrival_idempotency_key)
     with self.assertRaisesRegex(PurchaseActionError, 'invalid_state'):
-        cancel_purchase_order(purchase_order_id=in_transit_order().id, operator=self.operator)
+        cancel_purchase_order(purchase_order_id=in_transit_order().id, operator=self.operator, idempotency_key='cancel-transit', expected_version=1)
     with self.assertRaisesRegex(PurchaseActionError, 'invalid_state'):
-        cancel_purchase_order(purchase_order_id=received_order().id, operator=self.operator)
+        cancel_purchase_order(purchase_order_id=received_order().id, operator=self.operator, idempotency_key='cancel-received', expected_version=1)
     with self.assertRaisesRegex(PurchaseActionError, 'invalid_state'):
-        cancel_purchase_order(purchase_order_id=paid_order().id, operator=self.operator)
+        cancel_purchase_order(purchase_order_id=paid_order().id, operator=self.operator, idempotency_key='cancel-paid', expected_version=1)
     invalid = canonical_draft()
     with self.assertRaises(IntegrityError):
         PurchaseOrder.objects.filter(pk=invalid.pk).update(
@@ -244,12 +244,12 @@ git commit -m "功能：建立采购盒数语义与状态迁移"
 **Files:**
 
 - Modify: `accounting/models.py`、`cigars/models.py`
-- Create: `accounting/migrations/0012_accounting_actions.py`、`accounting/mutation_scope.py`
+- Create: `accounting/migrations/0012_accounting_actions.py`、`accounting/migrations/0013_draft_actions.py`、`accounting/mutation_scope.py`
 - Test: `accounting/tests/test_action_models.py`、`cigars/tests/test_purchase_packaging.py`
 
 ### Step 1（2–5 分钟）：写 posted 旁路失败测试
 
-在 `ActionModelMutationTest` 对每种最终事实覆盖实例 `save()`/`delete()`、QuerySet `update()`/`delete()`/`bulk_update()`/`bulk_create()`；目标包括 `PurchasePayment`、已付款/已入库 `PurchaseOrder`、`PurchaseOrderItem.actual_cost_cny`、`Expense`、已确认 `Dividend`。每条都断言 `LedgerMutationError`，并断言数据库值未变化。
+在 `ActionModelMutationTest` 对每种最终事实覆盖实例 `save()`/`delete()`、QuerySet `update()`/`delete()`/`bulk_update()`/`bulk_create()`；目标包括 `PurchasePayment`、已付款/已入库 `PurchaseOrder`、`PurchaseOrderItem.actual_cost_cny`、`Expense`、已确认 `Dividend`、`PurchaseDraftAction` 和 `DividendDraftAction`；两类 action 均 append-only，普通 ORM 不可更新/删除。每条都断言 `LedgerMutationError`，并断言数据库值未变化。
 
 ```python
 def test_posted_purchase_order_orm_bypass_is_rejected(self):
@@ -340,8 +340,6 @@ class Dividend(models.Model):
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name='+')
     confirmed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name='+')
     version = models.PositiveIntegerField(default=1)
-    draft_idempotency_key = models.CharField(max_length=128, null=True, blank=True, unique=True)
-    draft_request_fingerprint = models.CharField(max_length=64, null=True, blank=True)
     confirm_idempotency_key = models.CharField(max_length=128, unique=True, null=True, blank=True)
     confirm_request_fingerprint = models.CharField(max_length=64, null=True, blank=True)
     warning_fingerprint = models.CharField(max_length=64, null=True, blank=True)
@@ -357,11 +355,38 @@ class Dividend(models.Model):
         ]
 ```
 
+```python
+class PurchaseDraftAction(models.Model):
+    class ActionType(models.TextChoices):
+        CREATE = "create", "创建"
+        UPDATE = "update", "编辑"
+        CANCEL = "cancel", "取消"
+    purchase_order = models.ForeignKey("cigars.PurchaseOrder", null=True, blank=True, on_delete=models.PROTECT)
+    action_type = models.CharField(max_length=12, choices=ActionType.choices)
+    idempotency_key = models.CharField(max_length=128, unique=True)
+    request_fingerprint = models.CharField(max_length=64)
+    result_version = models.PositiveIntegerField(null=True, blank=True)
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class DividendDraftAction(models.Model):
+    class ActionType(models.TextChoices):
+        CREATE = "create", "创建"
+        UPDATE = "update", "编辑"
+    dividend = models.ForeignKey(Dividend, null=True, blank=True, on_delete=models.PROTECT)
+    action_type = models.CharField(max_length=12, choices=ActionType.choices)
+    idempotency_key = models.CharField(max_length=128, unique=True)
+    request_fingerprint = models.CharField(max_length=64)
+    result_version = models.PositiveIntegerField(null=True, blank=True)
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+```
+
 `A+B=total` 由服务锁内校验、posted 不可变和专门 RED/GREEN 测试保证。SQLite 不可靠支持 Decimal `F('a') + F('b')` 跨字段 CheckConstraint，migration 注释记录这个 DB 限制。
 
 `Expense` 与 `PurchasePayment` 只有 `posted` 状态，ledger 外键非空；`Dividend` 草稿账户采用唯一方案：`partner_a_account`/`partner_b_account` 为 `null=True, blank=True`，草稿允许未填，`update_dividend_draft()` 和 `confirm_dividend()` 必须校验已填、启用、CNY 且不同。Dividend 的可迁移约束为：金额字段各自 `__gte=0`，`status='draft'` 时 `ledger_transaction IS NULL`，`status='posted'` 时非 NULL。SQLite 版本不对 Decimal `F('a') + F('b')` 跨字段求和加 CheckConstraint；`A+B=total` 由服务锁内校验、posted 不可变和专门测试保证，迁移注释记录这个 DB 限制。
 
-采购草稿唯一事实是 `PurchaseOrder.draft_idempotency_key` + `draft_request_fingerprint`（fingerprint 覆盖 supplier、canonical items、business_date、operator、note 和版本）；payment 唯一事实仍是 `PurchasePayment.idempotency_key`，`PurchaseOrder.payment_idempotency_key` 只是同一 atomic 中写入的只读 mirror；arrival key 只在 PurchaseOrder 上保存到货事实。三类 key/fingerprint 互不复用，历史迁移保持所有 key/fingerprint 为 NULL。
+采购草稿创建 mirror 可保留在 `PurchaseOrder.draft_idempotency_key`，但唯一事实是 append-only `PurchaseDraftAction`；每次 create/update/cancel 都有独立 action key + fingerprint，fingerprint 覆盖 canonical items、business_date、operator、note 和 expected_version，不能用单一可覆盖 draft key 做 edit replay。payment 唯一事实仍是 `PurchasePayment.idempotency_key`，`PurchaseOrder.payment_idempotency_key` 只是同一 atomic 中写入的只读 mirror；arrival key 只在 PurchaseOrder 上保存到货事实。三类 key/fingerprint 互不复用，历史迁移保持所有 key/fingerprint 为 NULL。
 
 所有金额非负，分红两栏精确求和；草稿不关联 ledger。为 `PurchasePayment`、`Expense`、`Dividend` 写 `save()`/`delete()` 终态保护，并让受控服务使用 `ledger_mutation_scope()` 调用 `models.Model.save()` 的明确 bypass。
 
@@ -404,7 +429,7 @@ git commit -m "功能：建立采购费用分红事实与不可变边界"
 
 **Objective:** 让采购草稿创建/编辑只接受 canonical payload，旧 agent 明确转换，整单写入原子且可 replay。
 
-**Files:** `cigars/services.py`、`cigars/agent_api.py`、`accounting/purchase_actions.py`；Test: `accounting/tests/test_purchase_draft_actions.py`、`cigars/tests/test_agent_api.py`
+**Files:** `cigars/services.py`、`cigars/agent_api.py`、`accounting/purchase_actions.py`、`accounting/models.py`、`accounting/migrations/0013_draft_actions.py`；Test: `accounting/tests/test_purchase_draft_actions.py`、`cigars/tests/test_agent_api.py`、`accounting/tests/test_draft_action_models.py`
 
 ### Step 1（2–5 分钟）：写草稿 contract RED
 
@@ -456,15 +481,15 @@ def create_purchase_order(*, supplier_id, items, business_date, operator,
     ...
 ```
 
-用 `_retry_sqlite_locked`、writer gate、`transaction.atomic()` 包住供应商校验、全部明细 canonical 化和订单创建；第一步按 `PurchaseOrder.draft_idempotency_key` 查询并核对 `draft_request_fingerprint`，参数一致返回同一订单（即使订单已付款/取消也先 replay），冲突返回 `409/idempotency_conflict`。同 key 改 operator、business_date、supplier、canonical items、note 或版本都必须冲突；创建成功同时写 draft operator/date/fingerprint。订单创建任何明细失败都不留下空订单。
+用 `_retry_sqlite_locked`、writer gate、`transaction.atomic()` 包住供应商校验、全部明细 canonical 化和订单创建；第一步按 append-only `PurchaseDraftAction(action_type='create')` 的 key/fingerprint 查询并核对，参数一致返回同一订单（即使订单已付款/取消也先 replay），冲突返回 `409/idempotency_conflict`；创建成功在同一 atomic 写 action、order creation mirror 和 result_version。订单创建任何明细失败都不留下空订单。
 
 ### Step 4（2–5 分钟）：实现草稿编辑版本控制
 
-增加 `update_purchase_order_draft(*, purchase_order_id, items, expected_version, idempotency_key, operator, note='')`；先按草稿 key/fingerprint 核对参数，再锁订单，只有 DRAFT 可编辑，版本不符返回 `409/version_conflict`，成功后递增 version。canonical 字段变更不得覆盖旧已付款事实；payment/arrival key 不参与草稿 replay。
+增加 `update_purchase_order_draft(*, purchase_order_id, items, expected_version, idempotency_key, operator, note='')`；先按 append-only `PurchaseDraftAction(action_type='update')` key/fingerprint replay/conflict，再锁订单，只有 DRAFT 可编辑，版本不符返回 `409/version_conflict`，成功后递增 version 并写 action.result_version。canonical 字段变更不得覆盖旧已付款事实；payment/arrival key 不参与草稿 replay。另增 `cancel_purchase_order(*, purchase_order_id, operator, idempotency_key, expected_version, note='')`：仅未付款 DRAFT 可取消，按 `action_type='cancel'` append-only key replay/conflict；成功后写 CANCELLED、paid_cny_cost=0、paid_at=NULL、payment_idempotency_key=NULL、arrival_idempotency_key=NULL，且不存在 PurchasePayment。
 
 ### Step 5（2–5 分钟）：GREEN、原子回滚和冲突测试
 
-覆盖相同 key replay、同 key 参数冲突、两个不同 key 并发只成功一次、第二条明细校验失败无订单/明细残留，以及 update 版本冲突。
+覆盖 create 及多次 update 各自 action key replay/conflict、cancel service 的 DRAFT/已付款状态矩阵、两个不同 key 并发只成功一次、第二条明细校验失败无订单/明细残留，以及 update/cancel 版本冲突和 ORM 终态约束。cancel 测试固定传入 `expected_version` 与独立 key，断言 replay 返回原订单、改 note 冲突，且取消后无付款/到货事实。
 
 Run: `.venv/bin/python manage.py test accounting.tests.test_purchase_draft_actions cigars.tests.test_agent_order_inventory -v 2`
 
@@ -475,7 +500,7 @@ Expected: canonical 总额正确、重复参数返回原订单、冲突为 409�
 Luna A 审查 canonical 公式和兼容边界，Luna B 审查幂等 fingerprint、版本锁和 atomic 回滚；通过后提交。
 
 ```bash
-git add cigars/services.py cigars/agent_api.py accounting/purchase_actions.py accounting/tests/test_purchase_draft_actions.py cigars/tests/test_agent_api.py
+git add cigars/services.py cigars/agent_api.py accounting/purchase_actions.py accounting/models.py accounting/migrations/0013_draft_actions.py accounting/tests/test_purchase_draft_actions.py accounting/tests/test_draft_action_models.py cigars/tests/test_agent_api.py
 git commit -m "功能：实现采购草稿盒数语义与幂等"
 ```
 
@@ -526,10 +551,24 @@ Expected: FAIL，付款服务不存在。
 
 ### Step 4（2–5 分钟）：写到货 RED 和 canonical fixture
 
-固定两条明细 `box_size=25, box_quantity=1, per_box=100` 与 `box_size=10, box_quantity=2, per_box=100`，RUB 小计为 100 和 200，付款 CNY 为 100；断言实际成本为 33.33 和 66.67，且 `sum(actual_cost_cny)=100`。断言每个批次支数分别为 25 和 20，包装来自 canonical 字段；然后对第一批次执行拆盒，断言拆盒前后 `remaining_cost_cny`、整单成本池和批次总成本相同，再按既有 FIFO 销售分配算法卖出全部支数，最后销售单位取剩余成本池尾差并使每批 `remaining_cost_cny=0`。
+固定两条明细 `box_size=25, box_quantity=1, per_box=100` 与 `box_size=10, box_quantity=2, per_box=100`，RUB 小计为 100 和 200，付款 CNY 为 100；另测 normalized 与 unrepresentable 均可到货，review_required 返回 packaging_review_required；断言实际成本为 33.33 和 66.67，且 `sum(actual_cost_cny)=100`。断言每个批次支数分别为 25 和 20，包装来自 canonical 字段；然后对第一批次执行拆盒，断言拆盒前后 `remaining_cost_cny`、整单成本池和批次总成本相同，再按既有 FIFO 销售分配算法卖出全部支数，最后销售单位取剩余成本池尾差并使每批 `remaining_cost_cny=0`。
 
 ```python
+from django.db.models import Sum
+from cigars.models import PurchaseBatch
+
+def test_receive_accepts_normalized_and_unrepresentable_but_rejects_review(self):
+    for status in ('normalized', 'unrepresentable'):
+        order = paid_canonical_order(packaging_status=status)
+        batches = receive_paid_purchase_order(purchase_order_id=order.id, business_date=self.day, operator=self.operator, idempotency_key=f'arrive-{status}')
+        self.assertTrue(batches)
+    review = paid_legacy_review_order()
+    with self.assertRaisesRegex(PurchaseActionError, 'packaging_review_required'):
+        receive_paid_purchase_order(purchase_order_id=review.id, business_date=self.day, operator=self.operator, idempotency_key='arrive-review')
+
 def test_receive_allocates_cost_pool_tail_and_replays(self):
+    completed_day1 = create_completed_day1_fixture()
+    self.assertEqual(completed_day1.status, "completed")
     order = paid_canonical_order(rub_subtotals=['100.00', '200.00'], paid_cny_cost='100.00')
     batches = receive_paid_purchase_order(purchase_order_id=order.id, business_date=self.day,
                                           operator=self.operator, idempotency_key='arrive-1')
@@ -576,7 +615,7 @@ def receive_paid_purchase_order(
     raise NotImplementedError
 ```
 
-先按 key 查询 `arrival_idempotency_key`/`PURCHASE_RECEIPT` 并核对订单、日期、operator，匹配则返回原批次；没有 replay 才锁订单和明细，要求 `IN_TRANSIT`、所有 canonical 行 `normalized`、无既有批次。按每行 `rub_subtotal / rub_total` 分配 paid CNY，Decimal 量化到 0.01，最后一行取总额减已分配；不可少货、不重复扣 RUB、不读取报价汇率。
+先按 key 查询 `arrival_idempotency_key`/`PURCHASE_RECEIPT` 并核对订单、日期、operator，匹配则返回原批次；没有 replay 才锁订单和明细，要求 `IN_TRANSIT`、所有行 `packaging_status in {'normalized', 'unrepresentable'}`、无既有批次；完全从 canonical `box_size`、`box_quantity`、`unit_price_rub_per_box` 构建批次，`review_required` 稳定返回 `packaging_review_required` 并阻断到货。按每行 `rub_subtotal / rub_total` 分配 paid CNY，Decimal 量化到 0.01，最后一行取总额减已分配；不可少货、不重复扣 RUB、不读取报价汇率。
 
 同一 atomic 内写 `PURCHASE_IN_TRANSIT` 减少和 `INVENTORY` 增加、建立完整 `PurchaseBatch`/`StockMovement.RECEIVE`、填 `actual_cost_cny`、标记 `RECEIVED` 和 arrival key。每个批次必须把该行 CNY 成本精确写入 `PurchaseBatch.original_cost_cny` 和 `remaining_cost_cny`；`unit_cost_cny` 只能作为展示/销售分配参考，FIFO 每次从剩余成本池计算，卖出最后一个单位后 `remaining_cost_cny` 必须精确为 0。补一个完整 FIFO 两批次、最后销售单位尾差归零和批次成本守恒测试，并断言 `original_cost_cny = remaining_cost_cny + sold_cost_cny + adjustment_cost_cny`。中文注释说明最后一行承接尾差和到货不再次付款。
 
@@ -652,7 +691,7 @@ git commit -m "功能：实现费用币种矩阵与销售人肉费路径"
 
 **Objective:** 用统一 Dividend 契约支持可编辑草稿、超留存预览 warning 和一次性确认付款，不把分红计入经营净利润。
 
-**Files:** `accounting/dividend_actions.py`、`accounting/models.py`；Test: `accounting/tests/test_dividend_actions.py`
+**Files:** `accounting/dividend_actions.py`、`accounting/models.py`、`accounting/migrations/0013_draft_actions.py`；Test: `accounting/tests/test_dividend_actions.py`、`accounting/tests/test_draft_action_models.py`
 
 ### Step 1（2–5 分钟）：写统一字段/服务 RED
 
@@ -670,7 +709,7 @@ def confirm_dividend(*, dividend_id, operator, idempotency_key, expected_version
                      warning_fingerprint='', warning_ack=False) -> Dividend: ...
 ```
 
-测试默认 101.01 分为 A=50.51/B=50.50；编辑后两栏精确相等、账户不同且均为 CNY；草稿无资金/ledger 变化。新增相同 draft key/fingerprint replay、同 key 改金额/账户/operator/date 的 `idempotency_conflict`；confirm 相同 key/fingerprint replay、同 key 冲突，以及旧 warning fingerprint 在锁内重算后的 `warning_stale`。
+测试默认 101.01 分为 A=50.51/B=50.50；编辑后两栏精确相等、账户不同且均为 CNY；草稿无资金/ledger 变化。新增 create/update 各自 append-only action key/fingerprint replay、同 key 改实际 payload 的 `idempotency_conflict`；confirm 相同 key/fingerprint replay、同 key 冲突，以及旧 warning fingerprint 在锁内重算后的 `warning_stale`。
 
 ```python
 def test_dividend_draft_split_and_current_warning(self):
@@ -706,11 +745,11 @@ Expected: FAIL，Dividend 服务和 preview 契约尚未存在。
 
 ### Step 2（2–5 分钟）：实现草稿幂等和版本
 
-创建/编辑都使用 `_retry_sqlite_locked`、writer gate、atomic。先按 draft key + draft fingerprint 查询并核对 supplier/金额/账户/operator/business_date/note/version；一致 replay，冲突 `idempotency_conflict`。confirm 先按 confirm key + confirm fingerprint 做同参数 replay/conflict，再锁 Dividend，要求 draft 和 expected version，递增 version；posted 不能改。created_by/updated_by 在每次草稿写入时保存，confirm 成功写入 confirmed_by（确认 operator），注释解释草稿不触达资金，版本锁保护双人同时编辑。
+创建/编辑都使用 `_retry_sqlite_locked`、writer gate、atomic。先按 append-only `DividendDraftAction(action_type=create|update)` 的独立 key + fingerprint 查询并核对 total、A/B amounts、A/B accounts、business_date、operator、note 和 expected_version；一致 replay，冲突 `idempotency_conflict`。confirm 先按 confirm key + confirm fingerprint 做同参数 replay/conflict，再锁 Dividend，要求 draft 和 expected version，递增 version；posted 不能改。created_by/updated_by 在每次草稿写入时保存，confirm 成功写入 confirmed_by（确认 operator），注释解释草稿不触达资金，版本锁保护双人同时编辑。
 
 ### Step 3（2–5 分钟）：实现 preview warning 契约
 
-`preview_dividend()` 返回并持久化 `retained_earnings_cny`、`total_cny`、`warning: {code, retained_earnings_cny, requested_cny, fingerprint}`，写入 `warning_fingerprint` 并将 `warning_ack=False`；`confirm_dividend()` 唯一签名和 payload 必须带 `warning_fingerprint` 与 `warning_ack`，确认成功持久化 ack/fingerprint。累计未分配利润按期初未分配利润 + 截止业务日累计经营净利润 − 已确认分红派生；Day 1 固定期初未分配利润仍为 0。超出只产生 `retained_earnings_exceeded` warning，不在 preview 扣款。
+`preview_dividend()` 返回派生 `retained_earnings_cny`、`total_cny`、`warning: {code, retained_earnings_cny, requested_cny, fingerprint}`；若持久化 `warning_retained_earnings_cny`，仅作为不可编辑的 preview snapshot，不参与报表或真实账户余额，写入 `warning_fingerprint` 并将 `warning_ack=False`；`confirm_dividend()` 唯一签名和 payload 必须带 `warning_fingerprint` 与 `warning_ack`，确认成功持久化 ack/fingerprint。累计未分配利润按期初未分配利润 + 截止业务日累计经营净利润 − 已确认分红派生；Day 1 固定期初未分配利润仍为 0。超出只产生 `retained_earnings_exceeded` warning，不在 preview 扣款。
 
 ### Step 4（2–5 分钟）：实现 confirm posting
 
@@ -780,7 +819,7 @@ Expected: FAIL，选择器还没有全部分类和实际人肉费路径。
 
 新增并注册：`GET /api/accounting/actions/`、`POST /api/accounting/purchases/`、`POST /api/accounting/purchases/<id>/pay/`、`POST /api/accounting/purchases/<id>/receive/`、`POST /api/accounting/expenses/`、`GET/POST/PATCH /api/accounting/dividends/`、`POST /api/accounting/dividends/<id>/preview/`、`POST /api/accounting/dividends/<id>/confirm/`。所有写 view 检查 operator/staff、`Idempotency-Key`、`expected_version`（适用时），调用对应服务，不在 view 自行改模型。
 
-统一错误 details 至少含 field/code context；旧输入无法转换的采购 review 行返回 `409` + `packaging_review_required`，canonical `unrepresentable` 行照常付款；已付款/已入库 replay 返回原事实 JSON。
+统一错误 details 至少含 field/code context；采购 create/update/cancel 与分红 create/update 各自发送独立 Idempotency-Key，对应 append-only action replay/conflict；旧输入无法转换的采购 review 行返回 `409` + `packaging_review_required`，canonical `unrepresentable` 行照常付款；已付款/已入库 replay 返回原事实 JSON。
 
 ### Step 6（2–5 分钟）：API RED/GREEN 和事务测试
 

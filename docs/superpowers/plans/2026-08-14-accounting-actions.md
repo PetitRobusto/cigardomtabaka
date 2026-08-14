@@ -37,6 +37,7 @@ rub_subtotal = box_quantity * unit_price_rub_per_box
 - 所有动作使用 `_retry_sqlite_locked`、writer gate 和 `transaction.atomic()`。锁冲突重试后仍失败返回 `503/busy`，事务内任何异常都不能留下半笔 posting、状态或库存批次。
 - Day 1 未完成时，服务层拒绝全部正式账务写动作，稳定错误为 `day1_incomplete`；Day 1 自身 `save_day1_draft()`/`confirm_day1()` 使用明确的内部 bypass scope，不受该门禁阻断。
 - 已入账的 `PurchasePayment`、付款后/入库后的 `PurchaseOrder`、`PurchaseOrderItem.actual_cost_cny`、`Expense` 和 `Dividend` 均不可通过实例或普通 QuerySet 改写/删除。付款成功时 payment key 与 order mirror key 必须在同一事务中同时写入，任一不一致立即回滚。受控服务必须使用明确命名的 `ledger_mutation_scope(reason, operator)` bypass，并在事务内校验动作来源；不能让普通 manager 保护合法入账流程。
+- 每个 Task 的 Luna A/B 双审查若发现问题，修复后必须由另一位 Luna 针对修复 SHA 重新审查；只有该 SHA 获得 APPROVED 才能继续，问题→修复 commit SHA→复审结论写入 Task9 的 review 文档。
 - 用户文案、注释、文档和中文 commit 使用中文；字段、函数、API code 和枚举使用英文。每个实现 Task 的代码注释只说明本 Task 的业务规则、并发锁、旧兼容、尾差、不可变边界或前端局部状态，不写无信息量注释。
 
 ## Task 1：建立 canonical 采购字段、状态约束和迁移
@@ -62,6 +63,13 @@ def test_canonical_item_uses_box_quantity_and_per_box_price(self):
 def test_non_divisible_legacy_item_requires_review(self):
     with self.assertRaisesRegex(BusinessRuleError, 'packaging_review_required'):
         normalize_legacy_purchase_item(box_size=25, quantity_sticks=26, unit_price_rub_per_stick='40.00')
+
+def test_quantity_box_check_and_model_clean_reject_mismatch(self):
+    item = normalized_item(quantity=24, box_size=25, box_quantity=1)
+    with self.assertRaises(ValidationError):
+        item.full_clean()
+    with self.assertRaises(IntegrityError):
+        PurchaseOrderItem.objects.filter(pk=item.pk).update(quantity=24)
 ```
 
 Run: `.venv/bin/python manage.py test cigars.tests.test_purchase_packaging -v 2`
@@ -70,44 +78,82 @@ Expected: FAIL，canonical 字段、包装状态和付款前状态尚未存在�
 
 ### Step 2（2–5 分钟）：增加可迁移字段和状态枚举
 
-在 `PurchaseOrder` 增加 `IN_TRANSIT`，以及以下真实 Django 字段：
+在 `PurchaseOrder` 增加 `IN_TRANSIT`，以及以下真实 Django 字段；枚举先于字段定义：
 
 ```python
-status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
-paid_cny_cost = models.DecimalField(max_digits=22, decimal_places=2, default=Decimal('0.00'))
-paid_at = models.DateTimeField(null=True, blank=True)
-payment_idempotency_key = models.CharField(max_length=128, null=True, blank=True, unique=True)
-arrival_idempotency_key = models.CharField(max_length=128, null=True, blank=True, unique=True)
-version = models.PositiveIntegerField(default=1)
+class PurchaseOrder(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = 'draft', '草稿'
+        IN_TRANSIT = 'in_transit', '在途'
+        RECEIVED = 'received', '已入库'
+        CANCELLED = 'cancelled', '已取消'
+
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    paid_cny_cost = models.DecimalField(max_digits=22, decimal_places=2, default=Decimal('0.00'))
+    paid_at = models.DateTimeField(null=True, blank=True)
+    payment_idempotency_key = models.CharField(max_length=128, null=True, blank=True, unique=True)
+    arrival_idempotency_key = models.CharField(max_length=128, null=True, blank=True, unique=True)
+    version = models.PositiveIntegerField(default=1)
 ```
 
-在 `PurchaseOrderItem` 增加以下字段；canonical 数值在迁移期允许 null，服务建新行时必须非空：
+在 `PurchaseOrderItem` 增加以下字段；canonical 数值在迁移期允许 null，服务建新行时必须非空，枚举先于字段定义：
 
 ```python
-box_quantity = models.PositiveIntegerField(null=True, blank=True)
-unit_price_rub_per_box = models.DecimalField(max_digits=22, decimal_places=2, null=True, blank=True)
-packaging_status = models.CharField(max_length=20, choices=PackagingStatus.choices, default=PackagingStatus.REVIEW_REQUIRED)
-actual_cost_cny = models.DecimalField(max_digits=22, decimal_places=2, default=Decimal('0.00'))
+class PurchaseOrderItem(models.Model):
+    class PackagingStatus(models.TextChoices):
+        NORMALIZED = 'normalized', '已规范化'
+        REVIEW_REQUIRED = 'review_required', '需人工复核'
+
+    class LegacySnapshotStatus(models.TextChoices):
+        EXPLICIT = 'explicit', '显式报价'
+        DERIVED = 'derived', '可逆派生'
+        UNREPRESENTABLE = 'unrepresentable', '不可表示'
+
+    box_quantity = models.PositiveIntegerField(null=True, blank=True)
+    unit_price_rub_per_box = models.DecimalField(max_digits=22, decimal_places=2, null=True, blank=True)
+    packaging_status = models.CharField(max_length=20, choices=PackagingStatus.choices, default=PackagingStatus.REVIEW_REQUIRED)
+    actual_cost_cny = models.DecimalField(max_digits=22, decimal_places=2, default=Decimal('0.00'))
+    legacy_snapshot_status = models.CharField(max_length=24, choices=LegacySnapshotStatus.choices, default=LegacySnapshotStatus.UNREPRESENTABLE)
 ```
 
-旧 `quantity`、`unit_price_rub`、`unit_price_cny` 保持原 max_digits/decimal_places 与非空约束，作为兼容快照只读返回。新建 canonical 明细由 `box_size * box_quantity` 写回旧 `quantity`；由 `unit_price_rub_per_box / box_size` 量化为旧每支 `unit_price_rub`，只有量化后乘回每盒价仍精确相等才写入，否则返回 `packaging_review_required`。`unit_price_cny` 只作为兼容展示快照：canonical 新建若收到旧非空 `unit_price_cny` 就原样保留；若未收到，则只有在 payload 同时提供报价 `exchange_rate` 且 `unit_price_rub_per_box / box_size / exchange_rate` 能以旧字段两位精度无损 round-trip 时才派生写入，否则返回 `quote_snapshot_required`，不猜测。这个派生只服务旧查询兼容，`exchange_rate` 仍是报价快照，绝不参与付款成本或在途成本。
+旧 `quantity` 保持原整数约束；旧 `unit_price_rub`、`unit_price_cny` 的 migration 改为 `null=True, blank=True`，以免合法 canonical 每盒价因旧两位快照不可表示而被反卡。新增 `legacy_snapshot_status`（`explicit`/`derived`/`unrepresentable`）记录兼容状态；不可表示时两个旧价格字段为 NULL，canonical 仍可付款，旧字段仅作为兼容快照只读返回。新建 canonical 明细由 `box_size * box_quantity` 写回旧 `quantity`；由 `unit_price_rub_per_box / box_size` 量化为旧每支 `unit_price_rub`，只有量化后乘回每盒价仍精确相等才写入，否则返回 `packaging_review_required`。`unit_price_cny` 只作为兼容展示快照：canonical 新建若收到旧非空 `unit_price_cny` 就原样保留；若未收到，则只有在 payload 同时提供报价 `exchange_rate` 且 `unit_price_rub_per_box / box_size / exchange_rate` 能以旧字段两位精度无损 round-trip 时才派生写入，否则写 NULL + `legacy_snapshot_status='unrepresentable'`，不猜测，也不阻止 canonical 建单。这个派生只服务旧查询兼容，`exchange_rate` 仍是报价快照，绝不参与付款成本或在途成本。
 
 `PurchaseOrder` 的 `Meta.constraints` 必须落成可执行的 `CheckConstraint`，并由服务状态矩阵共同校验：
 
 ```python
-models.CheckConstraint(
-    condition=(
-        (Q(status=PurchaseOrder.Status.DRAFT, paid_cny_cost=Decimal('0.00'), paid_at__isnull=True))
-        | (Q(status__in=[PurchaseOrder.Status.IN_TRANSIT, PurchaseOrder.Status.RECEIVED], paid_cny_cost__gt=0, paid_at__isnull=False))
-        | Q(status=PurchaseOrder.Status.CANCELLED)
-    ), name='purchase_order_status_payment_consistent',
-)
-models.CheckConstraint(
-    condition=Q(packaging_status='review_required', box_quantity__isnull=True, unit_price_rub_per_box__isnull=True)
-    | Q(packaging_status='normalized', box_size__gt=0, box_quantity__gt=0, unit_price_rub_per_box__gte=0),
-    name='purchase_item_packaging_consistent',
-)
-models.CheckConstraint(condition=Q(actual_cost_cny__gte=0), name='purchase_item_actual_cost_nonnegative')
+class PurchaseOrder:
+    class Meta:
+        constraints = [
+        models.CheckConstraint(
+            condition=(
+                Q(status='draft', paid_cny_cost=Decimal('0.00'), paid_at__isnull=True)
+                | Q(status__in=['in_transit', 'received'], paid_cny_cost__gt=0, paid_at__isnull=False)
+                | Q(status='cancelled')
+            ), name='purchase_order_status_payment_consistent',
+        ),
+    ]
+
+class PurchaseOrderItem:
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(packaging_status='review_required', box_quantity__isnull=True, unit_price_rub_per_box__isnull=True)
+                | Q(packaging_status='normalized', box_size__gt=0, box_quantity__gt=0, unit_price_rub_per_box__gte=0),
+                name='purchase_item_packaging_consistent',
+            ),
+            models.CheckConstraint(condition=Q(actual_cost_cny__gte=0), name='purchase_item_actual_cost_nonnegative'),
+            models.CheckConstraint(
+                condition=Q(packaging_status='review_required')
+                | Q(quantity=F('box_size') * F('box_quantity')),
+                name='purchase_item_quantity_matches_boxes',
+            ),
+        ]
+
+def clean(self):
+    super().clean()
+    if self.packaging_status == self.PackagingStatus.NORMALIZED:
+        if self.box_size is None or self.box_quantity is None or self.quantity != self.box_size * self.box_quantity:
+            raise ValidationError('canonical 采购数量必须等于盒规乘盒数')
 ```
 
 服务矩阵固定为 `DRAFT -> IN_TRANSIT` 仅允许一次完整付款，`IN_TRANSIT -> RECEIVED` 仅允许一次整单到货，`CANCELLED` 不能付款/到货；`IN_TRANSIT/RECEIVED` 不能取消，重复同 key 只能 replay 原事实。明细约束 canonical 字段要么全部为空且 `review_required`，要么 `box_size>0`、`box_quantity>0`、`unit_price_rub_per_box>=0` 且 `normalized`；`actual_cost_cny>=0`。
@@ -130,7 +176,7 @@ sed -n '1,260p' cigars/migrations/0036_purchase_payment_state.py
 .venv/bin/python manage.py migrate --plan
 ```
 
-Expected: `0036` 只添加字段、约束和 `RunPython`，依赖 `0035`；没有删除旧字段、没有伪造付款/到货流水。
+Expected: `0036` 只添加字段、约束和 `RunPython`，依赖 `0035`；没有删除旧字段、没有伪造付款/到货流水。随后在临时迁移数据库实际执行 `migrate cigars 0036`，查询可整除、不可整除和无盒规三类历史行，验证回填/NULL/status 与约束均可运行。
 
 ### Step 5（2–5 分钟）：运行 GREEN 与直接模型约束测试
 
@@ -188,6 +234,10 @@ Expected: FAIL，动作模型和 QuerySet 保护尚未实现。
 
 ```python
 class PurchasePayment(models.Model):
+    class Status(models.TextChoices):
+        POSTED = 'posted', '已入账'
+
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.POSTED)
     purchase_order = models.OneToOneField('cigars.PurchaseOrder', on_delete=models.PROTECT)
     fund_account = models.ForeignKey(FundAccount, on_delete=models.PROTECT)
     rub_amount = models.DecimalField(max_digits=22, decimal_places=2)
@@ -198,8 +248,23 @@ class PurchasePayment(models.Model):
     idempotency_key = models.CharField(max_length=128, unique=True)
     request_fingerprint = models.CharField(max_length=64)
 
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=Q(rub_amount__gte=0, cny_cost__gte=0), name='purchase_payment_amounts_nonnegative'),
+            models.CheckConstraint(condition=Q(status='posted', ledger_transaction__isnull=False), name='purchase_payment_posted_has_ledger'),
+        ]
+
 class Expense(models.Model):
-    category = models.CharField(max_length=20, choices=ExpenseCategory.choices)
+    class Status(models.TextChoices):
+        POSTED = 'posted', '已入账'
+    class Category(models.TextChoices):
+        SALARY = 'salary', '工资'
+        RENT = 'rent', '房租'
+        UTILITIES = 'utilities', '水电'
+        OTHER = 'other', '其他'
+
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.POSTED)
+    category = models.CharField(max_length=20, choices=Category.choices)
     fund_account = models.ForeignKey(FundAccount, on_delete=models.PROTECT)
     original_amount = models.DecimalField(max_digits=22, decimal_places=8)
     amount_cny = models.DecimalField(max_digits=22, decimal_places=2)
@@ -209,13 +274,23 @@ class Expense(models.Model):
     idempotency_key = models.CharField(max_length=128, unique=True)
     note = models.TextField(blank=True, default='')
 
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=Q(original_amount__gte=0, amount_cny__gte=0), name='expense_amounts_nonnegative'),
+            models.CheckConstraint(condition=Q(status='posted', ledger_transaction__isnull=False), name='expense_posted_has_ledger'),
+        ]
+
 class Dividend(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = 'draft', '草稿'
+        POSTED = 'posted', '已入账'
+
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.DRAFT)
     total_cny = models.DecimalField(max_digits=22, decimal_places=2)
     partner_a_amount_cny = models.DecimalField(max_digits=22, decimal_places=2)
     partner_b_amount_cny = models.DecimalField(max_digits=22, decimal_places=2)
-    partner_a_account = models.ForeignKey(FundAccount, on_delete=models.PROTECT, related_name='+')
-    partner_b_account = models.ForeignKey(FundAccount, on_delete=models.PROTECT, related_name='+')
+    partner_a_account = models.ForeignKey(FundAccount, on_delete=models.PROTECT, related_name='+', null=True, blank=True)
+    partner_b_account = models.ForeignKey(FundAccount, on_delete=models.PROTECT, related_name='+', null=True, blank=True)
     business_date = models.DateField()
     version = models.PositiveIntegerField(default=1)
     draft_idempotency_key = models.CharField(max_length=128, unique=True)
@@ -223,7 +298,17 @@ class Dividend(models.Model):
     warning_code = models.CharField(max_length=64, blank=True, default='')
     warning_retained_earnings_cny = models.DecimalField(max_digits=22, decimal_places=2, null=True, blank=True)
     ledger_transaction = models.OneToOneField(LedgerTransaction, on_delete=models.PROTECT, null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=Q(total_cny__gte=0, partner_a_amount_cny__gte=0, partner_b_amount_cny__gte=0), name='dividend_amounts_nonnegative'),
+            models.CheckConstraint(condition=Q(status='draft', ledger_transaction__isnull=True) | Q(status='posted', ledger_transaction__isnull=False), name='dividend_status_ledger_consistent'),
+        ]
 ```
+
+`A+B=total` 由服务锁内校验、posted 不可变和专门 RED/GREEN 测试保证。SQLite 不可靠支持 Decimal `F('a') + F('b')` 跨字段 CheckConstraint，migration 注释记录这个 DB 限制。
+
+`Expense` 与 `PurchasePayment` 只有 `posted` 状态，ledger 外键非空；`Dividend` 草稿账户采用唯一方案：`partner_a_account`/`partner_b_account` 为 `null=True, blank=True`，草稿允许未填，`update_dividend_draft()` 和 `confirm_dividend()` 必须校验已填、启用、CNY 且不同。Dividend 的可迁移约束为：金额字段各自 `__gte=0`，`status='draft'` 时 `ledger_transaction IS NULL`，`status='posted'` 时非 NULL。SQLite 版本不对 Decimal `F('a') + F('b')` 跨字段求和加 CheckConstraint；`A+B=total` 由服务锁内校验、posted 不可变和专门测试保证，迁移注释记录这个 DB 限制。
 
 幂等唯一事实来源是 `PurchasePayment.idempotency_key`；`PurchaseOrder.payment_idempotency_key` 只是同一 atomic 中写入的只读 mirror，必须等于 payment key，API replay 只查询 PurchasePayment，不能接受两套 key。`arrival_idempotency_key` 只在 PurchaseOrder 上保存到货事实，不新增重复到货模型；迁移历史行保持两个 key 为 null。
 
@@ -260,7 +345,7 @@ Expected: 旁路全部拒绝，受控 posting 可保存，终态事实字段保�
 Luna A 审查模型/迁移约束，Luna B 审查实例和 QuerySet 全覆盖以及 bypass 安全；通过后提交。
 
 ```bash
-git add accounting/models.py accounting/mutation_scope.py accounting/migrations/0012_accounting_actions.py accounting/tests/test_action_models.py
+git add accounting/models.py accounting/mutation_scope.py accounting/migrations/0012_accounting_actions.py accounting/tests/test_action_models.py cigars/models.py cigars/migrations/0036_purchase_payment_state.py cigars/tests/test_purchase_packaging.py
 git commit -m "功能：建立采购费用分红事实与不可变边界"
 ```
 
@@ -339,7 +424,7 @@ Expected: canonical 总额正确、重复参数返回原订单、冲突为 409�
 Luna A 审查 canonical 公式和兼容边界，Luna B 审查幂等 fingerprint、版本锁和 atomic 回滚；通过后提交。
 
 ```bash
-git add cigars/services.py accounting/purchase_actions.py accounting/tests/test_purchase_draft_actions.py
+git add cigars/services.py cigars/agent_api.py accounting/purchase_actions.py accounting/tests/test_purchase_draft_actions.py cigars/tests/test_agent_api.py
 git commit -m "功能：实现采购草稿盒数语义与幂等"
 ```
 
@@ -354,8 +439,10 @@ git commit -m "功能：实现采购草稿盒数语义与幂等"
 测试打开 RUB 账户后创建两条 canonical 明细，调用：
 
 ```python
-pay_purchase_order(*, purchase_order_id, rub_account_id, business_date,
-                   operator, idempotency_key) -> PurchasePayment
+payment = pay_purchase_order(
+    purchase_order_id=order.id, rub_account_id=rub_account_id, business_date=business_date,
+    operator=operator, idempotency_key=idempotency_key
+)
 ```
 
 断言 RUB 总额是各 `box_quantity * unit_price_rub_per_box` 之和，付款承接 `_outflow_cny_cost()` 的付款前 CNY 成本，订单变为 `IN_TRANSIT`，产生一笔 `PURCHASE_PAYMENT` 和 `PURCHASE_IN_TRANSIT` posting。
@@ -388,7 +475,7 @@ Expected: FAIL，付款服务不存在。
 
 ### Step 4（2–5 分钟）：写到货 RED 和 canonical fixture
 
-固定两条明细 `box_size=25, box_quantity=1, per_box=100` 与 `box_size=10, box_quantity=2, per_box=100`，RUB 小计为 100 和 200，付款 CNY 为 100；断言实际成本为 33.33 和 66.67，且 `sum(actual_cost_cny)=100`。断言每个批次支数分别为 25 和 20，包装来自 canonical 字段。
+固定两条明细 `box_size=25, box_quantity=1, per_box=100` 与 `box_size=10, box_quantity=2, per_box=100`，RUB 小计为 100 和 200，付款 CNY 为 100；断言实际成本为 33.33 和 66.67，且 `sum(actual_cost_cny)=100`。断言每个批次支数分别为 25 和 20，包装来自 canonical 字段；然后对第一批次执行拆盒，断言拆盒前后 `remaining_cost_cny`、整单成本池和批次总成本相同，再按既有 FIFO 销售分配算法卖出全部支数，最后销售单位取剩余成本池尾差并使每批 `remaining_cost_cny=0`。
 
 ```python
 def test_receive_allocates_cost_pool_tail_and_replays(self):
@@ -401,6 +488,11 @@ def test_receive_allocates_cost_pool_tail_and_replays(self):
     self.assertEqual(sum(b.remaining_cost_cny for b in batches), Decimal('100.00'))
     self.assertEqual(receive_paid_purchase_order(purchase_order_id=order.id, business_date=self.day,
                      operator=self.operator, idempotency_key='arrive-1'), batches)
+    before_split = sum(b.remaining_cost_cny for b in batches)
+    split_purchase_batch_box(batch_id=batches[0].id, operator=self.operator)
+    self.assertEqual(sum(batches[0].__class__.objects.filter(pk__in=[b.id for b in batches]).values_list('remaining_cost_cny', flat=True)), before_split)
+    sell_all_by_existing_fifo(order.cigar_id)
+    self.assertEqual(PurchaseBatch.objects.filter(pk__in=[b.id for b in batches]).aggregate(total=Sum('remaining_cost_cny'))['total'], Decimal('0.00'))
 ```
 
 Run: `.venv/bin/python manage.py test accounting.tests.test_purchase_actions.PurchaseReceiptTest -v 2`
@@ -412,9 +504,10 @@ Expected: FAIL，整单到货仍读取旧字段且没有在途转库存。
 实现：
 
 ```python
-def receive_paid_purchase_order(*, purchase_order_id, business_date,
-                                 operator, idempotency_key, note='') -> list[PurchaseBatch]:
-    ...
+def receive_paid_purchase_order(
+    *, purchase_order_id, business_date, operator, idempotency_key, note=''
+) -> list[PurchaseBatch]:
+    raise NotImplementedError
 ```
 
 先按 key 查询 `arrival_idempotency_key`/`PURCHASE_RECEIPT` 并核对订单、日期、operator，匹配则返回原批次；没有 replay 才锁订单和明细，要求 `IN_TRANSIT`、所有 canonical 行 `normalized`、无既有批次。按每行 `rub_subtotal / rub_total` 分配 paid CNY，Decimal 量化到 0.01，最后一行取总额减已分配；不可少货、不重复扣 RUB、不读取报价汇率。
@@ -434,7 +527,7 @@ Expected: 付款前移动平均、canonical RUB/CNY 守恒、库存 FIFO 包装�
 Luna A 审查资金/在途/库存不变量，Luna B 独立审查幂等优先顺序、锁重试、尾差和旧入口兼容；通过后提交。
 
 ```bash
-git add accounting/purchase_actions.py cigars/services.py accounting/tests/test_purchase_actions.py cigars/tests/test_agent_order_inventory.py cigars/tests/test_sales_accounting.py
+git add accounting/purchase_actions.py cigars/services.py accounting/tests/test_purchase_actions.py cigars/tests/test_agent_order_inventory.py cigars/tests/test_agent_order_inventory.py cigars/tests/test_sales_accounting.py
 git commit -m "功能：实现采购付款在途与整单到货"
 ```
 
@@ -506,7 +599,8 @@ def update_dividend_draft(*, dividend_id, total_cny, partner_a_amount_cny,
                           partner_b_amount_cny, partner_a_account_id,
                           partner_b_account_id, expected_version,
                           idempotency_key, operator, note='') -> Dividend: ...
-def preview_dividend(*, dividend_id, operator) -> DividendPreview: ...
+def preview_dividend(*, dividend_id, operator) -> DividendPreview: ...  # includes warning_fingerprint
+def confirm_dividend(*, dividend_id, operator, idempotency_key, expected_version, warning_ack=False, warning_fingerprint='') -> Dividend: ...
 def confirm_dividend(*, dividend_id, operator, idempotency_key,
                      expected_version, warning_ack=False) -> Dividend: ...
 ```
@@ -520,6 +614,7 @@ def test_dividend_draft_split_and_current_warning(self):
     self.assertEqual((draft.partner_a_amount_cny, draft.partner_b_amount_cny),
                      (Decimal('50.51'), Decimal('50.50')))
     preview = preview_dividend(dividend_id=draft.id, operator=self.operator)
+    self.assertIn('warning_fingerprint', preview.to_dict())
     self.assertIn('warning', preview.to_dict())
 ```
 
@@ -533,7 +628,7 @@ Expected: FAIL，Dividend 服务和 preview 契约尚未存在。
 
 ### Step 3（2–5 分钟）：实现 preview warning 契约
 
-`preview_dividend()` 返回序列化字段 `retained_earnings_cny`、`total_cny`、`warning: {code, retained_earnings_cny, requested_cny}`。累计未分配利润按期初未分配利润 + 截止业务日累计经营净利润 − 已确认分红派生；Day 1 固定期初未分配利润仍为 0。超出只产生 `retained_earnings_exceeded` warning，不在 preview 扣款。
+`preview_dividend()` 返回序列化字段 `retained_earnings_cny`、`total_cny`、`warning: {code, retained_earnings_cny, requested_cny, fingerprint}`；`confirm_dividend()` 签名和 payload 必须带 `warning_fingerprint` 与 `warning_ack`。累计未分配利润按期初未分配利润 + 截止业务日累计经营净利润 − 已确认分红派生；Day 1 固定期初未分配利润仍为 0。超出只产生 `retained_earnings_exceeded` warning，不在 preview 扣款。
 
 ### Step 4（2–5 分钟）：实现 confirm posting
 
@@ -541,7 +636,7 @@ Expected: FAIL，Dividend 服务和 preview 契约尚未存在。
 
 ### Step 5（2–5 分钟）：补跨月、期初、并发和回滚测试
 
-测试：期初 retained=0、上月利润不被本月 dividend 影响；跨月确认按 dividend business_date 扣累计分配而不改历史月净利润；超留存 preview/confirm warning 字段稳定；重复 confirm 返回原 ledger；两个账户余额不足、账户相同/非 CNY、锁冲突重试和 posting 中途失败均无残留。
+测试：期初 retained=0、上月利润不被本月 dividend 影响；preview 返回 fingerprint，锁内利润变化后旧 fingerprint 确认返回 `{code:'warning_stale', details:{warning, fingerprint}}`；跨月确认按 dividend business_date 扣累计分配而不改历史月净利润；超留存 preview/confirm warning 字段稳定；重复 confirm 返回原 ledger；两个账户余额不足、账户相同/非 CNY、锁冲突重试和 posting 中途失败均无残留。
 
 Run: `.venv/bin/python manage.py test accounting.tests.test_dividend_actions accounting.tests.test_sales_reports_reconciliation -v 2`
 
@@ -572,8 +667,14 @@ def test_profit_formula_keeps_adjustment_and_reconciliation_gain_loss(self):
                       inventory_gain=Decimal('7.00'), inventory_loss=Decimal('3.00'),
                       reconciliation_gain=Decimal('2.00'), reconciliation_loss=Decimal('1.00'))
     self.assertEqual(monthly_profit(self.month)['net_profit_cny'], Decimal('385.00'))
-    self.assertEqual(monthly_profit(self.month)['dividend_cny'], Decimal('50.00'))
-```断言经营净利润为 `500 - 100 - 20 + 7 - 3 + 2 - 1 = 385`；采购付款、换汇、转账、预收、投入和分红不进入经营净利润。另测 `IN_TRANSIT.paid_cny_cost` 才进入在途摘要，DRAFT 不进入。
+    before = monthly_profit(self.month)
+    confirm_dividend_fixture(total_cny=Decimal('50.00'), business_date=self.day)
+    after = monthly_profit(self.month)
+    self.assertEqual(before['net_profit_cny'], after['net_profit_cny'])
+    self.assertEqual(after['retained_earnings_cny'], before['retained_earnings_cny'] - Decimal('50.00'))
+```
+
+断言经营净利润为 `500 - 100 - 20 + 7 - 3 + 2 - 1 = 385`；采购付款、换汇、转账、预收、投入和分红不进入经营净利润。另测 `IN_TRANSIT.paid_cny_cost` 才进入在途摘要，DRAFT 不进入。
 
 Run: `.venv/bin/python manage.py test accounting.tests.test_sales_reports_reconciliation -v 2`
 
@@ -612,7 +713,7 @@ Expected: API 错误结构统一，选择器公式和服务层门禁通过。
 Luna A 对照两份 spec、CONTEXT 和真实 service/API 检查公式及门禁；Luna B 独立检查所有 endpoint、错误 code、Decimal 序列化和回滚测试；通过后提交。
 
 ```bash
-git add accounting/services.py accounting/selectors.py accounting/guards.py accounting/views.py accounting/urls.py accounting/action_serializers.py accounting/tests/test_action_api.py accounting/tests/test_api.py accounting/tests/test_sales_reports_reconciliation.py
+git add accounting/services.py accounting/selectors.py accounting/guards.py accounting/views.py accounting/urls.py accounting/action_serializers.py cigars/sales_accounting.py cigars/sales_api.py accounting/tests/test_action_api.py accounting/tests/test_api.py accounting/tests/test_sales_reports_reconciliation.py cigars/tests/test_sales_accounting.py cigars/tests/test_sales_api.py
 git commit -m "功能：提供利润选择器与账务动作接口"
 ```
 
@@ -633,7 +734,14 @@ OpenDesign 项目使用批准的 `CigarDomTabaka (570372ce-21b8-4752-a21a-bd254f
 
 测试所有 Decimal 类型为 string；
 
-```ts
+```tsx
+import { render, screen } from '@testing-library/react';
+import { vi, it, expect } from 'vitest';
+import AccountingDashboardPage from './AccountingDashboardPage';
+
+const { mockFetchAccountingActions } = vi.hoisted(() => ({ mockFetchAccountingActions: vi.fn() }));
+vi.mock('../../api', () => ({ fetchAccountingActions: mockFetchAccountingActions }));
+
 it('keeps dashboard data when actions query fails', async () => {
   mockFetchAccountingActions.mockRejectedValue({ code: 'busy', error: '动作区暂时不可用' });
   render(<AccountingDashboardPage />);
@@ -676,7 +784,7 @@ Expected: FAIL，动作卡尚未连接。
 
 测试使用 `ContextTour.tsx` 的真实 action runner、`tourStepsForRoute('/accounting')`、`resolveTourTarget()` 和 jsdom `querySelector`，断言三个真实 selector 存在、focus 后 `document.activeElement` 正确；关闭/下一步后 focus 恢复到触发帮助按钮，并 spy `HTMLFormElement.prototype.requestSubmit` 断言为 0 次。
 
-Run: `cd frontend && npm test -- --run src/features/guides frontend/src/components/accounting && npm run lint`
+Run: `cd frontend && npm test -- --run src/features/guides/guideInteractions.test.ts src/features/guides/ContextTour.test.tsx src/components/accounting src/pages/AccountingDashboardPage.test.tsx && npm run lint`
 
 Expected: API、动作卡、guide selector 和 lint 全部通过。
 
@@ -685,7 +793,7 @@ Expected: API、动作卡、guide selector 和 lint 全部通过。
 Luna A 审查 OpenDesign 与 React 交互边界，Luna B 独立审查实际金额、局部错误、guide focus 和非提交控件；通过后提交。
 
 ```bash
-git add .opendesign/accounting-action-center.html frontend/src/types.ts frontend/src/api.ts frontend/src/pages/AccountingDashboardPage.tsx frontend/src/components/sales/AccountingPanel.tsx frontend/src/components/accounting frontend/src/features/guides/guideInteractions.ts frontend/src/features/guides/guideContent.ts
+git add .opendesign/accounting-action-center.html frontend/src/types.ts frontend/src/api.ts frontend/src/pages/AccountingDashboardPage.tsx frontend/src/pages/AccountingDashboardPage.test.tsx frontend/src/components/sales/AccountingPanel.tsx frontend/src/components/accounting frontend/src/features/guides/guideInteractions.ts frontend/src/features/guides/guideContent.ts frontend/src/features/guides/ContextTour.tsx frontend/src/features/guides/ContextTour.test.tsx
 git commit -m "前端：接入账务动作中心与真实帮助引导"
 ```
 
@@ -697,16 +805,36 @@ git commit -m "前端：接入账务动作中心与真实帮助引导"
 
 ### Step 1（2–5 分钟）：完成第二轮独立 Luna 总审查
 
-Luna A 不看第一轮结论，逐项对照两份 spec、`CONTEXT.md`、真实 `models.py/services.py/guideInteractions.ts`，检查 canonical 公式、迁移约束、状态机、利润 gain/loss、Day 1 gate、分红字段和 API contract。Luna B 独立做相同审查，输出差异清单；任何差异先修复再继续。
+Luna A 不看第一轮结论，逐项对照两份 spec、`CONTEXT.md`、真实 `models.py/services.py/guideInteractions.ts`，检查 canonical 公式、迁移约束、状态机、利润 gain/loss、Day 1 gate、分红字段和 API contract。Luna B 独立做相同审查，输出差异清单；任何差异先修复再继续。每个差异都记录问题→修复 SHA→由另一位 Luna 复审该 SHA 并写 `APPROVED`，否则阻断 Task9 合并。
 
 ### Step 2（2–5 分钟）：执行 migration/type/path self-review
 
 先以 `test_required_reference_paths_exist` 作为 RED 检查真实既有路径；review 产物路径在本 Task 创建后再转 GREEN，未关闭问题会阻断合并：
 
 ```python
+from pathlib import Path
+
+REQUIRED_EXISTING_PATHS = (
+    'CONTEXT.md',
+    'docs/superpowers/specs/2026-08-10-internal-accounting-module-design.md',
+    'docs/superpowers/specs/2026-08-13-business-workspace-day1-design.md',
+    'accounting/models.py', 'accounting/services.py', 'accounting/day1.py',
+    'cigars/models.py', 'cigars/services.py', 'cigars/agent_api.py',
+    'cigars/sales_accounting.py', 'cigars/sales_api.py',
+    'frontend/src/api.ts', 'frontend/src/features/guides/guideInteractions.ts',
+    'frontend/src/features/guides/ContextTour.tsx',
+)
+
 def test_required_reference_paths_exist(self):
     for path in REQUIRED_EXISTING_PATHS:
         self.assertTrue(Path(path).is_file(), path)
+```
+
+```python
+EXPECTED_REVIEW_PATHS = (
+    'docs/reviews/2026-08-14-accounting-actions-review-a.md',
+    'docs/reviews/2026-08-14-accounting-actions-review-b.md',
+)
 ```
 
 Run:

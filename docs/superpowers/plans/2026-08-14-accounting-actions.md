@@ -245,7 +245,7 @@ git commit -m "功能：建立采购盒数语义与状态迁移"
 
 - Modify: `accounting/models.py`、`cigars/models.py`
 - Create: `accounting/migrations/0012_accounting_actions.py`、`accounting/migrations/0013_draft_actions.py`、`accounting/mutation_scope.py`
-- Test: `accounting/tests/test_action_models.py`、`cigars/tests/test_purchase_packaging.py`
+- Test: `accounting/tests/test_action_models.py`、`accounting/tests/test_draft_action_models.py`、`cigars/tests/test_purchase_packaging.py`
 
 ### Step 1（2–5 分钟）：写 posted 旁路失败测试
 
@@ -403,6 +403,7 @@ Run:
 ```bash
 .venv/bin/python manage.py makemigrations accounting
 sed -n '1,320p' accounting/migrations/0012_accounting_actions.py
+sed -n '1,320p' accounting/migrations/0013_draft_actions.py
 .venv/bin/python manage.py showmigrations accounting cigars
 ```
 
@@ -421,7 +422,7 @@ Expected: 旁路全部拒绝，受控 posting 可保存，终态事实字段保�
 Luna A 审查模型/迁移约束，Luna B 审查实例和 QuerySet 全覆盖以及 bypass 安全；通过后提交。
 
 ```bash
-git add accounting/models.py accounting/mutation_scope.py accounting/migrations/0012_accounting_actions.py accounting/tests/test_action_models.py cigars/models.py cigars/migrations/0036_purchase_payment_state.py cigars/tests/test_purchase_packaging.py
+git add accounting/models.py accounting/mutation_scope.py accounting/migrations/0012_accounting_actions.py accounting/migrations/0013_draft_actions.py accounting/tests/test_action_models.py accounting/tests/test_draft_action_models.py cigars/models.py cigars/migrations/0036_purchase_payment_state.py cigars/tests/test_purchase_packaging.py
 git commit -m "功能：建立采购费用分红事实与不可变边界"
 ```
 
@@ -429,7 +430,7 @@ git commit -m "功能：建立采购费用分红事实与不可变边界"
 
 **Objective:** 让采购草稿创建/编辑只接受 canonical payload，旧 agent 明确转换，整单写入原子且可 replay。
 
-**Files:** `cigars/services.py`、`cigars/agent_api.py`、`accounting/purchase_actions.py`、`accounting/models.py`、`accounting/migrations/0013_draft_actions.py`；Test: `accounting/tests/test_purchase_draft_actions.py`、`cigars/tests/test_agent_api.py`、`accounting/tests/test_draft_action_models.py`
+**Files:** `cigars/services.py`、`cigars/agent_api.py`、`accounting/purchase_actions.py`；Test: `accounting/tests/test_purchase_draft_actions.py`、`cigars/tests/test_agent_api.py`
 
 ### Step 1（2–5 分钟）：写草稿 contract RED
 
@@ -500,7 +501,7 @@ Expected: canonical 总额正确、重复参数返回原订单、冲突为 409�
 Luna A 审查 canonical 公式和兼容边界，Luna B 审查幂等 fingerprint、版本锁和 atomic 回滚；通过后提交。
 
 ```bash
-git add cigars/services.py cigars/agent_api.py accounting/purchase_actions.py accounting/models.py accounting/migrations/0013_draft_actions.py accounting/tests/test_purchase_draft_actions.py accounting/tests/test_draft_action_models.py cigars/tests/test_agent_api.py
+git add cigars/services.py cigars/agent_api.py accounting/purchase_actions.py accounting/tests/test_purchase_draft_actions.py cigars/tests/test_agent_api.py
 git commit -m "功能：实现采购草稿盒数语义与幂等"
 ```
 
@@ -509,6 +510,8 @@ git commit -m "功能：实现采购草稿盒数语义与幂等"
 **Objective:** 用付款前 RUB 移动平均建立在途成本，按 canonical RUB 小计分配 CNY 尾差，并让付款/到货重放返回原事实。
 
 **Files:** `accounting/purchase_actions.py`、`cigars/services.py`；Test: `accounting/tests/test_purchase_actions.py`、`cigars/tests/test_agent_order_inventory.py`
+
+`PurchaseReceiptTest.setUp()` 统一调用 `create_completed_day1_fixture()`；所有付款/到货测试共享 completed Day1，确保首个 arrival test 也通过 service gate。销售 draft 的 `agent_context` 为 optional，测试省略；若实际签名必需，则完整 import 并构造 `AgentContext(command_name=...)`。
 
 ### Step 1（2–5 分钟）：写付款 RED
 
@@ -567,8 +570,6 @@ def test_receive_accepts_normalized_and_unrepresentable_but_rejects_review(self)
         receive_paid_purchase_order(purchase_order_id=review.id, business_date=self.day, operator=self.operator, idempotency_key='arrive-review')
 
 def test_receive_allocates_cost_pool_tail_and_replays(self):
-    completed_day1 = create_completed_day1_fixture()
-    self.assertEqual(completed_day1.status, "completed")
     order = paid_canonical_order(rub_subtotals=['100.00', '200.00'], paid_cny_cost='100.00')
     batches = receive_paid_purchase_order(purchase_order_id=order.id, business_date=self.day,
                                           operator=self.operator, idempotency_key='arrive-1')
@@ -589,11 +590,9 @@ def test_receive_allocates_cost_pool_tail_and_replays(self):
             items=[{'cigar_id': cigar_id, 'sale_unit': 'stick', 'quantity': quantity, 'unit_price': '1.00'}],
             operator=self.operator, customer_name='测试客户',
             customer_transport_fee_cny='0.00',
-            agent_context=self.context('create_sales_order_draft'),
         )
         confirm_sales_order(
             sales_order_id=sales_order.id, operator=self.operator,
-            agent_context=self.context('confirm_sales_order'),
         )
         ship_sales_order(order_id=sales_order.id, business_date=self.day,
                          operator=self.operator, idempotency_key=f'ship-fifo-{cigar_id}', note='出库')
@@ -691,9 +690,11 @@ git commit -m "功能：实现费用币种矩阵与销售人肉费路径"
 
 **Objective:** 用统一 Dividend 契约支持可编辑草稿、超留存预览 warning 和一次性确认付款，不把分红计入经营净利润。
 
-**Files:** `accounting/dividend_actions.py`、`accounting/models.py`、`accounting/migrations/0013_draft_actions.py`；Test: `accounting/tests/test_dividend_actions.py`、`accounting/tests/test_draft_action_models.py`
+**Files:** `accounting/dividend_actions.py`；Test: `accounting/tests/test_dividend_actions.py`
 
 ### Step 1（2–5 分钟）：写统一字段/服务 RED
+
+`DividendDraftAction` 仅允许 `CREATE`/`UPDATE`；首版不支持取消或删除分红草稿，未知 `CANCEL` action_type 必须拒绝并有测试。API 不注册 dividend cancel/delete route；不想分红时继续编辑为 0（若金额约束禁止 0 则保留草稿）。posted Dividend 更不可删除。
 
 固定唯一服务签名：
 
@@ -720,6 +721,8 @@ def test_dividend_draft_split_and_current_warning(self):
     preview = preview_dividend(dividend_id=draft.id, operator=self.operator)
     self.assertIn('warning_fingerprint', preview.to_dict())
     self.assertIn('warning', preview.to_dict())
+    with self.assertRaises(ValidationError):
+        DividendDraftAction(action_type='cancel', idempotency_key='div-cancel', request_fingerprint='x', operator=self.operator).full_clean()
 
 def test_dividend_replay_conflict_and_stale_warning(self):
     first = create_dividend_draft(total_cny='50.00', business_date=self.day,
@@ -768,7 +771,7 @@ Expected: 分红字段/返回契约一致，确认可重放且不进入经营净
 Luna A 审查 warning/confirm 来源和利润边界，Luna B 审查版本幂等、锁顺序、posted bypass 和跨月测试；通过后提交。
 
 ```bash
-git add accounting/dividend_actions.py accounting/models.py accounting/tests/test_dividend_actions.py
+git add accounting/dividend_actions.py accounting/tests/test_dividend_actions.py
 git commit -m "功能：实现分红草稿预览与确认"
 ```
 
@@ -809,7 +812,7 @@ Expected: FAIL，选择器还没有全部分类和实际人肉费路径。
 
 ### Step 3（2–5 分钟）：实现 Day 1 service guard
 
-在 `accounting/guards.py` 定义 `require_day1_completed(*, allow_day1=False)` 和 `Day1IncompleteError(code='day1_incomplete')`；未完成时拒绝 exchange、purchase draft/pay/receive、expense、dividend draft/edit/confirm，以及 `cigars/sales_accounting.py` 的 `ship_sales_order()`、`receive_sales_order_payment()`、`refund_sales_order_payment()`、`record_sales_transport_cost()`。`cigars/sales_api.py` 只负责映射错误，不能成为门禁唯一位置。把 guard 放入每个服务入口，Day 1 `save_day1_draft()`/`confirm_day1()` 通过明确 `allow_day1=True` 的内部 scope。新增直接服务测试，不经过 HTTP：逐个调用出库、收款、退款、人肉费并断言 `day1_incomplete`；确认 Day 1 自身写入仍可用。
+在 `accounting/guards.py` 定义 `require_day1_completed(*, allow_day1=False)` 和 `Day1IncompleteError(code='day1_incomplete')`；未完成时拒绝 exchange、purchase draft/pay/receive/cancel、expense、dividend draft/edit/confirm，以及 `cigars/sales_accounting.py` 的 `ship_sales_order()`、`receive_sales_order_payment()`、`refund_sales_order_payment()`、`record_sales_transport_cost()`。`cigars/sales_api.py` 只负责映射错误，不能成为门禁唯一位置。把 guard 放入每个服务入口，Day 1 `save_day1_draft()`/`confirm_day1()` 通过明确 `allow_day1=True` 的内部 scope。新增直接服务测试，不经过 HTTP：逐个调用出库、收款、退款、人肉费并断言 `day1_incomplete`；确认 Day 1 自身写入仍可用。
 
 ### Step 4（2–5 分钟）：统一现有 exchange API 错误
 
@@ -817,7 +820,7 @@ Expected: FAIL，选择器还没有全部分类和实际人肉费路径。
 
 ### Step 5（2–5 分钟）：接入动作 API
 
-新增并注册：`GET /api/accounting/actions/`、`POST /api/accounting/purchases/`、`POST /api/accounting/purchases/<id>/pay/`、`POST /api/accounting/purchases/<id>/receive/`、`POST /api/accounting/expenses/`、`GET/POST/PATCH /api/accounting/dividends/`、`POST /api/accounting/dividends/<id>/preview/`、`POST /api/accounting/dividends/<id>/confirm/`。所有写 view 检查 operator/staff、`Idempotency-Key`、`expected_version`（适用时），调用对应服务，不在 view 自行改模型。
+新增并注册：`GET /api/accounting/actions/`、`POST /api/accounting/purchases/`、`POST /api/accounting/purchases/<id>/pay/`、`POST /api/accounting/purchases/<id>/receive/`、`POST /api/accounting/purchases/<id>/cancel/`、`POST /api/accounting/expenses/`、`GET/POST/PATCH /api/accounting/dividends/`、`POST /api/accounting/dividends/<id>/preview/`、`POST /api/accounting/dividends/<id>/confirm/`。所有写 view 检查 operator/staff、`Idempotency-Key`、`expected_version`（适用时），调用对应服务，不在 view 自行改模型；cancel endpoint 调用 `cancel_purchase_order(idempotency_key, expected_version, note)`，并覆盖 replay/conflict/day1/state tests。
 
 统一错误 details 至少含 field/code context；采购 create/update/cancel 与分红 create/update 各自发送独立 Idempotency-Key，对应 append-only action replay/conflict；旧输入无法转换的采购 review 行返回 `409` + `packaging_review_required`，canonical `unrepresentable` 行照常付款；已付款/已入库 replay 返回原事实 JSON。
 
@@ -871,7 +874,7 @@ it('keeps dashboard data when actions query fails', async () => {
   expect(screen.queryByText('¥0.00')).not.toBeInTheDocument();
 });
 ```
-`exchangeToRub({source_account_id, rub_account_id, source_amount:'1.00000000', rub_amount:'1200.00', business_date})` 必须使用现有 `writeWithIdempotency()` 并发送 `Idempotency-Key`。同样测试 purchase pay/receive、expense、dividend create/update/preview/confirm helpers。
+`exchangeToRub({source_account_id, rub_account_id, source_amount:'1.00000000', rub_amount:'1200.00', business_date})` 必须使用现有 `writeWithIdempotency()` 并发送 `Idempotency-Key`。同样测试 purchase pay/receive/cancel、expense、dividend create/update/preview/confirm helpers；采购草稿操作区提供明确取消按钮，其他卡不新增取消入口。
 
 Run: `cd frontend && npm test -- --run src/api/accountingActions.test.ts`
 

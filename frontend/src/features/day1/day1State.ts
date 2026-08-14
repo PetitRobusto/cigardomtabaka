@@ -34,6 +34,12 @@ export interface Day1Payload {
   inventory: Array<Omit<Day1InventoryInput, 'cigar_name'> & { cigar_id: number }>;
 }
 
+export interface Day1CompletionViewModel {
+  accounts: Array<{ name: string; currency: string; originalAmount: string; bookCost: string }>;
+  inventory: Array<{ cigar: string; boxSize: number; boxQuantity: number; looseSticks: number; quantity: number; unitCost: string; totalCost: string }>;
+  totals: { openingCapital: string; totalNetAssets: string; accountsTotal: string; inventoryTotal: string };
+}
+
 const ACCOUNT_SLOTS: ReadonlyArray<{ slot: Day1AccountSlot; currency: Day1Currency }> = [
   { slot: 'owner_cny', currency: 'CNY' },
   { slot: 'partner_cny', currency: 'CNY' },
@@ -53,6 +59,41 @@ export function day1RouteMode(status: Day1Status): Day1RouteMode {
   return status === 'completed' ? 'readonly-summary' : 'editable-wizard';
 }
 
+export function buildDay1ConfirmationPlan(currentVersion: number, savedVersion: number): { saveExpectedVersion: number; confirmExpectedVersion: number } {
+  return { saveExpectedVersion: currentVersion, confirmExpectedVersion: savedVersion };
+}
+
+export function canConfirmWithAcknowledgement(state: { dialogOpen: boolean; acknowledged: boolean }): boolean {
+  return state.dialogOpen && state.acknowledged;
+}
+
+export function mergeDay1Refresh<T extends Day1DraftInput, S>(localDraft: T, incomingServer: S, incomingDraft: T, preserveLocal: boolean): { server: S; draft: T } {
+  return { server: incomingServer, draft: preserveLocal ? localDraft : incomingDraft };
+}
+
+function summaryAmount(summary: Record<string, unknown>, key: string): string {
+  const value = summary[key];
+  return value == null ? '0.00' : String(value);
+}
+
+export function completionSummaryViewModel(summary: Record<string, any>): Day1CompletionViewModel {
+  return {
+    accounts: Array.isArray(summary.accounts) ? summary.accounts.map(account => ({
+      name: String(account.name || '未命名账户'), currency: String(account.currency || '—'),
+      originalAmount: String(account.original_amount ?? '0.00'), bookCost: String(account.cny_book_cost ?? '0.00'),
+    })) : [],
+    inventory: Array.isArray(summary.inventory) ? summary.inventory.map(item => ({
+      cigar: item.cigar_name ? String(item.cigar_name) : `目录雪茄 #${item.cigar_id}`,
+      boxSize: Number(item.box_size || 0), boxQuantity: Number(item.box_quantity || 0), looseSticks: Number(item.loose_sticks || 0),
+      quantity: Number(item.quantity || 0), unitCost: String(item.unit_cost_cny ?? '0.00'), totalCost: String(item.total_cost_cny ?? '0.00'),
+    })) : [],
+    totals: {
+      openingCapital: summaryAmount(summary, 'opening_capital_cny'), totalNetAssets: summaryAmount(summary, 'total_net_assets_cny'),
+      accountsTotal: summaryAmount(summary, 'accounts_total_cny'), inventoryTotal: summaryAmount(summary, 'inventory_total_cny'),
+    },
+  };
+}
+
 export function inventoryLineTotal(line: Pick<Day1InventoryInput, 'box_size' | 'box_quantity' | 'loose_sticks' | 'unit_cost_cny'>): { sticks: number; cost: string } {
   const sticks = line.box_quantity * line.box_size + line.loose_sticks;
   return { sticks, cost: (sticks * Number(line.unit_cost_cny || 0)).toFixed(2) };
@@ -70,6 +111,8 @@ export function validateDay1Draft(state: Day1DraftInput): string[] {
   const errors: string[] = [];
   if (!state.business_date) errors.push('请选择业务日期');
 
+  const names = new Set<string>();
+
   for (const { slot, currency } of ACCOUNT_SLOTS) {
     const account = state.accounts.find(item => item.slot === slot);
     if (!account) {
@@ -77,9 +120,13 @@ export function validateDay1Draft(state: Day1DraftInput): string[] {
       continue;
     }
     if (account.currency !== currency) errors.push(`${slot}账户币种不可修改`);
+    if (!account.name.trim()) errors.push(`${slot}账户名称不能为空`);
+    else if (names.has(account.name.trim())) errors.push(`${slot}账户名称不可重复`);
+    names.add(account.name.trim());
     if (!account.original_amount.trim() || !isNonNegativeNumber(amount(account.original_amount))) errors.push(`${slot}账户原币余额必须是非负金额`);
     if (currency !== 'CNY' && (!account.cny_book_cost.trim() || !isNonNegativeNumber(amount(account.cny_book_cost)))) errors.push(`${slot}账户账面成本必须是非负金额`);
     if (currency === 'CNY' && account.cny_book_cost.trim() && !isNonNegativeNumber(amount(account.cny_book_cost))) errors.push(`${slot}账户账面成本必须是非负金额`);
+    if (currency !== 'CNY' && ((amount(account.original_amount) === 0) !== (amount(account.cny_book_cost) === 0))) errors.push(`${slot}账户外币余额与账面成本必须同时为零或同时为正`);
     if ((currency === 'CNY' && account.cny_book_cost !== '' && amount(account.cny_book_cost) !== amount(account.original_amount))) {
       errors.push(`${slot}账户人民币原币与账面成本必须一致`);
     }
@@ -89,7 +136,8 @@ export function validateDay1Draft(state: Day1DraftInput): string[] {
     if (!Number.isInteger(line.cigar_id) || line.cigar_id <= 0) errors.push(`库存第 ${index + 1} 行必须选择目录雪茄`);
     if (!Number.isInteger(line.box_size) || line.box_size <= 0) errors.push(`库存第 ${index + 1} 行盒规必须为正整数`);
     if (!Number.isInteger(line.box_quantity) || line.box_quantity < 0 || !Number.isInteger(line.loose_sticks) || line.loose_sticks < 0) errors.push(`库存第 ${index + 1} 行数量不能为负数`);
-    if (!line.unit_cost_cny.trim() || !isNonNegativeNumber(amount(line.unit_cost_cny))) errors.push(`库存第 ${index + 1} 行成本必须是非负金额`);
+    if (line.box_quantity * line.box_size + line.loose_sticks <= 0) errors.push(`库存第 ${index + 1} 行库存数量必须大于零`);
+    if (!line.unit_cost_cny.trim() || !Number.isFinite(amount(line.unit_cost_cny)) || amount(line.unit_cost_cny) <= 0) errors.push(`库存第 ${index + 1} 行单支成本必须大于零`);
   });
   return errors;
 }
@@ -119,9 +167,13 @@ export function buildDay1Payload(state: Day1DraftInput): Day1Payload {
 export function emptyDay1Draft(today: string): Day1DraftInput {
   return {
     business_date: today,
-    accounts: ACCOUNT_SLOTS.map(({ slot, currency }) => ({ slot, currency, name: '', original_amount: '', cny_book_cost: '' })),
+    accounts: ACCOUNT_SLOTS.map(({ slot, currency }) => ({ slot, currency, name: defaultAccountName(slot), original_amount: '', cny_book_cost: '' })),
     inventory: [],
   };
+}
+
+export function defaultAccountName(slot: Day1AccountSlot): string {
+  return { owner_cny: '我的人民币账户', partner_cny: '合伙人人民币账户', rub: '卢布账户', usdt: 'USDT账户' }[slot];
 }
 
 export function normalizeDay1Draft(data: { business_date: string | null; draft: { accounts: Day1AccountInput[]; inventory: Day1InventoryInput[] } | null }, today: string): Day1DraftInput {

@@ -104,8 +104,7 @@ export const MANUAL_CHAPTERS: readonly ManualChapter[] = [
     category: 'quickstart',
     title: '首次 Day 1 初始化',
     summary: '只在首次建账时录入四个公司账户和期初库存；完成后仍可阅读规则，但不能重跑。',
-    route: '/accounting/day1',
-    tourStepId: 'day1',
+    route: '/accounting',
     sections: [
       section('范围与账户', '选择启用业务日期，核对我的人民币、合伙人人民币、卢布银行卡和 USDT 四个账户；所有余额与账面成本必须非负且匹配。'),
       section('期初库存', '从雪茄目录选择现有商品，按包装录入整盒、每盒支数、散支和估算每支人民币成本；这里不伪造历史采购或换汇。'),

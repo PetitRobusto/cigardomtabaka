@@ -79,7 +79,8 @@ describe('manual content', () => {
   });
 
   it("keeps Day 1 readable while exposing the four required business flows", () => {
-    expect(getManualChapter("day1")?.route).toBe("/accounting/day1");
+    expect(getManualChapter("day1")?.route).toBe("/accounting");
+    expect(getManualChapter("day1")?.tourStepId).toBeUndefined();
     expect(getManualChapter("exchange-purchase")?.route).toBe("/accounting");
     expect(getManualChapter("accounting")?.sections.map(section => section.title)).toEqual([
       "记录实际人肉成本", "记录日常费用", "完成对账", "查看月利润",

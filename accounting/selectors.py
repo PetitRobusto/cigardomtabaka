@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 import calendar
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from accounting.business_time import moscow_business_date
+from django.db.models.functions import TruncDate
 from accounting.models import (
     AccountReconciliation, FundAccount, LedgerPosting, LedgerTransaction,
 )
@@ -123,7 +125,12 @@ def accounting_summary(*, as_of, require_current=True, account_rows=None):
         for row in account_rows
     ]
     inventory = sum((v for v in PurchaseBatch.objects.filter(remaining__gt=0).values_list('remaining_cost_cny', flat=True)), Decimal('0.00')).quantize(Decimal('0.01'))
-    in_transit = sum((v for v in PurchaseOrder.objects.filter(status=PurchaseOrder.Status.DRAFT).values_list('cny_total', flat=True)), Decimal('0.00')).quantize(Decimal('0.01'))
+    in_transit_orders = PurchaseOrder.objects.filter(
+        status=PurchaseOrder.Status.IN_TRANSIT,
+    ).annotate(
+        paid_business_date=TruncDate('paid_at', tzinfo=ZoneInfo('Europe/Moscow')),
+    ).filter(paid_business_date__lte=as_of)
+    in_transit = sum(((v or Decimal('0.00')) for v in in_transit_orders.values_list('paid_cny_cost', flat=True)), Decimal('0.00')).quantize(Decimal('0.01'))
     return {
         'as_of': as_of, 'fund_accounts': fund_accounts,
         'accounts_receivable_cny': _sum_category(LedgerPosting.Category.ACCOUNTS_RECEIVABLE, end=as_of),

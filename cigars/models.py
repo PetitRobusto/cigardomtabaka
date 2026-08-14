@@ -1,3 +1,7 @@
+from decimal import Decimal
+
+from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.text import slugify
@@ -297,6 +301,7 @@ class PurchaseOrder(models.Model):
     """进货单"""
     class Status(models.TextChoices):
         DRAFT = 'draft', '草稿'
+        IN_TRANSIT = 'in_transit', '在途'
         RECEIVED = 'received', '已入库'
         CANCELLED = 'cancelled', '已取消'
 
@@ -304,8 +309,19 @@ class PurchaseOrder(models.Model):
         Supplier, on_delete=models.PROTECT, verbose_name='供应商'
     )
     rub_total = models.DecimalField('卢布总额', max_digits=12, decimal_places=2)
-    exchange_rate = models.DecimalField('汇率 (RUB→CNY)', max_digits=10, decimal_places=4)
-    cny_total = models.DecimalField('人民币总额', max_digits=12, decimal_places=2)
+    # 汇率和人民币总额是旧报价快照；新采购成本来自实际付款事实。
+    exchange_rate = models.DecimalField('汇率 (RUB→CNY)', max_digits=10, decimal_places=4, null=True, blank=True)
+    cny_total = models.DecimalField('人民币总额', max_digits=12, decimal_places=2, null=True, blank=True)
+    paid_cny_cost = models.DecimalField('已付款人民币成本', max_digits=22, decimal_places=2, default=Decimal('0.00'), null=True, blank=True)
+    paid_at = models.DateTimeField('付款时间', null=True, blank=True)
+    payment_idempotency_key = models.CharField('付款幂等键', max_length=128, null=True, blank=True, unique=True)
+    arrival_idempotency_key = models.CharField('到货幂等键', max_length=128, null=True, blank=True, unique=True)
+    draft_idempotency_key = models.CharField('草稿幂等键', max_length=128, null=True, blank=True, unique=True)
+    draft_request_fingerprint = models.CharField('草稿请求摘要', max_length=64, null=True, blank=True)
+    draft_operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name='+', verbose_name='草稿操作人')
+    draft_business_date = models.DateField('草稿业务日期', null=True, blank=True)
+    version = models.PositiveIntegerField('版本', default=1)
+    legacy_received = models.BooleanField('历史已入库标记', default=False)
     operator = models.ForeignKey(
         User, on_delete=models.PROTECT, related_name='purchase_orders',
         verbose_name='操作人'
@@ -326,6 +342,19 @@ class PurchaseOrder(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(status='draft', legacy_received=False, paid_cny_cost=Decimal('0.00'), paid_cny_cost__isnull=False, paid_at__isnull=True, payment_idempotency_key__isnull=True, arrival_idempotency_key__isnull=True)
+                    | models.Q(status='in_transit', legacy_received=False, paid_cny_cost__gt=0, paid_cny_cost__isnull=False, paid_at__isnull=False)
+                    | models.Q(status='received', legacy_received=False, paid_cny_cost__gt=0, paid_cny_cost__isnull=False, paid_at__isnull=False)
+                    # 历史到货没有可追溯付款事实，迁移只标记事实边界，不补造付款。
+                    | models.Q(status='received', legacy_received=True, paid_at__isnull=True, paid_cny_cost__isnull=True)
+                    | models.Q(status='received', legacy_received=True, paid_at__isnull=True, paid_cny_cost=Decimal('0.00'), paid_cny_cost__isnull=False)
+                    | models.Q(status='cancelled', legacy_received=False, paid_cny_cost=Decimal('0.00'), paid_cny_cost__isnull=False, paid_at__isnull=True, payment_idempotency_key__isnull=True, arrival_idempotency_key__isnull=True)
+                ), name='purchase_order_status_payment_consistent',
+            ),
+        ]
         verbose_name = '进货单'
         verbose_name_plural = '进货单'
 
@@ -339,6 +368,16 @@ class PurchaseOrder(models.Model):
 
 class PurchaseOrderItem(models.Model):
     """进货明细"""
+    class PackagingStatus(models.TextChoices):
+        NORMALIZED = 'normalized', '已规范化'
+        REVIEW_REQUIRED = 'review_required', '需人工复核'
+        UNREPRESENTABLE = 'unrepresentable', '兼容快照不可表示'
+
+    class LegacySnapshotStatus(models.TextChoices):
+        EXPLICIT = 'explicit', '显式报价'
+        DERIVED = 'derived', '可逆派生'
+        UNREPRESENTABLE = 'unrepresentable', '不可表示'
+
     purchase_order = models.ForeignKey(
         PurchaseOrder, on_delete=models.CASCADE, related_name='items',
         verbose_name='进货单'
@@ -349,16 +388,35 @@ class PurchaseOrderItem(models.Model):
     quantity = models.IntegerField('数量')
     box_size = models.IntegerField('包装支数', null=True, blank=True,
         help_text='如25=木盒25支, 15=铝管15支, 从Cigar.packagings可查盒型')
-    unit_price_rub = models.DecimalField('卢布单价', max_digits=12, decimal_places=2)
-    unit_price_cny = models.DecimalField('人民币单价', max_digits=12, decimal_places=2)
+    # 旧字段是历史支数/每支价快照；新采购金额只能读取 canonical 盒数字段。
+    unit_price_rub = models.DecimalField('卢布单价', max_digits=12, decimal_places=2, null=True, blank=True)
+    unit_price_cny = models.DecimalField('人民币单价', max_digits=12, decimal_places=2, null=True, blank=True)
+    box_quantity = models.PositiveIntegerField('采购盒数', null=True, blank=True)
+    unit_price_rub_per_box = models.DecimalField('每盒卢布价格', max_digits=22, decimal_places=2, null=True, blank=True)
+    packaging_status = models.CharField('包装规范状态', max_length=20, choices=PackagingStatus.choices, default=PackagingStatus.REVIEW_REQUIRED)
+    actual_cost_cny = models.DecimalField('实际人民币成本', max_digits=22, decimal_places=2, default=Decimal('0.00'))
+    legacy_snapshot_status = models.CharField('旧报价快照状态', max_length=24, choices=LegacySnapshotStatus.choices, default=LegacySnapshotStatus.UNREPRESENTABLE)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
     class Meta:
+        constraints = [
+            models.CheckConstraint(condition=(models.Q(packaging_status='review_required', box_quantity__isnull=True, unit_price_rub_per_box__isnull=True) | models.Q(packaging_status='normalized', box_size__isnull=False, box_size__gt=0, box_quantity__isnull=False, box_quantity__gt=0, unit_price_rub_per_box__isnull=False, unit_price_rub_per_box__gte=0) | models.Q(packaging_status='unrepresentable', box_size__isnull=False, box_size__gt=0, box_quantity__isnull=False, box_quantity__gt=0, unit_price_rub_per_box__isnull=False, unit_price_rub_per_box__gte=0, unit_price_rub__isnull=True, unit_price_cny__isnull=True)), name='purchase_item_packaging_consistent'),
+            models.CheckConstraint(condition=models.Q(actual_cost_cny__gte=0), name='purchase_item_actual_cost_nonnegative'),
+            models.CheckConstraint(condition=(models.Q(packaging_status='review_required') | models.Q(packaging_status__in=['normalized', 'unrepresentable'], quantity=models.F('box_size') * models.F('box_quantity'))), name='purchase_item_quantity_matches_boxes'),
+        ]
         verbose_name = '进货明细'
         verbose_name_plural = '进货明细'
 
     def __str__(self):
         return f'{self.cigar} ×{self.quantity}'
+
+    def clean(self):
+        super().clean()
+        if self.packaging_status in {self.PackagingStatus.NORMALIZED, self.PackagingStatus.UNREPRESENTABLE}:
+            if self.box_size is None or self.box_quantity is None or self.quantity != self.box_size * self.box_quantity:
+                raise ValidationError('canonical 采购数量必须等于盒规乘盒数')
+        if self.packaging_status == self.PackagingStatus.UNREPRESENTABLE and (self.unit_price_rub is not None or self.unit_price_cny is not None):
+            raise ValidationError('不可表示的旧报价快照必须为 NULL')
 
 
 class PurchaseBatch(models.Model):
@@ -366,6 +424,7 @@ class PurchaseBatch(models.Model):
     class Source(models.TextChoices):
         PURCHASE = 'purchase', '采购入库'
         OPENING = 'opening', '期初库存'
+        ADJUSTMENT = 'adjustment', '库存调整'
 
     purchase_order_item = models.ForeignKey(
         PurchaseOrderItem, on_delete=models.CASCADE, related_name='batches',
@@ -419,7 +478,7 @@ class PurchaseBatch(models.Model):
             models.CheckConstraint(
                 condition=(
                     models.Q(source='purchase', purchase_order_item__isnull=False)
-                    | models.Q(source='opening', purchase_order_item__isnull=True)
+                    | models.Q(source__in=['opening', 'adjustment'], purchase_order_item__isnull=True)
                 ),
                 name='purchase_batch_source_item_match',
             ),

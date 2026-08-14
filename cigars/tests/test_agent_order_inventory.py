@@ -516,6 +516,8 @@ class OrderInventoryServiceTest(TestCase):
         self.assertEqual(batch.unit_cost_cny, Decimal('12.34'))
         self.assertEqual(batch.remaining_cost_cny, Decimal('37.02'))
         self.assertEqual(batch.sold_cost_cny, Decimal('0.00'))
+        self.assertEqual(batch.source, PurchaseBatch.Source.ADJUSTMENT)
+        self.assertIsNone(batch.purchase_order_item)
 
     def test_positive_stock_adjustment_updates_specified_batch_inventory_facts(self):
         batch = create_batch(self.cigar, remaining=5, unit_cost='20.00', operator=self.operator)
@@ -758,6 +760,67 @@ class PurchaseReceivingServiceTest(TestCase):
         self.supplier = Supplier.objects.get(name='Habanos')
         self.cigar = create_cigar()
 
+    def _paid_in_transit_order(self):
+        order = create_purchase_order(
+            supplier_id=self.supplier.id, exchange_rate='0.0800',
+            operator=self.operator,
+            items=[{'cigar_id': self.cigar.id, 'quantity': 25, 'box_size': 25, 'unit_price_rub': '1000.00'}],
+        )
+        order.status = PurchaseOrder.Status.IN_TRANSIT
+        order.paid_cny_cost = Decimal('80.00')
+        order.paid_at = timezone.now()
+        order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
+        return order
+
+    def test_receive_rejects_review_required_packaging_before_stock_loop(self):
+        order = self._paid_in_transit_order()
+        item = order.items.get()
+        item.packaging_status = PurchaseOrderItem.PackagingStatus.REVIEW_REQUIRED
+        item.box_quantity = None
+        item.unit_price_rub_per_box = None
+        item.save(update_fields=['packaging_status', 'box_quantity', 'unit_price_rub_per_box'])
+
+        with self.assertRaisesMessage(OrderServiceError, 'packaging_review_required'):
+            receive_purchase_order(purchase_order_id=order.id, operator=self.operator)
+        self.assertFalse(PurchaseBatch.objects.exists())
+
+    def test_receive_rejects_unrepresentable_packaging_without_negative_cost(self):
+        order = self._paid_in_transit_order()
+        item = order.items.get()
+        item.packaging_status = PurchaseOrderItem.PackagingStatus.UNREPRESENTABLE
+        item.unit_price_rub = None
+        item.unit_price_cny = None
+        item.save(update_fields=['packaging_status', 'unit_price_rub', 'unit_price_cny'])
+
+        with self.assertRaisesMessage(OrderServiceError, 'packaging_review_required'):
+            receive_purchase_order(purchase_order_id=order.id, operator=self.operator)
+        self.assertFalse(PurchaseBatch.objects.exists())
+
+    def test_receive_rejects_null_or_negative_legacy_cost(self):
+        for value in (None, Decimal('-1.00')):
+            with self.subTest(value=value):
+                order = self._paid_in_transit_order()
+                item = order.items.get()
+                item.unit_price_cny = value
+                item.save(update_fields=['unit_price_cny'])
+
+                with self.assertRaisesMessage(OrderServiceError, 'legacy_cost_snapshot_missing'):
+                    receive_purchase_order(purchase_order_id=order.id, operator=self.operator)
+                self.assertFalse(PurchaseBatch.objects.exists())
+
+    def test_create_purchase_order_is_atomic_when_later_item_fails(self):
+        with self.assertRaisesMessage(OrderServiceError, "第2个采购明细雪茄不存在"):
+            create_purchase_order(
+                supplier_id=self.supplier.id, exchange_rate="0.0800",
+                operator=self.operator,
+                items=[
+                    {"cigar_id": self.cigar.id, "quantity": 25, "box_size": 25, "unit_price_rub": "1000.00"},
+                    {"cigar_id": 999999, "quantity": 10, "box_size": 10, "unit_price_rub": "1200.00"},
+                ],
+            )
+        self.assertFalse(PurchaseOrder.objects.exists())
+        self.assertFalse(PurchaseOrderItem.objects.exists())
+
     def test_create_purchase_order_draft_does_not_receive_stock(self):
         order = create_purchase_order(
             supplier_id=self.supplier.id,
@@ -792,6 +855,11 @@ class PurchaseReceivingServiceTest(TestCase):
                 {'cigar_id': self.cigar.id, 'quantity': 10, 'box_size': 10, 'unit_price_rub': '1200.00'},
             ],
         )
+
+        order.status = PurchaseOrder.Status.IN_TRANSIT
+        order.paid_cny_cost = Decimal('2000.00')
+        order.paid_at = timezone.now()
+        order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
 
         batches = receive_purchase_order(
             purchase_order_id=order.id,
@@ -957,6 +1025,12 @@ class AgentPurchaseReceivingApiTest(TestCase):
         self.assertEqual(PurchaseOrder.objects.get(id=purchase_order_id).status, PurchaseOrder.Status.DRAFT)
         self.assertFalse(PurchaseBatch.objects.exists())
 
+        purchase_order = PurchaseOrder.objects.get(id=purchase_order_id)
+        purchase_order.status = PurchaseOrder.Status.IN_TRANSIT
+        purchase_order.paid_cny_cost = Decimal('1000.00')
+        purchase_order.paid_at = timezone.now()
+        purchase_order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
+
         receive_body = {
             'idempotency_key': 'po-receive-api',
             'operator_id': self.operator.id,
@@ -969,6 +1043,7 @@ class AgentPurchaseReceivingApiTest(TestCase):
         self.assertEqual(receive_response.status_code, 200)
         payload = receive_response.json()['purchase_order']
         self.assertEqual(payload['status'], 'received')
+        self.assertFalse(PurchaseOrder.objects.get(id=purchase_order_id).legacy_received)
         self.assertEqual(payload['supplier_name'], 'Habanos')
         self.assertEqual(len(payload['items'][0]['batches']), 1)
         batch = PurchaseBatch.objects.get()
@@ -997,6 +1072,11 @@ class AgentPurchaseReceivingApiTest(TestCase):
 
     def test_receive_retry_does_not_receive_twice(self):
         purchase_order_id = self.post_json('/api/agent/purchase-orders/create/', self.create_body()).json()['purchase_order']['id']
+        purchase_order = PurchaseOrder.objects.get(id=purchase_order_id)
+        purchase_order.status = PurchaseOrder.Status.IN_TRANSIT
+        purchase_order.paid_cny_cost = Decimal('1000.00')
+        purchase_order.paid_at = timezone.now()
+        purchase_order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
         body = {
             'idempotency_key': 'po-receive-retry',
             'operator_id': self.operator.id,

@@ -677,6 +677,7 @@ def split_purchase_batch_box(*, batch_id, operator, agent_context=None, note='')
     return batch
 
 
+@transaction.atomic
 def create_purchase_order(*, supplier_id, items, exchange_rate, operator, note='',
                           agent_context=None):
     """Create an immutable purchase order draft. It does not receive stock."""
@@ -719,6 +720,13 @@ def create_purchase_order(*, supplier_id, items, exchange_rate, operator, note='
             raise OrderServiceError(f'第{idx}个采购明细雪茄不存在')
 
         unit_price_cny = (unit_price_rub * rate).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
+        packaging_status = PurchaseOrderItem.PackagingStatus.REVIEW_REQUIRED
+        box_quantity = None
+        unit_price_rub_per_box = None
+        if box_size and quantity % box_size == 0:
+            packaging_status = PurchaseOrderItem.PackagingStatus.NORMALIZED
+            box_quantity = quantity // box_size
+            unit_price_rub_per_box = (unit_price_rub * box_size).quantize(MONEY_PLACES)
         PurchaseOrderItem.objects.create(
             purchase_order=purchase_order,
             cigar=cigar,
@@ -726,6 +734,10 @@ def create_purchase_order(*, supplier_id, items, exchange_rate, operator, note='
             box_size=box_size,
             unit_price_rub=unit_price_rub,
             unit_price_cny=unit_price_cny,
+            box_quantity=box_quantity,
+            unit_price_rub_per_box=unit_price_rub_per_box,
+            packaging_status=packaging_status,
+            legacy_snapshot_status=PurchaseOrderItem.LegacySnapshotStatus.EXPLICIT,
         )
         rub_total += (unit_price_rub * quantity)
         cny_total += (unit_price_cny * quantity)
@@ -1127,26 +1139,10 @@ def _get_or_create_adjustment_batch(*, cigar, quantity, operator, batch_id=None,
     unit_cost = _to_signed_money(unit_cost_cny, '成本单价')
     if unit_cost < 0:
         raise OrderServiceError('成本单价不能为负数')
-    supplier, _ = Supplier.objects.get_or_create(name='库存修正')
-    purchase_order = PurchaseOrder.objects.create(
-        supplier=supplier,
-        rub_total=Decimal('0.00'),
-        exchange_rate=Decimal('1.0000'),
-        cny_total=(unit_cost * quantity).quantize(MONEY_PLACES),
-        operator=operator,
-        status=PurchaseOrder.Status.RECEIVED,
-        note='库存修正自动建批次',
-    )
-    purchase_item = PurchaseOrderItem.objects.create(
-        purchase_order=purchase_order,
-        cigar=cigar,
-        quantity=0,
-        box_size=None,
-        unit_price_rub=Decimal('0.00'),
-        unit_price_cny=unit_cost,
-    )
+    # 库存调整不是采购，不创建 PurchaseOrder 或付款/到货镜像。
     return PurchaseBatch.objects.create(
-        purchase_order_item=purchase_item,
+        purchase_order_item=None,
+        source=PurchaseBatch.Source.ADJUSTMENT,
         cigar=cigar,
         original_cost_cny=Decimal('0.00'),
         positive_adjustment_quantity=0,
@@ -1177,12 +1173,25 @@ def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, n
         raise OrderServiceError('进货单已入库')
     if purchase_order.status == PurchaseOrder.Status.CANCELLED:
         raise OrderServiceError('已取消进货单不能入库')
-    if purchase_order.status != PurchaseOrder.Status.DRAFT:
-        raise OrderServiceError(f'当前状态不能入库: {purchase_order.status}')
+    if purchase_order.status != PurchaseOrder.Status.IN_TRANSIT:
+        raise OrderServiceError('采购草稿必须先完成付款后才能到货')
+    if (
+        purchase_order.legacy_received
+        or purchase_order.paid_cny_cost is None
+        or purchase_order.paid_cny_cost <= 0
+        or purchase_order.paid_at is None
+    ):
+        raise OrderServiceError('采购单缺少真实付款事实，不能确认到货')
 
     items = list(purchase_order.items.select_related('cigar').order_by('id'))
     if not items:
         raise OrderServiceError('进货单没有明细')
+    # 兼容入口暂只允许规范化旧成本；Task 4 将改为按实际付款成本分摊。
+    for item in items:
+        if item.packaging_status != PurchaseOrderItem.PackagingStatus.NORMALIZED:
+            raise OrderServiceError('packaging_review_required')
+        if item.unit_price_cny is None or item.unit_price_cny < 0:
+            raise OrderServiceError('legacy_cost_snapshot_missing')
     if PurchaseBatch.objects.filter(purchase_order_item__purchase_order=purchase_order).exists():
         raise OrderServiceError('进货单已存在入库批次')
 
@@ -1232,7 +1241,8 @@ def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, n
         )
         batches.append(batch)
     purchase_order.status = PurchaseOrder.Status.RECEIVED
-    purchase_order.save(update_fields=['status'])
+    purchase_order.legacy_received = False
+    purchase_order.save(update_fields=['status', 'legacy_received'])
     return batches
 
 

@@ -4,7 +4,7 @@ import { manualTourDecision, manualTourDestination } from './manualTour';
 
 describe('manual tour navigation', () => {
   it('builds a local route state for a chapter tour', () => {
-    const chapter = MANUAL_CHAPTERS.find(item => item.id === 'sales');
+    const chapter = MANUAL_CHAPTERS.find(item => item.id === 'first-order');
     expect(chapter).toBeDefined();
     expect(manualTourDestination(chapter!)).toEqual({
       route: '/sales',
@@ -23,5 +23,32 @@ describe('manual tour navigation', () => {
       kind: 'navigate',
       destination: { route: '/inventory', state: { guideTourId: 'inventory-summary' } },
     });
+  });
+
+  it('opens a completed Day 1 chapter as a read-only summary', () => {
+    const chapter = MANUAL_CHAPTERS.find(item => item.id === 'day1');
+    expect(manualTourDecision(chapter!, { day1Status: 'completed' })).toEqual({
+      kind: 'readonly',
+      destination: { route: '/accounting/day1', state: { guideTourId: 'day1-summary', readOnly: true } },
+    });
+  });
+
+  it('opens the editable Day 1 wizard only before completion', () => {
+    const chapter = MANUAL_CHAPTERS.find(item => item.id === 'day1');
+    expect(manualTourDecision(chapter!, { day1Status: 'draft' })).toEqual({
+      kind: 'navigate',
+      destination: { route: '/accounting/day1', state: { guideTourId: 'day1', readOnly: false } },
+    });
+  });
+
+  it('never models a write operation as part of manual navigation', () => {
+    const chapter = MANUAL_CHAPTERS.find(item => item.id === 'first-order');
+    const decision = manualTourDecision(chapter!);
+    expect(decision.kind).toBe('navigate');
+    if (decision.kind === 'navigate') {
+      expect(decision.destination.route).toBe('/sales');
+      expect(decision.destination.state).toEqual({ guideTourId: 'sales-orders' });
+      expect(JSON.stringify(decision)).not.toMatch(/POST|PATCH|DELETE|confirm|reserve|ship|receive/i);
+    }
   });
 });

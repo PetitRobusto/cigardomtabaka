@@ -21,6 +21,23 @@ export function applyIfDay1InventoryMounted(mounted: boolean, update: () => void
   return true;
 }
 
+export function createDay1InventoryMountGuard() {
+  let mounted = false;
+  return {
+    setup() {
+      // React StrictMode replays setup/cleanup; setup must explicitly restore the live state.
+      mounted = true;
+      return () => { mounted = false; };
+    },
+    run(update: () => void): boolean {
+      return applyIfDay1InventoryMounted(mounted, update);
+    },
+    isMounted() {
+      return mounted;
+    },
+  };
+}
+
 export function resolveDay1BoxState(hasCatalogOverride: boolean, state: 'loading' | 'loaded' | 'error' | undefined): 'loading' | 'loaded' | 'error' {
   // An unknown state means the detail response is still pending, so manual box sizes stay locked.
   return hasCatalogOverride ? 'loaded' : (state || 'loading');
@@ -50,19 +67,19 @@ export default function Day1InventoryStep({ inventory, onChange, fieldErrors = {
   const [boxSizesState, setBoxSizesState] = useState<Record<number, 'loading' | 'loaded' | 'error'>>({});
   const searchRequestRef = useRef(0);
   const boxSizesLoaderRef = useRef(createBoxSizesLoader(fetchDeclaredBoxSizes));
-  const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  const mountGuardRef = useRef(createDay1InventoryMountGuard());
+  useEffect(() => mountGuardRef.current.setup(), []);
   const loadBoxSizes = (cigarId: number): Promise<number[]> => {
     if (Object.prototype.hasOwnProperty.call(declaredBoxSizesByCigar || {}, cigarId)) return Promise.resolve(declaredBoxSizesByCigar?.[cigarId] || []);
-    if (mountedRef.current) setBoxSizesState(current => ({ ...current, [cigarId]: 'loading' }));
+    if (mountGuardRef.current.isMounted()) setBoxSizesState(current => ({ ...current, [cigarId]: 'loading' }));
     return boxSizesLoaderRef.current(cigarId).then(boxSizes => {
-      if (mountedRef.current) {
+      if (mountGuardRef.current.isMounted()) {
         setLoadedBoxSizes(current => ({ ...current, [cigarId]: boxSizes }));
         setBoxSizesState(current => ({ ...current, [cigarId]: 'loaded' }));
       }
       return boxSizes;
     }).catch(error => {
-      if (mountedRef.current) setBoxSizesState(current => ({ ...current, [cigarId]: 'error' }));
+      if (mountGuardRef.current.isMounted()) setBoxSizesState(current => ({ ...current, [cigarId]: 'error' }));
       throw error;
     });
   };
@@ -90,15 +107,15 @@ export default function Day1InventoryStep({ inventory, onChange, fieldErrors = {
     // Keep every completion path behind the mounted guard, including failure and cleanup.
     loadBoxSizes(cigar.id).then(boxSizes => {
       const boxSize = boxSizes[0] || 0;
-      applyIfDay1InventoryMounted(mountedRef.current, () => {
+      mountGuardRef.current.run(() => {
         if (!boxSize) setFeedback('目录未声明包装规格，请按实物填写盒规。');
         onChange([...inventory, { cigar_id: cigar.id, cigar_name: cigar.name, box_size: boxSize, box_quantity: 0, loose_sticks: 0, unit_cost_cny: String(cigar.batches[0]?.unit_cost_cny || '') }]);
         setQuery(''); setResults([]);
       });
     }).catch(() => {
-      applyIfDay1InventoryMounted(mountedRef.current, () => setFeedback('雪茄详情加载失败，请重试后再添加。'));
+      mountGuardRef.current.run(() => setFeedback('雪茄详情加载失败，请重试后再添加。'));
     }).finally(() => {
-      applyIfDay1InventoryMounted(mountedRef.current, () => setAdding(false));
+      mountGuardRef.current.run(() => setAdding(false));
     });
   };
   const update = (index: number, key: keyof Day1InventoryInput, value: string) => onChange(inventory.map((line, i) => i === index ? { ...line, [key]: key === 'cigar_name' ? value : (key === 'unit_cost_cny' ? value : Number(value)) } : line));

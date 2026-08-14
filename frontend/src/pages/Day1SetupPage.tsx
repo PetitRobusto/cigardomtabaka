@@ -5,7 +5,7 @@ import { usePageMeta } from '../hooks/usePageMeta';
 import { moscowBusinessDate } from '../utils/businessDate';
 import Day1AccountsStep from '../components/day1/Day1AccountsStep';
 import Day1InventoryStep from '../components/day1/Day1InventoryStep';
-import Day1ReviewStep from '../components/day1/Day1ReviewStep';
+import Day1ReviewStep, { restoreDay1DialogTriggerFocus } from '../components/day1/Day1ReviewStep';
 import {
   canConfirmWithAcknowledgement, completionSummaryViewModel,
   day1RouteMode, day1StepTotal, emptyDay1Draft, nextDay1Step, normalizeDay1Draft, previousDay1Step,
@@ -38,7 +38,7 @@ export default function Day1SetupPage() {
   useEffect(() => { draftRef.current = draft; }, [draft]);
   useEffect(() => { draftBaseVersionRef.current = draftBaseVersion; }, [draftBaseVersion]);
   useEffect(() => {
-    if (wasConfirmationOpen.current && !confirmationOpen) prepareButtonRef.current?.focus();
+    restoreDay1DialogTriggerFocus(wasConfirmationOpen.current, confirmationOpen, () => prepareButtonRef.current?.focus());
     wasConfirmationOpen.current = confirmationOpen;
   }, [confirmationOpen]);
   useEffect(() => { setMeta({ title: 'Day 1 初始化', breadcrumbs: [{ label: '首页', to: '/' }, { label: '账务工作台', to: '/accounting' }, { label: 'Day 1 初始化' }] }); }, [setMeta]);

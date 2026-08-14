@@ -86,6 +86,7 @@ export function completionSummaryViewModel(summary: Day1CompletionSummary | null
       originalAmount: String(account.original_amount ?? '0.00'), bookCost: String(account.cny_book_cost ?? '0.00'),
     })) : [],
     inventory: Array.isArray(summary.inventory) ? summary.inventory.map(item => ({
+      // Frozen summaries currently carry cigar_id; keep an optional name for compatible future payloads.
       cigar: item.cigar_name ? String(item.cigar_name) : `目录雪茄 #${item.cigar_id}`,
       boxSize: Number(item.box_size || 0), boxQuantity: Number(item.box_quantity || 0), looseSticks: Number(item.loose_sticks || 0),
       quantity: Number(item.quantity || 0), unitCost: String(item.unit_cost_cny ?? '0.00'), totalCost: String(item.total_cost_cny ?? '0.00'),

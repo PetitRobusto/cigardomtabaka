@@ -24,6 +24,7 @@ export function saveThenConfirmDay1({
   confirm: ConfirmDay1;
   onSaved?: (saved: Day1State) => void;
 }): Promise<{ saved: Day1State; confirmed: Day1State }> {
+  // Confirmation must follow a successful draft save and use that response's version; this prevents confirming stale or unsaved values.
   return save(buildDay1Payload(draft), baseVersion).then(saved => {
     onSaved?.(saved);
     return confirm(saved.version, idempotencyKey).then(confirmed => ({ saved, confirmed }));
@@ -41,7 +42,11 @@ export function refreshDay1State({
   incoming: Day1State;
   mode: 'preserve-local' | 'discard-local';
 }): { server: Day1State; draft: Day1DraftInput; baseVersion: number } {
-  if (mode === 'preserve-local') return { server: incoming, draft: localDraft, baseVersion };
+  if (mode === 'preserve-local') {
+    // Keep the old base so the next save carries its If-Match and surfaces remote drift as 409.
+    return { server: incoming, draft: localDraft, baseVersion };
+  }
+  // Discarding local edits is the explicit choice that adopts the remote version as the new base.
   return {
     server: incoming,
     draft: normalizeDay1Draft(incoming, incoming.business_date || localDraft.business_date),
@@ -50,5 +55,6 @@ export function refreshDay1State({
 }
 
 export function day1WriteGate(status: string, acknowledged: boolean): boolean {
+  // Completed is a permanent read-only business boundary, even if a caller acknowledges the dialog.
   return status !== 'completed' && acknowledged;
 }

@@ -679,6 +679,8 @@ export interface Day1CompletionSummary {
   }>;
   inventory: Array<{
     cigar_id: number;
+    /** Compatible with newer frozen summaries that include the catalog display name. */
+    cigar_name?: string;
     box_size: number;
     box_quantity: number;
     loose_sticks: number;

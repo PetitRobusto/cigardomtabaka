@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   day1WriteGate,
   refreshDay1State,
+  saveDay1DraftAtBase,
   saveThenConfirmDay1,
 } from './day1Workflow';
 import { emptyDay1Draft } from './day1State';
@@ -33,6 +34,13 @@ describe('Day 1 production workflow', () => {
       draft: emptyDay1Draft('2026-08-14'), baseVersion: 1, idempotencyKey: 'day1-key', save, confirm,
     })).rejects.toThrow('版本冲突');
     expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('uses the page save path with the supplied local base version', async () => {
+    const save = vi.fn().mockResolvedValue(state(2));
+    const result = await saveDay1DraftAtBase({ draft: emptyDay1Draft('2026-08-14'), baseVersion: 1, save });
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ business_date: '2026-08-14' }), 1);
+    expect(result.version).toBe(2);
   });
 
   it('preserves local draft and base on shared refresh, but discard adopts both', () => {

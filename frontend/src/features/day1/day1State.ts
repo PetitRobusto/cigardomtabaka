@@ -1,4 +1,5 @@
 import type { Day1CompletionSummary } from '../../types';
+import { moscowBusinessDate } from '../../utils/businessDate';
 
 export const day1StepTotal = 4;
 
@@ -73,8 +74,8 @@ export function mergeDay1Refresh<T extends Day1DraftInput, S>(localDraft: T, inc
   return { server: incomingServer, draft: preserveLocal ? localDraft : incomingDraft };
 }
 
-function summaryAmount(summary: Record<string, unknown>, key: string): string {
-  const value = summary[key];
+function summaryAmount(summary: Day1CompletionSummary, key: string): string {
+  const value = (summary as unknown as Record<string, unknown>)[key];
   return value == null ? '0.00' : String(value);
 }
 
@@ -107,6 +108,30 @@ function amount(value: string): number {
   return Number(value);
 }
 
+const DAY1_CUTOVER_DATE = '2026-08-10';
+
+function decimalPlaces(value: string): number | null {
+  const normalized = value.trim();
+  if (!normalized || !Number.isFinite(Number(normalized))) return null;
+  const match = normalized.match(/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE]([+-]?\d+))?$/);
+  if (!match) return null;
+  const mantissa = normalized.split(/[eE]/i)[0].replace(/^[+-]/, '');
+  const exponent = Number(match[1] || 0);
+  return Math.max(0, (mantissa.split('.')[1]?.length || 0) - exponent);
+}
+
+function hasExcessDecimalPlaces(value: string, places: number): boolean {
+  const decimals = decimalPlaces(value);
+  return decimals !== null && decimals > places;
+}
+
+function validBusinessDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
+}
+
 function isNonNegativeNumber(value: number): boolean {
   return Number.isFinite(value) && value >= 0;
 }
@@ -114,6 +139,9 @@ function isNonNegativeNumber(value: number): boolean {
 export function validateDay1Draft(state: Day1DraftInput): string[] {
   const errors: string[] = [];
   if (!state.business_date) errors.push('请选择业务日期');
+  else if (!validBusinessDate(state.business_date)) errors.push('业务日期必须是有效日期');
+  else if (state.business_date < DAY1_CUTOVER_DATE) errors.push('业务日期不能早于账务切换日');
+  else if (state.business_date > moscowBusinessDate()) errors.push('业务日期不能晚于莫斯科当前业务日');
 
   const names = new Set<string>();
 
@@ -127,9 +155,12 @@ export function validateDay1Draft(state: Day1DraftInput): string[] {
     if (!account.name.trim()) errors.push(`${slot}账户名称不能为空`);
     else if (names.has(account.name.trim())) errors.push(`${slot}账户名称不可重复`);
     names.add(account.name.trim());
+    const originalPlaces = currency === 'USDT' ? 8 : 2;
     if (!account.original_amount.trim() || !isNonNegativeNumber(amount(account.original_amount))) errors.push(`${slot}账户原币余额必须是非负金额`);
+    else if (hasExcessDecimalPlaces(account.original_amount, originalPlaces)) errors.push(`${slot}账户原币余额小数位数超出允许精度`);
     if (currency !== 'CNY' && (!account.cny_book_cost.trim() || !isNonNegativeNumber(amount(account.cny_book_cost)))) errors.push(`${slot}账户账面成本必须是非负金额`);
     if (currency === 'CNY' && account.cny_book_cost.trim() && !isNonNegativeNumber(amount(account.cny_book_cost))) errors.push(`${slot}账户账面成本必须是非负金额`);
+    if (account.cny_book_cost.trim() && hasExcessDecimalPlaces(account.cny_book_cost, 2)) errors.push(`${slot}账户账面成本小数位数超出允许精度`);
     if (currency !== 'CNY' && ((amount(account.original_amount) === 0) !== (amount(account.cny_book_cost) === 0))) errors.push(`${slot}账户外币余额与账面成本必须同时为零或同时为正`);
     if ((currency === 'CNY' && account.cny_book_cost !== '' && amount(account.cny_book_cost) !== amount(account.original_amount))) {
       errors.push(`${slot}账户人民币原币与账面成本必须一致`);
@@ -142,8 +173,28 @@ export function validateDay1Draft(state: Day1DraftInput): string[] {
     if (!Number.isInteger(line.box_quantity) || line.box_quantity < 0 || !Number.isInteger(line.loose_sticks) || line.loose_sticks < 0) errors.push(`库存第 ${index + 1} 行数量不能为负数`);
     if (line.box_quantity * line.box_size + line.loose_sticks <= 0) errors.push(`库存第 ${index + 1} 行库存数量必须大于零`);
     if (!line.unit_cost_cny.trim() || !Number.isFinite(amount(line.unit_cost_cny)) || amount(line.unit_cost_cny) <= 0) errors.push(`库存第 ${index + 1} 行单支成本必须大于零`);
+    else if (hasExcessDecimalPlaces(line.unit_cost_cny, 2)) errors.push(`库存第 ${index + 1} 行单支成本小数位数超出允许精度`);
+  });
+  const seenInventory = new Set<string>();
+  state.inventory.forEach((line, index) => {
+    const key = `${line.cigar_id}:${line.box_size}`;
+    if (seenInventory.has(key)) errors.push(`库存第 ${index + 1} 行雪茄和包装规格不可重复`);
+    seenInventory.add(key);
   });
   return errors;
+}
+
+export function declaredBoxSizes(packagings: unknown[]): number[] {
+  const sizes: number[] = [];
+  for (const packaging of packagings) {
+    const candidate = packaging && typeof packaging === 'object' && 'size' in packaging
+      ? (packaging as { size?: unknown }).size
+      : packaging;
+    const text = typeof candidate === 'string' ? candidate.trim() : '';
+    const parsed = typeof candidate === 'number' ? candidate : (/^\d+(?:\.0+)?\s*(?:支|sticks?)?$/i.test(text) ? Number.parseInt(text, 10) : NaN);
+    if (Number.isInteger(parsed) && parsed > 0 && !sizes.includes(parsed)) sizes.push(parsed);
+  }
+  return sizes;
 }
 
 export function buildDay1Payload(state: Day1DraftInput): Day1Payload {

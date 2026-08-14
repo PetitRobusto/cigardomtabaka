@@ -1,5 +1,5 @@
 import type { Day1AccountInput, Day1AccountSlot, Day1Currency } from '../../features/day1/day1State';
-import { day1AccountSlots } from '../../features/day1/day1State';
+import { day1AccountSlots, defaultAccountName } from '../../features/day1/day1State';
 
 const labels: Record<Day1AccountSlot, string> = {
   owner_cny: '我的人民币账户',
@@ -26,14 +26,14 @@ export default function Day1AccountsStep({ accounts, onChange, readOnly = false 
   };
 
   return <section className="rounded-md border border-border bg-white p-5 shadow-sm">
-    <div className="mb-5"><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Step 2 · Funds</p><h2 className="mt-1 font-display text-2xl font-semibold">四个固定账户</h2><p className="mt-2 text-sm text-muted">币种和账户槽位由系统固定；名称可以按实际账户补充。</p></div>
+    <div className="mb-5"><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Step 2 · Funds</p><h2 className="mt-1 font-display text-2xl font-semibold">四个固定账户</h2><p className="mt-2 text-sm text-muted">币种和账户槽位由系统固定；名称已提供默认值，也可以按实际账户修改。</p></div>
     <div className="space-y-4">
       {day1AccountSlots.map(({ slot, currency }) => {
-        const account = accounts.find(item => item.slot === slot) || { slot, currency, name: '', original_amount: '', cny_book_cost: '' };
+        const account = accounts.find(item => item.slot === slot) || { slot, currency, name: defaultAccountName(slot), original_amount: '', cny_book_cost: '' };
         return <div key={slot} className="grid gap-3 border-b border-border pb-4 last:border-0 sm:grid-cols-[1.25fr_90px_1fr_1fr] sm:items-end">
           <div><p className="font-medium text-fg">{labels[slot]}</p><p className="mt-1 text-xs text-muted">{slot}</p></div>
           <div><label className="mb-1 block text-xs font-medium text-muted">币种</label><div className="rounded border border-border bg-cream px-3 py-2 text-sm font-semibold">{currency}</div></div>
-          <label className="text-xs font-medium text-muted">账户名称<input disabled={readOnly} value={account.name} onChange={event => update(slot, 'name', event.target.value)} placeholder="可选" className="mt-1 w-full rounded border border-border px-3 py-2 text-sm text-fg" /></label>
+          <label className="text-xs font-medium text-muted">账户名称<input disabled={readOnly} value={account.name} onChange={event => update(slot, 'name', event.target.value)} className="mt-1 w-full rounded border border-border px-3 py-2 text-sm text-fg" /></label>
           <div className="grid grid-cols-2 gap-2">
             <label className="text-xs font-medium text-muted">原币余额<input disabled={readOnly} type="number" min="0" step="any" value={account.original_amount} onChange={event => update(slot, 'original_amount', event.target.value)} className="mt-1 w-full rounded border border-border px-3 py-2 text-sm text-fg" /></label>
             <label className="text-xs font-medium text-muted">账面成本 CNY<input disabled={readOnly || currency === 'CNY'} type="number" min="0" step="any" value={account.cny_book_cost} onChange={event => update(slot, 'cny_book_cost', event.target.value)} className="mt-1 w-full rounded border border-border px-3 py-2 text-sm text-fg disabled:bg-cream" /></label>

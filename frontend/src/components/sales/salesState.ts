@@ -166,10 +166,9 @@ export function actionNeedsFundAccount(action: string): boolean {
   return action === 'receive' || action === 'transport_cost';
 }
 
-export function isSalesAccountingNavActive(target: string, hash: string): boolean {
-  return target === '/sales#accounting' ? hash === 'accounting' : target === '/sales' && hash !== 'accounting';
+export function salesActionBlockedByAccount(action: string, accountsError: string): boolean {
+  return Boolean(accountsError) && actionNeedsFundAccount(action);
 }
-
 
 export function transportPayerChange(currentFee: string, nextPayer: TransportPayer): { payer: TransportPayer; fee: string } {
   // Once company clears the field, switching back to customer keeps the cleared value.

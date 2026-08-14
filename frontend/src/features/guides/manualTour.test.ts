@@ -29,7 +29,7 @@ describe('manual tour navigation', () => {
     const chapter = MANUAL_CHAPTERS.find(item => item.id === 'day1');
     expect(manualTourDecision(chapter!, { day1Status: 'completed' })).toEqual({
       kind: 'readonly',
-      destination: { route: '/accounting/day1', state: { guideTourId: 'day1-summary', readOnly: true } },
+      destination: { route: '/accounting/day1', state: { readOnly: true } },
     });
   });
 

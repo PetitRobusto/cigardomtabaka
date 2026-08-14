@@ -7,15 +7,27 @@ from decimal import Decimal, DecimalException, InvalidOperation, ROUND_HALF_UP
 import hashlib
 import json
 
+from django.utils import timezone
 from django.db import IntegrityError, transaction
 from django.db import models
 from django.db.models import Q
 
 from accounting.business_time import moscow_business_date
 from accounting.mutation_scope import ledger_mutation_scope
-from accounting.services import _acquire_sqlite_writer_gate, _retry_sqlite_locked
-from accounting.models import Day1Initialization, PurchaseDraftAction
-from cigars.models import Cigar, PurchaseOrder, PurchaseOrderItem, Supplier, User
+from accounting.services import (
+    LedgerError, PostingInput, _acquire_sqlite_writer_gate, _outflow_cny_cost,
+    _post_transaction_once, _retry_sqlite_locked,
+)
+from accounting.selectors import account_snapshot
+from accounting.models import (
+    Day1Initialization, FundAccount, LedgerPosting, LedgerTransaction,
+    PurchaseDraftAction, PurchasePayment,
+)
+from cigars.models import (
+    Cigar, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, StockMovement,
+    Supplier, User,
+)
+from cigars.services import AgentContext, _record_movement
 
 
 MONEY_PLACES = Decimal('0.01')
@@ -395,6 +407,13 @@ def _validate_operator(operator):
     return User.objects.get(pk=operator.pk)
 
 
+def _operator_id_for_replay(operator):
+    """重放只核对原操作人身份，不重新要求其仍有操作权限。"""
+    if not isinstance(operator, User) or not operator.pk:
+        raise PurchaseActionError('invalid_operator')
+    return operator.pk
+
+
 def _create_locked(*, supplier_id, items, business_date, operator, idempotency_key, expected_version, note, exchange_rate=None):
     operator = _validate_operator(operator)
     business_date = _date(business_date)
@@ -613,3 +632,279 @@ def cancel_purchase_order(*, purchase_order_id, operator, idempotency_key,
                       idempotency_key=idempotency_key, fingerprint=fingerprint,
                       operator=operator, result_version=order.version)
         return order
+
+
+
+def _action_key(value):
+    if not isinstance(value, str) or not value or len(value) > 128:
+        raise PurchaseActionError('invalid_idempotency_key')
+    return value
+
+
+def _canonical_order_rows(order):
+    rows = []
+    for item in order.items.select_related('cigar').order_by('id'):
+        if item.packaging_status == PurchaseOrderItem.PackagingStatus.REVIEW_REQUIRED:
+            raise PurchaseActionError('packaging_review_required', {'item_id': item.pk})
+        if not item.box_size or not item.box_quantity or item.unit_price_rub_per_box is None:
+            raise PurchaseActionError('packaging_review_required', {'item_id': item.pk})
+        quantity = item.box_size * item.box_quantity
+        if item.quantity != quantity:
+            raise PurchaseActionError('packaging_review_required', {'item_id': item.pk})
+        subtotal = (Decimal(item.box_quantity) * item.unit_price_rub_per_box).quantize(MONEY_PLACES)
+        rows.append((item, quantity, subtotal))
+    if not rows:
+        raise PurchaseActionError('invalid_items')
+    return rows
+
+
+def _canonical_rub_total(rows):
+    return sum((row[2] for row in rows), Decimal('0.00')).quantize(MONEY_PLACES)
+
+
+def _payment_conflict():
+    raise PurchaseActionError('idempotency_conflict')
+
+
+def _payment_replay(*, key, order_id, account_id, business_date, operator_id, rub_amount):
+    payment = PurchasePayment.objects.select_related('ledger_transaction').filter(
+        idempotency_key=key,
+    ).first()
+    if payment is None:
+        tx = LedgerTransaction.objects.filter(idempotency_key=key).first()
+        if tx is not None:
+            _payment_conflict()
+        return None
+    if (
+        payment.purchase_order_id != order_id
+        or payment.fund_account_id != account_id
+        or payment.rub_amount != rub_amount
+        or payment.business_date != business_date
+        or payment.operator_id != operator_id
+    ):
+        _payment_conflict()
+    return payment
+
+
+@_retry_sqlite_locked
+def pay_purchase_order(*, purchase_order_id, rub_account_id, business_date,
+                       operator, idempotency_key):
+    """一次性采购付款：按付款前卢布账户移动平均成本转入在途。"""
+    business_date = _date(business_date)
+    key = _action_key(idempotency_key)
+    order_id = _purchase_order_id(purchase_order_id)
+    account_id = _positive_int(rub_account_id, 'rub_account_id')
+    operator_id = _operator_id_for_replay(operator)
+
+    with transaction.atomic():
+        _acquire_sqlite_writer_gate()
+        # 先核对不可变付款事实；Day 1 或人员状态变化不能破坏合法重放。
+        existing_payment = PurchasePayment.objects.filter(idempotency_key=key).first()
+        if existing_payment is not None:
+            if existing_payment.purchase_order_id != order_id:
+                _payment_conflict()
+            replay_order = PurchaseOrder.objects.filter(pk=order_id).first()
+            if replay_order is None:
+                _payment_conflict()
+            replay = _payment_replay(
+                key=key, order_id=order_id, account_id=account_id,
+                business_date=business_date, operator_id=operator_id,
+                rub_amount=_canonical_rub_total(_canonical_order_rows(replay_order)),
+            )
+            if replay is not None:
+                return replay
+        elif LedgerTransaction.objects.filter(idempotency_key=key).exists():
+            _payment_conflict()
+
+        _require_day1_completed()
+        operator = _validate_operator(operator)
+        order = PurchaseOrder.objects.select_for_update().filter(pk=order_id).first()
+        if order is None:
+            raise PurchaseActionError(
+                'purchase_order_not_found', {'purchase_order_id': order_id}
+            )
+        account = FundAccount.objects.select_for_update().filter(pk=account_id).first()
+        if account is None:
+            raise PurchaseActionError('account_not_found')
+        rows = _canonical_order_rows(order)
+        rub_amount = _canonical_rub_total(rows)
+        if order.status != PurchaseOrder.Status.DRAFT:
+            raise PurchaseActionError('invalid_state', {'status': order.status})
+        if rub_amount <= 0:
+            raise PurchaseActionError('invalid_amount')
+        if account.currency != FundAccount.Currency.RUB:
+            raise PurchaseActionError('invalid_account_currency')
+        if not account.is_active:
+            raise PurchaseActionError('account_inactive')
+        snapshot = account_snapshot(account)
+        if rub_amount > snapshot.original_balance:
+            raise PurchaseActionError('insufficient_balance')
+        try:
+            cny_cost = _outflow_cny_cost(account, rub_amount)
+        except LedgerError as error:
+            if '余额不足' in str(error):
+                raise PurchaseActionError('insufficient_balance') from error
+            raise PurchaseActionError('ledger_error', {'message': str(error)}) from error
+
+        ledger = _post_transaction_once(
+            transaction_type=LedgerTransaction.TransactionType.PURCHASE_PAYMENT,
+            business_date=business_date,
+            postings=[
+                PostingInput(account=account, currency=FundAccount.Currency.RUB,
+                             amount=-rub_amount, cny_amount=-cny_cost),
+                PostingInput(category=LedgerPosting.Category.PURCHASE_IN_TRANSIT,
+                             currency=FundAccount.Currency.CNY,
+                             amount=cny_cost, cny_amount=cny_cost),
+            ],
+            operator=operator, idempotency_key=key,
+            description=f'采购单 {order.order_number} 付款',
+            source_type='purchase_order', source_id=str(order.pk),
+            _writer_gate=False,
+        )
+        now = timezone.now()
+        with ledger_mutation_scope(
+            reason='purchase_payment', model='cigars.PurchaseOrder',
+            operator=operator,
+            allowed_fields={'status', 'paid_cny_cost', 'paid_at', 'payment_idempotency_key'},
+        ):
+            order.status = PurchaseOrder.Status.IN_TRANSIT
+            order.paid_cny_cost = cny_cost
+            order.paid_at = now
+            order.payment_idempotency_key = key
+            order.save(update_fields=[
+                'status', 'paid_cny_cost', 'paid_at', 'payment_idempotency_key',
+            ])
+        payment = PurchasePayment(
+            purchase_order=order, fund_account=account, rub_amount=rub_amount,
+            cny_cost=cny_cost, business_date=business_date, operator=operator,
+            ledger_transaction=ledger, idempotency_key=key,
+            request_fingerprint=hashlib.sha256(
+                f'{order.pk}|{account.pk}|{rub_amount}|{business_date.isoformat()}|{operator.pk}'.encode()
+            ).hexdigest(),
+        )
+        with ledger_mutation_scope(
+            reason='purchase_payment', model='accounting.PurchasePayment',
+            operator=operator,
+            allowed_fields={field.name for field in payment._meta.concrete_fields},
+        ):
+            payment.save(force_insert=True)
+        return payment
+
+
+@_retry_sqlite_locked
+def receive_paid_purchase_order(*, purchase_order_id, business_date, operator,
+                                idempotency_key, note='', agent_context=None):
+    """整单到货：按 canonical 卢布小计分配已付款人民币尾差。"""
+    business_date = _date(business_date)
+    key = _action_key(idempotency_key)
+    order_id = _purchase_order_id(purchase_order_id)
+    operator_id = _operator_id_for_replay(operator)
+
+    with transaction.atomic():
+        _acquire_sqlite_writer_gate()
+        # 到货事实先于当前门禁核对，保证终态订单可稳定重放。
+        existing_tx = LedgerTransaction.objects.filter(idempotency_key=key).first()
+        replay_order = PurchaseOrder.objects.filter(pk=order_id).first()
+        if replay_order is None:
+            if existing_tx is not None:
+                raise PurchaseActionError('idempotency_conflict')
+            raise PurchaseActionError(
+                'purchase_order_not_found', {'purchase_order_id': order_id}
+            )
+        existing_order_tx = LedgerTransaction.objects.filter(
+            source_type='purchase_order', source_id=str(order_id),
+            transaction_type=LedgerTransaction.TransactionType.PURCHASE_RECEIPT,
+        ).first()
+        if existing_order_tx is not None:
+            if (
+                replay_order.arrival_idempotency_key == key
+                and existing_order_tx.business_date == business_date
+                and existing_order_tx.operator_id == operator_id
+            ):
+                return list(PurchaseBatch.objects.filter(
+                    purchase_order_item__purchase_order_id=order_id,
+                ).order_by('id'))
+            raise PurchaseActionError('idempotency_conflict')
+        if existing_tx is not None or replay_order.arrival_idempotency_key:
+            raise PurchaseActionError('idempotency_conflict')
+
+        _require_day1_completed()
+        operator = _validate_operator(operator)
+        order = PurchaseOrder.objects.select_for_update().get(pk=order_id)
+        items = list(order.items.select_for_update().select_related('cigar').order_by('id'))
+        if order.status != PurchaseOrder.Status.IN_TRANSIT:
+            raise PurchaseActionError('invalid_state', {'status': order.status})
+        if order.paid_cny_cost is None or order.paid_cny_cost <= 0 or order.paid_at is None:
+            raise PurchaseActionError('missing_payment')
+        if PurchaseBatch.objects.filter(purchase_order_item__purchase_order_id=order_id).exists():
+            raise PurchaseActionError('already_received')
+        rows = _canonical_order_rows(order)
+        rub_total = _canonical_rub_total(rows)
+        paid = Decimal(order.paid_cny_cost).quantize(MONEY_PLACES)
+        if rub_total <= 0:
+            raise PurchaseActionError('invalid_amount')
+
+        allocations = []
+        allocated = Decimal('0.00')
+        for index, (item, quantity, rub_subtotal) in enumerate(rows):
+            if index == len(rows) - 1:
+                actual = paid - allocated
+            else:
+                actual = (paid * rub_subtotal / rub_total).quantize(MONEY_PLACES)
+                allocated += actual
+            allocations.append((item, quantity, actual.quantize(MONEY_PLACES)))
+
+        batches = []
+        context = agent_context or AgentContext(command_name='receive_paid_purchase_order', idempotency_key=key)
+        for item, quantity, actual in allocations:
+            unit_cost = (actual / quantity).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
+            with ledger_mutation_scope(
+                reason='purchase_receipt', model='cigars.PurchaseOrderItem',
+                operator=operator, allowed_fields={'actual_cost_cny'},
+            ):
+                item.actual_cost_cny = actual
+                item.save(update_fields=['actual_cost_cny'])
+            boxes = item.box_quantity
+            batch = PurchaseBatch.objects.create(
+                purchase_order_item=item, cigar=item.cigar,
+                quantity=quantity, remaining=quantity, physical_remaining=quantity,
+                original_cost_cny=actual, remaining_cost_cny=actual,
+                sold_cost_cny=Decimal('0.00'), unit_cost_cny=unit_cost,
+                box_size=item.box_size, original_box_quantity=boxes,
+                original_stick_quantity=0, physical_box_quantity=boxes,
+                available_box_quantity=boxes, physical_stick_quantity=0,
+                available_stick_quantity=0,
+            )
+            _record_movement(
+                movement_type=StockMovement.MovementType.RECEIVE,
+                cigar=item.cigar, purchase_batch=batch, quantity=quantity,
+                operator=operator, context=context, note=note,
+            )
+            batches.append(batch)
+
+        ledger = _post_transaction_once(
+            transaction_type=LedgerTransaction.TransactionType.PURCHASE_RECEIPT,
+            business_date=business_date,
+            postings=[
+                PostingInput(category=LedgerPosting.Category.PURCHASE_IN_TRANSIT,
+                             currency=FundAccount.Currency.CNY,
+                             amount=-paid, cny_amount=-paid),
+                PostingInput(category=LedgerPosting.Category.INVENTORY,
+                             currency=FundAccount.Currency.CNY,
+                             amount=paid, cny_amount=paid),
+            ],
+            operator=operator, idempotency_key=key,
+            description=f'采购单 {order.order_number} 到货',
+            source_type='purchase_order', source_id=str(order.pk),
+            _writer_gate=False,
+        )
+        with ledger_mutation_scope(
+            reason='purchase_receipt', model='cigars.PurchaseOrder',
+            operator=operator,
+            allowed_fields={'status', 'arrival_idempotency_key', 'legacy_received'},
+        ):
+            order.status = PurchaseOrder.Status.RECEIVED
+            order.arrival_idempotency_key = key
+            order.legacy_received = False
+            order.save(update_fields=['status', 'arrival_idempotency_key', 'legacy_received'])
+        return batches

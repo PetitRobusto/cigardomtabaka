@@ -101,6 +101,13 @@ def _purchase_error_body(exc):
     }
 
 
+def _order_service_error_result(exc):
+    """兼容服务携带采购 code 时，沿用 canonical HTTP 错误协议。"""
+    if exc.code:
+        return _purchase_error_body(exc), _purchase_error_status(exc.code)
+    return {'error': str(exc), 'details': exc.details}, 400
+
+
 def _agent_context(body, command_name):
     agent = body.get('agent') or {}
     idempotency_key = str(body.get('idempotency_key') or '').strip()
@@ -123,7 +130,8 @@ def _idempotent_command(request, command_name, handler, *, canonical_action=Fals
         operator = _resolve_operator(request, body)
         context = _agent_context(body, command_name)
     except OrderServiceError as exc:
-        return _json_response({'error': str(exc), 'details': exc.details}, status=400)
+        response_body, status_code = _order_service_error_result(exc)
+        return _json_response(response_body, status=status_code)
 
     if canonical_action:
         body_hash = _request_hash(body)
@@ -155,8 +163,7 @@ def _idempotent_command(request, command_name, handler, *, canonical_action=Fals
                     response_body = _purchase_error_body(exc)
                     status_code = _purchase_error_status(exc.code)
                 except OrderServiceError as exc:
-                    response_body = {'error': str(exc), 'details': exc.details}
-                    status_code = 400
+                    response_body, status_code = _order_service_error_result(exc)
                 IdempotencyRecord.objects.filter(pk=record.pk).update(
                     response_body=response_body, status_code=status_code,
                 )
@@ -165,7 +172,8 @@ def _idempotent_command(request, command_name, handler, *, canonical_action=Fals
             response_body = _purchase_error_body(exc)
             return _json_response(response_body, status=_purchase_error_status(exc.code))
         except OrderServiceError as exc:
-            return _json_response({'error': str(exc), 'details': exc.details}, status=400)
+            response_body, status_code = _order_service_error_result(exc)
+            return _json_response(response_body, status=status_code)
 
     body_hash = _request_hash(body)
     with transaction.atomic():
@@ -188,8 +196,7 @@ def _idempotent_command(request, command_name, handler, *, canonical_action=Fals
             response_body = _purchase_error_body(exc)
             status_code = _purchase_error_status(exc.code)
         except OrderServiceError as exc:
-            response_body = {'error': str(exc), 'details': exc.details}
-            status_code = 400
+            response_body, status_code = _order_service_error_result(exc)
         except SalesOrder.DoesNotExist:
             response_body = {'error': '销售单不存在'}
             status_code = 404

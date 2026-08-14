@@ -66,9 +66,11 @@ describe('Day 1 state rules', () => {
 
   it('formats the frozen summary as account and inventory rows', () => {
     const model = completionSummaryViewModel({
-      accounts: [{ name: '我的人民币账户', currency: 'CNY', original_amount: '10.00', cny_book_cost: '10.00' }],
-      inventory: [{ cigar_id: 4, box_size: 25, box_quantity: 1, loose_sticks: 2, unit_cost_cny: '12.50', quantity: 27, total_cost_cny: '337.50' }],
-      opening_capital_cny: '347.50', total_net_assets_cny: '347.50',
+      initialization_id: 1, idempotency_key: 'key', request_hash: 'hash', operator_id: 2, business_date: '2026-08-14',
+      retained_earnings_cny: '0.00', opening_capital_cny: '347.50', total_net_assets_cny: '347.50', accounts_total_cny: '10.00', inventory_total_cny: '337.50',
+      account_count: 1, inventory_count: 1, ledger_transaction_id: 3,
+      accounts: [{ slot: 'owner_cny', name: '我的人民币账户', currency: 'CNY', original_amount: '10.00', cny_book_cost: '10.00', account_id: 4 }],
+      inventory: [{ cigar_id: 4, box_size: 25, box_quantity: 1, loose_sticks: 2, unit_cost_cny: '12.50', quantity: 27, total_cost_cny: '337.50', batch_id: 5 }],
     });
     expect(model.accounts[0]).toMatchObject({ name: '我的人民币账户', originalAmount: '10.00', bookCost: '10.00' });
     expect(model.inventory[0]).toMatchObject({ quantity: 27, totalCost: '337.50' });

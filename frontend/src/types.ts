@@ -656,7 +656,37 @@ export interface Day1InventoryDraft {
 }
 
 export interface Day1CompletionSummary {
-  [key: string]: string | number | null | undefined;
+  initialization_id: number;
+  idempotency_key: string;
+  request_hash: string;
+  operator_id: number;
+  business_date: string;
+  retained_earnings_cny: string;
+  opening_capital_cny: string;
+  total_net_assets_cny: string;
+  accounts_total_cny: string;
+  inventory_total_cny: string;
+  account_count: number;
+  inventory_count: number;
+  ledger_transaction_id: number;
+  accounts: Array<{
+    slot: 'owner_cny' | 'partner_cny' | 'rub' | 'usdt';
+    name: string;
+    currency: 'CNY' | 'RUB' | 'USDT';
+    original_amount: string;
+    cny_book_cost: string;
+    account_id: number;
+  }>;
+  inventory: Array<{
+    cigar_id: number;
+    box_size: number;
+    box_quantity: number;
+    loose_sticks: number;
+    unit_cost_cny: string;
+    quantity: number;
+    total_cost_cny: string;
+    batch_id: number;
+  }>;
 }
 
 export interface Day1State {

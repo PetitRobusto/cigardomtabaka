@@ -6,15 +6,16 @@ import { usePageMeta } from '../hooks/usePageMeta';
 import AccountingPanel from '../components/sales/AccountingPanel';
 import { formatCny, formatSignedCny } from '../components/sales/salesState';
 import { dashboardDay1Action, dashboardRegionStates, dashboardStatDisplay } from './businessRoutes';
+import { moscowBusinessDate, moscowBusinessMonth } from '../utils/businessDate';
 
 export default function AccountingDashboardPage() {
   const { setMeta } = usePageMeta();
   const queryClient = useQueryClient();
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [month, setMonth] = useState(moscowBusinessMonth());
   useEffect(() => { setMeta({ title: '账务工作台', breadcrumbs: [{ label: '首页', to: '/' }, { label: '账务工作台' }] }); }, [setMeta]);
   const dashboard = useQuery({ queryKey: ['accounting-dashboard'], queryFn: fetchAccountingDashboard });
   const accounts = useQuery({ queryKey: ['accounting-accounts'], queryFn: fetchAccountingAccounts, enabled: Boolean(dashboard.data && !dashboard.data.requires_day1) });
-  const summary = useQuery({ queryKey: ['accounting-summary'], queryFn: () => fetchAccountingSummary(new Date().toISOString().slice(0, 10)), enabled: Boolean(dashboard.data && !dashboard.data.requires_day1) });
+  const summary = useQuery({ queryKey: ['accounting-summary'], queryFn: () => fetchAccountingSummary(moscowBusinessDate()), enabled: Boolean(dashboard.data && !dashboard.data.requires_day1) });
   const profit = useQuery({ queryKey: ['monthly-profit', month], queryFn: () => fetchMonthlyProfit(month), enabled: Boolean(dashboard.data && !dashboard.data.requires_day1) });
   const reconciliations = useQuery({ queryKey: ['reconciliations'], queryFn: fetchReconciliations, enabled: Boolean(dashboard.data && !dashboard.data.requires_day1) });
   // Refresh the dashboard snapshot and its supporting action panels together.

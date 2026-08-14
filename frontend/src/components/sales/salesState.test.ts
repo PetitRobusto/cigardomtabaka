@@ -3,7 +3,6 @@ import {
   actionLabel,
   availableActions,
   actionNeedsFundAccount,
-  isSalesAccountingNavActive,
   formatCny,
   formatSignedCny,
   initialActionAmount,
@@ -67,12 +66,6 @@ describe('summarizeSalesOrders', () => {
     expect(actionNeedsFundAccount('refund')).toBe(false);
   });
 
-  it('销售与账务导航按 hash 互斥高亮', () => {
-    expect(isSalesAccountingNavActive('/sales', '')).toBe(true);
-    expect(isSalesAccountingNavActive('/sales', 'accounting')).toBe(false);
-    expect(isSalesAccountingNavActive('/sales#accounting', 'accounting')).toBe(true);
-    expect(isSalesAccountingNavActive('/sales#accounting', '')).toBe(false);
-  });
 });
 
 

@@ -10,7 +10,7 @@ export interface ContextTourStep {
 
 const salesSteps: readonly ContextTourStep[] = [
   { id: 'sales-orders', title: '创建销售单', description: '先录入客户、商品和价格，保存为草稿。', target: '[data-guide="sales-orders"]', route: '/sales' },
-  { id: 'sales-fulfillment', title: '出库与收款', description: '确认后按真实发生顺序登记出库和人民币收款。', target: '[data-guide="sales-fulfillment"]', route: '/sales' },
+  { id: 'sales-fulfillment', title: '出库与收款', description: '先展开订单卡，再按真实发生顺序操作出库和人民币收款。', target: '[data-guide="sales-fulfillment"]', route: '/sales' },
   { id: 'accounting-reconciliation', title: '账户对账', description: '用实际余额核对系统账面，确认每一笔差异。', target: '[data-guide="accounting-reconciliation"]', route: '/accounting' },
   { id: 'accounting-profit', title: '查看月利润', description: '月度利润汇总收入、批次成本与费用。', target: '[data-guide="accounting-profit"]', route: '/accounting' },
 ];

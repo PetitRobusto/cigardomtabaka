@@ -1,10 +1,12 @@
 import json
+import threading
 from datetime import date
 from decimal import Decimal
 
 from django.db import models, transaction
-from django.test import Client, TestCase
+from django.test import Client, TestCase, TransactionTestCase
 from django.utils import timezone
+from django.db import close_old_connections
 
 from accounting.models import LedgerTransaction
 from accounting.mutation_scope import ledger_mutation_scope
@@ -761,11 +763,27 @@ class PurchaseReceivingServiceTest(TestCase):
         self.operator = create_operator()
         self.supplier = Supplier.objects.get(name='Habanos')
         self.cigar = create_cigar()
+        self.purchase_seq = 0
+        from accounting.day1 import confirm_day1, save_day1_draft
+        payload = {
+            'business_date': date(2026, 8, 14),
+            'accounts': [
+                {'slot': 'owner_cny', 'name': '采购测试老板人民币', 'currency': 'CNY', 'original_amount': '100.00', 'cny_book_cost': '100.00'},
+                {'slot': 'partner_cny', 'name': '采购测试合伙人人民币', 'currency': 'CNY', 'original_amount': '0.00', 'cny_book_cost': '0.00'},
+                {'slot': 'rub', 'name': '采购测试卢布账户', 'currency': 'RUB', 'original_amount': '0.00', 'cny_book_cost': '0.00'},
+                {'slot': 'usdt', 'name': '采购测试USDT账户', 'currency': 'USDT', 'original_amount': '0.00000000', 'cny_book_cost': '0.00'},
+            ],
+            'inventory': [],
+        }
+        draft = save_day1_draft(payload=payload, expected_version=0, operator=self.operator)
+        confirm_day1(expected_version=draft.version, operator=self.operator, idempotency_key='purchase-service-day1')
 
     def _paid_in_transit_order(self, item_updates=None):
+        self.purchase_seq += 1
         order = create_purchase_order(
             supplier_id=self.supplier.id, exchange_rate='0.0800',
             operator=self.operator,
+            business_date=date(2026, 8, 14), idempotency_key=f'purchase-direct-paid-{self.purchase_seq}',
             items=[{'cigar_id': self.cigar.id, 'quantity': 25, 'box_size': 25, 'unit_price_rub': '1000.00'}],
         )
         if item_updates:
@@ -809,11 +827,22 @@ class PurchaseReceivingServiceTest(TestCase):
                     receive_purchase_order(purchase_order_id=order.id, operator=self.operator)
                 self.assertFalse(PurchaseBatch.objects.exists())
 
+    def test_legacy_direct_create_without_key_uses_compatibility_boundary(self):
+        order = create_purchase_order(
+            supplier_id=self.supplier.id,
+            exchange_rate='0.0800',
+            operator=self.operator,
+            items=[{'cigar_id': self.cigar.id, 'quantity': 25, 'box_size': 25, 'unit_price_rub': '1000.00'}],
+        )
+        self.assertEqual(order.status, PurchaseOrder.Status.DRAFT)
+        self.assertEqual(order.items.get().quantity, 25)
+
     def test_create_purchase_order_is_atomic_when_later_item_fails(self):
         with self.assertRaisesMessage(OrderServiceError, "第2个采购明细雪茄不存在"):
             create_purchase_order(
                 supplier_id=self.supplier.id, exchange_rate="0.0800",
                 operator=self.operator,
+                business_date=date(2026, 8, 14), idempotency_key='purchase-direct-atomic',
                 items=[
                     {"cigar_id": self.cigar.id, "quantity": 25, "box_size": 25, "unit_price_rub": "1000.00"},
                     {"cigar_id": 999999, "quantity": 10, "box_size": 10, "unit_price_rub": "1200.00"},
@@ -827,6 +856,7 @@ class PurchaseReceivingServiceTest(TestCase):
             supplier_id=self.supplier.id,
             exchange_rate='0.0800',
             operator=self.operator,
+            business_date=date(2026, 8, 14), idempotency_key='purchase-direct-draft',
             agent_context=context(command='create_purchase_order', key='po-create'),
             note='待二次确认',
             items=[{
@@ -850,6 +880,7 @@ class PurchaseReceivingServiceTest(TestCase):
             supplier_id=self.supplier.id,
             exchange_rate='0.0800',
             operator=self.operator,
+            business_date=date(2026, 8, 14), idempotency_key='purchase-direct-receive',
             agent_context=context(command='create_purchase_order', key='po-create'),
             items=[
                 {'cigar_id': self.cigar.id, 'quantity': 25, 'box_size': 25, 'unit_price_rub': '1000.00'},
@@ -902,8 +933,9 @@ class PurchaseReceivingServiceTest(TestCase):
                 supplier_id=99999,
                 exchange_rate='0.0800',
                 operator=self.operator,
+                business_date=date(2026, 8, 14), idempotency_key='purchase-direct-missing',
                 agent_context=context(command='create_purchase_order', key='po-create'),
-                items=[{'cigar_id': self.cigar.id, 'quantity': 1, 'unit_price_rub': '1000.00'}],
+                items=[{'cigar_id': self.cigar.id, 'quantity': 1, 'box_size': 1, 'unit_price_rub': '1000.00'}],
             )
 
 
@@ -999,6 +1031,19 @@ class AgentPurchaseReceivingApiTest(TestCase):
         self.client.login(username=self.operator.username, password='pass')
         self.supplier = Supplier.objects.get(name='Habanos')
         self.cigar = create_cigar()
+        from accounting.day1 import confirm_day1, save_day1_draft
+        self.day1_payload = {
+            'business_date': date(2026, 8, 14),
+            'accounts': [
+                {'slot': 'owner_cny', 'name': 'API老板人民币', 'currency': 'CNY', 'original_amount': '100.00', 'cny_book_cost': '100.00'},
+                {'slot': 'partner_cny', 'name': 'API合伙人人民币', 'currency': 'CNY', 'original_amount': '0.00', 'cny_book_cost': '0.00'},
+                {'slot': 'rub', 'name': 'API卢布账户', 'currency': 'RUB', 'original_amount': '0.00', 'cny_book_cost': '0.00'},
+                {'slot': 'usdt', 'name': 'API USDT账户', 'currency': 'USDT', 'original_amount': '0.00000000', 'cny_book_cost': '0.00'},
+            ],
+            'inventory': [],
+        }
+        draft = save_day1_draft(payload=self.day1_payload, expected_version=0, operator=self.operator)
+        confirm_day1(expected_version=draft.version, operator=self.operator, idempotency_key='agent-api-day1')
 
     def _save_paid(self, order):
         with transaction.atomic(), ledger_mutation_scope(reason='purchase_payment', model='cigars.PurchaseOrder', operator=self.operator, allowed_fields={'status', 'paid_cny_cost', 'paid_at'}):
@@ -1074,6 +1119,114 @@ class AgentPurchaseReceivingApiTest(TestCase):
         self.assertEqual(receive_record.operator, self.operator)
         self.assertEqual(receive_record.agent_name, 'codex')
 
+    def test_create_replay_returns_first_draft_after_cancel(self):
+        first = self.post_json('/api/agent/purchase-orders/create/', self.create_body(key='po-replay-after-cancel'))
+        self.assertEqual(first.status_code, 200)
+        purchase_order_id = first.json()['purchase_order']['id']
+        cancel = self.post_json('/api/agent/purchase-orders/cancel/', {
+            'idempotency_key': 'po-cancel-after-create',
+            'operator_id': self.operator.id,
+            'agent': self.agent('req-cancel'),
+            'purchase_order_id': purchase_order_id,
+            'expected_version': first.json()['purchase_order']['version'],
+            'note': '取消测试',
+        })
+        self.assertEqual(cancel.status_code, 200)
+        self.assertEqual(cancel.json()['purchase_order']['status'], 'cancelled')
+
+        replay = self.post_json('/api/agent/purchase-orders/create/', self.create_body(key='po-replay-after-cancel'))
+        self.assertEqual(replay.status_code, 200)
+        self.assertEqual(replay.json(), first.json())
+        self.assertEqual(replay.json()['purchase_order']['status'], 'draft')
+        self.assertEqual(PurchaseOrder.objects.count(), 1)
+
+    def test_canonical_mirror_replays_business_error_response(self):
+        from accounting.models import Day1Initialization
+        from cigars.models import IdempotencyRecord
+        Day1Initialization.objects.all().update(status=Day1Initialization.Status.DRAFT)
+        body = self.create_body(key='po-day1-error-replay')
+        first = self.post_json('/api/agent/purchase-orders/create/', body)
+        self.assertEqual(first.status_code, 409)
+        self.assertEqual(first.json()['code'], 'day1_incomplete')
+        Day1Initialization.objects.all().update(status=Day1Initialization.Status.COMPLETED)
+        second = self.post_json('/api/agent/purchase-orders/create/', body)
+        self.assertEqual(second.status_code, first.status_code)
+        self.assertEqual(second.json(), first.json())
+        self.assertEqual(PurchaseOrder.objects.count(), 0)
+        self.assertEqual(IdempotencyRecord.objects.get(key='po-day1-error-replay').status_code, 409)
+
+    def test_update_invalid_state_returns_409(self):
+        created = self.post_json('/api/agent/purchase-orders/create/', self.create_body(key='po-update-state-create'))
+        order_id = created.json()['purchase_order']['id']
+        order = PurchaseOrder.objects.get(pk=order_id)
+        order.status = PurchaseOrder.Status.IN_TRANSIT
+        order.paid_cny_cost = Decimal('1000.00')
+        order.paid_at = timezone.now()
+        self._save_paid(order)
+        response = self.post_json('/api/agent/purchase-orders/update/', {
+            'idempotency_key': 'po-update-invalid-state',
+            'operator_id': self.operator.id,
+            'agent': self.agent('req-update-state'),
+            'purchase_order_id': order_id,
+            'expected_version': order.version,
+            'items': [{
+                'cigar_id': self.cigar.id, 'box_size': 25, 'box_quantity': 1,
+                'unit_price_rub_per_box': '1000.00',
+            }],
+        })
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['code'], 'invalid_state')
+
+    def test_cancel_invalid_state_returns_409(self):
+        created = self.post_json('/api/agent/purchase-orders/create/', self.create_body(key='po-cancel-state-create'))
+        order_id = created.json()['purchase_order']['id']
+        order = PurchaseOrder.objects.get(pk=order_id)
+        order.status = PurchaseOrder.Status.IN_TRANSIT
+        order.paid_cny_cost = Decimal('1000.00')
+        order.paid_at = timezone.now()
+        self._save_paid(order)
+        response = self.post_json('/api/agent/purchase-orders/cancel/', {
+            'idempotency_key': 'po-cancel-invalid-state',
+            'operator_id': self.operator.id,
+            'agent': self.agent('req-cancel-state'),
+            'purchase_order_id': order_id,
+            'expected_version': order.version,
+        })
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['code'], 'invalid_state')
+
+    def test_update_invalid_purchase_order_id_returns_400(self):
+        for index, value in enumerate(('abc', '999999999999999999999999999999')):
+            with self.subTest(value=value):
+                body = {
+                    'idempotency_key': f'po-update-invalid-id-{index}',
+                    'operator_id': self.operator.id,
+                    'agent': self.agent(f'req-update-invalid-id-{index}'),
+                    'purchase_order_id': value,
+                    'expected_version': 1,
+                    'items': [{
+                        'cigar_id': self.cigar.id, 'box_size': 25,
+                        'box_quantity': 1, 'unit_price_rub_per_box': '1000.00',
+                    }],
+                }
+                response = self.post_json('/api/agent/purchase-orders/update/', body)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()['code'], 'invalid_purchase_order_id')
+
+    def test_cancel_invalid_purchase_order_id_returns_400(self):
+        for index, value in enumerate(('abc', '999999999999999999999999999999')):
+            with self.subTest(value=value):
+                body = {
+                    'idempotency_key': f'po-cancel-invalid-id-{index}',
+                    'operator_id': self.operator.id,
+                    'agent': self.agent(f'req-cancel-invalid-id-{index}'),
+                    'purchase_order_id': value,
+                    'expected_version': 1,
+                }
+                response = self.post_json('/api/agent/purchase-orders/cancel/', body)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()['code'], 'invalid_purchase_order_id')
+
     def test_supplier_list_exposes_seeded_habanos_id(self):
         response = self.client.get('/api/agent/suppliers/?q=habanos')
 
@@ -1116,13 +1269,87 @@ class AgentPurchaseReceivingApiTest(TestCase):
         self.assertEqual(PurchaseOrder.objects.count(), 1)
         self.assertFalse(PurchaseBatch.objects.exists())
 
-    def test_missing_supplier_returns_400(self):
+    def test_missing_supplier_returns_404(self):
         body = self.create_body()
         body['idempotency_key'] = 'po-missing-supplier'
         body['supplier_id'] = 99999
 
         response = self.post_json('/api/agent/purchase-orders/create/', body)
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json()['error'], '供应商不存在')
         self.assertFalse(PurchaseOrder.objects.exists())
+
+
+class CanonicalPurchaseMirrorConcurrencyTest(TransactionTestCase):
+    reset_sequences = True
+
+    def setUp(self):
+        self.operator = create_operator('mirror-concurrency')
+        self.operator.telegram_id = 'mirror-concurrency-telegram'
+        self.operator.save(update_fields=['telegram_id'])
+        self.supplier = Supplier.objects.create(name='Mirror concurrency supplier')
+        self.cigar = create_cigar()
+        from accounting.models import Day1Initialization
+        Day1Initialization.objects.create(
+            status=Day1Initialization.Status.COMPLETED,
+            updated_by=self.operator, completed_by=self.operator,
+        )
+
+    def _body(self, key='mirror-concurrent', quantity=25):
+        return {
+            'idempotency_key': key,
+            'operator_id': self.operator.id,
+            'agent': {
+                'agent_name': 'codex', 'agent_run_id': 'mirror-run',
+                'agent_request_id': 'mirror-request',
+            },
+            'supplier_id': self.supplier.id,
+            'exchange_rate': '0.0800',
+            'items': [{
+                'cigar_id': self.cigar.id, 'quantity': quantity,
+                'box_size': 25, 'unit_price_rub': '1000.00',
+            }],
+        }
+
+    def _concurrent_posts(self, bodies):
+        barrier = threading.Barrier(len(bodies))
+        results = [None] * len(bodies)
+
+        def worker(index, body):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                client = Client()
+                response = client.post(
+                    '/api/agent/purchase-orders/create/',
+                    data=json.dumps(body), content_type='application/json',
+                    HTTP_X_TELEGRAM_ID='mirror-concurrency-telegram',
+                )
+                results[index] = (response.status_code, response.json())
+            except Exception as error:
+                results[index] = error
+            finally:
+                close_old_connections()
+
+        threads = [threading.Thread(target=worker, args=(i, body)) for i, body in enumerate(bodies)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=30)
+        self.assertTrue(all(not thread.is_alive() for thread in threads))
+        self.assertTrue(all(not isinstance(result, Exception) for result in results), results)
+        return results
+
+    def test_same_key_concurrent_create_is_one_success_and_one_replay(self):
+        results = self._concurrent_posts([self._body(), self._body()])
+        self.assertEqual([status for status, _ in results], [200, 200])
+        self.assertEqual(results[0][1], results[1][1])
+        self.assertEqual(PurchaseOrder.objects.count(), 1)
+        self.assertEqual(IdempotencyRecord.objects.filter(key='mirror-concurrent').count(), 1)
+
+    def test_different_body_same_key_concurrent_create_is_stable_conflict(self):
+        results = self._concurrent_posts([self._body(quantity=25), self._body(quantity=50)])
+        self.assertEqual(sorted(status for status, _ in results), [200, 409])
+        self.assertEqual(PurchaseOrder.objects.count(), 1)
+        self.assertEqual(IdempotencyRecord.objects.filter(key='mirror-concurrent').count(), 1)

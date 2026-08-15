@@ -13,14 +13,16 @@ from accounting.dividend_types import DividendPreview
 from accounting.errors import DividendActionError
 from accounting.mutation_scope import ledger_mutation_scope
 from accounting.models import (
-    Day1Initialization, Dividend, DividendDraftAction, FundAccount,
+    Dividend, DividendDraftAction, FundAccount,
     LedgerPosting, LedgerTransaction,
 )
+from accounting.guards import Day1IncompleteError, require_day1_completed
 from accounting.services import (
     CUTOVER_DATE, LedgerError, PostingInput, _acquire_sqlite_writer_gate,
     _outflow_cny_cost, _post_transaction_once, _require_operator,
     _retry_sqlite_locked, _strict_external_decimal,
 )
+from accounting.selectors import retained_earnings
 
 
 MONEY_PLACES = Decimal('0.01')
@@ -109,10 +111,10 @@ def _money(value, field='total_cny'):
 
 
 def _require_day1():
-    if not Day1Initialization.objects.filter(
-        singleton_key='company', status=Day1Initialization.Status.COMPLETED,
-    ).exists():
-        raise DividendActionError('day1_incomplete')
+    try:
+        require_day1_completed()
+    except Day1IncompleteError as error:
+        raise DividendActionError(error.code) from error
 
 
 def _action_replay(*, key, fingerprint):
@@ -176,52 +178,8 @@ def _lock_cny_accounts(account_ids):
 
 
 def _retained_earnings(*, as_of):
-    """从已入账经营分类派生累计留存收益，分红分类永不进入利润。"""
-    postings = LedgerPosting.objects.filter(
-        transaction__status=LedgerTransaction.Status.POSTED,
-        transaction__business_date__lte=as_of,
-    )
-    values = {
-        category: sum(
-            postings.filter(category=category).values_list('cny_amount', flat=True),
-            Decimal('0.00'),
-        )
-        for category in (
-            LedgerPosting.Category.SALES_REVENUE,
-            LedgerPosting.Category.CUSTOMER_TRANSPORT_REVENUE,
-            LedgerPosting.Category.COST_OF_GOODS_SOLD,
-            LedgerPosting.Category.TRANSPORT_EXPENSE,
-            LedgerPosting.Category.SALARY_EXPENSE,
-            LedgerPosting.Category.RENT_EXPENSE,
-            LedgerPosting.Category.UTILITIES_EXPENSE,
-            LedgerPosting.Category.OTHER_EXPENSE,
-            LedgerPosting.Category.INVENTORY_ADJUSTMENT_GAIN,
-            LedgerPosting.Category.INVENTORY_ADJUSTMENT_LOSS,
-            LedgerPosting.Category.RECONCILIATION_GAIN,
-            LedgerPosting.Category.RECONCILIATION_LOSS,
-        )
-    }
-    profit = (
-        -values[LedgerPosting.Category.SALES_REVENUE]
-        - values[LedgerPosting.Category.CUSTOMER_TRANSPORT_REVENUE]
-        + values[LedgerPosting.Category.COST_OF_GOODS_SOLD]
-        + values[LedgerPosting.Category.TRANSPORT_EXPENSE]
-        + values[LedgerPosting.Category.SALARY_EXPENSE]
-        + values[LedgerPosting.Category.RENT_EXPENSE]
-        + values[LedgerPosting.Category.UTILITIES_EXPENSE]
-        + values[LedgerPosting.Category.OTHER_EXPENSE]
-        - values[LedgerPosting.Category.INVENTORY_ADJUSTMENT_GAIN]
-        + values[LedgerPosting.Category.INVENTORY_ADJUSTMENT_LOSS]
-        - values[LedgerPosting.Category.RECONCILIATION_GAIN]
-        + values[LedgerPosting.Category.RECONCILIATION_LOSS]
-    )
-    dividends = sum(
-        Dividend.objects.filter(
-            status=Dividend.Status.POSTED, business_date__lte=as_of,
-        ).values_list('total_cny', flat=True), Decimal('0.00'),
-    )
-    # Day 1 期初留存收益固定为零；当前版本没有可编辑期初留存字段。
-    return (profit - dividends).quantize(MONEY_PLACES)
+    """Use the report selector so preview and monthly reports share one formula."""
+    return retained_earnings(as_of=as_of)
 
 
 def _warning(*, retained, requested):
@@ -274,6 +232,8 @@ def preview_dividend(*, dividend_id, operator) -> DividendPreview:
     dividend_id = _positive_integer(dividend_id, 'dividend_not_found')
     with transaction.atomic():
         _acquire_sqlite_writer_gate()
+        # Preview 会更新不可编辑的 warning 快照，因此也属于 Day 1 后的正式写动作。
+        _require_day1()
         dividend = Dividend.objects.select_for_update().filter(pk=dividend_id).first()
         if dividend is None:
             raise DividendActionError('dividend_not_found')
@@ -399,6 +359,52 @@ def _warning_error(*, retained, requested, fingerprint):
     })
 
 
+def _validate_confirm_replay(dividend, *, key):
+    """确认重放必须指向一笔完整、已入账且形状不变的分红流水。"""
+    ledger = LedgerTransaction.objects.filter(
+        pk=dividend.ledger_transaction_id,
+    ).first()
+    if ledger is None or ledger.status != LedgerTransaction.Status.POSTED:
+        raise DividendActionError('idempotency_conflict')
+    if (
+        dividend.status != Dividend.Status.POSTED
+        or dividend.confirm_idempotency_key != key
+        or dividend.confirmed_by_id is None
+        or ledger.transaction_type != LedgerTransaction.TransactionType.DIVIDEND
+        or ledger.idempotency_key != key
+        or ledger.source_type != 'dividend'
+        or ledger.source_id != str(dividend.pk)
+        or ledger.business_date != dividend.business_date
+        or ledger.operator_id != dividend.confirmed_by_id
+    ):
+        raise DividendActionError('idempotency_conflict')
+    if dividend.partner_a_account_id is None or dividend.partner_b_account_id is None:
+        raise DividendActionError('idempotency_conflict')
+    expected = sorted([
+        (
+            dividend.partner_a_account_id, '', FundAccount.Currency.CNY,
+            -dividend.partner_a_amount_cny, -dividend.partner_a_amount_cny,
+        ),
+        (
+            dividend.partner_b_account_id, '', FundAccount.Currency.CNY,
+            -dividend.partner_b_amount_cny, -dividend.partner_b_amount_cny,
+        ),
+        (
+            None, LedgerPosting.Category.DIVIDEND_DISTRIBUTION,
+            FundAccount.Currency.CNY, dividend.total_cny, dividend.total_cny,
+        ),
+    ], key=lambda row: (row[0] is None, row[0] or 0, row[1]))
+    actual = sorted([
+        (row['account_id'], row['category'], row['currency'],
+         row['amount'], row['cny_amount'])
+        for row in ledger.postings.values(
+            'account_id', 'category', 'currency', 'amount', 'cny_amount',
+        )
+    ], key=lambda row: (row[0] is None, row[0] or 0, row[1]))
+    if actual != expected:
+        raise DividendActionError('idempotency_conflict')
+
+
 @_retry_sqlite_locked
 def confirm_dividend(*, dividend_id, operator, idempotency_key, expected_version,
                      warning_fingerprint: str, warning_ack: bool) -> Dividend:
@@ -426,6 +432,7 @@ def confirm_dividend(*, dividend_id, operator, idempotency_key, expected_version
         if existing is not None:
             if existing.confirm_request_fingerprint != fingerprint:
                 raise DividendActionError('idempotency_conflict')
+            _validate_confirm_replay(existing, key=key)
             return existing
         if LedgerTransaction.objects.filter(idempotency_key=key).exists():
             raise DividendActionError('idempotency_conflict')

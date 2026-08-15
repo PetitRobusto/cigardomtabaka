@@ -8,13 +8,27 @@ from django.http import JsonResponse
 
 from accounting.business_time import moscow_business_date
 from accounting.decorators import staff_json_required
+from accounting.guards import Day1IncompleteError
 from accounting.day1 import (
     Day1Conflict, Day1ValidationError, Day1VersionConflict,
     confirm_day1, get_day1_state, save_day1_draft,
 )
 from accounting.day1_serializers import serialize_day1_state
+from accounting.action_serializers import (
+    serialize_dividend, serialize_expense, serialize_purchase_order,
+)
+from accounting.dividend_actions import (
+    DividendActionError, confirm_dividend, create_dividend_draft,
+    preview_dividend, update_dividend_draft,
+)
+from accounting.expense_actions import ExpenseActionError, record_expense
+from accounting.purchase_actions import (
+    PurchaseActionError, cancel_purchase_order, create_purchase_order,
+    pay_purchase_order, receive_paid_purchase_order, update_purchase_order_draft,
+)
 from accounting.models import (
-    AccountReconciliation, FundAccount, LedgerPosting, LedgerTransaction,
+    AccountReconciliation, Dividend, FundAccount, LedgerPosting,
+    LedgerTransaction,
 )
 from accounting.selectors import (
     accounting_dashboard, accounting_summary, monthly_profit,
@@ -29,11 +43,80 @@ from accounting.services import (
     confirm_reconciliation,
     create_reconciliation,
 )
-from cigars.models import User
+from cigars.models import PurchaseOrder, User
 
 
 class ApiInputError(Exception):
-    pass
+    def __init__(self, message, code='input_error', details=None):
+        super().__init__(message)
+        self.code = code
+        self.details = details or {}
+
+
+_ERROR_STATUS = {
+    'day1_incomplete': 409,
+    'insufficient_balance': 409,
+    'packaging_review_required': 409,
+    'idempotency_conflict': 409,
+    'warning_stale': 409,
+    'version_conflict': 409,
+    'busy': 503,
+    'currency_rule': 400,
+    'invalid_amount': 400,
+    'invalid_money_precision': 400,
+    'invalid_category': 400,
+    'invalid_business_date': 400,
+    'invalid_idempotency_key': 400,
+    'invalid_operator': 400,
+    'account_not_found': 404,
+    'purchase_order_not_found': 404,
+    'dividend_not_found': 404,
+    'invalid_state': 409,
+    'warning_required': 409,
+    'account_inactive': 409,
+    'historical_replay_required': 409,
+    'missing_payment': 409,
+    'already_received': 409,
+    'ledger_error': 409,
+    'supplier_not_found': 404,
+    'cigar_not_found': 404,
+}
+
+
+def error_response(error, *, default_status=400):
+    """Serialize domain failures with stable code/details and Decimal strings."""
+    code = getattr(error, 'code', None)
+    if not isinstance(code, str) or not code:
+        message = str(error)
+        if '请求正在处理中' in message:
+            code = 'busy'
+        elif '余额不足' in message:
+            code = 'insufficient_balance'
+        elif '换汇转出账户不能为卢布' in message or '换汇转入账户必须为卢布' in message:
+            code = 'currency_rule'
+        elif '币种' in message:
+            code = 'currency_rule'
+        elif '小数位数超出允许精度' in message or '超出范围' in message:
+            code = 'invalid_money_precision'
+        elif '必须大于零' in message or '必须是有效金额' in message:
+            code = 'invalid_amount'
+        else:
+            code = 'input_error' if isinstance(error, (ApiInputError, ValueError)) else 'ledger_error'
+    details = getattr(error, 'details', None)
+    if details is None:
+        details = {}
+    status = _ERROR_STATUS.get(code, default_status)
+    return JsonResponse(
+        {'error': str(error), 'code': code, 'details': _json_value(details)},
+        status=status,
+    )
+
+def _json_error(message, *, status=400, code='input_error', details=None):
+    """所有内部账失败响应都保留稳定的 error/code/details 外壳。"""
+    return JsonResponse({
+        'error': str(message), 'code': code, 'details': details or {},
+    }, status=status)
+
 
 
 def _json_value(value):
@@ -118,6 +201,16 @@ def _required_id(payload, field_name):
     return parsed
 
 
+def _optional_note(payload):
+    """动作备注只接受文本，避免容器值被数据库隐式字符串化。"""
+    value = payload.get('note', '')
+    if not isinstance(value, str):
+        raise ApiInputError(
+            'note 必须是字符串', details={'note': '必须是字符串'},
+        )
+    return value
+
+
 def _required_decimal_string(payload, field_name):
     value = payload.get(field_name)
     if not isinstance(value, str):
@@ -169,35 +262,34 @@ def _day1_error_response(error):
     if isinstance(error, Day1VersionConflict):
         return JsonResponse({
             'error': str(error), 'code': 'version_conflict',
+            'details': {},
         }, status=409)
     if isinstance(error, Day1Conflict):
+        conflicts = list(error.conflicts)
         return JsonResponse({
-            'error': str(error),
-            'code': 'day1_conflict',
-            'conflicts': list(error.conflicts),
+            'error': str(error), 'code': 'day1_conflict',
+            'conflicts': conflicts, 'details': {'conflicts': conflicts},
         }, status=409)
     if isinstance(error, Day1ValidationError):
         return JsonResponse({
             'error': str(error),
             'code': 'validation_error',
-            'details': error.details,
+            'details': error.details or {},
         }, status=400)
-    return JsonResponse({
-        'error': str(error), 'code': 'input_error',
-    }, status=400)
+    return _json_error(error)
 
 
 @staff_json_required
 def day1_status(request):
     if request.method != 'GET':
-        return JsonResponse({'error': '请求方法不支持'}, status=405)
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
     return JsonResponse(serialize_day1_state(get_day1_state()))
 
 
 @staff_json_required
 def day1_draft(request):
     if request.method != 'PUT':
-        return JsonResponse({'error': '请求方法不支持'}, status=405)
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
     try:
         saved = save_day1_draft(
             payload=_json_object(request),
@@ -209,13 +301,13 @@ def day1_draft(request):
     except (ApiInputError, Day1ValidationError, Day1VersionConflict, Day1Conflict) as error:
         return _day1_error_response(error)
     except OperationalError:
-        return JsonResponse({'error': '账务系统繁忙，请重试'}, status=503)
+        return _json_error('账务系统繁忙，请重试', status=503, code='busy')
 
 
 @staff_json_required
 def day1_confirm(request):
     if request.method != 'POST':
-        return JsonResponse({'error': '请求方法不支持'}, status=405)
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
     try:
         payload = _json_object(request)
         version = payload.get('version')
@@ -230,13 +322,13 @@ def day1_confirm(request):
     except (ApiInputError, Day1ValidationError, Day1VersionConflict, Day1Conflict) as error:
         return _day1_error_response(error)
     except OperationalError:
-        return JsonResponse({'error': '账务系统繁忙，请重试'}, status=503)
+        return _json_error('账务系统繁忙，请重试', status=503, code='busy')
 
 
 @staff_json_required
 def dashboard(request):
     if request.method != 'GET':
-        return JsonResponse({'error': '请求方法不支持'}, status=405)
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
     initialization = get_day1_state()
     status = initialization.status if initialization else 'not_started'
     if status != 'completed':
@@ -269,7 +361,7 @@ def accounts(request):
         accounts = FundAccount.objects.select_related('custodian')
         return JsonResponse({'accounts': [serialize_account(account) for account in accounts]})
     if request.method != 'POST':
-        return JsonResponse({'error': '请求方法不支持'}, status=400)
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
 
     try:
         payload = _json_object(request)
@@ -314,13 +406,13 @@ def accounts(request):
             raise ApiInputError('账户名称已存在')
         return JsonResponse({'account': serialize_account(account)}, status=201)
     except ApiInputError as error:
-        return JsonResponse({'error': str(error)}, status=400)
+        return error_response(error)
 
 
 @staff_json_required
 def opening_balances(request):
     if request.method != 'POST':
-        return JsonResponse({'error': '请求方法不支持'}, status=400)
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
     try:
         payload = _json_object(request)
         key = _idempotency_key(request)
@@ -336,13 +428,13 @@ def opening_balances(request):
         )
         return _transaction_response(result.transaction, status=201 if result.created else 200)
     except (ApiInputError, LedgerError, FundAccount.DoesNotExist, InvalidOperation, ValueError) as error:
-        return JsonResponse({'error': str(error)}, status=400)
+        return error_response(error)
 
 
 @staff_json_required
 def exchanges(request):
     if request.method != 'POST':
-        return JsonResponse({'error': '请求方法不支持'}, status=400)
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
     try:
         payload = _json_object(request)
         key = _idempotency_key(request)
@@ -357,14 +449,20 @@ def exchanges(request):
             description=_description(payload),
         )
         return _transaction_response(result.transaction, status=201 if result.created else 200)
-    except (ApiInputError, LedgerError, FundAccount.DoesNotExist, InvalidOperation, ValueError) as error:
-        return JsonResponse({'error': str(error)}, status=400)
+    except OperationalError:
+        return _busy_response()
+    except FundAccount.DoesNotExist:
+        return error_response(
+            ApiInputError('资金账户不存在', code='account_not_found'),
+        )
+    except (ApiInputError, LedgerError, InvalidOperation, ValueError, Day1IncompleteError) as error:
+        return error_response(error)
 
 
 @staff_json_required
 def transfers(request):
     if request.method != 'POST':
-        return JsonResponse({'error': '请求方法不支持'}, status=400)
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
     try:
         payload = _json_object(request)
         key = _idempotency_key(request)
@@ -378,14 +476,18 @@ def transfers(request):
             description=_description(payload),
         )
         return _transaction_response(result.transaction, status=201 if result.created else 200)
-    except (ApiInputError, LedgerError, FundAccount.DoesNotExist, InvalidOperation, ValueError) as error:
-        return JsonResponse({'error': str(error)}, status=400)
+    except FundAccount.DoesNotExist:
+        return error_response(
+            ApiInputError('资金账户不存在', code='account_not_found'),
+        )
+    except (ApiInputError, LedgerError, InvalidOperation, ValueError) as error:
+        return error_response(error)
 
 
 @staff_json_required
 def overview(request):
     if request.method != 'GET':
-        return JsonResponse({'error': '请求方法不支持'}, status=400)
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
     accounts = FundAccount.objects.filter(is_active=True).select_related('custodian')
     return JsonResponse({
         'accounts': [serialize_snapshot(account) for account in accounts],
@@ -395,7 +497,7 @@ def overview(request):
 @staff_json_required
 def transactions(request):
     if request.method != 'GET':
-        return JsonResponse({'error': '请求方法不支持'}, status=405)
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
     try:
         raw_limit = request.GET.get('limit', '100')
         try:
@@ -425,13 +527,13 @@ def transactions(request):
         )[:limit]
         return JsonResponse({'transactions': [serialize_transaction(record) for record in records]})
     except (ApiInputError, InvalidOperation, ValueError) as error:
-        return JsonResponse({'error': str(error)}, status=400)
+        return error_response(error)
 
 
 @staff_json_required
 def monthly_profit_report(request):
     if request.method != 'GET':
-        return JsonResponse({'error': '请求方法不支持'}, status=405)
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
     value = request.GET.get('month')
     try:
         if not isinstance(value, str) or len(value) != 7:
@@ -439,18 +541,18 @@ def monthly_profit_report(request):
         month = date.fromisoformat(f'{value}-01')
         return JsonResponse(_json_value(monthly_profit(month=month)))
     except (TypeError, ValueError):
-        return JsonResponse({'error': 'month 必须是 YYYY-MM'}, status=400)
+        return _json_error('month 必须是 YYYY-MM')
 
 
 @staff_json_required
 def summary_report(request):
     if request.method != 'GET':
-        return JsonResponse({'error': '请求方法不支持'}, status=405)
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
     try:
         as_of = _parse_iso_date(request.GET.get('as_of'), 'as_of')
         return JsonResponse(_json_value(accounting_summary(as_of=as_of)))
     except (ApiInputError, TypeError, ValueError) as error:
-        return JsonResponse({'error': str(error)}, status=400)
+        return error_response(error)
 
 
 @staff_json_required
@@ -460,16 +562,16 @@ def reconciliations(request):
         try:
             limit = int(raw_limit)
         except (TypeError, ValueError):
-            return JsonResponse({'error': 'limit 必须是整数'}, status=400)
+            return _json_error('limit 必须是整数')
         if not 1 <= limit <= 500:
-            return JsonResponse({'error': 'limit 必须在1到500之间'}, status=400)
+            return _json_error('limit 必须在1到500之间')
         records = AccountReconciliation.objects.select_related('account', 'operator')
         records = records[:limit]
         return JsonResponse({
             'reconciliations': [_serialize_reconciliation(record) for record in records],
         })
     if request.method != 'POST':
-        return JsonResponse({'error': '请求方法不支持'}, status=405)
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
     try:
         payload = _json_object(request)
         key = _idempotency_key(request)
@@ -487,17 +589,21 @@ def reconciliations(request):
         )
         return JsonResponse({'reconciliation': _serialize_reconciliation(result.reconciliation)}, status=201 if result.created else 200)
     except ReconciliationConflictError as error:
-        return JsonResponse({'error': str(error)}, status=409)
+        return _json_error(error, status=409, code='reconciliation_conflict')
     except OperationalError:
-        return JsonResponse({'error': '账务系统繁忙，请重试'}, status=503)
-    except (ApiInputError, LedgerError, FundAccount.DoesNotExist, InvalidOperation, ValueError) as error:
-        return JsonResponse({'error': str(error)}, status=400)
+        return _json_error('账务系统繁忙，请重试', status=503, code='busy')
+    except FundAccount.DoesNotExist:
+        return error_response(
+            ApiInputError('资金账户不存在', code='account_not_found'),
+        )
+    except (ApiInputError, LedgerError, InvalidOperation, ValueError) as error:
+        return error_response(error)
 
 
 @staff_json_required
 def reconciliation_confirm(request, reconciliation_id):
     if request.method != 'POST':
-        return JsonResponse({'error': '请求方法不支持'}, status=405)
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
     try:
         _json_object(request)
         result = confirm_reconciliation(
@@ -508,8 +614,161 @@ def reconciliation_confirm(request, reconciliation_id):
         )
         return JsonResponse({'reconciliation': _serialize_reconciliation(result.reconciliation)})
     except ReconciliationConflictError as error:
-        return JsonResponse({'error': str(error)}, status=409)
+        return _json_error(error, status=409, code='reconciliation_conflict')
     except OperationalError:
-        return JsonResponse({'error': '账务系统繁忙，请重试'}, status=503)
+        return _json_error('账务系统繁忙，请重试', status=503, code='busy')
     except (ApiInputError, LedgerError, InvalidOperation, ValueError) as error:
-        return JsonResponse({'error': str(error)}, status=400)
+        return error_response(error)
+
+
+def _action_failure(error):
+    """Map action-domain errors without allowing HTML responses to escape."""
+    return error_response(error, default_status=400)
+
+
+def _busy_response():
+    return JsonResponse(
+        {'error': '账务系统繁忙，请重试', 'code': 'busy', 'details': {}}, status=503,
+    )
+
+
+def _action_version(request, payload):
+    value = payload.get('expected_version')
+    if value is None and request.headers.get('If-Match'):
+        value = _if_match_version(request)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ApiInputError('expected_version 无效', code='version_conflict')
+    if request.headers.get('If-Match') and value != _if_match_version(request):
+        raise ApiInputError('expected_version 与 If-Match 不一致', code='version_conflict')
+    return value
+
+
+@staff_json_required
+def actions(request):
+    """List pending actions; writes use their dedicated service endpoints."""
+    if request.method != 'GET':
+        return JsonResponse(
+            {'error': '请求方法不支持', 'code': 'method_not_allowed', 'details': {}},
+            status=405,
+        )
+    return JsonResponse({
+        # 待处理列表同时展示草稿和已付款待到货采购单。
+        'purchases': [serialize_purchase_order(row) for row in PurchaseOrder.objects.filter(
+            status__in=(PurchaseOrder.Status.DRAFT, PurchaseOrder.Status.IN_TRANSIT),
+        ).prefetch_related('items__cigar')[:50]],
+        'dividends': [serialize_dividend(row) for row in Dividend.objects.filter(status=Dividend.Status.DRAFT)[:50]],
+    })
+
+
+@staff_json_required
+def purchase_action(request, purchase_id=None, action=None):
+    allowed = {'POST'} if purchase_id is None or action else {'PATCH'}
+    if request.method not in allowed:
+        return JsonResponse({'error': '请求方法不支持', 'code': 'method_not_allowed', 'details': {}}, status=405)
+    try:
+        payload = _json_object(request)
+        key = _idempotency_key(request)
+        if purchase_id is None:
+            if request.method != 'POST':
+                raise ApiInputError('请求方法不支持')
+            order = create_purchase_order(
+                supplier_id=payload.get('supplier_id'), items=payload.get('items'),
+                business_date=_parse_iso_date(payload.get('business_date'), 'business_date'),
+                operator=request.accounting_operator, idempotency_key=key,
+                expected_version=payload.get('expected_version'), note=_optional_note(payload),
+                exchange_rate=payload.get('exchange_rate'),
+            )
+            return JsonResponse({'purchase_order': serialize_purchase_order(order)}, status=201)
+        if action == 'pay':
+            result = pay_purchase_order(
+                purchase_order_id=purchase_id, rub_account_id=payload.get('rub_account_id'),
+                business_date=_parse_iso_date(payload.get('business_date'), 'business_date'),
+                operator=request.accounting_operator, idempotency_key=key,
+            )
+            return JsonResponse({'purchase_order': serialize_purchase_order(result.purchase_order)})
+        if action == 'receive':
+            batches = receive_paid_purchase_order(
+                purchase_order_id=purchase_id, business_date=_parse_iso_date(payload.get('business_date'), 'business_date'),
+                operator=request.accounting_operator, idempotency_key=key, note=_optional_note(payload),
+            )
+            return JsonResponse({'purchase_batches': [batch.pk for batch in batches]})
+        if action == 'cancel':
+            order = cancel_purchase_order(
+                purchase_order_id=purchase_id, operator=request.accounting_operator,
+                idempotency_key=key, expected_version=_action_version(request, payload), note=_optional_note(payload),
+            )
+            return JsonResponse({'purchase_order': serialize_purchase_order(order)})
+        if request.method == 'PATCH':
+            order = update_purchase_order_draft(
+                purchase_order_id=purchase_id, items=payload.get('items'), expected_version=_action_version(request, payload),
+                idempotency_key=key, operator=request.accounting_operator, note=_optional_note(payload),
+            )
+            return JsonResponse({'purchase_order': serialize_purchase_order(order)})
+        raise ApiInputError('采购动作无效')
+    except OperationalError:
+        return _busy_response()
+    except (ApiInputError, PurchaseActionError, LedgerError, ValueError, TypeError) as error:
+        return _action_failure(error)
+
+
+@staff_json_required
+def expense_action(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': '请求方法不支持', 'code': 'method_not_allowed', 'details': {}}, status=405)
+    try:
+        payload = _json_object(request)
+        expense = record_expense(
+            category=payload.get('category'), amount=payload.get('amount'), fund_account_id=payload.get('fund_account_id'),
+            business_date=_parse_iso_date(payload.get('business_date'), 'business_date'), operator=request.accounting_operator,
+            idempotency_key=_idempotency_key(request), note=_optional_note(payload),
+        )
+        return JsonResponse({'expense': serialize_expense(expense)}, status=201)
+    except OperationalError:
+        return _busy_response()
+    except (ApiInputError, ExpenseActionError, LedgerError, ValueError, TypeError) as error:
+        return _action_failure(error)
+
+
+@staff_json_required
+def dividend_action(request, dividend_id=None, action=None):
+    if dividend_id is None:
+        allowed = {'GET', 'POST'}
+    elif action in {'preview', 'confirm'}:
+        allowed = {'POST'}
+    else:
+        allowed = {'PATCH'}
+    if request.method not in allowed:
+        return JsonResponse({'error': '请求方法不支持', 'code': 'method_not_allowed', 'details': {}}, status=405)
+    try:
+        if request.method == 'GET':
+            return JsonResponse({'dividends': [serialize_dividend(row) for row in Dividend.objects.order_by('-id')[:50]]})
+        payload = _json_object(request)
+        if dividend_id is None:
+            dividend = create_dividend_draft(
+                total_cny=payload.get('total_cny'), business_date=_parse_iso_date(payload.get('business_date'), 'business_date'),
+                operator=request.accounting_operator, idempotency_key=_idempotency_key(request), note=_optional_note(payload),
+            )
+            return JsonResponse({'dividend': serialize_dividend(dividend)}, status=201)
+        if action == 'preview':
+            _idempotency_key(request)
+            return JsonResponse({'preview': preview_dividend(dividend_id=dividend_id, operator=request.accounting_operator).to_dict()})
+        if action == 'confirm':
+            dividend = confirm_dividend(
+                dividend_id=dividend_id, operator=request.accounting_operator, idempotency_key=_idempotency_key(request),
+                expected_version=_action_version(request, payload), warning_fingerprint=payload.get('warning_fingerprint', ''),
+                warning_ack=payload.get('warning_ack'),
+            )
+            return JsonResponse({'dividend': serialize_dividend(dividend)})
+        if request.method == 'PATCH':
+            dividend = update_dividend_draft(
+                dividend_id=dividend_id, total_cny=payload.get('total_cny'), partner_a_amount_cny=payload.get('partner_a_amount_cny'),
+                partner_b_amount_cny=payload.get('partner_b_amount_cny'), partner_a_account_id=payload.get('partner_a_account_id'),
+                partner_b_account_id=payload.get('partner_b_account_id'), expected_version=_action_version(request, payload),
+                idempotency_key=_idempotency_key(request), operator=request.accounting_operator, note=_optional_note(payload),
+            )
+            return JsonResponse({'dividend': serialize_dividend(dividend)})
+        raise ApiInputError('分红动作无效')
+    except OperationalError:
+        return _busy_response()
+    except (ApiInputError, DividendActionError, LedgerError, ValueError, TypeError) as error:
+        return _action_failure(error)

@@ -10,6 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounting.business_time import moscow_business_date
+from accounting.guards import require_day1_completed
 from accounting.models import (
     Day1DraftAccount, Day1DraftInventory, Day1Initialization,
     FundAccount, LedgerPosting, LedgerTransaction,
@@ -193,6 +194,7 @@ def _normalize_payload(payload):
 
 @transaction.atomic
 def save_day1_draft(*, payload, expected_version, operator):
+    require_day1_completed(allow_day1=True)
     persisted_operator = _require_operator(operator)
     if isinstance(expected_version, bool) or not isinstance(expected_version, int) or expected_version < 0:
         raise Day1VersionConflict('草稿版本无效')
@@ -289,6 +291,7 @@ def _conflicts_for_confirmation():
 @_retry_sqlite_locked
 @transaction.atomic
 def confirm_day1(*, expected_version, operator, idempotency_key):
+    require_day1_completed(allow_day1=True)
     persisted_operator = _require_operator(operator)
     if not isinstance(idempotency_key, str) or not idempotency_key or len(idempotency_key) > 128:
         raise Day1ValidationError(details={'idempotency_key': '幂等键无效'})

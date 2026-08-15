@@ -7,8 +7,9 @@ from django.db import transaction
 
 from accounting.mutation_scope import ledger_mutation_scope
 from accounting.models import (
-    Day1Initialization, Expense, FundAccount, LedgerPosting, LedgerTransaction,
+    Expense, FundAccount, LedgerPosting, LedgerTransaction,
 )
+from accounting.guards import Day1IncompleteError, require_day1_completed as require_day1
 from accounting.services import (
     MAX_ORIGINAL_ABS,
     CUTOVER_DATE,
@@ -89,7 +90,7 @@ def _normalise_amount(value):
     return amount
 
 
-def _replay(*, key, category, amount, account_id, business_date, operator_id):
+def _replay(*, key, category, amount, account_id, business_date, operator_id, note):
     existing = Expense.objects.select_for_update().filter(
         idempotency_key=key,
     ).first()
@@ -100,20 +101,64 @@ def _replay(*, key, category, amount, account_id, business_date, operator_id):
             or existing.fund_account_id != account_id
             or existing.business_date != business_date
             or existing.operator_id != operator_id
+            or existing.note != (note or '')
         ):
             raise ExpenseActionError('idempotency_conflict')
+        _validate_replay_fact(existing, key=key)
         return existing
     if LedgerTransaction.objects.filter(idempotency_key=key).exists():
         raise ExpenseActionError('idempotency_conflict')
     return None
 
 
+def _validate_replay_fact(expense, *, key):
+    """重放只能返回完整的费用事实，不能把半笔流水当作成功。"""
+    ledger = LedgerTransaction.objects.filter(
+        pk=expense.ledger_transaction_id,
+    ).first()
+    if ledger is None or ledger.status != LedgerTransaction.Status.POSTED:
+        raise ExpenseActionError('idempotency_conflict')
+    if (
+        expense.status != Expense.Status.POSTED
+        or ledger.transaction_type != LedgerTransaction.TransactionType.EXPENSE
+        or ledger.idempotency_key != key
+        or ledger.source_type != 'expense'
+        or ledger.source_id != key
+        or ledger.business_date != expense.business_date
+        or ledger.operator_id != expense.operator_id
+    ):
+        raise ExpenseActionError('idempotency_conflict')
+    try:
+        account_currency = expense.fund_account.currency
+        posting_category = _CATEGORY_RULES[expense.category][1]
+    except (FundAccount.DoesNotExist, KeyError):
+        raise ExpenseActionError('idempotency_conflict')
+    expected = sorted([
+        (
+            expense.fund_account_id, '', account_currency,
+            -expense.original_amount, -expense.amount_cny,
+        ),
+        (
+            None, posting_category, FundAccount.Currency.CNY,
+            expense.amount_cny, expense.amount_cny,
+        ),
+    ], key=lambda row: (row[0] is None, row[0] or 0, row[1]))
+    actual = sorted([
+        (row['account_id'], row['category'], row['currency'],
+         row['amount'], row['cny_amount'])
+        for row in ledger.postings.values(
+            'account_id', 'category', 'currency', 'amount', 'cny_amount',
+        )
+    ], key=lambda row: (row[0] is None, row[0] or 0, row[1]))
+    if actual != expected:
+        raise ExpenseActionError('idempotency_conflict')
+
+
 def require_day1_completed():
-    if not Day1Initialization.objects.filter(
-        singleton_key='company',
-        status=Day1Initialization.Status.COMPLETED,
-    ).exists():
-        raise ExpenseActionError('day1_incomplete')
+    try:
+        require_day1()
+    except Day1IncompleteError as error:
+        raise ExpenseActionError(error.code) from error
 
 
 @_retry_sqlite_locked
@@ -137,6 +182,7 @@ def record_expense(*, category, amount, fund_account_id, business_date,
             account_id=account_id,
             business_date=business_date,
             operator_id=getattr(operator, 'pk', None),
+            note=note,
         )
         if replay is not None:
             return replay

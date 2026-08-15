@@ -7,6 +7,7 @@ from django.db import OperationalError
 from django.db.migrations.executor import MigrationExecutor
 from django.test import Client, TestCase
 from django.test import TransactionTestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
@@ -29,6 +30,26 @@ class SalesReportsAndReconciliationTest(TestCase):
             'reports-operator', password='pass', is_staff=True,
         )
         self.non_staff = User.objects.create_user('reports-customer', password='pass')
+
+    def test_account_rows_use_fixed_query_count(self):
+        """账户摘要应一次聚合流水，查询数不能随账户数量线性增长。"""
+        from accounting.selectors import _account_rows
+
+        FundAccount.objects.create(
+            name='查询数账户 0', currency=FundAccount.Currency.CNY,
+            creation_idempotency_key='account-row-query-0',
+        )
+        for index in range(1, 5):
+            FundAccount.objects.create(
+                name=f'查询数账户 {index}', currency=FundAccount.Currency.CNY,
+                creation_idempotency_key=f'account-row-query-{index}',
+            )
+
+        with CaptureQueriesContext(connection) as captured:
+            rows = _account_rows(as_of=date(2026, 8, 10))
+
+        self.assertEqual(len(rows), 5)
+        self.assertEqual(len(captured), 2)
 
     def in_transit_order(self, **values):
         order = PurchaseOrder(
@@ -98,6 +119,8 @@ class SalesReportsAndReconciliationTest(TestCase):
             'monthly-transport-cost',
         )
 
+        from accounting.selectors import monthly_profit
+
         monthly = monthly_profit(month=date(2026, 8, 1))
         self.assertEqual(monthly['sales_revenue_cny'], Decimal('-90.00'))
         self.assertEqual(monthly['customer_transport_revenue_cny'], Decimal('-5.00'))
@@ -127,6 +150,56 @@ class SalesReportsAndReconciliationTest(TestCase):
         monthly = monthly_profit(month=date(2026, 8, 1))
         self.assertNotIn('draft_transaction_total', monthly)
         self.assertEqual(monthly['transaction_count'], 0)
+
+    def test_monthly_profit_includes_expenses_adjustments_and_reconciliation_facts(self):
+        """Monthly profit keeps expense, adjustment, and reconciliation facts."""
+        categories = {
+            LedgerPosting.Category.SALES_REVENUE: Decimal('-500.00'),
+            LedgerPosting.Category.COST_OF_GOODS_SOLD: Decimal('0.00'),
+            LedgerPosting.Category.SALARY_EXPENSE: Decimal('100.00'),
+            LedgerPosting.Category.TRANSPORT_EXPENSE: Decimal('20.00'),
+            LedgerPosting.Category.INVENTORY_ADJUSTMENT_GAIN: Decimal('-7.00'),
+            LedgerPosting.Category.INVENTORY_ADJUSTMENT_LOSS: Decimal('3.00'),
+            LedgerPosting.Category.RECONCILIATION_GAIN: Decimal('-2.00'),
+            LedgerPosting.Category.RECONCILIATION_LOSS: Decimal('1.00'),
+        }
+        transport_amount = categories.pop(LedgerPosting.Category.TRANSPORT_EXPENSE)
+        balancing_account = FundAccount.objects.create(
+            name='月报分类平衡账户', currency=FundAccount.Currency.CNY,
+            creation_idempotency_key='profit-category-account',
+        )
+        self.posted_transaction(
+            LedgerTransaction.TransactionType.SALES_SHIPMENT,
+            date(2026, 8, 20),
+            [
+                *[
+                    PostingInput(category=category, currency='CNY', amount=amount, cny_amount=amount)
+                    for category, amount in categories.items()
+                ],
+                PostingInput(account=balancing_account, currency='CNY', amount=Decimal('405.00'), cny_amount=Decimal('405.00')),
+            ],
+            'profit-categories',
+        )
+        self.posted_transaction(
+            LedgerTransaction.TransactionType.SALES_TRANSPORT_COST,
+            date(2026, 8, 20),
+            [
+                PostingInput(category=LedgerPosting.Category.TRANSPORT_EXPENSE, currency='CNY', amount=transport_amount, cny_amount=transport_amount),
+                PostingInput(account=balancing_account, currency='CNY', amount=-transport_amount, cny_amount=-transport_amount),
+            ],
+            'profit-transport-cost',
+        )
+
+        from accounting.selectors import monthly_profit
+
+        monthly = monthly_profit(month=date(2026, 8, 1))
+
+        self.assertEqual(monthly['net_profit_cny'], Decimal('385.00'))
+        self.assertEqual(monthly['salary_expense_cny'], Decimal('100.00'))
+        self.assertEqual(monthly['inventory_adjustment_gain_cny'], Decimal('7.00'))
+        self.assertEqual(monthly['inventory_adjustment_loss_cny'], Decimal('3.00'))
+        self.assertEqual(monthly['reconciliation_gain_cny'], Decimal('2.00'))
+        self.assertEqual(monthly['reconciliation_loss_cny'], Decimal('1.00'))
 
     def test_summary_as_of_includes_accounts_ar_prepayment_inventory_and_in_transit(self):
         from accounting.selectors import accounting_summary
@@ -481,7 +554,7 @@ class SalesReportsAndReconciliationTest(TestCase):
             )
 
         self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.json(), {'error': '账务系统繁忙，请重试'})
+        self.assertEqual(response.json(), {'error': '账务系统繁忙，请重试', 'code': 'busy', 'details': {}})
 
 
 class AccountReconciliationIdempotencyMigrationTest(TransactionTestCase):

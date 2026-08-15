@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
-from django.db import OperationalError
+from django.db import OperationalError, models
 from django.test import TestCase
 from unittest.mock import patch
 
@@ -186,6 +186,24 @@ class ExpenseActionTest(TestCase):
         self.assertEqual(Expense.objects.count(), 1)
         with self.assertRaises(ExpenseActionError) as raised:
             record_expense(**{**kwargs, 'amount': '11.00'})
+        self.assertEqual(raised.exception.code, 'idempotency_conflict')
+
+    def test_replay_rejects_changed_note(self):
+        from accounting.expense_actions import ExpenseActionError, record_expense
+
+        kwargs = {
+            'category': Expense.Category.SALARY,
+            'amount': '10.00',
+            'fund_account_id': self.cny.pk,
+            'business_date': self.business_date,
+            'operator': self.operator,
+            'idempotency_key': 'expense-note-replay',
+            'note': '八月工资',
+        }
+        first = record_expense(**kwargs)
+        self.assertEqual(record_expense(**kwargs).pk, first.pk)
+        with self.assertRaises(ExpenseActionError) as raised:
+            record_expense(**{**kwargs, 'note': '九月工资'})
         self.assertEqual(raised.exception.code, 'idempotency_conflict')
 
     def test_day1_gate_allows_replay_but_blocks_new_expense(self):
@@ -443,3 +461,23 @@ class ExpenseActionTest(TestCase):
                 idempotency_key='expense-historical-backfill',
             ).exists()
         )
+
+    def test_replay_rejects_tampered_linked_ledger_metadata(self):
+        from accounting.expense_actions import ExpenseActionError, record_expense
+
+        kwargs = {
+            'category': Expense.Category.SALARY,
+            'amount': '10.00',
+            'fund_account_id': self.cny.pk,
+            'business_date': self.business_date,
+            'operator': self.operator,
+            'idempotency_key': 'expense-replay-tampered-ledger',
+        }
+        expense = record_expense(**kwargs)
+        ledger = expense.ledger_transaction
+        ledger.source_type = 'tampered'
+        models.Model.save(ledger, update_fields=['source_type'])
+
+        with self.assertRaises(ExpenseActionError) as raised:
+            record_expense(**kwargs)
+        self.assertEqual(raised.exception.code, 'idempotency_conflict')

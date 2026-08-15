@@ -4,11 +4,11 @@ import inspect
 import threading
 
 from unittest.mock import patch
-from django.db import OperationalError, close_old_connections
+from django.db import OperationalError, close_old_connections, models
 from django.test import TestCase, TransactionTestCase
 
 from accounting import services
-from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
+from accounting.models import Day1Initialization, FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
 from accounting.selectors import account_snapshot
 from accounting.services import (
     LedgerError,
@@ -26,6 +26,10 @@ class AccountingOperationTest(TestCase):
 
     def setUp(self):
         self.operator = User.objects.create_user('operations-operator', password='pass', is_staff=True)
+        Day1Initialization.objects.create(
+            singleton_key='company', status=Day1Initialization.Status.COMPLETED,
+            business_date=self.business_date, completed_by=self.operator,
+        )
         self.cny = self.account('CNY cash', 'CNY', 'operations-cny')
         self.rub = self.account('RUB cash', 'RUB', 'operations-rub')
         self.usdt = self.account('USDT cash', 'USDT', 'operations-usdt')
@@ -290,6 +294,26 @@ class AccountingOperationTest(TestCase):
         duplicate = exchange_to_rub(self.cny, self.rub, '100', '1200', self.business_date, self.operator, 'repeat-exchange')
         self.assertEqual(first.pk, duplicate.pk)
         self.assertEqual(LedgerTransaction.objects.filter(transaction_type='exchange').count(), 1)
+        with self.assertRaises(LedgerError) as changed_exchange:
+            exchange_to_rub(
+                self.cny, self.rub, '99', '1200', self.business_date,
+                self.operator, 'repeat-exchange',
+            )
+        self.assertEqual(changed_exchange.exception.code, 'idempotency_conflict')
+
+        rub_target = self.account('RUB replay target', 'RUB', 'repeat-transfer-target')
+        transfer = transfer_same_currency(
+            self.rub, rub_target, '100', self.business_date,
+            self.operator, 'repeat-transfer', description='调拨',
+        )
+        replay = transfer_same_currency(
+            self.rub, rub_target, '100', self.business_date,
+            self.operator, 'repeat-transfer', description='调拨',
+        )
+        self.assertEqual(replay.pk, transfer.pk)
+        with self.assertRaises(LedgerError) as changed_transfer:
+            transfer_same_currency(self.rub, rub_target, '101', self.business_date, self.operator, 'repeat-transfer', description='调拨')
+        self.assertEqual(changed_transfer.exception.code, 'idempotency_conflict')
 
         with self.assertRaises(LedgerError):
             exchange_to_rub(self.cny, self.rub, '1', '1', '2026-08-10', self.operator, 'repeat-exchange')
@@ -297,6 +321,59 @@ class AccountingOperationTest(TestCase):
             exchange_to_rub(self.cny, self.rub, '1', '1', self.business_date, User(username='unsaved', is_staff=True), 'repeat-exchange')
         with self.assertRaises(LedgerError):
             transfer_same_currency(self.rub, self.rub, '1', self.business_date, self.operator, 'repeat-exchange')
+
+    def test_exchange_replay_survives_operator_permission_revocation(self):
+        self.opening(self.cny, '100', '100', 'permission-replay-opening')
+        first = exchange_to_rub(
+            self.cny, self.rub, '100', '1200', self.business_date,
+            self.operator, 'permission-replay-exchange', description='换汇',
+        )
+        User.objects.filter(pk=self.operator.pk).update(is_staff=False, is_superuser=False)
+
+        replay = exchange_to_rub(
+            self.cny, self.rub, '100', '1200', self.business_date,
+            self.operator, 'permission-replay-exchange', description='换汇',
+        )
+
+        self.assertEqual(replay.pk, first.pk)
+        with self.assertRaises(LedgerError):
+            exchange_to_rub(
+                self.cny, self.rub, '1', '12', self.business_date,
+                self.operator, 'permission-replay-new-key', description='换汇',
+            )
+    def test_exchange_replay_rejects_corrupted_cny_posting(self):
+        self.opening(self.cny, '100', '100', 'corrupted-replay-opening')
+        first = exchange_to_rub(
+            self.cny, self.rub, '100', '1200', self.business_date,
+            self.operator, 'corrupted-replay-exchange', description='换汇',
+        )
+        posting = first.postings.get(account=self.cny)
+        posting.cny_amount = Decimal('-999.99')
+        models.Model.save(posting, update_fields=['cny_amount'])
+
+        with self.assertRaises(LedgerError) as corrupted:
+            exchange_to_rub(
+                self.cny, self.rub, '100', '1200', self.business_date,
+                self.operator, 'corrupted-replay-exchange', description='换汇',
+            )
+
+        self.assertEqual(corrupted.exception.code, 'idempotency_conflict')
+
+    def test_transfer_replay_survives_operator_permission_revocation(self):
+        self.opening(self.rub, '100', '100', 'permission-transfer-opening')
+        target = self.account('permission transfer target', 'RUB', 'permission-transfer-target')
+        first = transfer_same_currency(
+            self.rub, target, '100', self.business_date,
+            self.operator, 'permission-replay-transfer', description='调拨',
+        )
+        User.objects.filter(pk=self.operator.pk).update(is_staff=False, is_superuser=False)
+
+        replay = transfer_same_currency(
+            self.rub, target, '100', self.business_date,
+            self.operator, 'permission-replay-transfer', description='调拨',
+        )
+
+        self.assertEqual(replay.pk, first.pk)
 
 
     def test_operation_retries_locked_single_transaction_attempt_five_times(self):
@@ -371,6 +448,10 @@ class OpeningSequenceConcurrencyTest(TransactionTestCase):
 
     def setUp(self):
         self.operator = User.objects.create_user('opening-sequence-operator', password='pass', is_staff=True)
+        Day1Initialization.objects.create(
+            singleton_key='company', status=Day1Initialization.Status.COMPLETED,
+            business_date=self.business_date, completed_by=self.operator,
+        )
 
     def _exercise_concurrent_opening_and_exchange(self):
         for attempt in range(1):

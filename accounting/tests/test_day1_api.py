@@ -193,7 +193,7 @@ class Day1ApiTest(TestCase):
                         HTTP_IDEMPOTENCY_KEY='permission-test',
                     )
                     self.assertEqual(response.status_code, 403)
-                    self.assertEqual(response.json(), {'error': '仅限工作人员访问'})
+                    self.assertEqual(response.json(), {'error': '仅限工作人员访问', 'code': 'forbidden', 'details': {}})
 
     def test_dashboard_does_not_render_unknown_opening_values_as_zero(self):
         self.client.force_login(self.staff)
@@ -284,7 +284,7 @@ class Day1ApiTest(TestCase):
         self.assertEqual(response.json()['stats']['accounts_receivable_cny'], '50.00')
         self.assertEqual(response.json()['stats']['month_net_profit_cny'], '50.00')
 
-    def test_dashboard_calculates_each_account_snapshot_once(self):
+    def test_dashboard_does_not_query_snapshots_per_account(self):
         self.client.force_login(self.staff)
         self.assertEqual(self.save_draft().status_code, 200)
         self.assertEqual(self.confirm().status_code, 200)
@@ -298,7 +298,7 @@ class Day1ApiTest(TestCase):
             response = self.client.get('/api/accounting/dashboard/')
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(snapshot.call_count, 4)
+        self.assertEqual(snapshot.call_count, 0)
 
     def test_day1_write_endpoints_require_csrf(self):
         client = Client(enforce_csrf_checks=True)

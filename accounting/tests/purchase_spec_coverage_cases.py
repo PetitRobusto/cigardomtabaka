@@ -35,7 +35,7 @@ class PurchaseSpecMixin:
             username=f"purchase-spec-{User.objects.count()}", password="x", is_staff=True,
         )
         Day1Initialization.objects.create(
-            singleton_key=f"company-{User.objects.count()}",
+            singleton_key="company",
             status=Day1Initialization.Status.COMPLETED,
             business_date=CUTOVER, completed_by=self.operator,
         )
@@ -161,14 +161,12 @@ class PurchaseSpecTest(PurchaseSpecMixin, TestCase):
             receive_paid_purchase_order(purchase_order_id=self.order.pk, business_date=DAY,
                                          operator=self.operator, idempotency_key="draft-receipt")
         self.assertEqual(ctx.exception.code, "invalid_state")
-        self.pay(key="review-payment")
         item = self.order.items.get()
         item.packaging_status = PurchaseOrderItem.PackagingStatus.REVIEW_REQUIRED
         item.box_size = item.box_quantity = item.unit_price_rub_per_box = None
         item.save(update_fields=["packaging_status", "box_size", "box_quantity", "unit_price_rub_per_box"])
         with self.assertRaises(PurchaseActionError) as ctx:
-            receive_paid_purchase_order(purchase_order_id=self.order.pk, business_date=DAY,
-                                         operator=self.operator, idempotency_key="review-receipt")
+            self.pay(key="review-payment")
         self.assertEqual(ctx.exception.code, "packaging_review_required")
         self.assertEqual(PurchaseBatch.objects.count(), 0)
 
@@ -206,6 +204,7 @@ class PurchaseSpecTest(PurchaseSpecMixin, TestCase):
         for batch in batches:
             self.assertEqual(batch.original_cost_cny,
                              batch.remaining_cost_cny + batch.sold_cost_cny + batch.adjustment_cost_cny)
+        second.refresh_from_db()
         self.assertEqual(second.actual_cost_cny, batches[1].original_cost_cny)
 
     def test_legacy_receive_supports_agent_context_replay_and_conflict(self):

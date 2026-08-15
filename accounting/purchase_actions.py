@@ -20,9 +20,10 @@ from accounting.services import (
 )
 from accounting.selectors import account_snapshot
 from accounting.models import (
-    Day1Initialization, FundAccount, LedgerPosting, LedgerTransaction,
+    FundAccount, LedgerPosting, LedgerTransaction,
     PurchaseDraftAction, PurchasePayment,
 )
+from accounting.guards import Day1IncompleteError, require_day1_completed
 from cigars.models import (
     Cigar, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, StockMovement,
     Supplier, User,
@@ -363,10 +364,10 @@ def _canonical_payload(*, items, operator, business_date, expected_version=None,
 
 
 def _require_day1_completed():
-    if not Day1Initialization.objects.filter(
-        singleton_key='company', status=Day1Initialization.Status.COMPLETED,
-    ).exists():
-        raise PurchaseActionError('day1_incomplete')
+    try:
+        require_day1_completed()
+    except Day1IncompleteError as error:
+        raise PurchaseActionError(error.code) from error
 
 
 def _action_fields(action):
@@ -415,7 +416,7 @@ def _operator_id_for_replay(operator):
 
 
 def _create_locked(*, supplier_id, items, business_date, operator, idempotency_key, expected_version, note, exchange_rate=None):
-    operator = _validate_operator(operator)
+    _operator_id_for_replay(operator)
     business_date = _date(business_date)
     exchange_rate = _exchange_rate(exchange_rate)
     normalized, fingerprint = _canonical_payload(
@@ -427,6 +428,8 @@ def _create_locked(*, supplier_id, items, business_date, operator, idempotency_k
     replay = _check_key(action_type=PurchaseDraftAction.ActionType.CREATE, idempotency_key=idempotency_key, fingerprint=fingerprint)
     if replay is not None:
         return replay
+    _require_day1_completed()
+    operator = _validate_operator(operator)
     try:
         supplier = Supplier.objects.get(pk=_positive_int(supplier_id, 'supplier_id'), deleted_at__isnull=True)
     except Supplier.DoesNotExist:
@@ -471,7 +474,6 @@ def _create_locked(*, supplier_id, items, business_date, operator, idempotency_k
 def create_purchase_order(*, supplier_id, items, business_date=None, operator,
                           idempotency_key, expected_version=None, note='', exchange_rate=None):
     """创建 canonical 采购草稿；所有明细和 action 在同一事务中写入。"""
-    _require_day1_completed()
     if business_date is None:
         raise PurchaseActionError('invalid_business_date', {'business_date': '必须显式提供'})
     with transaction.atomic():
@@ -488,8 +490,7 @@ def create_purchase_order(*, supplier_id, items, business_date=None, operator,
 def update_purchase_order_draft(*, purchase_order_id, items, expected_version,
                                idempotency_key, operator, note=''):
     """编辑仍处于草稿状态的采购单，并以版本保护双人同时编辑。"""
-    _require_day1_completed()
-    operator = _validate_operator(operator)
+    _operator_id_for_replay(operator)
     try:
         expected_version = int(expected_version)
     except (TypeError, ValueError):
@@ -525,6 +526,8 @@ def update_purchase_order_draft(*, purchase_order_id, items, expected_version,
             )
             if replay is not None:
                 return replay
+        operator = _validate_operator(operator)
+        _require_day1_completed()
         if order.status != PurchaseOrder.Status.DRAFT:
             raise PurchaseActionError('invalid_state', {'status': order.status})
         if expected_version != order.version:
@@ -568,8 +571,7 @@ def update_purchase_order_draft(*, purchase_order_id, items, expected_version,
 def cancel_purchase_order(*, purchase_order_id, operator, idempotency_key,
                           expected_version, note=''):
     """取消未付款草稿；取消本身也留下不可变动作日志。"""
-    _require_day1_completed()
-    operator = _validate_operator(operator)
+    _operator_id_for_replay(operator)
     try:
         expected_version = int(expected_version)
     except (TypeError, ValueError):
@@ -610,6 +612,8 @@ def cancel_purchase_order(*, purchase_order_id, operator, idempotency_key,
             )
             if replay is not None:
                 return replay
+        operator = _validate_operator(operator)
+        _require_day1_completed()
         if order.status != PurchaseOrder.Status.DRAFT or order.paid_at is not None or (order.paid_cny_cost or 0) != 0:
             raise PurchaseActionError('invalid_state', {'status': order.status})
         if expected_version != order.version:
@@ -666,7 +670,50 @@ def _payment_conflict():
     raise PurchaseActionError('idempotency_conflict')
 
 
-def _payment_replay(*, key, order_id, account_id, business_date, operator_id, rub_amount):
+def _postings_match(transaction_obj, expected):
+    postings = list(transaction_obj.postings.order_by('id'))
+    if len(postings) != len(expected):
+        return False
+    actual = sorted(
+        (-1 if posting.account_id is None else posting.account_id,
+         posting.category, posting.currency,
+         posting.amount, posting.cny_amount)
+        for posting in postings
+    )
+    return actual == sorted(
+        (-1 if account_id is None else account_id, category, currency,
+         amount, cny_amount)
+        for account_id, category, currency, amount, cny_amount in expected
+    )
+
+
+def _payment_facts_match(*, payment, order, key, business_date, operator_id, rub_amount):
+    transaction_obj = payment.ledger_transaction
+    if not (
+        order.status in (PurchaseOrder.Status.IN_TRANSIT, PurchaseOrder.Status.RECEIVED)
+        and order.payment_idempotency_key == key
+        and order.paid_cny_cost == payment.cny_cost
+        and order.paid_at is not None
+        and payment.status == PurchasePayment.Status.POSTED
+        and transaction_obj.transaction_type == LedgerTransaction.TransactionType.PURCHASE_PAYMENT
+        and transaction_obj.status == LedgerTransaction.Status.POSTED
+        and transaction_obj.idempotency_key == payment.idempotency_key
+        and transaction_obj.business_date == business_date
+        and transaction_obj.operator_id == operator_id
+        and transaction_obj.source_type == 'purchase_order'
+        and transaction_obj.source_id == str(order.pk)
+        and payment.rub_amount == rub_amount
+    ):
+        return False
+    return _postings_match(transaction_obj, [
+        (payment.fund_account_id, '', FundAccount.Currency.RUB,
+         -payment.rub_amount, -payment.cny_cost),
+        (None, LedgerPosting.Category.PURCHASE_IN_TRANSIT,
+         FundAccount.Currency.CNY, payment.cny_cost, payment.cny_cost),
+    ])
+
+
+def _payment_replay(*, key, order, account_id, business_date, operator_id, rub_amount):
     payment = PurchasePayment.objects.select_related('ledger_transaction').filter(
         idempotency_key=key,
     ).first()
@@ -676,14 +723,108 @@ def _payment_replay(*, key, order_id, account_id, business_date, operator_id, ru
             _payment_conflict()
         return None
     if (
-        payment.purchase_order_id != order_id
+        payment.purchase_order_id != order.pk
         or payment.fund_account_id != account_id
-        or payment.rub_amount != rub_amount
         or payment.business_date != business_date
         or payment.operator_id != operator_id
+        or not _payment_facts_match(
+            payment=payment, order=order, key=key, business_date=business_date,
+            operator_id=operator_id, rub_amount=rub_amount,
+        )
     ):
         _payment_conflict()
     return payment
+
+
+def _receipt_replay_facts(*, order, transaction_obj, key, business_date, operator_id, note):
+    if not (
+        transaction_obj.idempotency_key == key
+        and transaction_obj.transaction_type == LedgerTransaction.TransactionType.PURCHASE_RECEIPT
+        and transaction_obj.status == LedgerTransaction.Status.POSTED
+        and transaction_obj.business_date == business_date
+        and transaction_obj.operator_id == operator_id
+        and transaction_obj.source_type == 'purchase_order'
+        and transaction_obj.source_id == str(order.pk)
+    ):
+        return False
+
+    if order.paid_cny_cost is None:
+        return False
+    paid = Decimal(order.paid_cny_cost).quantize(MONEY_PLACES)
+    try:
+        rows = _canonical_order_rows(order)
+    except PurchaseActionError:
+        return False
+    rub_total = _canonical_rub_total(rows)
+    if paid <= 0 or rub_total <= 0:
+        return False
+    allocations = []
+    allocated = Decimal('0.00')
+    for index, (item, quantity, rub_subtotal) in enumerate(rows):
+        if index == len(rows) - 1:
+            actual = paid - allocated
+        else:
+            actual = (paid * rub_subtotal / rub_total).quantize(MONEY_PLACES)
+            allocated += actual
+        allocations.append((item, quantity, actual.quantize(MONEY_PLACES)))
+
+    if not _postings_match(transaction_obj, [
+        (None, LedgerPosting.Category.PURCHASE_IN_TRANSIT,
+         FundAccount.Currency.CNY, -paid, -paid),
+        (None, LedgerPosting.Category.INVENTORY,
+         FundAccount.Currency.CNY, paid, paid),
+    ]):
+        return False
+
+    items = [item for item, _quantity, _actual in allocations]
+    batches = list(PurchaseBatch.objects.filter(
+        purchase_order_item__purchase_order_id=order.pk,
+    ).order_by('purchase_order_item_id', 'id'))
+    if len(batches) != len(items):
+        return False
+    movements = list(StockMovement.objects.filter(
+        movement_type=StockMovement.MovementType.RECEIVE,
+        purchase_batch__purchase_order_item__purchase_order_id=order.pk,
+    ).order_by('purchase_batch_id', 'id'))
+    if len(movements) != len(batches):
+        return False
+    batches_by_item = {}
+    for batch in batches:
+        batches_by_item.setdefault(batch.purchase_order_item_id, []).append(batch)
+    movements_by_batch = {}
+    for movement in movements:
+        movements_by_batch.setdefault(movement.purchase_batch_id, []).append(movement)
+
+    for item, quantity, actual in allocations:
+        matching = batches_by_item.get(item.pk, [])
+        if len(matching) != 1 or item.actual_cost_cny != actual:
+            return False
+        batch = matching[0]
+        unit_cost = (actual / quantity).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
+        if not (
+            batch.cigar_id == item.cigar_id
+            and batch.quantity == quantity
+            and batch.remaining == quantity
+            and batch.physical_remaining == quantity
+            and batch.original_cost_cny == actual
+            and batch.remaining_cost_cny == actual
+            and batch.sold_cost_cny == Decimal('0.00')
+            and batch.unit_cost_cny == unit_cost
+            and batch.box_size == item.box_size
+            and batch.original_box_quantity == item.box_quantity
+            and len(movements_by_batch.get(batch.pk, [])) == 1
+        ):
+            return False
+        movement = movements_by_batch[batch.pk][0]
+        if not (
+            movement.cigar_id == item.cigar_id
+            and movement.quantity == quantity
+            and movement.operator_id == operator_id
+            and movement.idempotency_key == key
+            and movement.note == (note or '')
+        ):
+            return False
+    return True
 
 
 @_retry_sqlite_locked
@@ -707,7 +848,7 @@ def pay_purchase_order(*, purchase_order_id, rub_account_id, business_date,
             if replay_order is None:
                 _payment_conflict()
             replay = _payment_replay(
-                key=key, order_id=order_id, account_id=account_id,
+                key=key, order=replay_order, account_id=account_id,
                 business_date=business_date, operator_id=operator_id,
                 rub_amount=_canonical_rub_total(_canonical_order_rows(replay_order)),
             )
@@ -818,8 +959,11 @@ def receive_paid_purchase_order(*, purchase_order_id, business_date, operator,
         if existing_order_tx is not None:
             if (
                 replay_order.arrival_idempotency_key == key
-                and existing_order_tx.business_date == business_date
-                and existing_order_tx.operator_id == operator_id
+                and _receipt_replay_facts(
+                    order=replay_order, transaction_obj=existing_order_tx,
+                    key=key, business_date=business_date,
+                    operator_id=operator_id, note=note,
+                )
             ):
                 return list(PurchaseBatch.objects.filter(
                     purchase_order_item__purchase_order_id=order_id,

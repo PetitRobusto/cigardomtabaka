@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { tourStepsForRoute } from './guideInteractions';
 import { useLocation } from 'react-router-dom';
 import type { GuideCompletionAction } from './guideInteractions';
 import { shouldReuseTarget } from './targetTransition';
 import { createMissingTargetReporter } from './missingTargetReporter';
 import { FOCUSABLE_SELECTOR } from './focusables';
+import { resolveTarget, restoreTarget } from './guideFocusController';
 
 interface Props {
   stepId?: string;
@@ -22,28 +23,35 @@ export default function ContextTour({ stepId, onAction, onMissingTarget, busy = 
   const dialogRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
   const targetRef = useRef<HTMLElement | null>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
   const step = steps[index];
+  const focusInstruction = useMemo(() => step ? resolveTarget(step.target) : null, [step]);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const currentFocusInstruction = useRef(focusInstruction);
+  currentFocusInstruction.current = focusInstruction;
 
   useEffect(() => {
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     return () => {
       const opener = openerRef.current;
-      if (opener?.isConnected && !opener.hasAttribute('disabled')) opener.focus();
+      const instruction = currentFocusInstruction.current;
+      if (!instruction) return;
+      const restored = restoreTarget(instruction.restoreId);
+      if (restored.action === 'restore' && opener?.isConnected && !opener.hasAttribute('disabled')) opener.focus();
     };
   }, []);
 
   useEffect(() => {
     const missingTarget = createMissingTargetReporter(onMissingTarget);
-    if (!step) { missingTarget.report(); return () => missingTarget.cancel(); }
+    if (!step || !focusInstruction) { missingTarget.report(); return () => missingTarget.cancel(); }
     const updateTarget = () => {
-      const nextTarget = document.querySelector<HTMLElement>(step.target);
+      const nextTarget = document.querySelector<HTMLElement>(focusInstruction.selector);
       if (shouldReuseTarget(nextTarget, targetRef.current)) { setTargetFound(true); return; }
       targetRef.current?.classList.remove('guide-target-highlight');
       targetRef.current = nextTarget;
       if (!nextTarget) { setTargetFound(false); missingTarget.report(); return; }
       missingTarget.cancel();
       nextTarget.classList.add('guide-target-highlight');
+      if (focusInstruction.action === 'focus') nextTarget.focus();
       nextTarget.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
       setTargetFound(true);
     };
@@ -59,7 +67,7 @@ export default function ContextTour({ stepId, onAction, onMissingTarget, busy = 
       window.removeEventListener('scroll', updateTarget);
       targetRef.current?.classList.remove('guide-target-highlight');
     };
-  }, [onMissingTarget, step]);
+  }, [focusInstruction, onMissingTarget, step]);
 
   useEffect(() => {
     if (!targetFound || !dialogRef.current) return;

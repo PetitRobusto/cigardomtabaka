@@ -11,6 +11,10 @@ export interface ContextTourStep {
 const salesSteps: readonly ContextTourStep[] = [
   { id: 'sales-orders', title: '创建销售单', description: '先录入客户、商品和价格，保存为草稿。', target: '[data-guide="sales-orders"]', route: '/sales' },
   { id: 'sales-fulfillment', title: '出库与收款', description: '先展开订单卡，再按真实发生顺序操作出库和人民币收款。', target: '[data-guide="sales-fulfillment"]', route: '/sales' },
+  { id: 'accounting-actions-exchange', title: '记录换汇', description: '把人民币或 USDT 换成卢布，记录实际转入和转出账户。', target: '[data-guide="accounting-actions-exchange"]', route: '/accounting' },
+  { id: 'accounting-actions-purchase', title: '记录采购', description: '先记录采购付款，货物一次到齐后再登记入库。', target: '[data-guide="accounting-actions-purchase"]', route: '/accounting' },
+  { id: 'accounting-actions-expense', title: '记录经营费用', description: '登记工资、房租水电等费用，并选择对应的人民币或卢布账户。', target: '[data-guide="accounting-actions-expense"]', route: '/accounting' },
+  { id: 'accounting-actions-dividend', title: '处理分红', description: '先预览可分配利润，再确认本次合伙人分红。', target: '[data-guide="accounting-actions-dividend"]', route: '/accounting' },
   { id: 'accounting-reconciliation', title: '账户对账', description: '用实际余额核对系统账面，确认每一笔差异。', target: '[data-guide="accounting-reconciliation"]', route: '/accounting' },
   { id: 'accounting-profit', title: '查看月利润', description: '月度利润汇总收入、批次成本与费用。', target: '[data-guide="accounting-profit"]', route: '/accounting' },
 ];

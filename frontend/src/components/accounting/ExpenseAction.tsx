@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { parseAccountingApiError, recordExpense } from '../../api';
 import type { AccountingApiError, ExpenseActionPayload, FundAccount } from '../../types';
 import type { ActionState } from '../../features/accounting/actionState';
+import { moscowBusinessDate } from '../../utils/businessDate';
 
 export type ExpenseCategory = 'salary' | 'rent' | 'utilities' | 'other' | 'salary_expense';
 export interface ExpenseActionValue {
@@ -23,7 +24,8 @@ interface ExpenseActionProps {
   submit?: (payload: ExpenseActionPayload) => Promise<unknown>;
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+// 费用默认日期按 Moscow 业务日，避免 UTC fallback 跨日错期。
+const today = () => moscowBusinessDate();
 const normaliseCategory = (category?: ExpenseCategory): Exclude<ExpenseCategory, 'salary_expense'> => category === 'salary_expense' ? 'salary' : (category || 'salary');
 
 function isConflict(error: AccountingApiError) {

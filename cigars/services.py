@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import hashlib
+import json
 
 from django.db import transaction
 from django.db.models import Q, Sum
@@ -15,6 +17,12 @@ from uuid import uuid4
 from accounting.business_time import moscow_business_date
 
 from accounting.mutation_scope import ledger_mutation_scope
+from accounting.guards import require_day1_completed
+from accounting.models import LedgerPosting, LedgerTransaction
+from accounting.services import (
+    LedgerError, PostingInput, _acquire_sqlite_writer_gate, _post_transaction_once,
+    _retry_sqlite_locked,
+)
 
 from .models import (
     AdjustmentRecord,
@@ -572,6 +580,7 @@ def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note=""
     """Confirm an unpaid draft and reserve its in-stock stick items."""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="confirm_sales_order")
+    require_day1_completed()
     order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, "销售单ID"))
     if (order.fulfillment_status != SalesOrder.FulfillmentStatus.DRAFT or
             order.payment_status != SalesOrder.PaymentStatus.UNPAID):
@@ -612,6 +621,7 @@ def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None
     """Release reservations of a confirmed order before shipment."""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="cancel_confirmed_sales_order")
+    require_day1_completed()
     order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, "销售单ID"))
     if order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED:
         raise OrderServiceError("当前订单不能取消")
@@ -663,6 +673,7 @@ def split_purchase_batch_box(*, batch_id, operator, agent_context=None, note='')
     """Convert one fully available physical box into individually available sticks."""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name='split_purchase_batch_box')
+    require_day1_completed()
     try:
         batch = PurchaseBatch.objects.select_for_update().get(
             id=_to_positive_int(batch_id, '批次ID')
@@ -752,11 +763,12 @@ def create_purchase_order(*, supplier_id, items, business_date=None, operator,
 
 @transaction.atomic
 def create_sales_order(*, items, operator, customer=None, customer_id=None,
-                       customer_name='', payment_method_id=None,
-                       payment_manual=None, note='', agent_context=None):
+                       customer_name='', payment_method_id=None, payment_manual=None,
+                       customer_transport_fee_cny=0, transport_payer=None, note='', agent_context=None):
     """Create a pending sales order and reserve in-stock items FIFO."""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name='create_sales_order')
+    require_day1_completed()
     if not isinstance(items, list) or not items:
         raise OrderServiceError('至少需要一个商品')
 
@@ -779,6 +791,8 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
 
     total_revenue = Decimal('0.00')
     total_cost = Decimal('0.00')
+    transport_fee = _to_money(customer_transport_fee_cny, '客户人肉费')
+    selected_transport_payer = _transport_payer(transport_payer, transport_fee)
 
     for idx, raw_item in enumerate(items, start=1):
         if not isinstance(raw_item, dict):
@@ -850,9 +864,10 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
     order.total_cost = total_cost.quantize(MONEY_PLACES)
     order.total_profit = Decimal('0.00')
     order.goods_amount_cny = order.total_revenue
-    order.customer_transport_fee_cny = Decimal('0.00')
-    order.amount_due_cny = order.total_revenue
-    order.save(update_fields=['total_revenue', 'total_cost', 'total_profit', 'goods_amount_cny', 'customer_transport_fee_cny', 'amount_due_cny', 'fulfillment_status', 'payment_status', 'locked', 'locked_by', 'confirmed_at'])
+    order.customer_transport_fee_cny = transport_fee
+    order.transport_payer = selected_transport_payer
+    order.amount_due_cny = (order.total_revenue + transport_fee).quantize(MONEY_PLACES)
+    order.save(update_fields=['total_revenue', 'total_cost', 'total_profit', 'goods_amount_cny', 'customer_transport_fee_cny', 'transport_payer', 'amount_due_cny', 'fulfillment_status', 'payment_status', 'locked', 'locked_by', 'confirmed_at'])
 
     _record_order_event(
         order,
@@ -932,6 +947,7 @@ def confirm_payment(*, sales_order_id, operator, agent_context=None, note=''):
 def cancel_sales_order(*, sales_order_id, operator, agent_context=None, note=''):
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name='cancel_sales_order')
+    require_day1_completed()
     order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, '销售单ID'))
     if order.status == 'cancelled':
         return order
@@ -989,14 +1005,89 @@ def cancel_sales_order(*, sales_order_id, operator, agent_context=None, note='')
     return order
 
 
+def _post_stock_adjustment(*, cost_cny, gain, business_date, operator, context, reason, source_id):
+    """库存调整统一写资产与当期调整损益，和库存事实处于同一事务。"""
+    if not context.idempotency_key:
+        raise OrderServiceError('库存调整必须提供幂等键')
+    amount = Decimal(cost_cny).quantize(MONEY_PLACES)
+    category = (LedgerPosting.Category.INVENTORY_ADJUSTMENT_GAIN
+                if gain else LedgerPosting.Category.INVENTORY_ADJUSTMENT_LOSS)
+    postings = [
+        PostingInput(category=LedgerPosting.Category.INVENTORY, currency='CNY',
+                     amount=amount if gain else -amount,
+                     cny_amount=amount if gain else -amount),
+        PostingInput(category=category, currency='CNY', amount=-amount if gain else amount,
+                     cny_amount=-amount if gain else amount),
+    ]
+    return _post_transaction_once(
+        transaction_type=LedgerTransaction.TransactionType.INVENTORY_ADJUSTMENT,
+        business_date=business_date, postings=postings, operator=operator,
+        idempotency_key=context.idempotency_key, description=reason,
+        source_type='stock_adjustment', source_id=source_id,
+    )
+
+
+@_retry_sqlite_locked
 @transaction.atomic
 def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None,
                  unit_cost_cny=None, adjustment_type=AdjustmentRecord.AdjustType.LOSS, inventory_form='stick',
-                 agent_context=None):
+                 business_date=None, agent_context=None):
     """Adjust available stock. Negative adjustments never allow stock below zero."""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name='adjust_stock')
+    reason = str(reason or '').strip()
+    if not reason:
+        raise OrderServiceError('库存调整原因不能为空')
+    require_day1_completed()
+    business_date = business_date or moscow_business_date()
     delta = _to_int(quantity_delta, '库存修正数量')
+    cigar_id_for_source = _to_positive_int(cigar_id, '雪茄ID')
+    batch_id_for_source = (
+        None if batch_id in (None, '') else _to_positive_int(batch_id, '批次ID')
+    )
+    # 幂等指纹使用排序 JSON 和两位小数规范化，避免请求格式差异产生不同来源。
+    if unit_cost_cny is None:
+        fingerprint_cost = None
+    else:
+        try:
+            normalized_cost = Decimal(str(unit_cost_cny)).quantize(
+                MONEY_PLACES, rounding=ROUND_HALF_UP,
+            )
+            fingerprint_cost = normalized_cost.to_eng_string()
+        except (InvalidOperation, TypeError, ValueError):
+            fingerprint_cost = str(unit_cost_cny)
+    fingerprint_payload = {
+        'cigar_id': cigar_id_for_source,
+        'batch_id': batch_id_for_source,
+        'delta': delta,
+        'inventory_form': str(inventory_form),
+        'adjustment_type': str(adjustment_type),
+        'unit_cost_cny': fingerprint_cost,
+    }
+    request_fingerprint = hashlib.sha256(json.dumps(
+        fingerprint_payload, sort_keys=True, separators=(',', ':'), ensure_ascii=False,
+    ).encode('utf-8')).hexdigest()
+    # 先升级统一 writer gate，再查询幂等事实，避免并发请求同时通过空检查。
+    _acquire_sqlite_writer_gate()
+    if context.idempotency_key:
+        existing = LedgerTransaction.objects.filter(
+            idempotency_key=context.idempotency_key,
+            transaction_type=LedgerTransaction.TransactionType.INVENTORY_ADJUSTMENT,
+        ).first()
+        if existing is not None:
+            source_prefix = f'stock_adjustment:{request_fingerprint}:'
+            if (existing.business_date != business_date or existing.operator_id != operator.pk
+                    or existing.description != reason or existing.source_type != 'stock_adjustment'
+                    or not existing.source_id.startswith(source_prefix)):
+                raise LedgerError('idempotency_conflict', code='idempotency_conflict')
+            result_batch_raw = existing.source_id[len(source_prefix):]
+            if not result_batch_raw.isdigit() or int(result_batch_raw) <= 0:
+                raise LedgerError('idempotency_conflict', code='idempotency_conflict')
+            result_batch = PurchaseBatch.objects.filter(pk=int(result_batch_raw)).first()
+            if (result_batch is None or result_batch.cigar_id != cigar_id_for_source
+                    or (batch_id_for_source is not None and result_batch.pk != batch_id_for_source)):
+                raise LedgerError('idempotency_conflict', code='idempotency_conflict')
+            return result_batch
     if delta == 0:
         raise OrderServiceError('库存修正数量不能为 0')
     if inventory_form not in ('stick', 'box'):
@@ -1039,14 +1130,12 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
             'remaining', 'physical_remaining', available_field, physical_field, 'remaining_cost_cny',
         ])
         _record_movement(
-            movement_type=StockMovement.MovementType.ADJUSTMENT,
-            cigar=cigar,
-            purchase_batch=batch,
-            quantity=delta,
-            operator=operator,
-            context=context,
-            note=reason,
+            movement_type=StockMovement.MovementType.ADJUSTMENT, cigar=cigar, purchase_batch=batch,
+            quantity=delta, operator=operator, context=context, note=reason,
         )
+        source_id = f'stock_adjustment:{request_fingerprint}:{batch.pk}'
+        _post_stock_adjustment(cost_cny=added_cost, gain=True,
+                               business_date=business_date, operator=operator, context=context, reason=reason, source_id=source_id)
         return batch
 
     quantity_to_remove = abs(delta)
@@ -1068,6 +1157,7 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
 
     remaining_to_remove = quantity_to_remove
     last_batch = None
+    total_adjustment_cost = Decimal('0.00')
     for batch in batches:
         if remaining_to_remove <= 0:
             break
@@ -1113,7 +1203,11 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
             operator=operator,
             reason=reason,
         )
+        total_adjustment_cost += cost
         remaining_to_remove -= take
+    source_id = f'stock_adjustment:{request_fingerprint}:{last_batch.pk}'
+    _post_stock_adjustment(cost_cny=total_adjustment_cost, gain=False,
+                           business_date=business_date, operator=operator, context=context, reason=reason, source_id=source_id)
     return last_batch
 
 

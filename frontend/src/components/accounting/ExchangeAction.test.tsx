@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import ExchangeAction, { selectActiveAccountId as selectExchangeAccountId } from './ExchangeAction';
 
 describe('换汇动作卡 SSR 契约', () => {
@@ -29,5 +29,15 @@ describe('换汇动作卡 SSR 契约', () => {
     expect(selectExchangeAccountId(accounts, 999)).toBe(2);
     expect(selectExchangeAccountId(accounts, 1)).toBe(2);
     expect(selectExchangeAccountId([], 999)).toBe('');
+  });
+});
+
+describe('换汇动作默认业务日期', () => {
+  it('省略 businessDate 时使用 Moscow 业务日而非 UTC 日期', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-13T23:00:00.000Z'));
+    const html = renderToStaticMarkup(<ExchangeAction {...({ accounts: [] } as never)} />);
+    expect(html).toContain('value="2026-08-14"');
+    vi.useRealTimers();
   });
 });

@@ -9,6 +9,7 @@ from django.utils import timezone
 from django.db import close_old_connections
 
 from accounting.models import LedgerTransaction
+from accounting.services import LedgerError
 from accounting.mutation_scope import ledger_mutation_scope
 from cigars.models import (
     Brand,
@@ -126,6 +127,11 @@ class OrderInventoryServiceTest(TestCase):
     def setUp(self):
         self.operator = create_operator()
         self.cigar = create_cigar()
+        from accounting.models import Day1Initialization
+        Day1Initialization.objects.create(
+            status=Day1Initialization.Status.COMPLETED,
+            business_date=date(2026, 8, 10), completed_by=self.operator,
+        )
 
     def test_in_stock_create_reserves_stock(self):
         batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
@@ -434,6 +440,7 @@ class OrderInventoryServiceTest(TestCase):
             cigar_id=self.cigar.id,
             quantity_delta=-2,
             operator=self.operator,
+            reason='预留库存盘亏',
             agent_context=context(command='adjust_stock', key='loss-with-reservation'),
         )
 
@@ -464,6 +471,7 @@ class OrderInventoryServiceTest(TestCase):
             cigar_id=self.cigar.id,
             quantity_delta=-4,
             operator=self.operator,
+            reason='FIFO盘亏',
             agent_context=context(command='adjust_stock', key='loss-fifo'),
         )
 
@@ -502,6 +510,7 @@ class OrderInventoryServiceTest(TestCase):
             quantity_delta=3,
             operator=self.operator,
             unit_cost_cny='12.34',
+            reason='盘盈入账',
             agent_context=context(command='adjust_stock', key='adjust-positive-new'),
         )
 
@@ -531,6 +540,7 @@ class OrderInventoryServiceTest(TestCase):
             operator=self.operator,
             batch_id=batch.id,
             unit_cost_cny='999.99',
+            reason='指定批次盘盈',
             agent_context=context(command='adjust_stock', key='adjust-positive-existing'),
         )
 
@@ -587,6 +597,7 @@ class OrderInventoryServiceTest(TestCase):
             cigar_id=self.cigar.id,
             quantity_delta=-3,
             operator=self.operator,
+            reason='尾差盘亏',
             agent_context=context(command='adjust_stock', key='loss-tail-cost'),
         )
 
@@ -613,6 +624,7 @@ class OrderInventoryServiceTest(TestCase):
             inventory_form='box',
             operator=self.operator,
             batch_id=batch.id,
+            reason='整盒盘亏',
             agent_context=context(command='adjust_stock', key='adjust-box-loss'),
         )
 
@@ -623,7 +635,7 @@ class OrderInventoryServiceTest(TestCase):
         self.assertEqual(batch.adjustment_cost_cny, Decimal('250.00'))
         with self.assertRaises(OrderServiceError):
             adjust_stock(cigar_id=self.cigar.id, quantity_delta=-1, operator=self.operator,
-                         batch_id=batch.id, agent_context=context(key='adjust-no-stick'))
+                         batch_id=batch.id, reason='无散支库存', agent_context=context(key='adjust-no-stick'))
 
     def test_cancel_releases_reserved_stock(self):
         batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
@@ -949,6 +961,11 @@ class AgentCommandApiTest(TestCase):
         self.client.login(username=self.operator.username, password='pass')
         self.cigar = create_cigar()
         self.batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
+        from accounting.models import Day1Initialization
+        Day1Initialization.objects.create(
+            status=Day1Initialization.Status.COMPLETED,
+            business_date=date(2026, 8, 10), completed_by=self.operator,
+        )
 
     def body(self, key='idem-1', quantity=4):
         return {
@@ -970,6 +987,41 @@ class AgentCommandApiTest(TestCase):
 
     def post_json(self, path, body):
         return self.client.post(path, data=json.dumps(body), content_type='application/json')
+
+    def test_create_order_before_day1_returns_replayable_409_json(self):
+        from accounting.models import Day1Initialization
+        Day1Initialization.objects.update(status=Day1Initialization.Status.DRAFT)
+        body = self.body(key='agent-day1-gate')
+
+        first = self.post_json('/api/agent/orders/create/', body)
+        replay = self.post_json('/api/agent/orders/create/', body)
+
+        self.assertEqual(first.status_code, 409)
+        self.assertEqual(first.json()['code'], 'day1_incomplete')
+        self.assertEqual(replay.status_code, 409)
+        self.assertEqual(replay.json(), first.json())
+        self.assertEqual(IdempotencyRecord.objects.get(key='agent-day1-gate').status_code, 409)
+
+    def test_adjust_stock_blank_reason_returns_400_json(self):
+        body = {
+            'idempotency_key': 'agent-empty-adjust-reason',
+            'operator_id': self.operator.id,
+            'agent': {
+                'agent_name': 'codex', 'agent_run_id': 'run-api',
+                'agent_request_id': 'req-api',
+            },
+            'cigar_id': self.cigar.id,
+            'batch_id': self.batch.id,
+            'quantity_delta': -1,
+            'reason': '   ',
+            'business_date': '2026-08-10',
+        }
+        response = self.post_json('/api/agent/stock/adjust/', body)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('原因不能为空', response.json()['error'])
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.remaining, 10)
+        self.assertFalse(StockMovement.objects.exists())
 
     def test_idempotent_retry_does_not_reserve_twice(self):
         body = self.body()
@@ -1300,6 +1352,79 @@ class AgentPurchaseReceivingApiTest(TestCase):
         self.assertEqual(response.json()['error'], '供应商不存在')
         self.assertFalse(PurchaseOrder.objects.exists())
 
+
+class StockAdjustmentConcurrencyTest(TransactionTestCase):
+    reset_sequences = True
+
+    def setUp(self):
+        self.operator = create_operator('adjust-concurrency')
+        self.cigar = create_cigar()
+        self.batch = create_batch(self.cigar, remaining=5, unit_cost='10.00', operator=self.operator)
+        from accounting.models import Day1Initialization
+        Day1Initialization.objects.create(
+            status=Day1Initialization.Status.COMPLETED,
+            business_date=date(2026, 8, 10), completed_by=self.operator,
+        )
+
+    def _run_concurrently(self, calls):
+        barrier = threading.Barrier(len(calls))
+        results = [None] * len(calls)
+
+        def worker(index, kwargs):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                results[index] = adjust_stock(**kwargs)
+            except Exception as error:
+                results[index] = error
+            finally:
+                close_old_connections()
+
+        threads = [threading.Thread(target=worker, args=(index, kwargs)) for index, kwargs in enumerate(calls)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=30)
+        self.assertTrue(all(not thread.is_alive() for thread in threads))
+        self.assertTrue(all(result is not None for result in results), results)
+        return results
+
+    def _call(self, key, *, quantity_delta=-1, reason='并发盘点'):
+        return {
+            'cigar_id': self.cigar.id,
+            'quantity_delta': quantity_delta,
+            'operator': self.operator,
+            'batch_id': self.batch.id,
+            'reason': reason,
+            'business_date': date(2026, 8, 10),
+            'agent_context': AgentContext(
+                agent_name='concurrency', agent_run_id='run',
+                agent_request_id='request', command_name='adjust_stock',
+                idempotency_key=key,
+            ),
+        }
+
+    def test_same_key_concurrent_adjustment_is_exactly_once(self):
+        results = self._run_concurrently([self._call('adjust-concurrent')] * 2)
+        self.assertTrue(all(not isinstance(result, Exception) for result in results), results)
+        self.assertEqual(results[0].pk, results[1].pk)
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.remaining, 4)
+        self.assertEqual(LedgerTransaction.objects.filter(idempotency_key='adjust-concurrent').count(), 1)
+        self.assertEqual(StockMovement.objects.filter(idempotency_key='adjust-concurrent').count(), 1)
+
+    def test_different_body_same_key_concurrent_adjustment_is_conflict(self):
+        results = self._run_concurrently([
+            self._call('adjust-conflict', quantity_delta=-1),
+            self._call('adjust-conflict', quantity_delta=-2),
+        ])
+        statuses = sorted('conflict' if isinstance(result, LedgerError) else 'success' for result in results)
+        self.assertEqual(statuses, ['conflict', 'success'])
+        winning_delta = (-1 if not isinstance(results[0], LedgerError) else -2)
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.remaining, 5 + winning_delta)
+        self.assertEqual(LedgerTransaction.objects.filter(idempotency_key='adjust-conflict').count(), 1)
+        self.assertEqual(StockMovement.objects.filter(idempotency_key='adjust-conflict').count(), 1)
 
 class CanonicalPurchaseMirrorConcurrencyTest(TransactionTestCase):
     reset_sequences = True

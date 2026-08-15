@@ -84,14 +84,16 @@ class AccountingOperationTest(TestCase):
         exchange_to_rub(
             self.cny, self.rub, '100', '1200', self.business_date, self.operator, 'cutover-normal-business',
         )
-        duplicate = self.opening(self.cny, '0', '0', 'cutover-first-opening')
+        duplicate = self.opening(self.cny, '100', '100', 'cutover-first-opening')
+        self.assertEqual(duplicate.pk, first.pk)
+        with self.assertRaisesRegex(LedgerError, 'idempotency_conflict'):
+            self.opening(self.cny, '0', '0', 'cutover-first-opening')
         unused = self.account('late opening account', 'USDT', 'late-opening-account')
         transaction_count = LedgerTransaction.objects.count()
         posting_count = LedgerPosting.objects.count()
         sequence = LedgerSequence.objects.get(name='global')
         next_value = sequence.next_value
 
-        self.assertEqual(duplicate.pk, first.pk)
         with self.assertRaises(LedgerError):
             self.opening(unused, '1', '1', 'late-opening')
 

@@ -3,27 +3,41 @@ import { ChevronRight, CircleDollarSign, PackageCheck, RotateCcw, Truck, X } fro
 import type { FundAccount, SalesOrder } from '../../types';
 import { apiErrorMessage, cancelSalesOrder, confirmSalesOrder, receiveSalesOrder, recordSalesTransportCost, refundSalesOrder, shipSalesOrder } from '../../api';
 import { actionLabel, actionNeedsFundAccount, availableActions, formatCny, initialActionAmount, orderDisplayStatus, salesActionBlockedByAccount, statusLabel, validateMoneyInput } from './salesState';
+import { moscowBusinessDate } from '../../utils/businessDate';
 
 interface Props { order: SalesOrder; accounts: FundAccount[]; accountsError?: string; onChanged: () => void; }
-const today = () => { const date = new Date(); return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+// 销售出库、收款、退款和人肉成本统一按 Moscow 业务日。
+export const salesOrderActionBusinessDate = () => moscowBusinessDate();
+
+// 账户刷新后只保留 active CNY，避免动作沿用停用账户。
+export const selectActiveCnyAccountId = (accounts: Pick<FundAccount, 'id' | 'currency' | 'is_active'>[], candidate?: number | null): number => {
+  const activeCny = accounts.filter(account => account.currency === 'CNY' && account.is_active);
+  return activeCny.some(account => account.id === candidate) ? candidate as number : activeCny[0]?.id ?? 0;
+};
 
 export default function SalesOrderCard({ order, accounts: allAccounts, accountsError = '', onChanged }: Props) {
   const accounts = allAccounts.filter(account => account.currency === 'CNY' && account.is_active);
   const [open, setOpen] = useState(false);
   const [action, setAction] = useState('');
-  const [date, setDate] = useState(today());
+  const [date, setDate] = useState(salesOrderActionBusinessDate());
   const [receiptAmount, setReceiptAmount] = useState(initialActionAmount('receive', order.amount_due_cny));
   const [transportCostAmount, setTransportCostAmount] = useState('');
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? 0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
-    if (!accountId && accounts[0]) setAccountId(accounts[0].id);
-  }, [accountId, accounts]);
+    const nextAccountId = selectActiveCnyAccountId(allAccounts, accountId);
+    if (nextAccountId !== accountId) setAccountId(nextAccountId);
+  }, [accountId, allAccounts]);
   const actions = Array.isArray(order.available_actions) ? order.available_actions : availableActions(order);
 
   const run = async () => {
-    setBusy(true); setError('');
+    setError('');
+    if (actionNeedsFundAccount(action) && selectActiveCnyAccountId(allAccounts, accountId) !== accountId) {
+      setError('请选择有效的 CNY 资金账户');
+      return;
+    }
+    setBusy(true);
     try {
       if (action === 'confirm') await confirmSalesOrder(order.id);
       if (action === 'cancel') await cancelSalesOrder(order.id);

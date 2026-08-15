@@ -5,9 +5,12 @@ The API intentionally exposes business commands instead of model CRUD.
 import hashlib
 import json
 from decimal import Decimal, InvalidOperation
+from datetime import date
 
 from django.db import transaction
 from accounting.business_time import moscow_business_date
+from accounting.guards import Day1IncompleteError
+from accounting.services import LedgerError
 from accounting.services import _acquire_sqlite_writer_gate, _retry_sqlite_locked
 from accounting.purchase_actions import PurchaseActionError, canonical_purchase_item, normalize_legacy_purchase_item
 from django.db.models import Count, Q, Sum
@@ -101,11 +104,38 @@ def _purchase_error_body(exc):
     }
 
 
+def _ledger_error_result(exc):
+    code = exc.code or 'ledger_error'
+    return {
+        'error': exc.code or str(exc),
+        'code': code,
+        'details': exc.details,
+    }, 409 if code in {'day1_incomplete', 'idempotency_conflict'} else 400
+
+
+def _day1_error_result(exc):
+    return {
+        'error': exc.code,
+        'code': exc.code,
+        'details': exc.details,
+    }, 409
+
+
 def _order_service_error_result(exc):
     """兼容服务携带采购 code 时，沿用 canonical HTTP 错误协议。"""
     if exc.code:
         return _purchase_error_body(exc), _purchase_error_status(exc.code)
     return {'error': str(exc), 'details': exc.details}, 400
+
+
+def _business_date_from_body(body):
+    raw = body.get('business_date')
+    if not raw:
+        return moscow_business_date()
+    try:
+        return date.fromisoformat(str(raw))
+    except (TypeError, ValueError):
+        raise OrderServiceError('business_date 必须是 ISO 日期')
 
 
 def _agent_context(body, command_name):
@@ -162,6 +192,10 @@ def _idempotent_command(request, command_name, handler, *, canonical_action=Fals
                 except PurchaseActionError as exc:
                     response_body = _purchase_error_body(exc)
                     status_code = _purchase_error_status(exc.code)
+                except Day1IncompleteError as exc:
+                    response_body, status_code = _day1_error_result(exc)
+                except LedgerError as exc:
+                    response_body, status_code = _ledger_error_result(exc)
                 except OrderServiceError as exc:
                     response_body, status_code = _order_service_error_result(exc)
                 IdempotencyRecord.objects.filter(pk=record.pk).update(
@@ -171,6 +205,12 @@ def _idempotent_command(request, command_name, handler, *, canonical_action=Fals
         except PurchaseActionError as exc:
             response_body = _purchase_error_body(exc)
             return _json_response(response_body, status=_purchase_error_status(exc.code))
+        except Day1IncompleteError as exc:
+            response_body, status_code = _day1_error_result(exc)
+            return _json_response(response_body, status=status_code)
+        except LedgerError as exc:
+            response_body, status_code = _ledger_error_result(exc)
+            return _json_response(response_body, status=status_code)
         except OrderServiceError as exc:
             response_body, status_code = _order_service_error_result(exc)
             return _json_response(response_body, status=status_code)
@@ -195,6 +235,10 @@ def _idempotent_command(request, command_name, handler, *, canonical_action=Fals
         except PurchaseActionError as exc:
             response_body = _purchase_error_body(exc)
             status_code = _purchase_error_status(exc.code)
+        except Day1IncompleteError as exc:
+            response_body, status_code = _day1_error_result(exc)
+        except LedgerError as exc:
+            response_body, status_code = _ledger_error_result(exc)
         except OrderServiceError as exc:
             response_body, status_code = _order_service_error_result(exc)
         except SalesOrder.DoesNotExist:
@@ -411,6 +455,8 @@ def create_sales_order_command(request):
             customer_name=str(body.get('customer_name') or '').strip(),
             payment_method_id=body.get('payment_method_id'),
             payment_manual=body.get('payment_manual') or {},
+            customer_transport_fee_cny=body.get('customer_transport_fee_cny', 0),
+            transport_payer=body.get('transport_payer'),
             note=str(body.get('note') or '').strip(),
             agent_context=context,
         )
@@ -469,6 +515,7 @@ def adjust_stock_command(request):
             reason=str(body.get('reason') or body.get('note') or '').strip(),
             batch_id=body.get('batch_id'),
             unit_cost_cny=body.get('unit_cost_cny'),
+            business_date=_business_date_from_body(body),
             agent_context=context,
         )
         return {

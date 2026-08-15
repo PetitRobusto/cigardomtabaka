@@ -415,6 +415,7 @@ class LedgerTransaction(models.Model):
         PURCHASE_RECEIPT = 'purchase_receipt', '采购到货'
         EXPENSE = 'expense', '经营费用'
         DIVIDEND = 'dividend', '分红'
+        INVENTORY_ADJUSTMENT = 'inventory_adjustment', '库存调整'
     class Status(models.TextChoices):
         DRAFT = 'draft', '草稿'
         POSTED = 'posted', '已入账'

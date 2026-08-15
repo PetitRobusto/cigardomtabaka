@@ -1,6 +1,9 @@
+from datetime import date
 from decimal import Decimal
 
 from django.test import TestCase
+
+from accounting.models import Day1Initialization
 
 from cigars.models import (
     Brand,
@@ -21,6 +24,12 @@ from cigars.services import AgentContext, create_sales_order_draft
 class SalesOrderWorkflowTest(TestCase):
     def setUp(self):
         self.operator = User.objects.create_user('workflow-operator', password='pass', is_staff=True)
+        Day1Initialization.objects.create(
+            singleton_key='company',
+            status=Day1Initialization.Status.COMPLETED,
+            business_date=date(2026, 8, 10),
+            completed_by=self.operator,
+        )
         brand = Brand.objects.create(english_name='Workflow Brand', name='流程品牌')
         self.cigar = Cigar.objects.create(
             brand=brand.english_name,

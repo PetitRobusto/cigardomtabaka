@@ -1,3 +1,4 @@
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -14,6 +15,7 @@ from accounting.models import (
     AccountReconciliation, FundAccount, LedgerPosting, LedgerSequence,
     LedgerTransaction,
 )
+from accounting.guards import require_day1_completed
 from accounting.selectors import account_snapshot
 
 
@@ -29,7 +31,12 @@ ORIGINAL_PLACES = {
 
 
 class LedgerError(Exception):
-    pass
+    """可携带稳定 API code/details 的账务领域错误。"""
+
+    def __init__(self, message, *, code=None, details=None):
+        super().__init__(message)
+        self.code = code
+        self.details = details or {}
 
 
 @dataclass(frozen=True)
@@ -113,6 +120,17 @@ def _require_operator(operator):
         raise LedgerError('必须提供操作员 operator')
     return persisted
 
+def _operator_for_replay(operator):
+    """重放只确认操作员身份存在，不重新检查当前操作权限。"""
+    user_model = get_user_model()
+    if not isinstance(operator, user_model) or not operator.pk:
+        raise LedgerError('必须提供真实操作人 operator')
+    try:
+        return user_model.objects.get(pk=operator.pk)
+    except user_model.DoesNotExist:
+        raise LedgerError('必须提供真实操作人 operator')
+
+
 
 def _validate_metadata(transaction_type, business_date, idempotency_key):
     if transaction_type not in LedgerTransaction.TransactionType.values:
@@ -130,7 +148,12 @@ def _require_active_accounts(account_map):
         raise LedgerError('账户已停用')
 
 
-def _resolve_accounts(postings):
+def _normalized_text(value):
+    """将账务元数据稳定转换为可持久化、可重放的字符串。"""
+    return '' if value is None else str(value)
+
+
+def _resolve_accounts(postings, *, require_active=True):
     account_ids = set()
     for posting in postings:
         if posting.account is None:
@@ -147,7 +170,8 @@ def _resolve_accounts(postings):
     account_map = {account.pk: account for account in accounts}
     if len(account_map) != len(account_ids):
         raise LedgerError('账户不存在')
-    _require_active_accounts(account_map)
+    if require_active:
+        _require_active_accounts(account_map)
     return account_map
 
 
@@ -244,8 +268,29 @@ def _existing_transaction(idempotency_key, transaction_type):
     if existing is None:
         return None
     if existing.transaction_type != transaction_type:
-        raise LedgerError('幂等键已用于另一种交易类型')
+        raise LedgerError('idempotency_conflict', code='idempotency_conflict')
     return existing
+
+
+def _assert_transaction_replay(existing, *, transaction_type, business_date, operator,
+                               description, source_type, source_id, prepared):
+    """幂等重放必须逐字段核对不可变交易和完整分录。"""
+    actual = Counter(existing.postings.order_by('id').values_list(
+        'account_id', 'category', 'currency', 'amount', 'cny_amount',
+    ))
+    expected = Counter((row.account_id, row.category, row.currency, row.amount, row.cny_amount)
+                       for row in prepared)
+    if (
+        existing.transaction_type != transaction_type
+        or existing.status != LedgerTransaction.Status.POSTED
+        or existing.business_date != business_date
+        or existing.operator_id != operator.pk
+        or existing.description != _normalized_text(description)
+        or existing.source_type != _normalized_text(source_type)
+        or existing.source_id != _normalized_text(source_id)
+        or actual != expected
+    ):
+        raise LedgerError('idempotency_conflict', code='idempotency_conflict')
 
 
 def _operation_result(ledger_transaction, created, return_result):
@@ -269,8 +314,8 @@ def _acquire_sqlite_writer_gate():
     trusted low-level persistence boundary.
     """
     sequence, created = LedgerSequence.objects.select_for_update().get_or_create(name='global')
-    if connection.vendor == 'sqlite' and not created:
-        # Trusted low-level persistence boundary: equal write acquires SQLite writer lock.
+    if connection.vendor == 'sqlite':
+        # Trusted low-level persistence boundary: every attempt upgrades to a SQLite writer.
         models.Model.save(sequence, update_fields=['next_value'])
     return sequence
 
@@ -304,15 +349,25 @@ def _post_transaction_once(*, transaction_type, business_date, postings, operato
     if _writer_gate:
         _acquire_sqlite_writer_gate()
     _validate_metadata(transaction_type, business_date, idempotency_key)
-    persisted_operator = _require_operator(operator)
-    existing = _existing_transaction(idempotency_key, transaction_type)
-    if existing is not None:
-        return _operation_result(existing, False, return_result)
-
     try:
         raw_postings = tuple(postings)
     except TypeError:
         raise LedgerError('postings必须是可迭代分录')
+    existing = _existing_transaction(idempotency_key, transaction_type)
+    if existing is not None:
+        # 已有事实先做完整比对；重放不受当前 operator/账户权限状态影响。
+        replay_operator = _operator_for_replay(operator)
+        account_map = _resolve_accounts(raw_postings, require_active=False)
+        prepared = _prepare_postings(raw_postings, account_map)
+        _assert_transaction_replay(
+            existing, transaction_type=transaction_type, business_date=business_date,
+            operator=replay_operator, description=description, source_type=source_type,
+            source_id=source_id, prepared=prepared,
+        )
+        return _operation_result(existing, False, return_result)
+
+    # 新幂等键仍严格要求操作员和资金账户处于可用状态。
+    persisted_operator = _require_operator(operator)
     account_map = _resolve_accounts(raw_postings)
     prepared = _prepare_postings(raw_postings, account_map)
     if transaction_type == LedgerTransaction.TransactionType.OPENING_BALANCE:
@@ -339,9 +394,9 @@ def _post_transaction_once(*, transaction_type, business_date, postings, operato
                 status=LedgerTransaction.Status.DRAFT,
                 business_date=business_date,
                 idempotency_key=idempotency_key,
-                description=description or '',
-                source_type=source_type or '',
-                source_id=source_id or '',
+                description=_normalized_text(description),
+                source_type=_normalized_text(source_type),
+                source_id=_normalized_text(source_id),
                 operator=persisted_operator,
             )
             for posting in prepared:
@@ -363,6 +418,13 @@ def _post_transaction_once(*, transaction_type, business_date, postings, operato
     except IntegrityError:
         existing = _existing_transaction(idempotency_key, transaction_type)
         if existing is not None:
+            # 并发唯一键冲突也必须逐字段核对，不能把不同请求静默当成成功。
+            replay_operator = _operator_for_replay(operator)
+            _assert_transaction_replay(
+                existing, transaction_type=transaction_type, business_date=business_date,
+                operator=replay_operator, description=description, source_type=source_type,
+                source_id=source_id, prepared=prepared,
+            )
             return _operation_result(existing, False, return_result)
         raise LedgerError('创建账务交易失败')
     return _operation_result(ledger_transaction, True, return_result)
@@ -371,6 +433,8 @@ def _post_transaction_once(*, transaction_type, business_date, postings, operato
 
 def post_transaction(*, transaction_type, business_date, postings, operator,
                      idempotency_key, description='', source_type='', source_id=''):
+    if transaction_type == LedgerTransaction.TransactionType.DAY1_OPENING:
+        raise LedgerError('Day 1 期初资产只能通过一次性初始化服务入账')
     try:
         postings = tuple(postings)
     except TypeError:
@@ -407,6 +471,62 @@ def _retry_sqlite_locked(operation):
                 time.sleep(_sqlite_retry_delay(attempt, 0.1))
     return retrying_operation
 
+
+def _post_day1_opening(*, business_date, postings, operator, idempotency_key,
+                       source_id, description='公司 Day 1 期初资产初始化'):
+    """Use the single ledger writer after enforcing the one-time opening shape."""
+    if not isinstance(source_id, str) or not source_id.isdigit():
+        raise LedgerError('Day 1 初始化来源无效')
+    try:
+        postings = tuple(postings)
+    except TypeError:
+        raise LedgerError('Day 1 分录必须是可迭代对象')
+
+    account_assets = []
+    inventory_assets = []
+    capital = []
+    for posting in postings:
+        if not isinstance(posting, PostingInput):
+            raise LedgerError('Day 1 分录必须是 PostingInput')
+        if posting.account is not None:
+            if posting.category or posting.amount <= 0 or posting.cny_amount < 0:
+                raise LedgerError('Day 1 账户资产分录无效')
+            account_assets.append(posting)
+        elif posting.category == LedgerPosting.Category.INVENTORY:
+            if posting.amount <= 0 or posting.cny_amount <= 0:
+                raise LedgerError('Day 1 库存资产分录必须为正')
+            inventory_assets.append(posting)
+        elif posting.category == LedgerPosting.Category.OPENING_CAPITAL:
+            if posting.amount >= 0 or posting.cny_amount >= 0:
+                raise LedgerError('Day 1 期初资本分录必须为负')
+            capital.append(posting)
+        else:
+            raise LedgerError('Day 1 期初分录包含不允许的内部分类')
+
+    if not account_assets and not inventory_assets:
+        raise LedgerError('Day 1 期初资产必须大于零')
+    if len(inventory_assets) > 1 or len(capital) != 1:
+        raise LedgerError('Day 1 必须包含至多一条库存资产和恰好一条期初资本分录')
+    asset_total = sum(
+        (posting.cny_amount for posting in (*account_assets, *inventory_assets)),
+        Decimal('0.00'),
+    ).quantize(CNY_PLACES)
+    capital_amount = capital[0].cny_amount.quantize(CNY_PLACES)
+    if asset_total <= 0 or capital_amount != -asset_total:
+        raise LedgerError('Day 1 期初资本必须精确抵销全部资产')
+
+    return _post_transaction_once(
+        transaction_type=LedgerTransaction.TransactionType.DAY1_OPENING,
+        business_date=business_date,
+        postings=postings,
+        operator=operator,
+        idempotency_key=idempotency_key,
+        description=description,
+        source_type='day1_initialization',
+        source_id=source_id,
+        _writer_gate=False,
+    )
+
 def _positive_amount(value, currency, field_name):
 
     if currency not in ORIGINAL_PLACES:
@@ -430,8 +550,46 @@ def _nonnegative_cny_amount(value, field_name):
 
 def _existing_operation(transaction_type, business_date, operator, idempotency_key):
     _validate_metadata(transaction_type, business_date, idempotency_key)
-    persisted_operator = _require_operator(operator)
-    return persisted_operator, _existing_transaction(idempotency_key, transaction_type)
+    existing = _existing_transaction(idempotency_key, transaction_type)
+    if existing is not None:
+        return _operator_for_replay(operator), existing
+    return _require_operator(operator), None
+
+
+def _money_operation_replay(
+    existing, *, source_account, target_account, source_amount, target_amount,
+    business_date, operator, description, transaction_type,
+):
+    """同一资金动作幂等键只能重放完全一致的原始请求。"""
+    for account in (source_account, target_account):
+        if not isinstance(account, FundAccount) or not account.pk or account._state.adding:
+            raise LedgerError('账户必须是已保存的资金账户')
+    source_amount = _positive_amount(source_amount, source_account.currency, '转出原币金额')
+    target_amount = _positive_amount(target_amount, target_account.currency, '转入原币金额')
+    rows = tuple(existing.postings.order_by('id').values_list(
+        'account_id', 'category', 'currency', 'amount', 'cny_amount',
+    ))
+    expected_rows = (
+        (source_account.pk, '', source_account.currency, -source_amount),
+        (target_account.pk, '', target_account.currency, target_amount),
+    )
+    if (
+        existing.transaction_type != transaction_type
+        or existing.status != LedgerTransaction.Status.POSTED
+        or existing.source_type != ''
+        or existing.source_id != ''
+        or existing.business_date != business_date
+        or existing.operator_id != operator.pk
+        or existing.description != (description or '')
+        or len(rows) != 2
+        or tuple(row[:4] for row in rows) != expected_rows
+        or rows[0][4] >= 0
+        or rows[1][4] <= 0
+        or rows[0][4] + rows[1][4] != 0
+        or (source_account.currency == FundAccount.Currency.CNY and rows[0][4] != -source_amount)
+        or (target_account.currency == FundAccount.Currency.CNY and rows[1][4] != target_amount)
+    ):
+        raise LedgerError('幂等键已用于不同的资金动作参数', code='idempotency_conflict')
 
 
 def _lock_accounts(*accounts):
@@ -479,15 +637,49 @@ def _record_opening_balance(account, original_amount, cny_book_cost, equity_cate
                             business_date, operator, idempotency_key, return_result=False):
     _acquire_sqlite_writer_gate()
     _validate_metadata(LedgerTransaction.TransactionType.OPENING_BALANCE, business_date, idempotency_key)
-    persisted_operator = _require_operator(operator)
     if business_date != CUTOVER_DATE:
         raise LedgerError('期初余额只能记录在账务切换日')
-    existing = _existing_transaction(
-        idempotency_key,
-        LedgerTransaction.TransactionType.OPENING_BALANCE,
-    )
+
+    existing = LedgerTransaction.objects.filter(idempotency_key=idempotency_key).first()
     if existing is not None:
-        return _operation_result(existing, False, return_result)
+        # 已有期初事实先按原始分录重放，不能被当前权限或账户停用状态阻断。
+        replay_operator = _operator_for_replay(operator)
+        if existing.transaction_type != LedgerTransaction.TransactionType.OPENING_BALANCE:
+            raise LedgerError('idempotency_conflict', code='idempotency_conflict')
+        if not isinstance(account, FundAccount) or not account.pk or account._state.adding:
+            raise LedgerError('idempotency_conflict', code='idempotency_conflict')
+        locked_account = FundAccount.objects.select_for_update().filter(pk=account.pk).first()
+        if locked_account is None:
+            raise LedgerError('idempotency_conflict', code='idempotency_conflict')
+        try:
+            replay_original = _positive_amount(original_amount, locked_account.currency, '期初原币金额')
+            replay_cost = _nonnegative_cny_amount(cny_book_cost, '期初人民币账面成本')
+        except LedgerError as error:
+            raise LedgerError('idempotency_conflict', code='idempotency_conflict') from error
+        if locked_account.currency == FundAccount.Currency.CNY and replay_cost != replay_original:
+            raise LedgerError('idempotency_conflict', code='idempotency_conflict')
+        if equity_category not in (
+            LedgerPosting.Category.OPENING_CAPITAL,
+            LedgerPosting.Category.OPENING_RETAINED_EARNINGS,
+        ):
+            raise LedgerError('idempotency_conflict', code='idempotency_conflict')
+        return _post_transaction_once(
+            transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
+            business_date=business_date,
+            postings=[
+                PostingInput(account=locked_account, currency=locked_account.currency,
+                             amount=replay_original, cny_amount=replay_cost),
+                PostingInput(category=equity_category, currency=FundAccount.Currency.CNY,
+                             amount=-replay_cost, cny_amount=-replay_cost),
+            ],
+            operator=replay_operator,
+            idempotency_key=idempotency_key,
+            return_result=return_result,
+            _writer_gate=False,
+        )
+
+    # 新幂等键仍严格要求操作员和账户可用。
+    persisted_operator = _require_operator(operator)
     if equity_category not in (
         LedgerPosting.Category.OPENING_CAPITAL,
         LedgerPosting.Category.OPENING_RETAINED_EARNINGS,
@@ -500,9 +692,6 @@ def _record_opening_balance(account, original_amount, cny_book_cost, equity_cate
     cny_book_cost = _nonnegative_cny_amount(cny_book_cost, '期初人民币账面成本')
     if locked_account.currency == FundAccount.Currency.CNY and cny_book_cost != original_amount:
         raise LedgerError('人民币期初原币金额必须等于账面成本')
-    if LedgerPosting.objects.filter(account=locked_account).exists():
-        raise LedgerError('已有分录的账户不能记录期初余额')
-
     return _post_transaction_once(
         transaction_type=LedgerTransaction.TransactionType.OPENING_BALANCE,
         business_date=business_date,
@@ -546,7 +735,19 @@ def _exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
         LedgerTransaction.TransactionType.EXCHANGE, business_date, operator, idempotency_key,
     )
     if existing is not None:
+        _money_operation_replay(
+            existing,
+            source_account=source_account,
+            target_account=rub_account,
+            source_amount=source_amount,
+            target_amount=rub_amount,
+            business_date=business_date,
+            transaction_type=LedgerTransaction.TransactionType.EXCHANGE,
+            operator=persisted_operator,
+            description=description,
+        )
         return _operation_result(existing, False, return_result)
+    require_day1_completed()
 
     account_map = _lock_accounts(source_account, rub_account)
     source_account = account_map[source_account.pk]
@@ -606,7 +807,19 @@ def _transfer_same_currency(source_account, target_account, amount, business_dat
         LedgerTransaction.TransactionType.TRANSFER, business_date, operator, idempotency_key,
     )
     if existing is not None:
+        _money_operation_replay(
+            existing,
+            source_account=source_account,
+            target_account=target_account,
+            source_amount=amount,
+            target_amount=amount,
+            business_date=business_date,
+            transaction_type=LedgerTransaction.TransactionType.TRANSFER,
+            operator=persisted_operator,
+            description=description,
+        )
         return _operation_result(existing, False, return_result)
+    require_day1_completed()
 
     account_map = _lock_accounts(source_account, target_account)
     source_account = account_map[source_account.pk]

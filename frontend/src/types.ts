@@ -246,7 +246,9 @@ export interface CigarDetailResponse {
     release_type_cn: string;
     release_name: string;
     production_method: string;
+    /** Human-facing descriptions; accounting uses box_sizes below. */
     packagings: string[];
+    box_sizes: number[];
   };
   brand: {
     english_name: string;
@@ -341,6 +343,11 @@ export interface SearchCigarResult {
   ring_gauge: number | null;
   thumb_url: string | null;
   stock_qty: number;
+  box_options: {
+    box_size: number;
+    available_boxes: number;
+  }[];
+  available_sticks: number;
   batches: {
     batch_id: number;
     box_size: number;
@@ -561,6 +568,7 @@ export interface SalesOrder {
   customer?: { id: number; name: string; phone: string } | null;
   goods_amount_cny: number;
   customer_transport_fee_cny: number;
+  transport_payer: 'customer' | 'company';
   amount_due_cny: number;
   total_revenue: number;
   total_cost: number;
@@ -588,6 +596,7 @@ export interface SalesOrderPayload {
   payment_method_id?: number | null;
   payment_manual?: Record<string, string>;
   customer_transport_fee_cny?: string;
+  transport_payer?: 'customer' | 'company';
   note?: string;
 }
 
@@ -613,6 +622,85 @@ export interface MonthlyProfitReport {
   transaction_count: number;
 }
 
+export interface AccountingDashboardStats {
+  cny_funds_total: string | null;
+  inventory_book_cost_cny: string | null;
+  accounts_receivable_cny: string | null;
+  month_net_profit_cny: string | null;
+}
+
+export interface AccountingDashboard {
+  requires_day1: boolean;
+  day1_status: 'not_started' | 'draft' | 'completed' | string;
+  stats: AccountingDashboardStats;
+  accounts: (FundAccount & { original_balance: string; cny_book_cost: string })[];
+  monthly_profit: MonthlyProfitReport | null;
+  reconciliation: {
+    pending_count: number;
+    latest: { id: number; account_id: number; account_name: string; business_date: string; system_amount: string; actual_amount: string; difference: string; status: string }[];
+  };
+}
+
+export interface Day1AccountDraft {
+  slot: 'owner_cny' | 'partner_cny' | 'rub' | 'usdt';
+  name: string;
+  currency: 'CNY' | 'RUB' | 'USDT';
+  original_amount: string;
+  cny_book_cost: string;
+}
+
+export interface Day1InventoryDraft {
+  cigar_id: number;
+  box_size: number;
+  box_quantity: number;
+  loose_sticks: number;
+  unit_cost_cny: string;
+}
+
+export interface Day1CompletionSummary {
+  initialization_id: number;
+  idempotency_key: string;
+  request_hash: string;
+  operator_id: number;
+  business_date: string;
+  retained_earnings_cny: string;
+  opening_capital_cny: string;
+  total_net_assets_cny: string;
+  accounts_total_cny: string;
+  inventory_total_cny: string;
+  account_count: number;
+  inventory_count: number;
+  ledger_transaction_id: number;
+  accounts: Array<{
+    slot: 'owner_cny' | 'partner_cny' | 'rub' | 'usdt';
+    name: string;
+    currency: 'CNY' | 'RUB' | 'USDT';
+    original_amount: string;
+    cny_book_cost: string;
+    account_id: number;
+  }>;
+  inventory: Array<{
+    cigar_id: number;
+    /** Compatible with newer frozen summaries that include the catalog display name. */
+    cigar_name?: string;
+    box_size: number;
+    box_quantity: number;
+    loose_sticks: number;
+    unit_cost_cny: string;
+    quantity: number;
+    total_cost_cny: string;
+    batch_id: number;
+  }>;
+}
+
+export interface Day1State {
+  status: 'not_started' | 'draft' | 'completed' | string;
+  version: number;
+  business_date: string | null;
+  draft: { accounts: Day1AccountDraft[]; inventory: Day1InventoryDraft[] } | null;
+  completion_summary: Day1CompletionSummary | null;
+}
+
 export interface AccountingSummary {
   as_of: string;
   fund_accounts: (FundAccount & { original_balance: string; cny_book_cost: string })[];
@@ -635,4 +723,133 @@ export interface Reconciliation {
   note: string;
   created_at: string;
   updated_at: string;
+}
+
+// 账务动作金额始终以字符串承载，避免浏览器浮点数改变资金事实。
+export interface AccountingApiError {
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+  status?: number;
+}
+
+export interface PurchaseActionItem {
+  id?: number;
+  cigar_id: number;
+  cigar_name?: string | null;
+  box_size: number | null;
+  box_quantity: number | null;
+  quantity?: number | null;
+  unit_price_rub_per_box: string | null;
+  packaging_status?: string;
+  review_required?: boolean;
+}
+
+export interface PurchaseAction {
+  id: number;
+  order_number?: string;
+  supplier_id?: number;
+  status: 'draft' | 'in_transit' | 'received' | 'cancelled' | string;
+  version: number;
+  business_date?: string | null;
+  rub_total?: string;
+  paid_cny_cost?: string;
+  items: PurchaseActionItem[];
+}
+
+export interface DividendAction {
+  id: number;
+  status: 'draft' | 'confirmed' | string;
+  version: number;
+  total_cny: string;
+  partner_a_amount_cny?: string | null;
+  partner_b_amount_cny?: string | null;
+  partner_a_account_id?: number | null;
+  partner_b_account_id?: number | null;
+  business_date?: string | null;
+  warning_code?: string | null;
+  warning_ack?: boolean;
+}
+
+export interface DividendPreview {
+  retained_earnings_cny: string;
+  requested_cny: string;
+  warning: {
+    code: 'retained_earnings_exceeded';
+    retained_earnings_cny: string;
+    requested_cny: string;
+    fingerprint: string;
+  } | null;
+  warning_fingerprint: string;
+}
+
+export interface AccountingActionsResponse {
+  purchases: PurchaseAction[];
+  dividends: DividendAction[];
+}
+
+export interface ExchangeActionPayload {
+  source_account_id: number;
+  rub_account_id: number;
+  source_amount: string;
+  rub_amount: string;
+  business_date: string;
+}
+
+export interface PurchaseActionCreatePayload {
+  supplier_id: number;
+  business_date: string;
+  items: PurchaseActionItem[];
+  note: string;
+}
+
+export interface PurchaseActionUpdatePayload {
+  expected_version: number;
+  items: PurchaseActionItem[];
+  note: string;
+}
+
+export interface ExpenseActionPayload {
+  category: 'salary' | 'rent' | 'utilities' | 'other';
+  amount: string;
+  fund_account_id: number;
+  business_date: string;
+  note: string;
+}
+
+export interface DividendCreatePayload {
+  total_cny: string;
+  business_date: string;
+  note: string;
+}
+
+export interface DividendUpdatePayload {
+  total_cny: string;
+  partner_a_amount_cny: string;
+  partner_b_amount_cny: string;
+  partner_a_account_id: number;
+  partner_b_account_id: number;
+  expected_version: number;
+  note: string;
+}
+
+export interface PurchasePayPayload {
+  rub_account_id: number;
+  business_date: string;
+}
+
+export interface PurchaseReceivePayload {
+  business_date: string;
+  note: string;
+}
+
+export interface PurchaseCancelPayload {
+  expected_version: number;
+  note: string;
+}
+
+export interface DividendConfirmPayload {
+  expected_version: number;
+  warning_fingerprint: string;
+  warning_ack: boolean;
 }

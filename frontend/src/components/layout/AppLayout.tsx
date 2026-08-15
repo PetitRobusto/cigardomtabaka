@@ -3,9 +3,8 @@ import { useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { usePageMetaContext } from '../../contexts/PageMetaContext';
 import Breadcrumb from './Breadcrumb';
-import { isSalesAccountingNavActive } from '../sales/salesState';
 import {
-  LayoutGrid, Package, TrendingUp, Link2, Settings, LogIn, LogOut, User, Menu, X,
+  LayoutGrid, Package, TrendingUp, Link2, LogIn, LogOut, User, Menu, X,
   CircleDollarSign, ClipboardList,
   MapPin, Phone, MessageCircle, BookOpen
 } from 'lucide-react';
@@ -36,26 +35,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { to: '/', label: '品牌', icon: LayoutGrid, public: true },
     ...(user?.is_staff ? [
       { to: '/inventory', label: '库存', icon: Package },
-      { to: '/sales', label: '销售', icon: CircleDollarSign },
-      { to: '/sales#accounting', label: '账务', icon: ClipboardList },
+      { to: '/sales', label: '订单', icon: CircleDollarSign },
+      { to: '/accounting', label: '账务', icon: ClipboardList },
       { to: '/prices', label: '价格', icon: TrendingUp },
       { to: '/privnote', label: '链接', icon: Link2 },
       { to: '/help', label: '帮助', icon: BookOpen },
-      { to: '/admin/', label: '管理', icon: Settings, external: true },
     ] : []),
   ];
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
-    if (path === '/sales' || path === '/sales#accounting') return location.pathname === '/sales' && isSalesAccountingNavActive(path, location.hash.replace('#', ''));
+    if (path === '/sales' || path === '/accounting') return location.pathname === path;
     return location.pathname.startsWith(path);
   };
-
-  useEffect(() => {
-    if (location.pathname === '/sales' && location.hash === '#accounting') {
-      window.setTimeout(() => document.getElementById('accounting')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
-    }
-  }, [location.pathname, location.hash]);
 
   if (isLoading) {
     return (

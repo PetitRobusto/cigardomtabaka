@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenDesign · 账务动作中心原型</title>
+  <style>
+    :root {
+      --cream: #FAF8F5;
+      --fg: #2C2416;
+      --muted: #8A7E6E;
+      --border: #E8E0D6;
+      --accent: #7A1F2E;
+      --accent-light: #F5EFE8;
+      --gold: #B87A3A;
+      --white: #fffdfb;
+      --success: #2e7050;
+      --warning: #a86222;
+      --danger: #a23b3b;
+      --shadow: 0 16px 42px rgba(44, 36, 22, .08);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--border); color: var(--fg); font-family: Inter, ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .prototype-shell { max-width: 1480px; min-height: 100vh; margin: auto; background: var(--cream); padding: 22px 28px 92px; }
+    .prototype-topbar { display: flex; justify-content: space-between; align-items: center; gap: 18px; border-bottom: 1px solid var(--border); padding-bottom: 17px; }
+    .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; letter-spacing: .03em; }
+    .brand-mark { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; background: var(--accent); color: white; font-weight: 900; }
+    .eyebrow { color: var(--gold); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .prototype-label { color: var(--muted); font-size: 11px; font-weight: 700; }
+    .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .toolbar button, .state-toggle button { border: 1px solid var(--border); border-radius: 999px; padding: 8px 12px; background: var(--white); color: var(--muted); font-size: 12px; }
+    .toolbar button.active, .state-toggle button.active { border-color: var(--fg); background: var(--fg); color: white; }
+    .workspace { margin-top: 22px; }
+    .workspace-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+    .workspace-head h1 { margin: 4px 0 7px; font-size: clamp(27px, 3vw, 40px); letter-spacing: -.04em; }
+    .workspace-head p { margin: 0; color: var(--muted); font-size: 14px; }
+    .state-toggle { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+    .state-toggle button { font-size: 11px; }
+    .state-strip { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 19px; padding: 11px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--white); color: var(--muted); font-size: 12px; }
+    .state-strip strong { color: var(--fg); }
+    .state-strip.day1 { border-color: rgba(184,122,58,.45); background: #fffaf3; }
+    .state-strip.warning { border-color: rgba(162,59,59,.35); background: #fff8f7; }
+    .state-dot { width: 8px; height: 8px; display: inline-block; margin-right: 8px; border-radius: 99px; background: var(--success); }
+    .state-strip.day1 .state-dot { background: var(--gold); }
+    .state-strip.warning .state-dot { background: var(--danger); }
+    .fake-link { border: 0; background: transparent; color: var(--accent); font-weight: 800; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; margin-bottom: 19px; }
+    .stat { padding: 15px 17px; border: 1px solid var(--border); border-radius: 13px; background: var(--white); }
+    .stat small { color: var(--muted); font-size: 11px; }
+    .stat b { display: block; margin-top: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 22px; letter-spacing: -.03em; }
+    .stat em { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; font-style: normal; }
+    .view { display: none; }
+    .view.active { display: block; }
+    .card { border: 1px solid var(--border); border-radius: 15px; background: var(--white); box-shadow: var(--shadow); }
+    .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 19px 0; }
+    .card-head h2, .card-head h3 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
+    .card-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .tag { display: inline-flex; align-items: center; border-radius: 99px; padding: 5px 8px; background: var(--accent-light); color: var(--accent); font-size: 10px; font-weight: 800; white-space: nowrap; }
+    .tag.gold { background: #fbf0e2; color: var(--gold); }
+    .tag.green { background: #edf6f0; color: var(--success); }
+    .tag.red { background: #fcefed; color: var(--danger); }
+    .card-body { padding: 16px 19px 19px; }
+    .form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; font-weight: 700; }
+    input, select { width: 100%; min-height: 38px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; outline: none; background: #fff; color: var(--fg); font-size: 13px; }
+    input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(122,31,46,.08); }
+    .card-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 15px; }
+    .btn { border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; background: var(--white); color: var(--fg); font-size: 12px; font-weight: 700; }
+    .btn.primary { border-color: var(--accent); background: var(--accent); color: white; }
+    .btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+    .btn:disabled { cursor: not-allowed; opacity: .45; }
+    .feedback { min-height: 16px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .feedback.success { color: var(--success); }
+    .feedback.warning { color: var(--warning); }
+    .feedback.error { color: var(--danger); }
+    .warning-box { display: flex; align-items: flex-start; gap: 9px; margin: 0 19px 15px; padding: 10px 11px; border: 1px solid rgba(162,59,59,.25); border-radius: 9px; background: #fff8f7; color: var(--danger); font-size: 11px; line-height: 1.55; }
+    .warning-box b { display: block; color: var(--fg); }
+    .warning-icon { width: 18px; height: 18px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 99px; background: #f6dbd7; font-weight: 900; }
+
+    /* 方案 A：全宽动作卡工作台，适合每天从同一页完成高频入账。 */
+    .action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+    .action-card { min-height: 245px; }
+    .action-card .card-head h3 { display: flex; align-items: center; gap: 8px; }
+    .action-icon { width: 28px; height: 28px; display: inline-grid; place-items: center; border-radius: 8px; background: var(--accent-light); color: var(--accent); font-size: 14px; }
+    .action-icon.gold { background: #fbf0e2; color: var(--gold); }
+    .action-icon.green { background: #edf6f0; color: var(--success); }
+    .action-icon.dark { background: #eee9e0; color: var(--fg); }
+    .action-card.is-disabled { opacity: .62; }
+    .action-card.is-disabled input, .action-card.is-disabled select { background: #f4f1ed; }
+    .action-card.is-disabled .btn.primary { border-color: var(--muted); background: var(--muted); }
+    .action-card.is-disabled:after { content: "等待 Day 1 初始化"; display: block; margin: -8px 19px 16px; color: var(--gold); font-size: 11px; font-weight: 800; }
+    .mini-note { padding-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+
+    /* 方案 B：流程队列，把“下一步做什么”置于动作卡之前，减少同时看到的表单数量。 */
+    .queue-layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 15px; align-items: start; }
+    .queue-nav { padding: 18px 15px; }
+    .queue-nav h2 { margin: 0 0 17px; font-size: 17px; }
+    .queue-item { position: relative; display: grid; grid-template-columns: 28px 1fr; gap: 11px; width: 100%; padding: 11px 8px; border: 0; border-radius: 9px; text-align: left; background: transparent; color: var(--muted); }
+    .queue-item + .queue-item { margin-top: 6px; }
+    .queue-item.active { background: var(--accent-light); color: var(--fg); }
+    .queue-index { width: 25px; height: 25px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 50%; background: var(--white); font-size: 11px; font-weight: 800; }
+    .queue-item.active .queue-index { border-color: var(--accent); background: var(--accent); color: white; }
+    .queue-item b { display: block; margin-top: 1px; color: inherit; font-size: 13px; }
+    .queue-item small { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .queue-item .queue-dot { position: absolute; top: 21px; left: 19px; width: 5px; height: 5px; border-radius: 50%; background: var(--border); }
+    .queue-item.done .queue-index { border-color: var(--success); color: var(--success); }
+    .queue-item.warning .queue-index { border-color: var(--danger); color: var(--danger); }
+    .queue-detail { min-height: 450px; padding: 23px; }
+    .queue-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+    .queue-detail h2 { margin: 4px 0 7px; font-size: 23px; }
+    .queue-detail p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+    .queue-form { max-width: 720px; padding-top: 22px; }
+    .queue-form .form-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .queue-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 18px 0; }
+    .queue-summary div { padding: 13px; border-radius: 10px; background: var(--cream); }
+    .queue-summary small { display: block; color: var(--muted); font-size: 10px; }
+    .queue-summary b { display: block; margin-top: 5px; font-family: ui-monospace, monospace; font-size: 16px; }
+    .queue-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 24px; }
+    .next-list { margin-top: 19px; padding-top: 17px; border-top: 1px solid var(--border); }
+    .next-list h3 { margin: 0 0 10px; font-size: 13px; }
+    .next-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px dashed var(--border); color: var(--muted); font-size: 12px; }
+    .next-row b { color: var(--fg); }
+
+    /* 方案 C：先看资金构成和费用分类，再从右侧发起动作，适合月底复核。 */
+    .insight-layout { display: grid; grid-template-columns: 1.04fr .96fr; gap: 15px; }
+    .asset-card { padding: 20px; }
+    .asset-card h2 { margin: 0; font-size: 18px; }
+    .asset-card > p { margin: 6px 0 18px; color: var(--muted); font-size: 12px; }
+    .asset-total { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; padding: 17px; border-radius: 13px; background: var(--fg); color: white; }
+    .asset-total small { color: #d8cfc0; font-size: 11px; }
+    .asset-total b { display: block; margin-top: 6px; font-family: ui-monospace, monospace; font-size: 27px; }
+    .asset-total span { color: #dec291; font-size: 11px; }
+    .bar-group { margin-top: 19px; }
+    .bar-row { display: grid; grid-template-columns: 80px 1fr 76px; align-items: center; gap: 9px; margin: 13px 0; font-size: 11px; }
+    .bar-row > span:first-child { color: var(--muted); }
+    .bar-track { height: 8px; overflow: hidden; border-radius: 9px; background: var(--border); }
+    .bar-fill { height: 100%; border-radius: inherit; background: var(--accent); }
+    .bar-fill.rub { background: var(--gold); }
+    .bar-fill.usdt { background: #5f8c80; }
+    .bar-row b { font-family: ui-monospace, monospace; font-size: 11px; text-align: right; }
+    .expense-summary { margin-top: 23px; padding-top: 18px; border-top: 1px solid var(--border); }
+    .expense-summary h3 { margin: 0; font-size: 14px; }
+    .expense-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px dashed var(--border); font-size: 12px; }
+    .expense-row span { color: var(--muted); }
+    .expense-row b { font-family: ui-monospace, monospace; }
+    .insight-actions { display: grid; gap: 10px; }
+    .compact-action { padding: 15px 17px; }
+    .compact-action .card-head { padding: 0; }
+    .compact-action .card-body { padding: 12px 0 0; }
+    .compact-action .card-actions { margin-top: 10px; }
+    .compact-action .form-row { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .quick-link { display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: var(--accent); font-size: 11px; font-weight: 800; }
+
+    .prototype-note { margin: 17px 0 0; text-align: center; color: var(--muted); font-size: 11px; }
+    .switcher { position: fixed; z-index: 20; bottom: 17px; left: 50%; display: flex; align-items: center; gap: 8px; transform: translateX(-50%); padding: 7px 9px; border: 1px solid #5b4d3c; border-radius: 999px; background: #2c2416; box-shadow: 0 10px 28px rgba(44,36,22,.25); color: white; }
+    .switcher button { width: 27px; height: 27px; display: grid; place-items: center; border: 0; border-radius: 50%; background: #584b3d; color: white; font-size: 16px; }
+    .switcher button:hover { background: var(--accent); }
+    .switcher-label { min-width: 150px; padding: 0 5px; text-align: center; font-size: 11px; font-weight: 800; }
+    .toast { position: fixed; z-index: 25; right: 22px; bottom: 74px; max-width: 300px; display: none; padding: 11px 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); box-shadow: var(--shadow); color: var(--fg); font-size: 12px; }
+    .toast.show { display: block; animation: fade-in .2s ease-out; }
+    @keyframes fade-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    @media (max-width: 920px) {
+      .prototype-shell { padding-inline: 18px; }
+      .prototype-topbar, .workspace-head { align-items: flex-start; flex-direction: column; }
+      .toolbar, .state-toggle { justify-content: flex-start; }
+      .insight-layout, .queue-layout { grid-template-columns: 1fr; }
+      .queue-nav { padding: 15px; }
+      .queue-nav h2 { margin-bottom: 9px; }
+      .queue-item { display: inline-grid; width: calc(50% - 5px); vertical-align: top; }
+      .queue-item + .queue-item { margin-top: 0; }
+    }
+    @media (max-width: 650px) {
+      .prototype-shell { padding: 15px 12px 86px; }
+      .prototype-topbar { gap: 13px; }
+      .stats, .action-grid { grid-template-columns: 1fr; }
+      .state-strip { align-items: flex-start; flex-direction: column; }
+      .form-row, .queue-form .form-row, .queue-summary, .compact-action .form-row { grid-template-columns: 1fr; }
+      .queue-detail { padding: 18px; }
+      .queue-item { display: grid; width: 100%; }
+      .queue-detail-head { flex-direction: column; }
+      .asset-total b { font-size: 24px; }
+      .bar-row { grid-template-columns: 67px 1fr 70px; }
+      .switcher-label { min-width: 118px; }
+      .toast { right: 12px; bottom: 70px; left: 12px; max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="prototype-shell">
+    <!-- 评审入口：打开 accounting-action-center.html?variant=A、?variant=B 或 ?variant=C。 -->
+    <header class="prototype-topbar">
+      <div class="brand"><span class="brand-mark">C</span><span>账务工作台</span><span class="prototype-label">OpenDesign prototype · 只读假动作</span></div>
+      <div class="toolbar" aria-label="变体快捷入口">
+        <button data-variant="A" class="active">A · 动作卡</button>
+        <button data-variant="B">B · 流程队列</button>
+        <button data-variant="C">C · 资产构成</button>
+      </div>
+    </header>
+
+    <section class="workspace">
+      <div class="workspace-head">
+        <div>
+          <span class="eyebrow">Accounting desk · 2026 年 08 月</span>
+          <h1>把每一次资金动作，记成一条事实。</h1>
+          <p>人民币、卢布、USDT、采购和费用在同一处登记；本月利润只读取已确认业务事实。</p>
+        </div>
+        <div class="state-toggle" aria-label="原型状态切换">
+          <button data-state="normal" class="active">正常工作</button>
+          <button data-state="day1">Day 1 等待</button>
+          <button data-state="warning">需要复核</button>
+        </div>
+      </div>
+      <div id="state-strip" class="state-strip"><span><i class="state-dot"></i><strong>正常工作</strong> · 今日账务动作可登记</span><button class="fake-link" data-fake="查看待办">查看待办 →</button></div>
+
+      <section class="stats" aria-label="账务统计">
+        <div class="stat"><small>人民币资金</small><b>¥ 86,420.00</b><em>两个公司账户合计</em></div>
+        <div class="stat"><small>卢布资金</small><b>₽ 1,240,000</b><em>银行卡账户</em></div>
+        <div class="stat"><small>USDT 余额</small><b>1,820.50</b><em>独立账户</em></div>
+        <div class="stat"><small>本月人民币利润</small><b>¥ 32,680.00</b><em>截至今日 · 待月底确认</em></div>
+      </section>
+
+      <div id="variant-a" class="view active" data-view="A">
+        <div class="action-grid">
+          <article class="card action-card" data-action="exchange" data-day1-disabled>
+            <div class="card-head"><div><h3><span class="action-icon">↔</span>换汇入账</h3><p>人民币或 USDT 换成卢布，再用于采购。</p></div><span class="tag">资金</span></div>
+            <div class="card-body"><div class="form-row"><label>转出账户<select><option>林 · 人民币账户</option><option>合伙人 · 人民币账户</option><option>USDT 账户</option></select></label><label>转出数量<input value="10000.00" inputmode="decimal"></label><label>卢布到账账户<select><option>公司卢布银行卡</option></select></label><label>实际到账卢布<input value="120000.00" inputmode="decimal"></label></div><div class="card-actions"><span class="feedback" data-feedback="exchange">汇率由本次实际转入/转出金额反推</span><button class="btn primary" data-fake="换汇已记入原型">记录换汇</button></div></div>
+          </article>
+          <article class="card action-card" data-action="purchase" data-day1-disabled>
+            <div class="card-head"><div><h3><span class="action-icon gold">箱</span>采购付款 / 到货</h3><p>先付款形成在途，货到后一次性整单入库。</p></div><span class="tag gold">库存</span></div>
+            <div class="card-body"><div class="form-row"><label>采购草稿<select><option>PO-2026-018 · 4 个批次</option><option>PO-2026-017 · 已在途</option></select></label><label>付款卢布金额<input value="240000.00" inputmode="decimal"></label></div><div class="mini-note">Canonical：盒数 × 每盒卢布成本；到货时形成独立成本批次。</div><div class="card-actions"><span class="feedback" data-feedback="purchase">当前状态：草稿 · 可付款</span><button class="btn primary" data-fake="采购付款已记入原型">确认付款</button></div></div>
+          </article>
+          <article class="card action-card" data-action="expense" data-day1-disabled>
+            <div class="card-head"><div><h3><span class="action-icon green">₽</span>经营费用</h3><p>工资按人民币，其余日常费用通常从卢布账户支出。</p></div><span class="tag green">费用</span></div>
+            <div class="card-body"><div class="form-row"><label>费用分类<select><option>房租</option><option>水电</option><option>人员工资</option><option>其他经营费用</option></select></label><label>付款账户<select><option>公司卢布银行卡</option><option>林 · 人民币账户</option></select></label><label>实际金额<input value="18000.00" inputmode="decimal"></label><label>业务日期<input type="date" value="2026-08-15"></label></div><div class="card-actions"><span class="feedback" data-feedback="expense">记录后会进入本月费用和账户对账</span><button class="btn primary" data-fake="费用已记入原型">登记费用</button></div></div>
+          </article>
+          <article class="card action-card" data-action="dividend" data-day1-disabled>
+            <div class="card-head"><div><h3><span class="action-icon dark">÷</span>分红草稿</h3><p>先预览可分利润，确认后才生成两位合伙人的分红事实。</p></div><span class="tag">月末</span></div>
+            <div class="card-body"><div class="form-row"><label>分红期间<select><option>2026 年 08 月</option><option>2026 年 07 月</option></select></label><label>拟分配金额<input value="16000.00" inputmode="decimal"></label></div><div class="mini-note">默认按 50% / 50% 预览；每次确认时仍可调整并留下操作人。</div><div class="card-actions"><span class="feedback" data-feedback="dividend">草稿不会改变余额或利润</span><button class="btn primary" data-fake="分红预览已生成">预览分红</button></div></div>
+          </article>
+        </div>
+      </div>
+
+      <div id="variant-b" class="view" data-view="B">
+        <div class="queue-layout">
+          <aside class="card queue-nav">
+            <h2>今日动作队列</h2>
+            <button class="queue-item done" data-queue="exchange"><span class="queue-index">✓</span><span><b>换汇入账</b><small>2 笔待核对 · 人民币 → 卢布</small></span></button>
+            <button class="queue-item active" data-queue="purchase"><span class="queue-index">2</span><span><b>采购付款</b><small>1 张草稿等待付款</small></span></button>
+            <button class="queue-item warning" data-queue="expense"><span class="queue-index">!</span><span><b>经营费用</b><small>本月 3 笔待补业务日期</small></span></button>
+            <button class="queue-item" data-queue="dividend"><span class="queue-index">4</span><span><b>分红预览</b><small>月末前可先查看分配结果</small></span></button>
+            <div class="next-list"><h3>最近已完成</h3><div class="next-row"><span>销售收款 · 林账户</span><b>¥ 8,600</b></div><div class="next-row"><span>采购到货 · PO-017</span><b>4 批次</b></div></div>
+          </aside>
+          <section class="card queue-detail">
+            <div class="queue-detail-head"><div><span class="eyebrow">NEXT ACTION · 02</span><h2 id="queue-title">确认采购付款</h2><p id="queue-copy">付款后订单进入在途；货到时再一次性入库，不在这里拆分到货。</p></div><span id="queue-tag" class="tag gold">库存事实</span></div>
+            <div class="queue-form"><div class="form-row"><label>采购草稿<select id="queue-select"><option>PO-2026-018 · 4 个批次</option><option>PO-2026-017 · 已在途</option></select></label><label>付款账户<select><option>公司卢布银行卡</option><option>USDT 账户（先换汇）</option></select></label><label>实际付款卢布<input value="240000.00" inputmode="decimal"></label></div><div class="queue-summary"><div><small>盒数</small><b>86 盒</b></div><div><small>总卢布成本</small><b>₽ 240,000</b></div><div><small>付款后状态</small><b>在途</b></div></div><div class="mini-note">提示：所有正式写入都应带幂等键；这里仅演示输入保留和局部反馈。</div><div class="queue-footer"><span class="feedback" id="queue-feedback">原型状态：未提交，真实余额不会变化。</span><button class="btn primary" data-fake="采购付款已在流程队列中标记">确认付款并进入在途</button></div></div>
+          </section>
+        </div>
+      </div>
+
+      <div id="variant-c" class="view" data-view="C">
+        <div class="insight-layout">
+          <section class="card asset-card">
+            <span class="eyebrow">ASSET MIX · 资产构成</span><h2>先看公司手上的钱</h2><p>账户按币种独立展示；换汇只改变构成，不凭空增加资金。</p>
+            <div class="asset-total"><div><small>折合人民币资产</small><b>¥ 258,936.70</b></div><span>较昨日 +2.8%</span></div>
+            <div class="bar-group"><div class="bar-row"><span>人民币</span><div class="bar-track"><div class="bar-fill" style="width:34%"></div></div><b>¥86,420</b></div><div class="bar-row"><span>卢布</span><div class="bar-track"><div class="bar-fill rub" style="width:53%"></div></div><b>¥103,333</b></div><div class="bar-row"><span>USDT</span><div class="bar-track"><div class="bar-fill usdt" style="width:24%"></div></div><b>¥69,183</b></div></div>
+            <div class="expense-summary"><h3>本月费用分类</h3><div class="expense-row"><span>采购相关运输</span><b>¥ 4,800.00</b></div><div class="expense-row"><span>房租 / 水电</span><b>₽ 36,000</b></div><div class="expense-row"><span>人员工资</span><b>¥ 18,000.00</b></div><div class="expense-row"><span>其他经营费用</span><b>₽ 9,500</b></div></div>
+          </section>
+          <section class="insight-actions">
+            <article class="card compact-action" data-action="exchange" data-day1-disabled><div class="card-head"><div><h3>换汇</h3><p>CNY / USDT → RUB</p></div><span class="tag">资金</span></div><div class="card-body"><div class="form-row"><label>来源<select><option>林 · 人民币账户</option><option>USDT 账户</option></select></label><label>实际转出<input value="10000.00"></label></div><div class="card-actions"><span class="feedback" data-feedback="exchange">1 CNY ≈ 12 RUB</span><button class="quick-link" data-fake="换汇已记入原型">记录 →</button></div></div></article>
+            <article class="card compact-action" data-action="expense" data-day1-disabled><div class="card-head"><div><h3>登记费用</h3><p>把付款归到正确币种和分类</p></div><span class="tag green">费用</span></div><div class="card-body"><div class="form-row"><label>分类<select><option>房租</option><option>人员工资</option><option>其他经营费用</option></select></label><label>实际金额<input value="18000.00"></label></div><div class="card-actions"><span class="feedback" data-feedback="expense">工资使用人民币账户</span><button class="quick-link" data-fake="费用已记入原型">登记 →</button></div></div></article>
+            <article class="card compact-action" data-action="purchase" data-day1-disabled><div class="card-head"><div><h3>采购付款 / 到货</h3><p>按盒数保留批次成本轨迹</p></div><span class="tag gold">库存</span></div><div class="card-body"><div class="form-row"><label>订单<select><option>PO-2026-018</option><option>PO-2026-017</option></select></label><label>付款卢布<input value="240000.00"></label></div><div class="card-actions"><span class="feedback" data-feedback="purchase">状态：草稿</span><button class="quick-link" data-fake="采购已记入原型">确认 →</button></div></div></article>
+            <article class="card compact-action" data-action="dividend" data-day1-disabled><div class="card-head"><div><h3>分红预览</h3><p>本月利润 × 50% / 50%</p></div><span class="tag">月末</span></div><div class="card-body"><div class="form-row"><label>期间<select><option>2026 年 08 月</option></select></label><label>拟分配<input value="16000.00"></label></div><div class="card-actions"><span class="feedback" data-feedback="dividend">预览不改余额</span><button class="quick-link" data-fake="分红预览已生成">预览 →</button></div></div></article>
+          </section>
+        </div>
+      </div>
+    </section>
+    <p class="prototype-note">原型说明：按钮只更新本地演示状态，不写入数据库；用顶部状态切换检查正常、Day 1 等待和需要复核三种画面。</p>
+  </main>
+
+  <nav class="switcher" aria-label="原型变体切换"><button id="previous" aria-label="上一个变体">←</button><span class="switcher-label" id="switcher-label">A · 动作卡工作台</span><button id="next" aria-label="下一个变体">→</button></nav>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    // 变体写入 URL，方便设计评审时直接分享 A/B/C 状态；不调用任何真实 mutation。
+    const variantNames = { A: '动作卡工作台', B: '流程队列', C: '资产构成与费用' };
+    const variants = ['A', 'B', 'C'];
+    const params = new URLSearchParams(window.location.search);
+    let currentVariant = (params.get('variant') || 'A').toUpperCase();
+    if (!variants.includes(currentVariant)) currentVariant = 'A';
+    let currentState = 'normal';
+    let toastTimer;
+
+    function setVariant(nextVariant) {
+      currentVariant = nextVariant;
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.set('variant', currentVariant);
+      window.history.replaceState({}, '', nextUrl);
+      document.querySelectorAll('[data-variant]').forEach(button => button.classList.toggle('active', button.dataset.variant === currentVariant));
+      document.querySelectorAll('[data-view]').forEach(view => view.classList.toggle('active', view.dataset.view === currentVariant));
+      document.querySelector('#switcher-label').textContent = currentVariant + ' · ' + variantNames[currentVariant];
+      // 切换变体时保留当前业务状态，让评审能看到相同状态下的结构差异。
+      announce('已切换到方案 ' + currentVariant + '：' + variantNames[currentVariant]);
+    }
+
+    function setState(nextState) {
+      currentState = nextState;
+      const strip = document.querySelector('#state-strip');
+      const copy = {
+        normal: ['正常工作', '今日账务动作可登记', '查看待办'],
+        day1: ['等待 Day 1 初始化', '完成一次性初始化后，正式动作才会开放', '前往初始化'],
+        warning: ['需要复核', '发现 1 笔费用缺少业务日期，建议先核对再提交', '查看复核项']
+      }[currentState];
+      strip.className = 'state-strip' + (currentState === 'normal' ? '' : ' ' + currentState);
+      strip.innerHTML = '<span><i class="state-dot"></i><strong>' + copy[0] + '</strong> · ' + copy[1] + '</span><button class="fake-link" data-fake="' + copy[2] + '">' + copy[2] + ' →</button>';
+      document.querySelectorAll('[data-state]').forEach(button => button.classList.toggle('active', button.dataset.state === currentState));
+      document.querySelectorAll('[data-day1-disabled]').forEach(card => card.classList.toggle('is-disabled', currentState === 'day1'));
+      document.querySelectorAll('[data-day1-disabled] input, [data-day1-disabled] select, [data-day1-disabled] .btn, [data-day1-disabled] .quick-link').forEach(control => { control.disabled = currentState === 'day1'; });
+      if (currentState === 'warning') {
+        document.querySelectorAll('[data-action="expense"]').forEach(card => {
+          if (!card.querySelector('.warning-box')) card.insertAdjacentHTML('afterbegin', '<div class="warning-box"><span class="warning-icon">!</span><span><b>需要复核后再登记</b>本月有一笔费用未填写业务日期，真实页面应保留输入并返回局部错误。</span></div>');
+        });
+      } else {
+        document.querySelectorAll('[data-action="expense"] .warning-box').forEach(box => box.remove());
+      }
+      announce('已切换状态：' + copy[0]);
+    }
+
+    function announce(message) {
+      const toast = document.querySelector('#toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    function fakeAction(message, target) {
+      if (currentState === 'day1' && target && target.closest('[data-day1-disabled]')) {
+        announce('Day 1 尚未完成，正式动作暂不可用');
+        return;
+      }
+      announce(message + '（仅原型演示）');
+      const feedback = target && target.closest('.card, .queue-detail')?.querySelector('.feedback');
+      if (feedback) { feedback.textContent = '原型反馈：已保留输入，真实页面此处显示成功或局部错误。'; feedback.className = 'feedback success'; }
+    }
+
+    document.querySelectorAll('[data-variant]').forEach(button => button.addEventListener('click', () => setVariant(button.dataset.variant)));
+    document.querySelectorAll('[data-state]').forEach(button => button.addEventListener('click', () => setState(button.dataset.state)));
+    // 状态条会在切换状态时重建，统一用委托保证新按钮仍然只是本地假动作。
+    document.addEventListener('click', event => {
+      const button = event.target.closest('[data-fake]');
+      if (button) fakeAction(button.dataset.fake, button);
+    });
+    document.querySelector('#previous').addEventListener('click', () => setVariant(variants[(variants.indexOf(currentVariant) + variants.length - 1) % variants.length]));
+    document.querySelector('#next').addEventListener('click', () => setVariant(variants[(variants.indexOf(currentVariant) + 1) % variants.length]));
+    document.addEventListener('keydown', event => {
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || document.activeElement?.isContentEditable) return;
+      if (event.key === 'ArrowLeft') { event.preventDefault(); document.querySelector('#previous').click(); }
+      if (event.key === 'ArrowRight') { event.preventDefault(); document.querySelector('#next').click(); }
+    });
+
+    // B 方案的队列只切换演示文案，模拟“选中待办后打开动作抽屉”。
+    const queueCopy = {
+      exchange: ['记录本次换汇', '填写实际转出和到账金额，系统只记录真实发生的两笔账户变动。', '资金事实', 'tag'],
+      purchase: ['确认采购付款', '付款后订单进入在途；货到时再一次性入库，不在这里拆分到货。', '库存事实', 'gold'],
+      expense: ['补齐经营费用', '按费用分类和实际付款账户登记，人民币工资与卢布日常费用分开。', '费用事实', 'green'],
+      dividend: ['预览本月分红', '先看月度人民币利润和 50% / 50% 预览，确认后才生成分红事实。', '分配事实', '']
+    };
+    document.querySelectorAll('[data-queue]').forEach(button => button.addEventListener('click', () => {
+      document.querySelectorAll('[data-queue]').forEach(item => item.classList.remove('active'));
+      button.classList.add('active');
+      const copy = queueCopy[button.dataset.queue];
+      document.querySelector('#queue-title').textContent = copy[0];
+      document.querySelector('#queue-copy').textContent = copy[1];
+      document.querySelector('#queue-tag').textContent = copy[2];
+      document.querySelector('#queue-tag').className = 'tag ' + copy[3];
+      document.querySelector('#queue-feedback').textContent = '原型状态：未提交，真实余额不会变化。';
+    }));
+    setVariant(currentVariant);
+    setState(currentState);
+  </script>
+</body>
+</html>

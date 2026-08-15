@@ -5,12 +5,24 @@ stays a read model backed by StockMovement facts.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import hashlib
+import json
 
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
+from uuid import uuid4
+from accounting.business_time import moscow_business_date
+
+from accounting.mutation_scope import ledger_mutation_scope
+from accounting.guards import require_day1_completed
+from accounting.models import LedgerPosting, LedgerTransaction
+from accounting.services import (
+    LedgerError, PostingInput, _acquire_sqlite_writer_gate, _post_transaction_once,
+    _retry_sqlite_locked,
+)
 
 from .models import (
     AdjustmentRecord,
@@ -37,9 +49,10 @@ EXCHANGE_RATE_PLACES = Decimal('0.0001')
 class OrderServiceError(ValueError):
     """Base validation error for order/inventory commands."""
 
-    def __init__(self, message, *, details=None):
+    def __init__(self, message, *, details=None, code=None):
         super().__init__(message)
         self.details = details or {}
+        self.code = code
 
 
 class InsufficientStockError(OrderServiceError):
@@ -210,6 +223,7 @@ def serialize_sales_order(order):
         } if getattr(order, 'customer', None) is not None else None),
         'goods_amount_cny': _decimal_to_json(order.goods_amount_cny),
         'customer_transport_fee_cny': _decimal_to_json(order.customer_transport_fee_cny),
+        'transport_payer': order.transport_payer,
         'amount_due_cny': _decimal_to_json(order.amount_due_cny),
         'total_revenue': _decimal_to_json(order.total_revenue),
         'total_cost': _decimal_to_json(order.total_cost),
@@ -295,7 +309,15 @@ def serialize_purchase_order(order):
             'cigar_id': item.cigar_id,
             'cigar_name': item.cigar.name or item.cigar.english_name,
             'quantity': item.quantity,
+            'sticks': item.quantity,
             'box_size': item.box_size,
+            'box_quantity': item.box_quantity,
+            'unit_price_rub_per_box': _decimal_to_json(item.unit_price_rub_per_box),
+            'rub_subtotal': _decimal_to_json(
+                (Decimal(item.box_quantity) * item.unit_price_rub_per_box)
+                if item.box_quantity is not None and item.unit_price_rub_per_box is not None else None
+            ),
+            'packaging_status': item.packaging_status,
             'unit_price_rub': _decimal_to_json(item.unit_price_rub),
             'unit_price_cny': _decimal_to_json(item.unit_price_cny),
             'batches': batches,
@@ -311,6 +333,8 @@ def serialize_purchase_order(order):
         'cny_total': _decimal_to_json(order.cny_total),
         'operator_id': order.operator_id,
         'note': order.note,
+        'version': order.version,
+        'business_date': order.draft_business_date.isoformat() if order.draft_business_date else None,
         'items': items,
     }
 
@@ -325,11 +349,27 @@ def _get_customer(raw_customer_id):
         raise OrderServiceError('客户不存在')
 
 
+def _transport_payer(raw_payer, customer_fee):
+    """Validate explicit payers and infer omitted values for legacy clients."""
+    if raw_payer in (None, ""):
+        # 旧客户端没有承担方字段，按原有收费数据无损推断。
+        return (
+            SalesOrder.TransportPayer.CUSTOMER
+            if customer_fee > 0 else SalesOrder.TransportPayer.COMPANY
+        )
+    payer = str(raw_payer).strip()
+    if payer not in SalesOrder.TransportPayer.values:
+        raise OrderServiceError("人肉费承担方无效")
+    if payer == SalesOrder.TransportPayer.COMPANY and customer_fee != 0:
+        raise OrderServiceError("公司承担人肉费时客户收费必须为零")
+    return payer
+
+
 @transaction.atomic
 def create_sales_order_draft(*, items, operator, customer=None, customer_id=None,
                              customer_name="", payment_method_id=None,
                              payment_manual=None, customer_transport_fee_cny=0,
-                             note="", agent_context=None):
+                             transport_payer=None, note="", agent_context=None):
     """Create a mutable sales draft without reserving inventory."""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="create_sales_order_draft")
@@ -340,6 +380,7 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
     if customer_obj and not customer_name:
         customer_name = customer_obj.name
     transport_fee = _to_money(customer_transport_fee_cny, "客户人肉费")
+    selected_transport_payer = _transport_payer(transport_payer, transport_fee)
     selected_payment_method_id = (
         _to_positive_int(payment_method_id, "收款方式ID")
         if payment_method_id not in (None, "") else None
@@ -395,6 +436,7 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
     goods_amount = goods_amount.quantize(MONEY_PLACES)
     order.goods_amount_cny = goods_amount
     order.customer_transport_fee_cny = transport_fee
+    order.transport_payer = selected_transport_payer
     order.amount_due_cny = (goods_amount + transport_fee).quantize(MONEY_PLACES)
     order.total_revenue = goods_amount
     order.total_cost = Decimal("0.00")
@@ -402,7 +444,8 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
     order.fifo_cost_cny = Decimal("0.00")
     order.contribution_profit_cny = Decimal("0.00")
     order.save(update_fields=[
-        "goods_amount_cny", "customer_transport_fee_cny", "amount_due_cny",
+        "goods_amount_cny", "customer_transport_fee_cny", "transport_payer",
+        "amount_due_cny",
         "total_revenue", "total_cost", "total_profit", "fifo_cost_cny",
         "contribution_profit_cny",
     ])
@@ -419,7 +462,8 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
 @transaction.atomic
 def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, customer_id=None,
                              customer_name="", payment_method_id=None, payment_manual=None,
-                             customer_transport_fee_cny=0, note="", agent_context=None):
+                             customer_transport_fee_cny=0, transport_payer=None,
+                             note="", agent_context=None):
     """Replace all snapshots on an unlocked, unpaid draft."""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="update_sales_order_draft")
@@ -431,6 +475,8 @@ def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, 
         raise OrderServiceError("存在库存分配的订单不能编辑草稿")
     if not isinstance(items, list) or not items:
         raise OrderServiceError("至少需要一个商品")
+    transport_fee = _to_money(customer_transport_fee_cny, "客户人肉费")
+    selected_transport_payer = _transport_payer(transport_payer, transport_fee)
 
     snapshots = []
     for idx, raw_item in enumerate(items, start=1):
@@ -476,7 +522,8 @@ def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, 
     order.payment_method_id = _to_positive_int(payment_method_id, "收款方式ID") if payment_method_id not in (None, "") else None
     order.payment_manual, order.note = payment_manual or {}, note or ""
     order.goods_amount_cny = goods_amount.quantize(MONEY_PLACES)
-    order.customer_transport_fee_cny = _to_money(customer_transport_fee_cny, "客户人肉费")
+    order.customer_transport_fee_cny = transport_fee
+    order.transport_payer = selected_transport_payer
     order.amount_due_cny = (order.goods_amount_cny + order.customer_transport_fee_cny).quantize(MONEY_PLACES)
     order.total_revenue, order.total_cost = order.goods_amount_cny, Decimal("0.00")
     order.total_profit, order.fifo_cost_cny, order.contribution_profit_cny = Decimal("0.00"), Decimal("0.00"), Decimal("0.00")
@@ -533,6 +580,7 @@ def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note=""
     """Confirm an unpaid draft and reserve its in-stock stick items."""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="confirm_sales_order")
+    require_day1_completed()
     order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, "销售单ID"))
     if (order.fulfillment_status != SalesOrder.FulfillmentStatus.DRAFT or
             order.payment_status != SalesOrder.PaymentStatus.UNPAID):
@@ -573,6 +621,7 @@ def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None
     """Release reservations of a confirmed order before shipment."""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="cancel_confirmed_sales_order")
+    require_day1_completed()
     order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, "销售单ID"))
     if order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED:
         raise OrderServiceError("当前订单不能取消")
@@ -624,6 +673,7 @@ def split_purchase_batch_box(*, batch_id, operator, agent_context=None, note='')
     """Convert one fully available physical box into individually available sticks."""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name='split_purchase_batch_box')
+    require_day1_completed()
     try:
         batch = PurchaseBatch.objects.select_for_update().get(
             id=_to_positive_int(batch_id, '批次ID')
@@ -653,72 +703,72 @@ def split_purchase_batch_box(*, batch_id, operator, agent_context=None, note='')
     return batch
 
 
-def create_purchase_order(*, supplier_id, items, exchange_rate, operator, note='',
-                          agent_context=None):
-    """Create an immutable purchase order draft. It does not receive stock."""
-    operator = _require_operator(operator)
-    context = agent_context or AgentContext(command_name='create_purchase_order')
-    if not isinstance(items, list) or not items:
-        raise OrderServiceError('至少需要一个采购明细')
-
-    supplier_pk = _to_positive_int(supplier_id, '供应商ID')
-    try:
-        supplier = Supplier.objects.get(id=supplier_pk, deleted_at__isnull=True)
-    except Supplier.DoesNotExist:
-        raise OrderServiceError('供应商不存在')
-
-    rate = _to_exchange_rate(exchange_rate, '汇率')
-    purchase_order = PurchaseOrder.objects.create(
-        supplier=supplier,
-        rub_total=Decimal('0.00'),
-        exchange_rate=rate,
-        cny_total=Decimal('0.00'),
-        operator=operator,
-        note=note or '',
-        status=PurchaseOrder.Status.DRAFT,
+def create_purchase_order(*, supplier_id, items, business_date=None, operator,
+                          idempotency_key=None, expected_version=None, note='',
+                          exchange_rate=None, agent_context=None):
+    from accounting.purchase_actions import (
+        PurchaseActionError, create_purchase_order as create_draft,
+        normalize_legacy_purchase_item,
     )
-
-    rub_total = Decimal('0.00')
-    cny_total = Decimal('0.00')
-    for idx, raw_item in enumerate(items, start=1):
-        if not isinstance(raw_item, dict):
-            raise OrderServiceError(f'第{idx}个采购明细格式错误')
-        cigar_id = _to_positive_int(raw_item.get('cigar_id'), f'第{idx}个采购明细雪茄ID')
-        quantity = _to_positive_int(raw_item.get('quantity'), f'第{idx}个采购明细数量')
-        unit_price_rub = _to_money(raw_item.get('unit_price_rub'), f'第{idx}个采购明细卢布单价')
-        raw_box_size = raw_item.get('box_size')
-        box_size = None if raw_box_size in (None, '') else _to_positive_int(raw_box_size, f'第{idx}个采购明细盒装支数')
-
-        try:
-            cigar = Cigar.objects.get(id=cigar_id)
-        except Cigar.DoesNotExist:
-            raise OrderServiceError(f'第{idx}个采购明细雪茄不存在')
-
-        unit_price_cny = (unit_price_rub * rate).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
-        PurchaseOrderItem.objects.create(
-            purchase_order=purchase_order,
-            cigar=cigar,
-            quantity=quantity,
-            box_size=box_size,
-            unit_price_rub=unit_price_rub,
-            unit_price_cny=unit_price_cny,
+    if not idempotency_key:
+        # 仅兼容旧内部调用；canonical/API 仍必须显式提供 key/date。
+        idempotency_key = (
+            getattr(agent_context, 'idempotency_key', None)
+            or f'legacy-purchase-{uuid4().hex}'
         )
-        rub_total += (unit_price_rub * quantity)
-        cny_total += (unit_price_cny * quantity)
-
-    purchase_order.rub_total = rub_total.quantize(MONEY_PLACES)
-    purchase_order.cny_total = cny_total.quantize(MONEY_PLACES)
-    purchase_order.save(update_fields=['rub_total', 'cny_total'])
-    return purchase_order
+        if business_date is None:
+            business_date = moscow_business_date()
+    elif business_date is None:
+        raise PurchaseActionError('invalid_business_date', {'business_date': '必须显式提供'})
+    normalized_items = []
+    legacy_input = False
+    for index, raw in enumerate(items or []):
+        if not isinstance(raw, dict):
+            raise PurchaseActionError('invalid_items', {'item_index': index})
+        if 'box_quantity' in raw or 'unit_price_rub_per_box' in raw:
+            normalized_items.append(raw)
+        else:
+            legacy_input = True
+            legacy_cny = raw.get('unit_price_cny')
+            if legacy_cny in (None, '') and exchange_rate not in (None, ''):
+                try:
+                    legacy_cny = Decimal(str(raw.get('unit_price_rub'))) * Decimal(str(exchange_rate))
+                except (InvalidOperation, TypeError, ValueError):
+                    raise PurchaseActionError('invalid_exchange_rate')
+            normalized_items.append(
+                normalize_legacy_purchase_item(
+                    box_size=raw.get('box_size'),
+                    quantity_sticks=raw.get('quantity'),
+                    unit_price_rub_per_stick=raw.get('unit_price_rub'),
+                    unit_price_cny_per_stick=legacy_cny,
+                ) | {'cigar_id': raw.get('cigar_id')}
+            )
+    try:
+        order = create_draft(
+            supplier_id=supplier_id, items=normalized_items, business_date=business_date,
+            operator=operator, idempotency_key=idempotency_key,
+            expected_version=expected_version, note=note, exchange_rate=exchange_rate,
+        )
+    except PurchaseActionError as error:
+        if legacy_input:
+            if error.code == 'supplier_not_found':
+                raise OrderServiceError('供应商不存在', details=error.details)
+            if error.code == 'cigar_not_found':
+                index = error.details.get('item_index', 0) + 1
+                raise OrderServiceError(f'第{index}个采购明细雪茄不存在', details=error.details)
+            raise OrderServiceError(error.code, details=error.details)
+        raise
+    return order
 
 
 @transaction.atomic
 def create_sales_order(*, items, operator, customer=None, customer_id=None,
-                       customer_name='', payment_method_id=None,
-                       payment_manual=None, note='', agent_context=None):
+                       customer_name='', payment_method_id=None, payment_manual=None,
+                       customer_transport_fee_cny=0, transport_payer=None, note='', agent_context=None):
     """Create a pending sales order and reserve in-stock items FIFO."""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name='create_sales_order')
+    require_day1_completed()
     if not isinstance(items, list) or not items:
         raise OrderServiceError('至少需要一个商品')
 
@@ -741,6 +791,8 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
 
     total_revenue = Decimal('0.00')
     total_cost = Decimal('0.00')
+    transport_fee = _to_money(customer_transport_fee_cny, '客户人肉费')
+    selected_transport_payer = _transport_payer(transport_payer, transport_fee)
 
     for idx, raw_item in enumerate(items, start=1):
         if not isinstance(raw_item, dict):
@@ -812,9 +864,10 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
     order.total_cost = total_cost.quantize(MONEY_PLACES)
     order.total_profit = Decimal('0.00')
     order.goods_amount_cny = order.total_revenue
-    order.customer_transport_fee_cny = Decimal('0.00')
-    order.amount_due_cny = order.total_revenue
-    order.save(update_fields=['total_revenue', 'total_cost', 'total_profit', 'goods_amount_cny', 'customer_transport_fee_cny', 'amount_due_cny', 'fulfillment_status', 'payment_status', 'locked', 'locked_by', 'confirmed_at'])
+    order.customer_transport_fee_cny = transport_fee
+    order.transport_payer = selected_transport_payer
+    order.amount_due_cny = (order.total_revenue + transport_fee).quantize(MONEY_PLACES)
+    order.save(update_fields=['total_revenue', 'total_cost', 'total_profit', 'goods_amount_cny', 'customer_transport_fee_cny', 'transport_payer', 'amount_due_cny', 'fulfillment_status', 'payment_status', 'locked', 'locked_by', 'confirmed_at'])
 
     _record_order_event(
         order,
@@ -894,6 +947,7 @@ def confirm_payment(*, sales_order_id, operator, agent_context=None, note=''):
 def cancel_sales_order(*, sales_order_id, operator, agent_context=None, note=''):
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name='cancel_sales_order')
+    require_day1_completed()
     order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, '销售单ID'))
     if order.status == 'cancelled':
         return order
@@ -951,14 +1005,89 @@ def cancel_sales_order(*, sales_order_id, operator, agent_context=None, note='')
     return order
 
 
+def _post_stock_adjustment(*, cost_cny, gain, business_date, operator, context, reason, source_id):
+    """库存调整统一写资产与当期调整损益，和库存事实处于同一事务。"""
+    if not context.idempotency_key:
+        raise OrderServiceError('库存调整必须提供幂等键')
+    amount = Decimal(cost_cny).quantize(MONEY_PLACES)
+    category = (LedgerPosting.Category.INVENTORY_ADJUSTMENT_GAIN
+                if gain else LedgerPosting.Category.INVENTORY_ADJUSTMENT_LOSS)
+    postings = [
+        PostingInput(category=LedgerPosting.Category.INVENTORY, currency='CNY',
+                     amount=amount if gain else -amount,
+                     cny_amount=amount if gain else -amount),
+        PostingInput(category=category, currency='CNY', amount=-amount if gain else amount,
+                     cny_amount=-amount if gain else amount),
+    ]
+    return _post_transaction_once(
+        transaction_type=LedgerTransaction.TransactionType.INVENTORY_ADJUSTMENT,
+        business_date=business_date, postings=postings, operator=operator,
+        idempotency_key=context.idempotency_key, description=reason,
+        source_type='stock_adjustment', source_id=source_id,
+    )
+
+
+@_retry_sqlite_locked
 @transaction.atomic
 def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None,
                  unit_cost_cny=None, adjustment_type=AdjustmentRecord.AdjustType.LOSS, inventory_form='stick',
-                 agent_context=None):
+                 business_date=None, agent_context=None):
     """Adjust available stock. Negative adjustments never allow stock below zero."""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name='adjust_stock')
+    reason = str(reason or '').strip()
+    if not reason:
+        raise OrderServiceError('库存调整原因不能为空')
+    require_day1_completed()
+    business_date = business_date or moscow_business_date()
     delta = _to_int(quantity_delta, '库存修正数量')
+    cigar_id_for_source = _to_positive_int(cigar_id, '雪茄ID')
+    batch_id_for_source = (
+        None if batch_id in (None, '') else _to_positive_int(batch_id, '批次ID')
+    )
+    # 幂等指纹使用排序 JSON 和两位小数规范化，避免请求格式差异产生不同来源。
+    if unit_cost_cny is None:
+        fingerprint_cost = None
+    else:
+        try:
+            normalized_cost = Decimal(str(unit_cost_cny)).quantize(
+                MONEY_PLACES, rounding=ROUND_HALF_UP,
+            )
+            fingerprint_cost = normalized_cost.to_eng_string()
+        except (InvalidOperation, TypeError, ValueError):
+            fingerprint_cost = str(unit_cost_cny)
+    fingerprint_payload = {
+        'cigar_id': cigar_id_for_source,
+        'batch_id': batch_id_for_source,
+        'delta': delta,
+        'inventory_form': str(inventory_form),
+        'adjustment_type': str(adjustment_type),
+        'unit_cost_cny': fingerprint_cost,
+    }
+    request_fingerprint = hashlib.sha256(json.dumps(
+        fingerprint_payload, sort_keys=True, separators=(',', ':'), ensure_ascii=False,
+    ).encode('utf-8')).hexdigest()
+    # 先升级统一 writer gate，再查询幂等事实，避免并发请求同时通过空检查。
+    _acquire_sqlite_writer_gate()
+    if context.idempotency_key:
+        existing = LedgerTransaction.objects.filter(
+            idempotency_key=context.idempotency_key,
+            transaction_type=LedgerTransaction.TransactionType.INVENTORY_ADJUSTMENT,
+        ).first()
+        if existing is not None:
+            source_prefix = f'stock_adjustment:{request_fingerprint}:'
+            if (existing.business_date != business_date or existing.operator_id != operator.pk
+                    or existing.description != reason or existing.source_type != 'stock_adjustment'
+                    or not existing.source_id.startswith(source_prefix)):
+                raise LedgerError('idempotency_conflict', code='idempotency_conflict')
+            result_batch_raw = existing.source_id[len(source_prefix):]
+            if not result_batch_raw.isdigit() or int(result_batch_raw) <= 0:
+                raise LedgerError('idempotency_conflict', code='idempotency_conflict')
+            result_batch = PurchaseBatch.objects.filter(pk=int(result_batch_raw)).first()
+            if (result_batch is None or result_batch.cigar_id != cigar_id_for_source
+                    or (batch_id_for_source is not None and result_batch.pk != batch_id_for_source)):
+                raise LedgerError('idempotency_conflict', code='idempotency_conflict')
+            return result_batch
     if delta == 0:
         raise OrderServiceError('库存修正数量不能为 0')
     if inventory_form not in ('stick', 'box'):
@@ -1001,14 +1130,12 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
             'remaining', 'physical_remaining', available_field, physical_field, 'remaining_cost_cny',
         ])
         _record_movement(
-            movement_type=StockMovement.MovementType.ADJUSTMENT,
-            cigar=cigar,
-            purchase_batch=batch,
-            quantity=delta,
-            operator=operator,
-            context=context,
-            note=reason,
+            movement_type=StockMovement.MovementType.ADJUSTMENT, cigar=cigar, purchase_batch=batch,
+            quantity=delta, operator=operator, context=context, note=reason,
         )
+        source_id = f'stock_adjustment:{request_fingerprint}:{batch.pk}'
+        _post_stock_adjustment(cost_cny=added_cost, gain=True,
+                               business_date=business_date, operator=operator, context=context, reason=reason, source_id=source_id)
         return batch
 
     quantity_to_remove = abs(delta)
@@ -1030,6 +1157,7 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
 
     remaining_to_remove = quantity_to_remove
     last_batch = None
+    total_adjustment_cost = Decimal('0.00')
     for batch in batches:
         if remaining_to_remove <= 0:
             break
@@ -1075,7 +1203,11 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
             operator=operator,
             reason=reason,
         )
+        total_adjustment_cost += cost
         remaining_to_remove -= take
+    source_id = f'stock_adjustment:{request_fingerprint}:{last_batch.pk}'
+    _post_stock_adjustment(cost_cny=total_adjustment_cost, gain=False,
+                           business_date=business_date, operator=operator, context=context, reason=reason, source_id=source_id)
     return last_batch
 
 
@@ -1103,26 +1235,10 @@ def _get_or_create_adjustment_batch(*, cigar, quantity, operator, batch_id=None,
     unit_cost = _to_signed_money(unit_cost_cny, '成本单价')
     if unit_cost < 0:
         raise OrderServiceError('成本单价不能为负数')
-    supplier, _ = Supplier.objects.get_or_create(name='库存修正')
-    purchase_order = PurchaseOrder.objects.create(
-        supplier=supplier,
-        rub_total=Decimal('0.00'),
-        exchange_rate=Decimal('1.0000'),
-        cny_total=(unit_cost * quantity).quantize(MONEY_PLACES),
-        operator=operator,
-        status=PurchaseOrder.Status.RECEIVED,
-        note='库存修正自动建批次',
-    )
-    purchase_item = PurchaseOrderItem.objects.create(
-        purchase_order=purchase_order,
-        cigar=cigar,
-        quantity=0,
-        box_size=None,
-        unit_price_rub=Decimal('0.00'),
-        unit_price_cny=unit_cost,
-    )
+    # 库存调整不是采购，不创建 PurchaseOrder 或付款/到货镜像。
     return PurchaseBatch.objects.create(
-        purchase_order_item=purchase_item,
+        purchase_order_item=None,
+        source=PurchaseBatch.Source.ADJUSTMENT,
         cigar=cigar,
         original_cost_cny=Decimal('0.00'),
         positive_adjustment_quantity=0,
@@ -1137,80 +1253,33 @@ def _get_or_create_adjustment_batch(*, cigar, quantity, operator, batch_id=None,
     )
 
 
-@transaction.atomic
-def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, note=''):
-    """Create missing batches for purchase order items and record receive movements."""
-    operator = _require_operator(operator)
+def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, note='',
+                           business_date=None, idempotency_key=None):
+    """旧入口委托 Task 4 到货动作，保留 Agent 调用兼容性。"""
+    from accounting.purchase_actions import (
+        PurchaseActionError, receive_paid_purchase_order,
+    )
     context = agent_context or AgentContext(command_name='receive_purchase_order')
+    key = idempotency_key or context.idempotency_key
+    if not key:
+        key = f'legacy-purchase-receipt-{uuid4().hex}'
+    if context.idempotency_key != key:
+        # 旧入口的库存移动与正式到货事实必须使用同一个审计键。
+        context = replace(context, idempotency_key=key)
+    if business_date is None:
+        order = PurchaseOrder.objects.filter(pk=_to_positive_int(purchase_order_id, '进货单ID')).first()
+        business_date = (order.draft_business_date if order and order.draft_business_date
+                         else moscow_business_date())
     try:
-        purchase_order = PurchaseOrder.objects.select_for_update().get(
-            id=_to_positive_int(purchase_order_id, '进货单ID')
+        return receive_paid_purchase_order(
+            purchase_order_id=purchase_order_id, business_date=business_date,
+            operator=operator, idempotency_key=key, note=note,
+            agent_context=context,
         )
-    except PurchaseOrder.DoesNotExist:
-        raise OrderServiceError('进货单不存在')
-
-    if purchase_order.status == PurchaseOrder.Status.RECEIVED:
-        raise OrderServiceError('进货单已入库')
-    if purchase_order.status == PurchaseOrder.Status.CANCELLED:
-        raise OrderServiceError('已取消进货单不能入库')
-    if purchase_order.status != PurchaseOrder.Status.DRAFT:
-        raise OrderServiceError(f'当前状态不能入库: {purchase_order.status}')
-
-    items = list(purchase_order.items.select_related('cigar').order_by('id'))
-    if not items:
-        raise OrderServiceError('进货单没有明细')
-    if PurchaseBatch.objects.filter(purchase_order_item__purchase_order=purchase_order).exists():
-        raise OrderServiceError('进货单已存在入库批次')
-
-    batches = []
-    for item in items:
-
-        if item.box_size:
-            full_boxes, loose_sticks = divmod(item.quantity, item.box_size)
-            packaging = {
-                'box_size': item.box_size,
-                'original_box_quantity': full_boxes,
-                'original_stick_quantity': loose_sticks,
-                'physical_box_quantity': full_boxes,
-                'available_box_quantity': full_boxes,
-                'physical_stick_quantity': loose_sticks,
-                'available_stick_quantity': loose_sticks,
-            }
-        else:
-            packaging = {
-                'original_stick_quantity': item.quantity,
-                'physical_stick_quantity': item.quantity,
-                'available_stick_quantity': item.quantity,
-            }
-        batch = PurchaseBatch.objects.create(
-            purchase_order_item=item,
-            cigar=item.cigar,
-            quantity=item.quantity,
-            remaining=item.quantity,
-            physical_remaining=item.quantity,
-            original_cost_cny=(item.quantity * item.unit_price_cny).quantize(MONEY_PLACES),
-            positive_adjustment_quantity=0,
-            positive_adjustment_cost_cny=Decimal('0.00'),
-            adjustment_cost_cny=Decimal('0.00'),
-            remaining_cost_cny=(item.quantity * item.unit_price_cny).quantize(MONEY_PLACES),
-            sold_cost_cny=Decimal('0.00'),
-            unit_cost_cny=item.unit_price_cny,
-            **packaging,
-        )
-        _record_movement(
-            movement_type=StockMovement.MovementType.RECEIVE,
-            cigar=item.cigar,
-            purchase_batch=batch,
-            quantity=item.quantity,
-            operator=operator,
-            context=context,
-            note=note,
-        )
-        batches.append(batch)
-    purchase_order.status = PurchaseOrder.Status.RECEIVED
-    purchase_order.save(update_fields=['status'])
-    return batches
-
+    except PurchaseActionError as error:
+        raise OrderServiceError(
+            error.code, code=error.code, details=error.details,
+        ) from error
 
 def get_stock_summary(*, query='', limit=50):
     qs = Cigar.objects.all().order_by('brand', 'english_name')
@@ -1233,3 +1302,23 @@ def get_stock_summary(*, query='', limit=50):
             'available_stock': total,
         })
     return results
+
+
+def update_purchase_order_draft(*, purchase_order_id, items, expected_version,
+                               idempotency_key, operator, note=''):
+    from accounting.purchase_actions import update_purchase_order_draft as update_draft
+    return update_draft(
+        purchase_order_id=purchase_order_id, items=items,
+        expected_version=expected_version, idempotency_key=idempotency_key,
+        operator=operator, note=note,
+    )
+
+
+def cancel_purchase_order(*, purchase_order_id, operator, idempotency_key,
+                          expected_version, note=''):
+    from accounting.purchase_actions import cancel_purchase_order as cancel_draft
+    return cancel_draft(
+        purchase_order_id=purchase_order_id, operator=operator,
+        idempotency_key=idempotency_key, expected_version=expected_version,
+        note=note,
+    )

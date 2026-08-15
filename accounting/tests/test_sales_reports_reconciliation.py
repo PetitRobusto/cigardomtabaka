@@ -1,23 +1,27 @@
-from datetime import date
+from datetime import date, datetime, timezone as dt_timezone
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.db import connection
+from django.db import connection, transaction, models
 from django.db import OperationalError
 from django.db.migrations.executor import MigrationExecutor
 from django.test import Client, TestCase
 from django.test import TransactionTestCase
+from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 from django.core.exceptions import ValidationError
 
 from accounting.models import (
     AccountReconciliation,
+    Day1Initialization,
     FundAccount,
     LedgerMutationError,
     LedgerPosting,
     LedgerTransaction,
 )
 from accounting.services import PostingInput
-from cigars.models import PurchaseOrder, Supplier, User
+from cigars.models import Brand, Cigar, PurchaseOrder, PurchaseOrderItem, Supplier, User
+from accounting.mutation_scope import ledger_mutation_scope
 
 
 class SalesReportsAndReconciliationTest(TestCase):
@@ -27,6 +31,80 @@ class SalesReportsAndReconciliationTest(TestCase):
             'reports-operator', password='pass', is_staff=True,
         )
         self.non_staff = User.objects.create_user('reports-customer', password='pass')
+        Day1Initialization.objects.create(
+            status=Day1Initialization.Status.COMPLETED,
+            business_date=date(2026, 8, 10), completed_by=self.operator,
+        )
+
+    def test_account_rows_use_fixed_query_count(self):
+        """账户摘要应一次聚合流水，查询数不能随账户数量线性增长。"""
+        from accounting.selectors import _account_rows
+
+        FundAccount.objects.create(
+            name='查询数账户 0', currency=FundAccount.Currency.CNY,
+            creation_idempotency_key='account-row-query-0',
+        )
+        for index in range(1, 5):
+            FundAccount.objects.create(
+                name=f'查询数账户 {index}', currency=FundAccount.Currency.CNY,
+                creation_idempotency_key=f'account-row-query-{index}',
+            )
+
+        with CaptureQueriesContext(connection) as captured:
+            rows = _account_rows(as_of=date(2026, 8, 10))
+
+        self.assertEqual(len(rows), 5)
+        self.assertEqual(len(captured), 2)
+
+
+    def in_transit_order(self, **values):
+        from accounting.purchase_actions import pay_purchase_order
+        if not hasattr(self, 'transit_cigar'):
+            brand = Brand.objects.create(english_name='Reports Brand', name='报表品牌')
+            self.transit_cigar = Cigar.objects.create(
+                brand=brand.english_name, english_name='Reports Cigar', name='报表雪茄',
+            )
+        if not hasattr(self, 'transit_account'):
+            from accounting.services import record_opening_balance
+            self.transit_account = FundAccount.objects.create(
+                name='报表卢布账户', currency=FundAccount.Currency.RUB,
+                creation_idempotency_key='reports-transit-rub',
+            )
+            record_opening_balance(
+                self.transit_account, Decimal('1000.00'), Decimal('880.00'),
+                LedgerPosting.Category.OPENING_CAPITAL, date(2026, 8, 10),
+                self.operator, 'reports-transit-opening',
+            )
+        business_date = values.pop('business_date')
+        paid_at = values.pop('paid_at')
+        order = PurchaseOrder.objects.create(
+            supplier=values.pop('supplier'), operator=self.operator,
+            rub_total=values.pop('rub_total'),
+            exchange_rate=values.pop('exchange_rate'),
+            cny_total=values.pop('cny_total'),
+        )
+        PurchaseOrderItem.objects.create(
+            purchase_order=order, cigar=self.transit_cigar,
+            quantity=1, box_size=1, box_quantity=1,
+            unit_price_rub_per_box=order.rub_total,
+            packaging_status=PurchaseOrderItem.PackagingStatus.UNREPRESENTABLE,
+        )
+        expected_cost = values.pop('paid_cny_cost')
+        payment = pay_purchase_order(
+            purchase_order_id=order.id, rub_account_id=self.transit_account.id,
+            business_date=business_date, operator=self.operator,
+            idempotency_key=f'reports-payment-{order.id}',
+        )
+        self.assertEqual(payment.cny_cost, expected_cost)
+        self.assertFalse(values)
+        order.refresh_from_db()
+        with transaction.atomic(), ledger_mutation_scope(
+            reason='purchase_payment', model='cigars.PurchaseOrder',
+            operator=self.operator, allowed_fields={'status', 'paid_cny_cost', 'paid_at'},
+        ):
+            order.paid_at = paid_at
+            models.Model.save(order, update_fields=['paid_at'])
+        return order
 
     def posted_transaction(self, transaction_type, business_date, postings, key):
         from accounting.services import post_transaction
@@ -76,6 +154,8 @@ class SalesReportsAndReconciliationTest(TestCase):
             'monthly-transport-cost',
         )
 
+        from accounting.selectors import monthly_profit
+
         monthly = monthly_profit(month=date(2026, 8, 1))
         self.assertEqual(monthly['sales_revenue_cny'], Decimal('-90.00'))
         self.assertEqual(monthly['customer_transport_revenue_cny'], Decimal('-5.00'))
@@ -106,6 +186,56 @@ class SalesReportsAndReconciliationTest(TestCase):
         self.assertNotIn('draft_transaction_total', monthly)
         self.assertEqual(monthly['transaction_count'], 0)
 
+    def test_monthly_profit_includes_expenses_adjustments_and_reconciliation_facts(self):
+        """Monthly profit keeps expense, adjustment, and reconciliation facts."""
+        categories = {
+            LedgerPosting.Category.SALES_REVENUE: Decimal('-500.00'),
+            LedgerPosting.Category.COST_OF_GOODS_SOLD: Decimal('0.00'),
+            LedgerPosting.Category.SALARY_EXPENSE: Decimal('100.00'),
+            LedgerPosting.Category.TRANSPORT_EXPENSE: Decimal('20.00'),
+            LedgerPosting.Category.INVENTORY_ADJUSTMENT_GAIN: Decimal('-7.00'),
+            LedgerPosting.Category.INVENTORY_ADJUSTMENT_LOSS: Decimal('3.00'),
+            LedgerPosting.Category.RECONCILIATION_GAIN: Decimal('-2.00'),
+            LedgerPosting.Category.RECONCILIATION_LOSS: Decimal('1.00'),
+        }
+        transport_amount = categories.pop(LedgerPosting.Category.TRANSPORT_EXPENSE)
+        balancing_account = FundAccount.objects.create(
+            name='月报分类平衡账户', currency=FundAccount.Currency.CNY,
+            creation_idempotency_key='profit-category-account',
+        )
+        self.posted_transaction(
+            LedgerTransaction.TransactionType.SALES_SHIPMENT,
+            date(2026, 8, 20),
+            [
+                *[
+                    PostingInput(category=category, currency='CNY', amount=amount, cny_amount=amount)
+                    for category, amount in categories.items()
+                ],
+                PostingInput(account=balancing_account, currency='CNY', amount=Decimal('405.00'), cny_amount=Decimal('405.00')),
+            ],
+            'profit-categories',
+        )
+        self.posted_transaction(
+            LedgerTransaction.TransactionType.SALES_TRANSPORT_COST,
+            date(2026, 8, 20),
+            [
+                PostingInput(category=LedgerPosting.Category.TRANSPORT_EXPENSE, currency='CNY', amount=transport_amount, cny_amount=transport_amount),
+                PostingInput(account=balancing_account, currency='CNY', amount=-transport_amount, cny_amount=-transport_amount),
+            ],
+            'profit-transport-cost',
+        )
+
+        from accounting.selectors import monthly_profit
+
+        monthly = monthly_profit(month=date(2026, 8, 1))
+
+        self.assertEqual(monthly['net_profit_cny'], Decimal('385.00'))
+        self.assertEqual(monthly['salary_expense_cny'], Decimal('100.00'))
+        self.assertEqual(monthly['inventory_adjustment_gain_cny'], Decimal('7.00'))
+        self.assertEqual(monthly['inventory_adjustment_loss_cny'], Decimal('3.00'))
+        self.assertEqual(monthly['reconciliation_gain_cny'], Decimal('2.00'))
+        self.assertEqual(monthly['reconciliation_loss_cny'], Decimal('1.00'))
+
     def test_summary_as_of_includes_accounts_ar_prepayment_inventory_and_in_transit(self):
         from accounting.selectors import accounting_summary
 
@@ -114,10 +244,17 @@ class SalesReportsAndReconciliationTest(TestCase):
             creation_idempotency_key='summary-cny',
         )
         supplier = Supplier.objects.create(name='摘要供应商')
-        PurchaseOrder.objects.create(
-            supplier=supplier, status='draft', rub_total=Decimal('100.00'),
-            exchange_rate=Decimal('12.0000'), cny_total=Decimal('100.00'),
-            operator=self.operator,
+        self.in_transit_order(
+            supplier=supplier, rub_total=Decimal('100.00'), exchange_rate=Decimal('12.0000'),
+            cny_total=Decimal('100.00'), paid_cny_cost=Decimal('88.00'),
+            business_date=date(2026, 8, 10),
+            paid_at=datetime(2026, 8, 10, 20, 30, tzinfo=dt_timezone.utc),
+        )
+        self.in_transit_order(
+            supplier=supplier, rub_total=Decimal('50.00'), exchange_rate=Decimal('12.0000'),
+            cny_total=Decimal('50.00'), paid_cny_cost=Decimal('44.00'),
+            business_date=date(2026, 8, 11),
+            paid_at=timezone.make_aware(datetime(2026, 8, 11, 12)),
         )
         self.posted_transaction(
             LedgerTransaction.TransactionType.SALES_RECEIPT,
@@ -128,7 +265,7 @@ class SalesReportsAndReconciliationTest(TestCase):
             ],
             'summary-receivable-prepayment',
         )
-        with patch('accounting.selectors.timezone.localdate', return_value=date(2026, 8, 10)):
+        with patch('accounting.selectors.moscow_business_date', return_value=date(2026, 8, 10)):
             summary = accounting_summary(as_of=date(2026, 8, 10))
         self.assertIn('fund_accounts', summary)
         self.assertIn('accounts_receivable_cny', summary)
@@ -138,18 +275,19 @@ class SalesReportsAndReconciliationTest(TestCase):
         self.assertEqual(summary['fund_accounts'][0]['account_id'], account.id)
         self.assertEqual(summary['accounts_receivable_cny'], Decimal('50.00'))
         self.assertEqual(summary['customer_prepayments_cny'], Decimal('50.00'))
+        self.assertEqual(summary['purchase_in_transit_cny'], Decimal('88.00'))
 
     def test_summary_rejects_non_today_as_of(self):
         from accounting.selectors import accounting_summary
 
-        with patch('accounting.selectors.timezone.localdate', return_value=date(2026, 8, 12)):
+        with patch('accounting.selectors.moscow_business_date', return_value=date(2026, 8, 12)):
             with self.assertRaisesRegex(ValueError, 'as_of 仅支持当前日期'):
                 accounting_summary(as_of=date(2026, 8, 11))
 
     def test_summary_api_rejects_non_today_as_of(self):
         self.client.force_login(self.operator)
 
-        with patch('accounting.selectors.timezone.localdate', return_value=date(2026, 8, 12)):
+        with patch('accounting.selectors.moscow_business_date', return_value=date(2026, 8, 12)):
             response = self.client.get('/api/accounting/reports/summary/?as_of=2026-08-11')
 
         self.assertEqual(response.status_code, 400)
@@ -157,18 +295,19 @@ class SalesReportsAndReconciliationTest(TestCase):
 
     def test_summary_api_allows_today_current_snapshot(self):
         supplier = Supplier.objects.create(name='今日摘要供应商')
-        PurchaseOrder.objects.create(
-            supplier=supplier, status=PurchaseOrder.Status.DRAFT,
-            rub_total=Decimal('120.00'), exchange_rate=Decimal('12.0000'),
-            cny_total=Decimal('120.00'), operator=self.operator,
+        self.in_transit_order(
+            supplier=supplier, rub_total=Decimal('120.00'), exchange_rate=Decimal('12.0000'),
+            cny_total=None, paid_cny_cost=Decimal('105.60'),
+            business_date=date(2026, 8, 12),
+            paid_at=timezone.make_aware(datetime(2026, 8, 12, 12)),
         )
         self.client.force_login(self.operator)
 
-        with patch('accounting.selectors.timezone.localdate', return_value=date(2026, 8, 12)):
+        with patch('accounting.selectors.moscow_business_date', return_value=date(2026, 8, 12)):
             response = self.client.get('/api/accounting/reports/summary/?as_of=2026-08-12')
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()['purchase_in_transit_cny'], '120.00')
+        self.assertEqual(response.json()['purchase_in_transit_cny'], '105.60')
 
     def test_reconciliation_creates_snapshot_actual_and_difference_once_per_account_date(self):
         from accounting.services import (
@@ -267,7 +406,7 @@ class SalesReportsAndReconciliationTest(TestCase):
         self.assertEqual(monthly.status_code, 200)
         self.assertEqual(monthly.json()['period_start'], '2026-08-01')
         self.assertEqual(monthly.json()['net_profit_cny'], '0.00')
-        with patch('accounting.selectors.timezone.localdate', return_value=date(2026, 8, 10)):
+        with patch('accounting.selectors.moscow_business_date', return_value=date(2026, 8, 10)):
             summary = self.client.get('/api/accounting/reports/summary/?as_of=2026-08-10')
         self.assertEqual(summary.status_code, 200)
         self.assertEqual(summary.json()['fund_accounts'][0]['original_balance'], '100.00000000')
@@ -453,17 +592,22 @@ class SalesReportsAndReconciliationTest(TestCase):
             )
 
         self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.json(), {'error': '账务系统繁忙，请重试'})
+        self.assertEqual(response.json(), {'error': '账务系统繁忙，请重试', 'code': 'busy', 'details': {}})
 
 
 class AccountReconciliationIdempotencyMigrationTest(TransactionTestCase):
     migrate_from = [('accounting', '0007_accountreconciliation')]
     migrate_to = [('accounting', '0009_accountreconciliation_confirmer')]
 
+    def tearDown(self):
+        # 迁移测试必须在 Django flush 前恢复最新 schema，避免后续并发连接看不到 Day1 表。
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+        super().tearDown()
+
     def test_multiple_legacy_records_receive_distinct_nonempty_creation_keys(self):
         executor = MigrationExecutor(connection)
         executor.migrate(self.migrate_from)
-        self.addCleanup(executor.migrate, executor.loader.graph.leaf_nodes())
         legacy_apps = MigrationExecutor(connection).loader.project_state(
             self.migrate_from,
         ).apps

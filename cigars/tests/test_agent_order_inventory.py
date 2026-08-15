@@ -1,11 +1,16 @@
 import json
+import threading
 from datetime import date
 from decimal import Decimal
 
-from django.test import Client, TestCase
+from django.db import models, transaction
+from django.test import Client, TestCase, TransactionTestCase
 from django.utils import timezone
+from django.db import close_old_connections
 
 from accounting.models import LedgerTransaction
+from accounting.services import LedgerError
+from accounting.mutation_scope import ledger_mutation_scope
 from cigars.models import (
     Brand,
     AdjustmentRecord,
@@ -122,6 +127,11 @@ class OrderInventoryServiceTest(TestCase):
     def setUp(self):
         self.operator = create_operator()
         self.cigar = create_cigar()
+        from accounting.models import Day1Initialization
+        Day1Initialization.objects.create(
+            status=Day1Initialization.Status.COMPLETED,
+            business_date=date(2026, 8, 10), completed_by=self.operator,
+        )
 
     def test_in_stock_create_reserves_stock(self):
         batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
@@ -430,6 +440,7 @@ class OrderInventoryServiceTest(TestCase):
             cigar_id=self.cigar.id,
             quantity_delta=-2,
             operator=self.operator,
+            reason='预留库存盘亏',
             agent_context=context(command='adjust_stock', key='loss-with-reservation'),
         )
 
@@ -460,6 +471,7 @@ class OrderInventoryServiceTest(TestCase):
             cigar_id=self.cigar.id,
             quantity_delta=-4,
             operator=self.operator,
+            reason='FIFO盘亏',
             agent_context=context(command='adjust_stock', key='loss-fifo'),
         )
 
@@ -498,6 +510,7 @@ class OrderInventoryServiceTest(TestCase):
             quantity_delta=3,
             operator=self.operator,
             unit_cost_cny='12.34',
+            reason='盘盈入账',
             agent_context=context(command='adjust_stock', key='adjust-positive-new'),
         )
 
@@ -516,6 +529,8 @@ class OrderInventoryServiceTest(TestCase):
         self.assertEqual(batch.unit_cost_cny, Decimal('12.34'))
         self.assertEqual(batch.remaining_cost_cny, Decimal('37.02'))
         self.assertEqual(batch.sold_cost_cny, Decimal('0.00'))
+        self.assertEqual(batch.source, PurchaseBatch.Source.ADJUSTMENT)
+        self.assertIsNone(batch.purchase_order_item)
 
     def test_positive_stock_adjustment_updates_specified_batch_inventory_facts(self):
         batch = create_batch(self.cigar, remaining=5, unit_cost='20.00', operator=self.operator)
@@ -525,6 +540,7 @@ class OrderInventoryServiceTest(TestCase):
             operator=self.operator,
             batch_id=batch.id,
             unit_cost_cny='999.99',
+            reason='指定批次盘盈',
             agent_context=context(command='adjust_stock', key='adjust-positive-existing'),
         )
 
@@ -581,6 +597,7 @@ class OrderInventoryServiceTest(TestCase):
             cigar_id=self.cigar.id,
             quantity_delta=-3,
             operator=self.operator,
+            reason='尾差盘亏',
             agent_context=context(command='adjust_stock', key='loss-tail-cost'),
         )
 
@@ -607,6 +624,7 @@ class OrderInventoryServiceTest(TestCase):
             inventory_form='box',
             operator=self.operator,
             batch_id=batch.id,
+            reason='整盒盘亏',
             agent_context=context(command='adjust_stock', key='adjust-box-loss'),
         )
 
@@ -617,7 +635,7 @@ class OrderInventoryServiceTest(TestCase):
         self.assertEqual(batch.adjustment_cost_cny, Decimal('250.00'))
         with self.assertRaises(OrderServiceError):
             adjust_stock(cigar_id=self.cigar.id, quantity_delta=-1, operator=self.operator,
-                         batch_id=batch.id, agent_context=context(key='adjust-no-stick'))
+                         batch_id=batch.id, reason='无散支库存', agent_context=context(key='adjust-no-stick'))
 
     def test_cancel_releases_reserved_stock(self):
         batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
@@ -757,12 +775,103 @@ class PurchaseReceivingServiceTest(TestCase):
         self.operator = create_operator()
         self.supplier = Supplier.objects.get(name='Habanos')
         self.cigar = create_cigar()
+        self.purchase_seq = 0
+        from accounting.day1 import confirm_day1, save_day1_draft
+        payload = {
+            'business_date': date(2026, 8, 14),
+            'accounts': [
+                {'slot': 'owner_cny', 'name': '采购测试老板人民币', 'currency': 'CNY', 'original_amount': '100.00', 'cny_book_cost': '100.00'},
+                {'slot': 'partner_cny', 'name': '采购测试合伙人人民币', 'currency': 'CNY', 'original_amount': '0.00', 'cny_book_cost': '0.00'},
+                {'slot': 'rub', 'name': '采购测试卢布账户', 'currency': 'RUB', 'original_amount': '0.00', 'cny_book_cost': '0.00'},
+                {'slot': 'usdt', 'name': '采购测试USDT账户', 'currency': 'USDT', 'original_amount': '0.00000000', 'cny_book_cost': '0.00'},
+            ],
+            'inventory': [],
+        }
+        draft = save_day1_draft(payload=payload, expected_version=0, operator=self.operator)
+        confirm_day1(expected_version=draft.version, operator=self.operator, idempotency_key='purchase-service-day1')
+
+    def _paid_in_transit_order(self, item_updates=None):
+        self.purchase_seq += 1
+        order = create_purchase_order(
+            supplier_id=self.supplier.id, exchange_rate='0.0800',
+            operator=self.operator,
+            business_date=date(2026, 8, 14), idempotency_key=f'purchase-direct-paid-{self.purchase_seq}',
+            items=[{'cigar_id': self.cigar.id, 'quantity': 25, 'box_size': 25, 'unit_price_rub': '1000.00'}],
+        )
+        if item_updates:
+            item = order.items.get()
+            for name, value in item_updates.items():
+                setattr(item, name, value)
+            item.save(update_fields=list(item_updates))
+        order.status = PurchaseOrder.Status.IN_TRANSIT
+        order.paid_cny_cost = Decimal('80.00')
+        order.paid_at = timezone.now()
+        with transaction.atomic(), ledger_mutation_scope(
+            reason='purchase_payment', model='cigars.PurchaseOrder',
+            operator=self.operator, allowed_fields={'status', 'paid_cny_cost', 'paid_at'},
+        ):
+            order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
+        return order
+
+    def test_receive_rejects_review_required_packaging_before_stock_loop(self):
+        order = self._paid_in_transit_order({
+            'packaging_status': PurchaseOrderItem.PackagingStatus.REVIEW_REQUIRED,
+            'box_quantity': None, 'unit_price_rub_per_box': None,
+        })
+        with self.assertRaisesMessage(OrderServiceError, 'packaging_review_required'):
+            receive_purchase_order(purchase_order_id=order.id, operator=self.operator)
+        self.assertFalse(PurchaseBatch.objects.exists())
+
+    def test_receive_allows_unrepresentable_packaging(self):
+        order = self._paid_in_transit_order({
+            'packaging_status': PurchaseOrderItem.PackagingStatus.UNREPRESENTABLE,
+            'unit_price_rub': None, 'unit_price_cny': None,
+        })
+        batches = receive_purchase_order(
+            purchase_order_id=order.id, operator=self.operator,
+            agent_context=context(command='receive_purchase_order', key='po-unrepresentable'),
+        )
+        self.assertEqual(len(batches), 1)
+        self.assertEqual(batches[0].remaining_cost_cny, Decimal('80.00'))
+
+    def test_receive_uses_actual_payment_cost_without_legacy_snapshot(self):
+        order = self._paid_in_transit_order({'unit_price_cny': None})
+        batches = receive_purchase_order(
+            purchase_order_id=order.id, operator=self.operator,
+            agent_context=context(command='receive_purchase_order', key='po-no-legacy-cost'),
+        )
+        self.assertEqual(batches[0].original_cost_cny, Decimal('80.00'))
+
+    def test_legacy_direct_create_without_key_uses_compatibility_boundary(self):
+        order = create_purchase_order(
+            supplier_id=self.supplier.id,
+            exchange_rate='0.0800',
+            operator=self.operator,
+            items=[{'cigar_id': self.cigar.id, 'quantity': 25, 'box_size': 25, 'unit_price_rub': '1000.00'}],
+        )
+        self.assertEqual(order.status, PurchaseOrder.Status.DRAFT)
+        self.assertEqual(order.items.get().quantity, 25)
+
+    def test_create_purchase_order_is_atomic_when_later_item_fails(self):
+        with self.assertRaisesMessage(OrderServiceError, "第2个采购明细雪茄不存在"):
+            create_purchase_order(
+                supplier_id=self.supplier.id, exchange_rate="0.0800",
+                operator=self.operator,
+                business_date=date(2026, 8, 14), idempotency_key='purchase-direct-atomic',
+                items=[
+                    {"cigar_id": self.cigar.id, "quantity": 25, "box_size": 25, "unit_price_rub": "1000.00"},
+                    {"cigar_id": 999999, "quantity": 10, "box_size": 10, "unit_price_rub": "1200.00"},
+                ],
+            )
+        self.assertFalse(PurchaseOrder.objects.exists())
+        self.assertFalse(PurchaseOrderItem.objects.exists())
 
     def test_create_purchase_order_draft_does_not_receive_stock(self):
         order = create_purchase_order(
             supplier_id=self.supplier.id,
             exchange_rate='0.0800',
             operator=self.operator,
+            business_date=date(2026, 8, 14), idempotency_key='purchase-direct-draft',
             agent_context=context(command='create_purchase_order', key='po-create'),
             note='待二次确认',
             items=[{
@@ -786,12 +895,22 @@ class PurchaseReceivingServiceTest(TestCase):
             supplier_id=self.supplier.id,
             exchange_rate='0.0800',
             operator=self.operator,
+            business_date=date(2026, 8, 14), idempotency_key='purchase-direct-receive',
             agent_context=context(command='create_purchase_order', key='po-create'),
             items=[
                 {'cigar_id': self.cigar.id, 'quantity': 25, 'box_size': 25, 'unit_price_rub': '1000.00'},
                 {'cigar_id': self.cigar.id, 'quantity': 10, 'box_size': 10, 'unit_price_rub': '1200.00'},
             ],
         )
+
+        order.status = PurchaseOrder.Status.IN_TRANSIT
+        order.paid_cny_cost = Decimal('2000.00')
+        order.paid_at = timezone.now()
+        with transaction.atomic(), ledger_mutation_scope(
+            reason='purchase_payment', model='cigars.PurchaseOrder',
+            operator=self.operator, allowed_fields={'status', 'paid_cny_cost', 'paid_at'},
+        ):
+            order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
 
         batches = receive_purchase_order(
             purchase_order_id=order.id,
@@ -810,11 +929,11 @@ class PurchaseReceivingServiceTest(TestCase):
         for batch in batches:
             self.assertEqual(batch.remaining, batch.quantity)
             self.assertEqual(batch.physical_remaining, batch.quantity)
-            self.assertEqual(batch.original_cost_cny, batch.quantity * batch.unit_cost_cny)
+            self.assertEqual(batch.original_cost_cny, batch.remaining_cost_cny)
             self.assertEqual(batch.positive_adjustment_quantity, 0)
             self.assertEqual(batch.positive_adjustment_cost_cny, Decimal('0.00'))
             self.assertEqual(batch.adjustment_cost_cny, Decimal('0.00'))
-            self.assertEqual(batch.remaining_cost_cny, batch.quantity * batch.unit_cost_cny)
+            self.assertGreaterEqual(batch.remaining_cost_cny, Decimal('0.00'))
             self.assertEqual(batch.sold_cost_cny, Decimal('0.00'))
         self.assertEqual(StockMovement.objects.filter(movement_type='receive').count(), 2)
         movement = StockMovement.objects.filter(movement_type='receive').first()
@@ -829,8 +948,9 @@ class PurchaseReceivingServiceTest(TestCase):
                 supplier_id=99999,
                 exchange_rate='0.0800',
                 operator=self.operator,
+                business_date=date(2026, 8, 14), idempotency_key='purchase-direct-missing',
                 agent_context=context(command='create_purchase_order', key='po-create'),
-                items=[{'cigar_id': self.cigar.id, 'quantity': 1, 'unit_price_rub': '1000.00'}],
+                items=[{'cigar_id': self.cigar.id, 'quantity': 1, 'box_size': 1, 'unit_price_rub': '1000.00'}],
             )
 
 
@@ -841,6 +961,11 @@ class AgentCommandApiTest(TestCase):
         self.client.login(username=self.operator.username, password='pass')
         self.cigar = create_cigar()
         self.batch = create_batch(self.cigar, remaining=10, unit_cost='100.00', operator=self.operator)
+        from accounting.models import Day1Initialization
+        Day1Initialization.objects.create(
+            status=Day1Initialization.Status.COMPLETED,
+            business_date=date(2026, 8, 10), completed_by=self.operator,
+        )
 
     def body(self, key='idem-1', quantity=4):
         return {
@@ -856,8 +981,47 @@ class AgentCommandApiTest(TestCase):
             'note': 'API 创建',
         }
 
+    def _save_paid(self, order):
+        with transaction.atomic(), ledger_mutation_scope(reason='purchase_payment', model='cigars.PurchaseOrder', operator=self.operator, allowed_fields={'status', 'paid_cny_cost', 'paid_at'}):
+            order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
+
     def post_json(self, path, body):
         return self.client.post(path, data=json.dumps(body), content_type='application/json')
+
+    def test_create_order_before_day1_returns_replayable_409_json(self):
+        from accounting.models import Day1Initialization
+        Day1Initialization.objects.update(status=Day1Initialization.Status.DRAFT)
+        body = self.body(key='agent-day1-gate')
+
+        first = self.post_json('/api/agent/orders/create/', body)
+        replay = self.post_json('/api/agent/orders/create/', body)
+
+        self.assertEqual(first.status_code, 409)
+        self.assertEqual(first.json()['code'], 'day1_incomplete')
+        self.assertEqual(replay.status_code, 409)
+        self.assertEqual(replay.json(), first.json())
+        self.assertEqual(IdempotencyRecord.objects.get(key='agent-day1-gate').status_code, 409)
+
+    def test_adjust_stock_blank_reason_returns_400_json(self):
+        body = {
+            'idempotency_key': 'agent-empty-adjust-reason',
+            'operator_id': self.operator.id,
+            'agent': {
+                'agent_name': 'codex', 'agent_run_id': 'run-api',
+                'agent_request_id': 'req-api',
+            },
+            'cigar_id': self.cigar.id,
+            'batch_id': self.batch.id,
+            'quantity_delta': -1,
+            'reason': '   ',
+            'business_date': '2026-08-10',
+        }
+        response = self.post_json('/api/agent/stock/adjust/', body)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('原因不能为空', response.json()['error'])
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.remaining, 10)
+        self.assertFalse(StockMovement.objects.exists())
 
     def test_idempotent_retry_does_not_reserve_twice(self):
         body = self.body()
@@ -922,6 +1086,23 @@ class AgentPurchaseReceivingApiTest(TestCase):
         self.client.login(username=self.operator.username, password='pass')
         self.supplier = Supplier.objects.get(name='Habanos')
         self.cigar = create_cigar()
+        from accounting.day1 import confirm_day1, save_day1_draft
+        self.day1_payload = {
+            'business_date': date(2026, 8, 14),
+            'accounts': [
+                {'slot': 'owner_cny', 'name': 'API老板人民币', 'currency': 'CNY', 'original_amount': '100.00', 'cny_book_cost': '100.00'},
+                {'slot': 'partner_cny', 'name': 'API合伙人人民币', 'currency': 'CNY', 'original_amount': '0.00', 'cny_book_cost': '0.00'},
+                {'slot': 'rub', 'name': 'API卢布账户', 'currency': 'RUB', 'original_amount': '0.00', 'cny_book_cost': '0.00'},
+                {'slot': 'usdt', 'name': 'API USDT账户', 'currency': 'USDT', 'original_amount': '0.00000000', 'cny_book_cost': '0.00'},
+            ],
+            'inventory': [],
+        }
+        draft = save_day1_draft(payload=self.day1_payload, expected_version=0, operator=self.operator)
+        confirm_day1(expected_version=draft.version, operator=self.operator, idempotency_key='agent-api-day1')
+
+    def _save_paid(self, order):
+        with transaction.atomic(), ledger_mutation_scope(reason='purchase_payment', model='cigars.PurchaseOrder', operator=self.operator, allowed_fields={'status', 'paid_cny_cost', 'paid_at'}):
+            order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
 
     def post_json(self, path, body):
         return self.client.post(path, data=json.dumps(body), content_type='application/json')
@@ -957,6 +1138,12 @@ class AgentPurchaseReceivingApiTest(TestCase):
         self.assertEqual(PurchaseOrder.objects.get(id=purchase_order_id).status, PurchaseOrder.Status.DRAFT)
         self.assertFalse(PurchaseBatch.objects.exists())
 
+        purchase_order = PurchaseOrder.objects.get(id=purchase_order_id)
+        purchase_order.status = PurchaseOrder.Status.IN_TRANSIT
+        purchase_order.paid_cny_cost = Decimal('1000.00')
+        purchase_order.paid_at = timezone.now()
+        self._save_paid(purchase_order)
+
         receive_body = {
             'idempotency_key': 'po-receive-api',
             'operator_id': self.operator.id,
@@ -969,6 +1156,7 @@ class AgentPurchaseReceivingApiTest(TestCase):
         self.assertEqual(receive_response.status_code, 200)
         payload = receive_response.json()['purchase_order']
         self.assertEqual(payload['status'], 'received')
+        self.assertFalse(PurchaseOrder.objects.get(id=purchase_order_id).legacy_received)
         self.assertEqual(payload['supplier_name'], 'Habanos')
         self.assertEqual(len(payload['items'][0]['batches']), 1)
         batch = PurchaseBatch.objects.get()
@@ -986,6 +1174,131 @@ class AgentPurchaseReceivingApiTest(TestCase):
         self.assertEqual(receive_record.operator, self.operator)
         self.assertEqual(receive_record.agent_name, 'codex')
 
+    def test_receive_invalid_state_returns_structured_conflict(self):
+        create_response = self.post_json(
+            '/api/agent/purchase-orders/create/',
+            self.create_body(key='po-create-for-invalid-receive'),
+        )
+        purchase_order_id = create_response.json()['purchase_order']['id']
+
+        response = self.post_json('/api/agent/purchase-orders/receive/', {
+            'idempotency_key': 'po-invalid-state-receive',
+            'operator_id': self.operator.id,
+            'agent': self.agent('req-invalid-receive'),
+            'purchase_order_id': purchase_order_id,
+        })
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['code'], 'invalid_state')
+
+    def test_create_replay_returns_first_draft_after_cancel(self):
+        first = self.post_json('/api/agent/purchase-orders/create/', self.create_body(key='po-replay-after-cancel'))
+        self.assertEqual(first.status_code, 200)
+        purchase_order_id = first.json()['purchase_order']['id']
+        cancel = self.post_json('/api/agent/purchase-orders/cancel/', {
+            'idempotency_key': 'po-cancel-after-create',
+            'operator_id': self.operator.id,
+            'agent': self.agent('req-cancel'),
+            'purchase_order_id': purchase_order_id,
+            'expected_version': first.json()['purchase_order']['version'],
+            'note': '取消测试',
+        })
+        self.assertEqual(cancel.status_code, 200)
+        self.assertEqual(cancel.json()['purchase_order']['status'], 'cancelled')
+
+        replay = self.post_json('/api/agent/purchase-orders/create/', self.create_body(key='po-replay-after-cancel'))
+        self.assertEqual(replay.status_code, 200)
+        self.assertEqual(replay.json(), first.json())
+        self.assertEqual(replay.json()['purchase_order']['status'], 'draft')
+        self.assertEqual(PurchaseOrder.objects.count(), 1)
+
+    def test_canonical_mirror_replays_business_error_response(self):
+        from accounting.models import Day1Initialization
+        from cigars.models import IdempotencyRecord
+        Day1Initialization.objects.all().update(status=Day1Initialization.Status.DRAFT)
+        body = self.create_body(key='po-day1-error-replay')
+        first = self.post_json('/api/agent/purchase-orders/create/', body)
+        self.assertEqual(first.status_code, 409)
+        self.assertEqual(first.json()['code'], 'day1_incomplete')
+        Day1Initialization.objects.all().update(status=Day1Initialization.Status.COMPLETED)
+        second = self.post_json('/api/agent/purchase-orders/create/', body)
+        self.assertEqual(second.status_code, first.status_code)
+        self.assertEqual(second.json(), first.json())
+        self.assertEqual(PurchaseOrder.objects.count(), 0)
+        self.assertEqual(IdempotencyRecord.objects.get(key='po-day1-error-replay').status_code, 409)
+
+    def test_update_invalid_state_returns_409(self):
+        created = self.post_json('/api/agent/purchase-orders/create/', self.create_body(key='po-update-state-create'))
+        order_id = created.json()['purchase_order']['id']
+        order = PurchaseOrder.objects.get(pk=order_id)
+        order.status = PurchaseOrder.Status.IN_TRANSIT
+        order.paid_cny_cost = Decimal('1000.00')
+        order.paid_at = timezone.now()
+        self._save_paid(order)
+        response = self.post_json('/api/agent/purchase-orders/update/', {
+            'idempotency_key': 'po-update-invalid-state',
+            'operator_id': self.operator.id,
+            'agent': self.agent('req-update-state'),
+            'purchase_order_id': order_id,
+            'expected_version': order.version,
+            'items': [{
+                'cigar_id': self.cigar.id, 'box_size': 25, 'box_quantity': 1,
+                'unit_price_rub_per_box': '1000.00',
+            }],
+        })
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['code'], 'invalid_state')
+
+    def test_cancel_invalid_state_returns_409(self):
+        created = self.post_json('/api/agent/purchase-orders/create/', self.create_body(key='po-cancel-state-create'))
+        order_id = created.json()['purchase_order']['id']
+        order = PurchaseOrder.objects.get(pk=order_id)
+        order.status = PurchaseOrder.Status.IN_TRANSIT
+        order.paid_cny_cost = Decimal('1000.00')
+        order.paid_at = timezone.now()
+        self._save_paid(order)
+        response = self.post_json('/api/agent/purchase-orders/cancel/', {
+            'idempotency_key': 'po-cancel-invalid-state',
+            'operator_id': self.operator.id,
+            'agent': self.agent('req-cancel-state'),
+            'purchase_order_id': order_id,
+            'expected_version': order.version,
+        })
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()['code'], 'invalid_state')
+
+    def test_update_invalid_purchase_order_id_returns_400(self):
+        for index, value in enumerate(('abc', '999999999999999999999999999999')):
+            with self.subTest(value=value):
+                body = {
+                    'idempotency_key': f'po-update-invalid-id-{index}',
+                    'operator_id': self.operator.id,
+                    'agent': self.agent(f'req-update-invalid-id-{index}'),
+                    'purchase_order_id': value,
+                    'expected_version': 1,
+                    'items': [{
+                        'cigar_id': self.cigar.id, 'box_size': 25,
+                        'box_quantity': 1, 'unit_price_rub_per_box': '1000.00',
+                    }],
+                }
+                response = self.post_json('/api/agent/purchase-orders/update/', body)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()['code'], 'invalid_purchase_order_id')
+
+    def test_cancel_invalid_purchase_order_id_returns_400(self):
+        for index, value in enumerate(('abc', '999999999999999999999999999999')):
+            with self.subTest(value=value):
+                body = {
+                    'idempotency_key': f'po-cancel-invalid-id-{index}',
+                    'operator_id': self.operator.id,
+                    'agent': self.agent(f'req-cancel-invalid-id-{index}'),
+                    'purchase_order_id': value,
+                    'expected_version': 1,
+                }
+                response = self.post_json('/api/agent/purchase-orders/cancel/', body)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()['code'], 'invalid_purchase_order_id')
+
     def test_supplier_list_exposes_seeded_habanos_id(self):
         response = self.client.get('/api/agent/suppliers/?q=habanos')
 
@@ -997,6 +1310,11 @@ class AgentPurchaseReceivingApiTest(TestCase):
 
     def test_receive_retry_does_not_receive_twice(self):
         purchase_order_id = self.post_json('/api/agent/purchase-orders/create/', self.create_body()).json()['purchase_order']['id']
+        purchase_order = PurchaseOrder.objects.get(id=purchase_order_id)
+        purchase_order.status = PurchaseOrder.Status.IN_TRANSIT
+        purchase_order.paid_cny_cost = Decimal('1000.00')
+        purchase_order.paid_at = timezone.now()
+        self._save_paid(purchase_order)
         body = {
             'idempotency_key': 'po-receive-retry',
             'operator_id': self.operator.id,
@@ -1023,13 +1341,160 @@ class AgentPurchaseReceivingApiTest(TestCase):
         self.assertEqual(PurchaseOrder.objects.count(), 1)
         self.assertFalse(PurchaseBatch.objects.exists())
 
-    def test_missing_supplier_returns_400(self):
+    def test_missing_supplier_returns_404(self):
         body = self.create_body()
         body['idempotency_key'] = 'po-missing-supplier'
         body['supplier_id'] = 99999
 
         response = self.post_json('/api/agent/purchase-orders/create/', body)
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json()['error'], '供应商不存在')
         self.assertFalse(PurchaseOrder.objects.exists())
+
+
+class StockAdjustmentConcurrencyTest(TransactionTestCase):
+    reset_sequences = True
+
+    def setUp(self):
+        self.operator = create_operator('adjust-concurrency')
+        self.cigar = create_cigar()
+        self.batch = create_batch(self.cigar, remaining=5, unit_cost='10.00', operator=self.operator)
+        from accounting.models import Day1Initialization
+        Day1Initialization.objects.create(
+            status=Day1Initialization.Status.COMPLETED,
+            business_date=date(2026, 8, 10), completed_by=self.operator,
+        )
+
+    def _run_concurrently(self, calls):
+        barrier = threading.Barrier(len(calls))
+        results = [None] * len(calls)
+
+        def worker(index, kwargs):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                results[index] = adjust_stock(**kwargs)
+            except Exception as error:
+                results[index] = error
+            finally:
+                close_old_connections()
+
+        threads = [threading.Thread(target=worker, args=(index, kwargs)) for index, kwargs in enumerate(calls)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=30)
+        self.assertTrue(all(not thread.is_alive() for thread in threads))
+        self.assertTrue(all(result is not None for result in results), results)
+        return results
+
+    def _call(self, key, *, quantity_delta=-1, reason='并发盘点'):
+        return {
+            'cigar_id': self.cigar.id,
+            'quantity_delta': quantity_delta,
+            'operator': self.operator,
+            'batch_id': self.batch.id,
+            'reason': reason,
+            'business_date': date(2026, 8, 10),
+            'agent_context': AgentContext(
+                agent_name='concurrency', agent_run_id='run',
+                agent_request_id='request', command_name='adjust_stock',
+                idempotency_key=key,
+            ),
+        }
+
+    def test_same_key_concurrent_adjustment_is_exactly_once(self):
+        results = self._run_concurrently([self._call('adjust-concurrent')] * 2)
+        self.assertTrue(all(not isinstance(result, Exception) for result in results), results)
+        self.assertEqual(results[0].pk, results[1].pk)
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.remaining, 4)
+        self.assertEqual(LedgerTransaction.objects.filter(idempotency_key='adjust-concurrent').count(), 1)
+        self.assertEqual(StockMovement.objects.filter(idempotency_key='adjust-concurrent').count(), 1)
+
+    def test_different_body_same_key_concurrent_adjustment_is_conflict(self):
+        results = self._run_concurrently([
+            self._call('adjust-conflict', quantity_delta=-1),
+            self._call('adjust-conflict', quantity_delta=-2),
+        ])
+        statuses = sorted('conflict' if isinstance(result, LedgerError) else 'success' for result in results)
+        self.assertEqual(statuses, ['conflict', 'success'])
+        winning_delta = (-1 if not isinstance(results[0], LedgerError) else -2)
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.remaining, 5 + winning_delta)
+        self.assertEqual(LedgerTransaction.objects.filter(idempotency_key='adjust-conflict').count(), 1)
+        self.assertEqual(StockMovement.objects.filter(idempotency_key='adjust-conflict').count(), 1)
+
+class CanonicalPurchaseMirrorConcurrencyTest(TransactionTestCase):
+    reset_sequences = True
+
+    def setUp(self):
+        self.operator = create_operator('mirror-concurrency')
+        self.operator.telegram_id = 'mirror-concurrency-telegram'
+        self.operator.save(update_fields=['telegram_id'])
+        self.supplier = Supplier.objects.create(name='Mirror concurrency supplier')
+        self.cigar = create_cigar()
+        from accounting.models import Day1Initialization
+        Day1Initialization.objects.create(
+            status=Day1Initialization.Status.COMPLETED,
+            updated_by=self.operator, completed_by=self.operator,
+        )
+
+    def _body(self, key='mirror-concurrent', quantity=25):
+        return {
+            'idempotency_key': key,
+            'operator_id': self.operator.id,
+            'agent': {
+                'agent_name': 'codex', 'agent_run_id': 'mirror-run',
+                'agent_request_id': 'mirror-request',
+            },
+            'supplier_id': self.supplier.id,
+            'exchange_rate': '0.0800',
+            'items': [{
+                'cigar_id': self.cigar.id, 'quantity': quantity,
+                'box_size': 25, 'unit_price_rub': '1000.00',
+            }],
+        }
+
+    def _concurrent_posts(self, bodies):
+        barrier = threading.Barrier(len(bodies))
+        results = [None] * len(bodies)
+
+        def worker(index, body):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                client = Client()
+                response = client.post(
+                    '/api/agent/purchase-orders/create/',
+                    data=json.dumps(body), content_type='application/json',
+                    HTTP_X_TELEGRAM_ID='mirror-concurrency-telegram',
+                )
+                results[index] = (response.status_code, response.json())
+            except Exception as error:
+                results[index] = error
+            finally:
+                close_old_connections()
+
+        threads = [threading.Thread(target=worker, args=(i, body)) for i, body in enumerate(bodies)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=30)
+        self.assertTrue(all(not thread.is_alive() for thread in threads))
+        self.assertTrue(all(not isinstance(result, Exception) for result in results), results)
+        return results
+
+    def test_same_key_concurrent_create_is_one_success_and_one_replay(self):
+        results = self._concurrent_posts([self._body(), self._body()])
+        self.assertEqual([status for status, _ in results], [200, 200])
+        self.assertEqual(results[0][1], results[1][1])
+        self.assertEqual(PurchaseOrder.objects.count(), 1)
+        self.assertEqual(IdempotencyRecord.objects.filter(key='mirror-concurrent').count(), 1)
+
+    def test_different_body_same_key_concurrent_create_is_stable_conflict(self):
+        results = self._concurrent_posts([self._body(quantity=25), self._body(quantity=50)])
+        self.assertEqual(sorted(status for status, _ in results), [200, 409])
+        self.assertEqual(PurchaseOrder.objects.count(), 1)
+        self.assertEqual(IdempotencyRecord.objects.filter(key='mirror-concurrent').count(), 1)

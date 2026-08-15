@@ -122,10 +122,19 @@ def serialize_cigar_minimal(cigar, include_batches=False, stock_only=False):
     if include_batches:
         batches = []
         total_stock = 0
-        qs = cigar.purchasebatch_set.filter(remaining__gt=0)
+        box_totals = {}
+        available_sticks = 0
+        # 搜索端点会批量预取；其他调用者仍可独立使用序列化器。
+        qs = getattr(cigar, '_search_batches', None)
+        if qs is None:
+            qs = cigar.purchasebatch_set.filter(remaining__gt=0).select_related(
+                'purchase_order_item',
+            )
         if stock_only:
-            for b in qs.select_related('purchase_order_item'):
-                box_size = b.purchase_order_item.box_size or 25
+            for b in qs:
+                box_size = b.box_size or (
+                    b.purchase_order_item.box_size if b.purchase_order_item_id else None
+                ) or 25
                 batches.append({
                     'batch_id': b.id,
                     'box_size': box_size,
@@ -133,10 +142,24 @@ def serialize_cigar_minimal(cigar, include_batches=False, stock_only=False):
                     'unit_cost_cny': decimal_to_number(b.unit_cost_cny),
                 })
                 total_stock += b.remaining
+                if b.box_size and b.available_box_quantity:
+                    box_totals[b.box_size] = (
+                        box_totals.get(b.box_size, 0) + b.available_box_quantity
+                    )
+                available_sticks += b.available_stick_quantity
         else:
-            total_stock = qs.aggregate(total=models.Sum('remaining'))['total'] or 0
+            if isinstance(qs, list):
+                total_stock = sum(batch.remaining for batch in qs)
+            else:
+                total_stock = qs.aggregate(total=models.Sum('remaining'))['total'] or 0
 
+        # 保留 batches 给旧页面，新销售单联想直接使用聚合后的包装选项。
         result['batches'] = batches
         result['stock_qty'] = total_stock
+        result['box_options'] = [
+            {'box_size': box_size, 'available_boxes': box_totals[box_size]}
+            for box_size in sorted(box_totals)
+        ]
+        result['available_sticks'] = available_sticks
 
     return result

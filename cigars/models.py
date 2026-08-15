@@ -1,7 +1,162 @@
-from django.db import models
+from decimal import Decimal
+
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.db import models, transaction
 from django.contrib.auth.models import AbstractUser
 from django.utils.text import slugify
 from django.core.validators import MinValueValidator
+
+
+def _raise_ledger_mutation(message):
+    from accounting.models import LedgerMutationError
+    raise LedgerMutationError(message)
+
+
+def _scoped_purchase_write(reason, model, fields, operator=None):
+    # Ledger scope actor is the approved operator who records the action; it is
+    # intentionally independent from PurchaseOrder.operator (the order owner).
+    from accounting.mutation_scope import scope_allows
+    return scope_allows(reason=reason, model=model, fields=fields, operator=operator)
+
+
+def _concrete_fields(instance, kwargs):
+    requested = kwargs.get('update_fields')
+    if requested is None or not requested:
+        return {field.name for field in instance._meta.concrete_fields}
+    return set(requested)
+
+
+_PURCHASE_FINAL_Q = models.Q(status__in=('in_transit', 'received', 'cancelled')) | models.Q(
+    paid_at__isnull=False
+) | models.Q(paid_cny_cost__gt=0)
+_PURCHASE_ORDER_PROTECTED = {
+    'status', 'paid_cny_cost', 'paid_at', 'payment_idempotency_key',
+    'arrival_idempotency_key',
+}
+_PURCHASE_PAYMENT_FIELDS = {
+    'status', 'paid_cny_cost', 'paid_at', 'payment_idempotency_key',
+}
+_PURCHASE_RECEIPT_FIELDS = {'status', 'arrival_idempotency_key', 'legacy_received'}
+
+
+def _requested_field_names(instance, kwargs):
+    requested = kwargs.get('update_fields')
+    if requested is None:
+        return {field.name for field in instance._meta.concrete_fields}
+    return set(requested)
+
+
+def _persisted_values(instance, field_names):
+    """Return DB values for the named concrete fields, including FK ids."""
+    if not instance.pk:
+        return None
+    fields = {field.name: field for field in instance._meta.concrete_fields}
+    names = [name for name in field_names if name in fields]
+    if not names:
+        return {}
+    selected = [fields[name].attname for name in names]
+    return type(instance).objects.filter(pk=instance.pk).values(*selected).first()
+
+
+def _changed_field_names(instance, requested, persisted):
+    if persisted is None:
+        return set(requested)
+    field_by_name = {field.name: field for field in instance._meta.concrete_fields}
+    changed = set()
+    for name in requested:
+        field = field_by_name.get(name)
+        if field is None:
+            continue
+        if getattr(instance, field.attname) != persisted.get(field.attname):
+            changed.add(name)
+    return changed
+
+
+def _update_values(instance, fields):
+    field_by_name = {field.name: field for field in instance._meta.concrete_fields}
+    return {
+        field_by_name[name].attname: getattr(instance, field_by_name[name].attname)
+        for name in fields
+        if name in field_by_name
+    }
+
+
+def _conditional_update(queryset, **values):
+    """Internal state-conditional write; never exposed on the public manager."""
+    return models.QuerySet.update(queryset, **values)
+
+
+class PurchaseOrderQuerySet(models.QuerySet):
+    def _reject_finalized(self):
+        if self.filter(_PURCHASE_FINAL_Q).exists():
+            _raise_ledger_mutation('付款或到货后的采购单不可通过普通 ORM 修改或删除')
+
+    def update(self, **kwargs):
+        if _PURCHASE_ORDER_PROTECTED & kwargs.keys() or kwargs.get('status') == 'cancelled':
+            _raise_ledger_mutation('采购终态字段必须通过实例受控写入')
+        with transaction.atomic():
+            target_count = self.count()
+            if not target_count:
+                return 0
+            affected = _conditional_update(self.filter(status=PurchaseOrder.Status.DRAFT), **kwargs)
+            if affected != target_count:
+                _raise_ledger_mutation('采购单状态在更新期间发生变化，拒绝普通 ORM 修改')
+            return affected
+
+    def delete(self):
+        _raise_ledger_mutation('采购单禁止物理删除，请使用取消动作')
+
+    def bulk_update(self, objs, fields, **kwargs):
+        _raise_ledger_mutation('采购单禁止通过 bulk_update 修改')
+
+    def _finalized(self):
+        return self.filter(_PURCHASE_FINAL_Q)
+
+    def bulk_create(self, objs, **kwargs):
+        _raise_ledger_mutation('采购单禁止通过 bulk_create 或 UPSERT')
+
+    def update_or_create(self, defaults=None, **kwargs):
+        _raise_ledger_mutation('采购单禁止通过 update_or_create')
+
+    def get_or_create(self, defaults=None, **kwargs):
+        _raise_ledger_mutation('采购单禁止通过 get_or_create')
+
+
+class PurchaseOrderItemQuerySet(models.QuerySet):
+    def _finalized(self):
+        return self.filter(
+            models.Q(purchase_order__status__in=('in_transit', 'received', 'cancelled'))
+            | models.Q(purchase_order__paid_at__isnull=False)
+            | models.Q(purchase_order__paid_cny_cost__gt=0)
+        )
+
+    def update(self, **kwargs):
+        if {'purchase_order', 'purchase_order_id'} & kwargs.keys():
+            _raise_ledger_mutation('采购明细必须通过实例受控写入')
+        with transaction.atomic():
+            target_count = self.count()
+            if not target_count:
+                return 0
+            affected = _conditional_update(self.filter(purchase_order__status=PurchaseOrder.Status.DRAFT), **kwargs)
+            if affected != target_count:
+                _raise_ledger_mutation('采购明细所属采购单状态在更新期间发生变化，拒绝普通 ORM 修改')
+            return affected
+
+    def delete(self):
+        _raise_ledger_mutation('采购明细禁止物理删除，请使用采购单取消动作')
+
+    def bulk_update(self, objs, fields, **kwargs):
+        _raise_ledger_mutation('采购明细禁止通过 bulk_update 修改')
+
+    def bulk_create(self, objs, **kwargs):
+        _raise_ledger_mutation('采购明细禁止通过 bulk_create 或 UPSERT')
+
+    def update_or_create(self, defaults=None, **kwargs):
+        _raise_ledger_mutation('采购明细禁止通过 update_or_create')
+
+    def get_or_create(self, defaults=None, **kwargs):
+        _raise_ledger_mutation('采购明细禁止通过 get_or_create')
 
 
 def brand_logo_path(instance, filename):
@@ -295,8 +450,10 @@ class CigarImage(models.Model):
 
 class PurchaseOrder(models.Model):
     """进货单"""
+    objects = PurchaseOrderQuerySet.as_manager()
     class Status(models.TextChoices):
         DRAFT = 'draft', '草稿'
+        IN_TRANSIT = 'in_transit', '在途'
         RECEIVED = 'received', '已入库'
         CANCELLED = 'cancelled', '已取消'
 
@@ -304,8 +461,19 @@ class PurchaseOrder(models.Model):
         Supplier, on_delete=models.PROTECT, verbose_name='供应商'
     )
     rub_total = models.DecimalField('卢布总额', max_digits=12, decimal_places=2)
-    exchange_rate = models.DecimalField('汇率 (RUB→CNY)', max_digits=10, decimal_places=4)
-    cny_total = models.DecimalField('人民币总额', max_digits=12, decimal_places=2)
+    # 汇率和人民币总额是旧报价快照；新采购成本来自实际付款事实。
+    exchange_rate = models.DecimalField('汇率 (RUB→CNY)', max_digits=10, decimal_places=4, null=True, blank=True)
+    cny_total = models.DecimalField('人民币总额', max_digits=12, decimal_places=2, null=True, blank=True)
+    paid_cny_cost = models.DecimalField('已付款人民币成本', max_digits=22, decimal_places=2, default=Decimal('0.00'), null=True, blank=True)
+    paid_at = models.DateTimeField('付款时间', null=True, blank=True)
+    payment_idempotency_key = models.CharField('付款幂等键', max_length=128, null=True, blank=True, unique=True)
+    arrival_idempotency_key = models.CharField('到货幂等键', max_length=128, null=True, blank=True, unique=True)
+    draft_idempotency_key = models.CharField('草稿幂等键', max_length=128, null=True, blank=True, unique=True)
+    draft_request_fingerprint = models.CharField('草稿请求摘要', max_length=64, null=True, blank=True)
+    draft_operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name='+', verbose_name='草稿操作人')
+    draft_business_date = models.DateField('草稿业务日期', null=True, blank=True)
+    version = models.PositiveIntegerField('版本', default=1)
+    legacy_received = models.BooleanField('历史已入库标记', default=False)
     operator = models.ForeignKey(
         User, on_delete=models.PROTECT, related_name='purchase_orders',
         verbose_name='操作人'
@@ -325,9 +493,86 @@ class PurchaseOrder(models.Model):
     deleted_at = models.DateTimeField('删除时间', null=True, blank=True)
 
     class Meta:
+        base_manager_name = 'objects'
         ordering = ['-created_at']
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(status='draft', legacy_received=False, paid_cny_cost=Decimal('0.00'), paid_cny_cost__isnull=False, paid_at__isnull=True, payment_idempotency_key__isnull=True, arrival_idempotency_key__isnull=True)
+                    | models.Q(status='in_transit', legacy_received=False, paid_cny_cost__gt=0, paid_cny_cost__isnull=False, paid_at__isnull=False)
+                    | models.Q(status='received', legacy_received=False, paid_cny_cost__gt=0, paid_cny_cost__isnull=False, paid_at__isnull=False)
+                    # 历史到货没有可追溯付款事实，迁移只标记事实边界，不补造付款。
+                    | models.Q(status='received', legacy_received=True, paid_at__isnull=True, paid_cny_cost__isnull=True)
+                    | models.Q(status='received', legacy_received=True, paid_at__isnull=True, paid_cny_cost=Decimal('0.00'), paid_cny_cost__isnull=False)
+                    | models.Q(status='cancelled', legacy_received=False, paid_cny_cost=Decimal('0.00'), paid_cny_cost__isnull=False, paid_at__isnull=True, payment_idempotency_key__isnull=True, arrival_idempotency_key__isnull=True)
+                ), name='purchase_order_status_payment_consistent',
+            ),
+        ]
         verbose_name = '进货单'
         verbose_name_plural = '进货单'
+
+    def save(self, *args, **kwargs):
+        requested = _requested_field_names(self, kwargs)
+        if kwargs.get('update_fields') == set() or kwargs.get('update_fields') == []:
+            return None
+        if self._state.adding:
+            changed = requested
+            persisted = None
+        else:
+            persisted = _persisted_values(self, requested | {'status', 'paid_at', 'paid_cny_cost'})
+            if persisted is None:
+                _raise_ledger_mutation('采购单记录已被删除或不存在，禁止 stale resurrection')
+            changed = _changed_field_names(self, requested, persisted)
+            if not changed:
+                return None
+
+        payment_allowed = _scoped_purchase_write(
+            'purchase_payment', 'cigars.PurchaseOrder', changed
+        )
+        receipt_allowed = _scoped_purchase_write(
+            'purchase_receipt', 'cigars.PurchaseOrder', changed
+        )
+        current_final = (
+            self.status != self.Status.DRAFT
+            or (self.paid_cny_cost or 0) > 0
+            or self.paid_at is not None
+        )
+        persisted_final = bool(
+            persisted and (
+                persisted.get('status') != self.Status.DRAFT
+                or persisted.get('paid_at') is not None
+                or (persisted.get('paid_cny_cost') or 0) > 0
+            )
+        )
+        if self._state.adding:
+            if current_final and not (payment_allowed or receipt_allowed):
+                _raise_ledger_mutation('付款或到货后的采购单只能在受控作用域内写入')
+            return super().save(*args, **kwargs)
+        if persisted_final and not (payment_allowed or receipt_allowed):
+            _raise_ledger_mutation('付款或到货后的采购单不可通过普通 ORM 修改')
+        if payment_allowed or receipt_allowed:
+            # Payment starts from draft; receipt transitions an in-transit paid order.
+            if receipt_allowed and not payment_allowed:
+                condition = models.Q(status=self.Status.IN_TRANSIT)
+            else:
+                condition = models.Q(status=self.Status.DRAFT)
+            affected = _conditional_update(
+                type(self).objects.filter(pk=self.pk).filter(condition),
+                **_update_values(self, changed)
+            )
+            if affected != 1:
+                _raise_ledger_mutation('采购单状态在受控写入期间发生变化，拒绝更新')
+            return None
+        # Ordinary draft writes are conditional on the parent remaining a draft.
+        affected = type(self).objects.filter(pk=self.pk, status=self.Status.DRAFT).update(
+            **_update_values(self, changed)
+        )
+        if affected != 1:
+            _raise_ledger_mutation('采购单状态在更新期间发生变化，拒绝普通 ORM 修改')
+        return None
+
+    def delete(self, *args, **kwargs):
+        _raise_ledger_mutation('采购单禁止物理删除，请使用取消动作')
 
     def __str__(self):
         return f'PO-{self.id:06d}'
@@ -339,6 +584,17 @@ class PurchaseOrder(models.Model):
 
 class PurchaseOrderItem(models.Model):
     """进货明细"""
+    objects = PurchaseOrderItemQuerySet.as_manager()
+    class PackagingStatus(models.TextChoices):
+        NORMALIZED = 'normalized', '已规范化'
+        REVIEW_REQUIRED = 'review_required', '需人工复核'
+        UNREPRESENTABLE = 'unrepresentable', '兼容快照不可表示'
+
+    class LegacySnapshotStatus(models.TextChoices):
+        EXPLICIT = 'explicit', '显式报价'
+        DERIVED = 'derived', '可逆派生'
+        UNREPRESENTABLE = 'unrepresentable', '不可表示'
+
     purchase_order = models.ForeignKey(
         PurchaseOrder, on_delete=models.CASCADE, related_name='items',
         verbose_name='进货单'
@@ -349,24 +605,112 @@ class PurchaseOrderItem(models.Model):
     quantity = models.IntegerField('数量')
     box_size = models.IntegerField('包装支数', null=True, blank=True,
         help_text='如25=木盒25支, 15=铝管15支, 从Cigar.packagings可查盒型')
-    unit_price_rub = models.DecimalField('卢布单价', max_digits=12, decimal_places=2)
-    unit_price_cny = models.DecimalField('人民币单价', max_digits=12, decimal_places=2)
+    # 旧字段是历史支数/每支价快照；新采购金额只能读取 canonical 盒数字段。
+    unit_price_rub = models.DecimalField('卢布单价', max_digits=12, decimal_places=2, null=True, blank=True)
+    unit_price_cny = models.DecimalField('人民币单价', max_digits=12, decimal_places=2, null=True, blank=True)
+    box_quantity = models.PositiveIntegerField('采购盒数', null=True, blank=True)
+    unit_price_rub_per_box = models.DecimalField('每盒卢布价格', max_digits=22, decimal_places=2, null=True, blank=True)
+    packaging_status = models.CharField('包装规范状态', max_length=20, choices=PackagingStatus.choices, default=PackagingStatus.REVIEW_REQUIRED)
+    actual_cost_cny = models.DecimalField('实际人民币成本', max_digits=22, decimal_places=2, default=Decimal('0.00'))
+    legacy_snapshot_status = models.CharField('旧报价快照状态', max_length=24, choices=LegacySnapshotStatus.choices, default=LegacySnapshotStatus.UNREPRESENTABLE)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
     class Meta:
+        base_manager_name = 'objects'
+        constraints = [
+            models.CheckConstraint(condition=(models.Q(packaging_status='review_required', box_quantity__isnull=True, unit_price_rub_per_box__isnull=True) | models.Q(packaging_status='normalized', box_size__isnull=False, box_size__gt=0, box_quantity__isnull=False, box_quantity__gt=0, unit_price_rub_per_box__isnull=False, unit_price_rub_per_box__gte=0) | models.Q(packaging_status='unrepresentable', box_size__isnull=False, box_size__gt=0, box_quantity__isnull=False, box_quantity__gt=0, unit_price_rub_per_box__isnull=False, unit_price_rub_per_box__gte=0, unit_price_rub__isnull=True, unit_price_cny__isnull=True)), name='purchase_item_packaging_consistent'),
+            models.CheckConstraint(condition=models.Q(actual_cost_cny__gte=0), name='purchase_item_actual_cost_nonnegative'),
+            models.CheckConstraint(condition=(models.Q(packaging_status='review_required') | models.Q(packaging_status__in=['normalized', 'unrepresentable'], quantity=models.F('box_size') * models.F('box_quantity'))), name='purchase_item_quantity_matches_boxes'),
+        ]
         verbose_name = '进货明细'
         verbose_name_plural = '进货明细'
+
+    def save(self, *args, **kwargs):
+        requested = _requested_field_names(self, kwargs)
+        if kwargs.get('update_fields') == set() or kwargs.get('update_fields') == []:
+            return None
+        if self._state.adding:
+            persisted = None
+            changed = requested
+            persisted_parent_id = None
+            persisted_cigar_id = None
+        else:
+            persisted = _persisted_values(self, requested | {'purchase_order', 'cigar'})
+            if persisted is None:
+                _raise_ledger_mutation('采购明细记录已被删除或不存在，禁止 stale resurrection')
+            changed = _changed_field_names(self, requested, persisted)
+            persisted_parent_id = persisted.get('purchase_order_id')
+            persisted_cigar_id = persisted.get('cigar_id')
+            if self.purchase_order_id != persisted_parent_id:
+                _raise_ledger_mutation('采购明细不可通过 ORM 改挂采购单')
+            if self.cigar_id != persisted_cigar_id:
+                _raise_ledger_mutation('采购明细不可通过 ORM 更换雪茄')
+            if not changed:
+                return None
+
+        parent_ids = {value for value in (persisted_parent_id, self.purchase_order_id) if value}
+        parent_rows = type(self.purchase_order).objects.filter(pk__in=parent_ids)
+        parent_final = parent_rows.filter(_PURCHASE_FINAL_Q).exists()
+        payment_allowed = _scoped_purchase_write(
+            'purchase_payment', 'cigars.PurchaseOrderItem', changed
+        )
+        receipt_allowed = _scoped_purchase_write(
+            'purchase_receipt', 'cigars.PurchaseOrderItem', changed
+        )
+        if parent_final and not (payment_allowed or receipt_allowed):
+            _raise_ledger_mutation('付款或到货后的采购明细只能在受控作用域内写入')
+        if self._state.adding:
+            if parent_final and not (payment_allowed or receipt_allowed):
+                _raise_ledger_mutation('付款或到货后的采购明细只能在受控作用域内写入')
+            return super().save(*args, **kwargs)
+        if payment_allowed or receipt_allowed:
+            # Actual cost may be corrected by either payment or receipt action;
+            # preserve the parent state predicate so a concurrent transition wins.
+            parent_condition = _PURCHASE_FINAL_Q
+            affected = _conditional_update(
+                type(self).objects.filter(
+                    pk=self.pk, purchase_order_id=persisted_parent_id
+                ).filter(purchase_order__in=parent_rows.filter(parent_condition)),
+                **_update_values(self, changed)
+            )
+            if affected != 1:
+                _raise_ledger_mutation('采购明细所属采购单状态在受控写入期间发生变化，拒绝更新')
+            return None
+        affected = type(self).objects.filter(
+            pk=self.pk, purchase_order_id=persisted_parent_id,
+            purchase_order__status=self.purchase_order.Status.DRAFT,
+        ).update(**_update_values(self, changed))
+        if affected != 1:
+            _raise_ledger_mutation('采购明细所属采购单状态在更新期间发生变化，拒绝普通 ORM 修改')
+        return None
+
+    def delete(self, *args, **kwargs):
+        _raise_ledger_mutation('采购明细禁止物理删除，请使用采购单取消动作')
 
     def __str__(self):
         return f'{self.cigar} ×{self.quantity}'
 
+    def clean(self):
+        super().clean()
+        if self.packaging_status in {self.PackagingStatus.NORMALIZED, self.PackagingStatus.UNREPRESENTABLE}:
+            if self.box_size is None or self.box_quantity is None or self.quantity != self.box_size * self.box_quantity:
+                raise ValidationError('canonical 采购数量必须等于盒规乘盒数')
+        if self.packaging_status == self.PackagingStatus.UNREPRESENTABLE and (self.unit_price_rub is not None or self.unit_price_cny is not None):
+            raise ValidationError('不可表示的旧报价快照必须为 NULL')
+
 
 class PurchaseBatch(models.Model):
     """进货批次（FIFO 核心）"""
+    class Source(models.TextChoices):
+        PURCHASE = 'purchase', '采购入库'
+        OPENING = 'opening', '期初库存'
+        ADJUSTMENT = 'adjustment', '库存调整'
+
     purchase_order_item = models.ForeignKey(
         PurchaseOrderItem, on_delete=models.CASCADE, related_name='batches',
-        verbose_name='进货明细'
+        null=True, blank=True, verbose_name='进货明细'
     )
+    source = models.CharField('来源', max_length=12, choices=Source.choices, default=Source.PURCHASE)
     cigar = models.ForeignKey(
         Cigar, on_delete=models.PROTECT, verbose_name='雪茄'
     )
@@ -411,6 +755,13 @@ class PurchaseBatch(models.Model):
     class Meta:
         ordering = ['purchased_at']
         constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(source='purchase', purchase_order_item__isnull=False)
+                    | models.Q(source__in=['opening', 'adjustment'], purchase_order_item__isnull=True)
+                ),
+                name='purchase_batch_source_item_match',
+            ),
             models.CheckConstraint(condition=models.Q(original_box_quantity__gte=0, original_stick_quantity__gte=0, physical_box_quantity__gte=0, available_box_quantity__gte=0, physical_stick_quantity__gte=0, available_stick_quantity__gte=0), name="purchase_batch_packaging_nonnegative"),
             models.CheckConstraint(condition=models.Q(available_box_quantity__lte=models.F("physical_box_quantity"), available_stick_quantity__lte=models.F("physical_stick_quantity")), name="purchase_batch_available_shape_lte_physical"),
             models.CheckConstraint(condition=(models.Q(box_size__gt=0, quantity=models.F("original_box_quantity") * models.F("box_size") + models.F("original_stick_quantity"), physical_remaining=models.F("physical_box_quantity") * models.F("box_size") + models.F("physical_stick_quantity"), remaining=models.F("available_box_quantity") * models.F("box_size") + models.F("available_stick_quantity")) | models.Q(box_size__isnull=True, original_box_quantity=0, physical_box_quantity=0, available_box_quantity=0, original_stick_quantity=models.F("quantity"), physical_stick_quantity=models.F("physical_remaining"), available_stick_quantity=models.F("remaining"))), name="purchase_batch_packaging_shape_matches_aggregate"),
@@ -451,6 +802,10 @@ class SalesOrder(models.Model):
         REFUND_PENDING = 'refund_pending', '待退款'
         REFUNDED = 'refunded', '已退款'
 
+    class TransportPayer(models.TextChoices):
+        CUSTOMER = 'customer', '客户承担'
+        COMPANY = 'company', '公司承担'
+
     customer = models.ForeignKey(
         Customer, on_delete=models.SET_NULL, null=True, blank=True,
         verbose_name='客户'
@@ -467,6 +822,11 @@ class SalesOrder(models.Model):
     )
     goods_amount_cny = models.DecimalField('商品金额 (CNY)', max_digits=14, decimal_places=2, default=0)
     customer_transport_fee_cny = models.DecimalField('客户人肉费 (CNY)', max_digits=14, decimal_places=2, default=0)
+    transport_payer = models.CharField(
+        '人肉费承担方', max_length=12,
+        choices=TransportPayer.choices,
+        default=TransportPayer.COMPANY,
+    )
     amount_due_cny = models.DecimalField('应收总额 (CNY)', max_digits=14, decimal_places=2, default=0)
     fifo_cost_cny = models.DecimalField('FIFO 销售成本 (CNY)', max_digits=14, decimal_places=2, default=0)
     actual_transport_cost_cny = models.DecimalField('实际人肉成本 (CNY)', max_digits=14, decimal_places=2, default=0)
@@ -510,6 +870,17 @@ class SalesOrder(models.Model):
         constraints = [
             models.CheckConstraint(condition=models.Q(goods_amount_cny__gte=0), name='sales_order_goods_amount_gte_zero'),
             models.CheckConstraint(condition=models.Q(customer_transport_fee_cny__gte=0), name='sales_order_customer_transport_gte_zero'),
+            # 公司承担时不能把任何人肉费计入客户应收。
+            models.CheckConstraint(
+                condition=(
+                    models.Q(transport_payer='customer')
+                    | models.Q(
+                        transport_payer='company',
+                        customer_transport_fee_cny=0,
+                    )
+                ),
+                name='sales_order_transport_payer_fee_match',
+            ),
             models.CheckConstraint(condition=models.Q(amount_due_cny__gte=0), name='sales_order_amount_due_gte_zero'),
             models.CheckConstraint(condition=models.Q(fifo_cost_cny__gte=0), name='sales_order_fifo_cost_gte_zero'),
             models.CheckConstraint(condition=models.Q(actual_transport_cost_cny__gte=0), name='sales_order_actual_transport_gte_zero'),

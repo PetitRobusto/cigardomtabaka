@@ -28,7 +28,7 @@ describe('guide interaction contracts', () => {
 
   it('keeps contextual tour ids attached to real sales page targets', () => {
     expect(CONTEXT_TOUR_GROUPS.sales.map(step => step.id)).toEqual(['sales-orders', 'sales-fulfillment']);
-    expect(CONTEXT_TOUR_GROUPS.accounting.map(step => step.id)).toEqual(['accounting-reconciliation', 'accounting-profit']);
+    expect(CONTEXT_TOUR_GROUPS.accounting.map(step => step.id)).toEqual(['accounting-actions-exchange', 'accounting-actions-purchase', 'accounting-actions-expense', 'accounting-actions-dividend', 'accounting-reconciliation', 'accounting-profit']);
     expect(CONTEXT_TOUR_STEPS.every(step => step.target.startsWith('[data-guide="'))).toBe(true);
     expect(CONTEXT_TOUR_GROUPS.inventory.map(step => step.id)).toEqual(['inventory-summary']);
     expect(CONTEXT_TOUR_GROUPS.privnote.map(step => step.id)).toEqual(['privnote-create']);
@@ -40,7 +40,8 @@ describe('guide interaction contracts', () => {
 
   it('only resolves a tour sequence for the current route', () => {
     expect(tourStepsForRoute('/sales', 'sales-orders').map(step => step.id)).toEqual(['sales-orders', 'sales-fulfillment']);
-    expect(tourStepsForRoute('/inventory', 'inventory-summary').map(step => step.id)).toEqual(['inventory-summary']);
+    expect(tourStepsForRoute('/accounting', 'accounting-actions-exchange').map(step => step.id)).toEqual(['accounting-actions-exchange', 'accounting-actions-purchase', 'accounting-actions-expense', 'accounting-actions-dividend', 'accounting-reconciliation', 'accounting-profit']);
+    expect(tourStepsForRoute('/sales#accounting', 'accounting-reconciliation')).toEqual([]);
     expect(tourStepsForRoute('/prices', 'sales-orders')).toEqual([]);
     expect(tourStepsForRoute('/unknown', 'sales-orders')).toEqual([]);
   });

@@ -15,6 +15,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 
 from accounting.models import FundAccount
+from accounting.guards import Day1IncompleteError
 from accounting.services import LedgerError
 
 from .models import IdempotencyRecord, SalesOrder
@@ -50,10 +51,8 @@ def _json(payload, status=200):
     return JsonResponse(payload, status=status, json_dumps_params={"ensure_ascii": False})
 
 
-def _error(message, status, details=None):
-    payload = {"error": message}
-    if details:
-        payload["details"] = details
+def _error(message, status, details=None, code=None):
+    payload = {"error": message, "code": code or "input_error", "details": details or {}}
     return _json(payload, status=status)
 
 
@@ -139,6 +138,8 @@ def _write(request, command, handler, success_status=200):
             return _error(str(exc), 400, getattr(exc, "details", None))
         except ActionConflictError as exc:
             return _error(str(exc), 409, getattr(exc, "details", None))
+        except Day1IncompleteError as exc:
+            return _error(str(exc), 409, getattr(exc, "details", None), exc.code)
         except (OrderServiceError, LedgerError) as exc:
             return _error(str(exc), 400, getattr(exc, "details", None))
         except OperationalError as exc:
@@ -173,7 +174,8 @@ def _create_handler(body, operator, context):
         payment_method_id=body.get("payment_method_id"),
         payment_manual=body.get("payment_manual") or {},
         customer_transport_fee_cny=body.get("customer_transport_fee_cny", 0),
-        note=str(body.get("note") or "").strip(), agent_context=context,
+        transport_payer=body.get("transport_payer"),
+        note=_optional_note(body).strip(), agent_context=context,
     ))
 
 
@@ -239,7 +241,8 @@ def sales_order_detail(request, order_id):
             payment_method_id=body.get("payment_method_id"),
             payment_manual=body.get("payment_manual") or {},
             customer_transport_fee_cny=body.get("customer_transport_fee_cny", 0),
-            note=str(body.get("note") or "").strip(), agent_context=context,
+            transport_payer=body.get("transport_payer"),
+            note=_optional_note(body).strip(), agent_context=context,
         ))
     return _write(request, "update_sales_order_draft", handler)
 
@@ -257,7 +260,7 @@ def sales_order_confirm(request, order_id):
     def handler(body, operator, context):
         return _response(confirm_sales_order(
             sales_order_id=order_id, operator=operator,
-            note=str(body.get("note") or "").strip(), agent_context=context,
+            note=_optional_note(body).strip(), agent_context=context,
         ))
     return _write(request, "confirm_sales_order", handler)
 
@@ -275,7 +278,7 @@ def sales_order_cancel(request, order_id):
     def handler(body, operator, context):
         return _response(cancel_confirmed_sales_order(
             sales_order_id=order_id, operator=operator,
-            note=str(body.get("note") or "").strip(), agent_context=context,
+            note=_optional_note(body).strip(), agent_context=context,
         ))
     return _write(request, "cancel_confirmed_sales_order", handler)
 
@@ -287,6 +290,16 @@ def _business_date(body):
     except (TypeError, ValueError):
         raise ActionInputError("business_date 必须是 ISO 日期")
     return parsed
+
+
+def _optional_note(body):
+    """正式动作备注只接受文本，避免容器被静默字符串化。"""
+    value = body.get("note", "")
+    if not isinstance(value, str):
+        raise ActionInputError(
+            "note 必须是字符串", details={"note": "必须是字符串"},
+        )
+    return value
 
 
 def _account(body, operator):
@@ -322,7 +335,7 @@ def _action(request, order_id, command, handler):
 def sales_order_ship(request, order_id):
     return _action(request, order_id, "ship_sales_order", lambda body, operator, context: ship_sales_order(
         order_id=order_id, business_date=_business_date(body), operator=operator,
-        idempotency_key=context.idempotency_key, note=str(body.get("note") or ""),
+        idempotency_key=context.idempotency_key, note=_optional_note(body),
     ))
 
 
@@ -346,5 +359,5 @@ def sales_order_transport_cost(request, order_id):
         order_id=order_id, actual_cost_cny=body.get("actual_cost_cny"),
         fund_account=_account(body, operator), business_date=_business_date(body),
         operator=operator, idempotency_key=context.idempotency_key,
-        note=str(body.get("note") or ""),
+        note=_optional_note(body),
     ).sales_order)

@@ -244,6 +244,7 @@ def api_brand_detail(request, slug):
 def api_cigar_detail(request, cigar_id):
     """GET /api/cigars/<id>/"""
     import json
+    from cigars.packaging import declared_box_sizes
     cigar = Cigar.objects.get(id=cigar_id)
     brand = Brand.objects.filter(english_name=cigar.brand).first()
 
@@ -297,6 +298,8 @@ def api_cigar_detail(request, cigar_id):
             'release_name': cigar.release_name,
             'production_method': cigar.production_method,
             'packagings': packagings,
+            # Keep numeric accounting constraints separate from display text.
+            'box_sizes': declared_box_sizes(cigar.packagings),
         },
         'brand': {
             'english_name': brand.english_name if brand else cigar.brand,

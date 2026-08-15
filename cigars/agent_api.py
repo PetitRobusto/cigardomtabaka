@@ -4,9 +4,15 @@ The API intentionally exposes business commands instead of model CRUD.
 """
 import hashlib
 import json
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+from datetime import date
 
 from django.db import transaction
+from accounting.business_time import moscow_business_date
+from accounting.guards import Day1IncompleteError
+from accounting.services import LedgerError
+from accounting.services import _acquire_sqlite_writer_gate, _retry_sqlite_locked
+from accounting.purchase_actions import PurchaseActionError, canonical_purchase_item, normalize_legacy_purchase_item
 from django.db.models import Count, Q, Sum
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -79,6 +85,59 @@ def _resolve_operator(request, body):
     raise OrderServiceError('必须提供真实 operator_id')
 
 
+def _purchase_error_status(code):
+    if code in {'supplier_not_found', 'purchase_order_not_found'}:
+        return 404
+    if code in {
+        'invalid_state', 'idempotency_conflict', 'packaging_review_required',
+        'version_conflict', 'day1_incomplete',
+    }:
+        return 409
+    return 400
+
+
+def _purchase_error_body(exc):
+    return {
+        'error': '供应商不存在' if exc.code == 'supplier_not_found' else exc.code,
+        'code': exc.code,
+        'details': exc.details,
+    }
+
+
+def _ledger_error_result(exc):
+    code = exc.code or 'ledger_error'
+    return {
+        'error': exc.code or str(exc),
+        'code': code,
+        'details': exc.details,
+    }, 409 if code in {'day1_incomplete', 'idempotency_conflict'} else 400
+
+
+def _day1_error_result(exc):
+    return {
+        'error': exc.code,
+        'code': exc.code,
+        'details': exc.details,
+    }, 409
+
+
+def _order_service_error_result(exc):
+    """兼容服务携带采购 code 时，沿用 canonical HTTP 错误协议。"""
+    if exc.code:
+        return _purchase_error_body(exc), _purchase_error_status(exc.code)
+    return {'error': str(exc), 'details': exc.details}, 400
+
+
+def _business_date_from_body(body):
+    raw = body.get('business_date')
+    if not raw:
+        return moscow_business_date()
+    try:
+        return date.fromisoformat(str(raw))
+    except (TypeError, ValueError):
+        raise OrderServiceError('business_date 必须是 ISO 日期')
+
+
 def _agent_context(body, command_name):
     agent = body.get('agent') or {}
     idempotency_key = str(body.get('idempotency_key') or '').strip()
@@ -94,13 +153,67 @@ def _agent_context(body, command_name):
     return context
 
 
-def _idempotent_command(request, command_name, handler):
+@_retry_sqlite_locked
+def _idempotent_command(request, command_name, handler, *, canonical_action=False):
     try:
         body = _load_json(request)
         operator = _resolve_operator(request, body)
         context = _agent_context(body, command_name)
     except OrderServiceError as exc:
-        return _json_response({'error': str(exc), 'details': exc.details}, status=400)
+        response_body, status_code = _order_service_error_result(exc)
+        return _json_response(response_body, status=status_code)
+
+    if canonical_action:
+        body_hash = _request_hash(body)
+        try:
+            with transaction.atomic():
+                _acquire_sqlite_writer_gate()
+                record = IdempotencyRecord.objects.select_for_update().filter(
+                    key=context.idempotency_key,
+                ).first()
+                if record is not None:
+                    if record.command_name != command_name or record.request_hash != body_hash:
+                        return _json_response({
+                            'error': 'idempotency_conflict', 'code': 'idempotency_conflict',
+                            'details': {'idempotency_key': context.idempotency_key},
+                        }, status=409)
+                    return _json_response(record.response_body, status=record.status_code)
+                if record is None:
+                    record = IdempotencyRecord.objects.create(
+                        key=context.idempotency_key, command_name=command_name,
+                        request_hash=body_hash, request_body=body,
+                        response_body={}, status_code=202, operator=operator,
+                        agent_name=context.agent_name, agent_run_id=context.agent_run_id,
+                        agent_request_id=context.agent_request_id,
+                    )
+                try:
+                    response_body = handler(body, operator, context)
+                    status_code = 200
+                except PurchaseActionError as exc:
+                    response_body = _purchase_error_body(exc)
+                    status_code = _purchase_error_status(exc.code)
+                except Day1IncompleteError as exc:
+                    response_body, status_code = _day1_error_result(exc)
+                except LedgerError as exc:
+                    response_body, status_code = _ledger_error_result(exc)
+                except OrderServiceError as exc:
+                    response_body, status_code = _order_service_error_result(exc)
+                IdempotencyRecord.objects.filter(pk=record.pk).update(
+                    response_body=response_body, status_code=status_code,
+                )
+            return _json_response(response_body, status=status_code)
+        except PurchaseActionError as exc:
+            response_body = _purchase_error_body(exc)
+            return _json_response(response_body, status=_purchase_error_status(exc.code))
+        except Day1IncompleteError as exc:
+            response_body, status_code = _day1_error_result(exc)
+            return _json_response(response_body, status=status_code)
+        except LedgerError as exc:
+            response_body, status_code = _ledger_error_result(exc)
+            return _json_response(response_body, status=status_code)
+        except OrderServiceError as exc:
+            response_body, status_code = _order_service_error_result(exc)
+            return _json_response(response_body, status=status_code)
 
     body_hash = _request_hash(body)
     with transaction.atomic():
@@ -119,9 +232,15 @@ def _idempotent_command(request, command_name, handler):
         except InsufficientStockError as exc:
             response_body = {'error': str(exc), 'details': exc.details}
             status_code = 400
+        except PurchaseActionError as exc:
+            response_body = _purchase_error_body(exc)
+            status_code = _purchase_error_status(exc.code)
+        except Day1IncompleteError as exc:
+            response_body, status_code = _day1_error_result(exc)
+        except LedgerError as exc:
+            response_body, status_code = _ledger_error_result(exc)
         except OrderServiceError as exc:
-            response_body = {'error': str(exc), 'details': exc.details}
-            status_code = 400
+            response_body, status_code = _order_service_error_result(exc)
         except SalesOrder.DoesNotExist:
             response_body = {'error': '销售单不存在'}
             status_code = 404
@@ -215,9 +334,37 @@ def create_purchase_order_command(request):
         return _json_response({'error': 'Method not allowed'}, status=405)
 
     def handler(body, operator, context):
+        canonical_items = []
+        for index, raw_item in enumerate(body.get('items') or []):
+            if not isinstance(raw_item, dict):
+                raise PurchaseActionError('packaging_review_required', {'item_index': index})
+            if 'box_quantity' in raw_item or 'unit_price_rub_per_box' in raw_item:
+                canonical_items.append(canonical_purchase_item(
+                    box_size=raw_item.get('box_size'),
+                    box_quantity=raw_item.get('box_quantity'),
+                    unit_price_rub_per_box=raw_item.get('unit_price_rub_per_box'),
+                ) | {'cigar_id': raw_item.get('cigar_id')})
+            else:
+                legacy_cny = raw_item.get('unit_price_cny')
+                if legacy_cny in (None, '') and body.get('exchange_rate') not in (None, ''):
+                    try:
+                        exchange_rate = Decimal(str(body.get('exchange_rate')))
+                        if not exchange_rate.is_finite() or exchange_rate <= 0:
+                            raise ValueError
+                        legacy_cny = Decimal(str(raw_item.get('unit_price_rub'))) * exchange_rate
+                    except (InvalidOperation, TypeError, ValueError):
+                        raise PurchaseActionError('invalid_exchange_rate')
+                canonical_items.append(normalize_legacy_purchase_item(
+                    box_size=raw_item.get('box_size'),
+                    quantity_sticks=raw_item.get('quantity'),
+                    unit_price_rub_per_stick=raw_item.get('unit_price_rub'),
+                    unit_price_cny_per_stick=legacy_cny,
+                ) | {'cigar_id': raw_item.get('cigar_id')})
         purchase_order = create_purchase_order(
             supplier_id=body.get('supplier_id'),
-            items=body.get('items'),
+            items=canonical_items,
+            business_date=body.get('business_date') or moscow_business_date(),
+            idempotency_key=context.idempotency_key,
             exchange_rate=body.get('exchange_rate'),
             operator=operator,
             note=str(body.get('note') or '').strip(),
@@ -225,7 +372,48 @@ def create_purchase_order_command(request):
         )
         return {'purchase_order': serialize_purchase_order(purchase_order)}
 
-    return _idempotent_command(request, 'create_purchase_order', handler)
+    return _idempotent_command(request, 'create_purchase_order', handler, canonical_action=True)
+
+
+@csrf_exempt
+@staff_required
+def update_purchase_order_command(request):
+    if request.method != 'POST':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+
+    def handler(body, operator, context):
+        from accounting.purchase_actions import update_purchase_order_draft
+        order = update_purchase_order_draft(
+            purchase_order_id=body.get('purchase_order_id'),
+            items=body.get('items'),
+            expected_version=body.get('expected_version'),
+            idempotency_key=context.idempotency_key,
+            operator=operator,
+            note=str(body.get('note') or '').strip(),
+        )
+        return {'purchase_order': serialize_purchase_order(order)}
+
+    return _idempotent_command(request, 'update_purchase_order', handler, canonical_action=True)
+
+
+@csrf_exempt
+@staff_required
+def cancel_purchase_order_command(request):
+    if request.method != 'POST':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+
+    def handler(body, operator, context):
+        from accounting.purchase_actions import cancel_purchase_order
+        order = cancel_purchase_order(
+            purchase_order_id=body.get('purchase_order_id'),
+            expected_version=body.get('expected_version'),
+            idempotency_key=context.idempotency_key,
+            operator=operator,
+            note=str(body.get('note') or '').strip(),
+        )
+        return {'purchase_order': serialize_purchase_order(order)}
+
+    return _idempotent_command(request, 'cancel_purchase_order', handler, canonical_action=True)
 
 
 @csrf_exempt
@@ -241,8 +429,14 @@ def receive_purchase_order_command(request):
             note=str(body.get('note') or '').strip(),
             agent_context=context,
         )
-        purchase_order = batches[0].purchase_order_item.purchase_order if batches else None
-        return {'purchase_order': serialize_purchase_order(purchase_order)}
+        purchase_order = (
+            batches[0].purchase_order_item.purchase_order
+            if batches and batches[0].purchase_order_item_id else None
+        )
+        return {
+            'purchase_order': serialize_purchase_order(purchase_order) if purchase_order else None,
+            'batch_source': batches[0].source if batches else None,
+        }
 
     return _idempotent_command(request, 'receive_purchase_order', handler)
 
@@ -261,6 +455,8 @@ def create_sales_order_command(request):
             customer_name=str(body.get('customer_name') or '').strip(),
             payment_method_id=body.get('payment_method_id'),
             payment_manual=body.get('payment_manual') or {},
+            customer_transport_fee_cny=body.get('customer_transport_fee_cny', 0),
+            transport_payer=body.get('transport_payer'),
             note=str(body.get('note') or '').strip(),
             agent_context=context,
         )
@@ -319,6 +515,7 @@ def adjust_stock_command(request):
             reason=str(body.get('reason') or body.get('note') or '').strip(),
             batch_id=body.get('batch_id'),
             unit_cost_cny=body.get('unit_cost_cny'),
+            business_date=_business_date_from_body(body),
             agent_context=context,
         )
         return {

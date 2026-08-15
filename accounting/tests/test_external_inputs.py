@@ -3,7 +3,10 @@ from decimal import Decimal
 
 from django.test import TestCase
 
-from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
+from accounting.models import (
+    Day1Initialization, FundAccount, LedgerPosting, LedgerSequence,
+    LedgerTransaction,
+)
 from accounting.services import LedgerError, PostingInput, exchange_to_rub, post_transaction, record_opening_balance, transfer_same_currency
 from cigars.models import User
 
@@ -13,6 +16,10 @@ class ExternalInputHardeningTest(TestCase):
 
     def setUp(self):
         self.operator = User.objects.create_user('external-input-operator', password='pass', is_staff=True)
+        Day1Initialization.objects.create(
+            singleton_key='company', status=Day1Initialization.Status.COMPLETED,
+            business_date=self.business_date, completed_by=self.operator,
+        )
         self.cny = FundAccount.objects.create(name='external CNY', currency='CNY', creation_idempotency_key='external-cny')
         self.rub = FundAccount.objects.create(name='external RUB', currency='RUB', creation_idempotency_key='external-rub')
         self.usdt = FundAccount.objects.create(name='external USDT', currency='USDT', creation_idempotency_key='external-usdt')

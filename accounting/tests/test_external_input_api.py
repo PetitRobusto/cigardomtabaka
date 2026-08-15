@@ -1,6 +1,11 @@
+from datetime import date
+
 from django.test import TestCase
 
-from accounting.models import FundAccount, LedgerPosting, LedgerSequence, LedgerTransaction
+from accounting.models import (
+    Day1Initialization, FundAccount, LedgerPosting, LedgerSequence,
+    LedgerTransaction,
+)
 from cigars.models import User
 
 
@@ -8,6 +13,10 @@ class ExternalInputApiTest(TestCase):
     def setUp(self):
         staff = User.objects.create_user('external-api-staff', password='pass', is_staff=True)
         self.client.force_login(staff)
+        Day1Initialization.objects.create(
+            singleton_key='company', status=Day1Initialization.Status.COMPLETED,
+            business_date=date(2026, 8, 10), completed_by=staff,
+        )
         self.cny = FundAccount.objects.create(name='API precision CNY', currency='CNY', creation_idempotency_key='api-precision-cny')
         self.rub = FundAccount.objects.create(name='API precision RUB', currency='RUB', creation_idempotency_key='api-precision-rub')
         self.usdt = FundAccount.objects.create(name='API precision USDT', currency='USDT', creation_idempotency_key='api-precision-usdt')

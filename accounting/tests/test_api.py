@@ -8,13 +8,19 @@ from django.conf import settings
 from django.test import Client, TestCase, TransactionTestCase
 
 from accounting import views as accounting_views
-from accounting.models import FundAccount, LedgerTransaction
+from accounting.models import Day1Initialization, FundAccount, LedgerTransaction
 from accounting.selectors import account_snapshot
 from accounting.services import record_opening_balance
 from cigars.models import User
 
 
 class AccountingApiPermissionTest(TestCase):
+    def complete_day1(self, staff):
+        return Day1Initialization.objects.create(
+            singleton_key='company', status=Day1Initialization.Status.COMPLETED,
+            business_date=date(2026, 8, 10), completed_by=staff,
+        )
+
     def test_accounts_rejects_authenticated_nonstaff_as_json(self):
         user = User.objects.create_user('api-partner', password='pass')
         self.client.force_login(user)
@@ -22,7 +28,7 @@ class AccountingApiPermissionTest(TestCase):
         response = self.client.get('/api/accounting/accounts/')
 
         self.assertEqual(response.status_code, 403)
-        self.assertEqual(response.json(), {'error': '仅限工作人员访问'})
+        self.assertEqual(response.json(), {'error': '仅限工作人员访问', 'code': 'forbidden', 'details': {}})
 
     def test_staff_can_list_all_accounts_including_inactive(self):
         staff = User.objects.create_user('api-staff', password='pass', is_staff=True)
@@ -84,7 +90,7 @@ class AccountingApiPermissionTest(TestCase):
         self.assertEqual(first.json()['account']['currency'], 'USDT')
         self.assertEqual(first.json()['account']['custodian_id'], custodian.pk)
         self.assertEqual(conflicting.status_code, 400)
-        self.assertEqual(conflicting.json(), {'error': '幂等键已用于不同账户请求'})
+        self.assertEqual(conflicting.json(), {'error': '幂等键已用于不同账户请求', 'code': 'input_error', 'details': {}})
 
     def test_opening_balance_returns_transaction_and_decimal_string_snapshot(self):
         staff = User.objects.create_user('api-opening-staff', password='pass', is_staff=True)
@@ -127,6 +133,7 @@ class AccountingApiPermissionTest(TestCase):
 
     def test_exchange_moves_cny_and_usdt_into_rub_and_retry_does_not_change_balance(self):
         staff = User.objects.create_user('api-exchange-staff', password='pass', is_staff=True)
+        self.complete_day1(staff)
         cny = FundAccount.objects.create(name='API 换汇人民币', currency='CNY', creation_idempotency_key='api-exchange-cny')
         usdt = FundAccount.objects.create(name='API 换汇 USDT', currency='USDT', creation_idempotency_key='api-exchange-usdt')
         rub = FundAccount.objects.create(name='API 换汇卢布', currency='RUB', creation_idempotency_key='api-exchange-rub')
@@ -177,8 +184,51 @@ class AccountingApiPermissionTest(TestCase):
         self.assertEqual(retry.json()['snapshots'][1]['original_balance'], '1300.00000000')
         self.assertEqual(retry.json()['snapshots'][1]['cny_book_cost'], '150.00')
 
+    def test_exchange_api_has_day1_error_contract_and_replay(self):
+        staff = User.objects.create_user('api-exchange-contract', password='pass', is_staff=True)
+        cny = FundAccount.objects.create(name='换汇契约人民币', currency='CNY', creation_idempotency_key='exchange-contract-cny')
+        rub = FundAccount.objects.create(name='换汇契约卢布', currency='RUB', creation_idempotency_key='exchange-contract-rub')
+        self.client.force_login(staff)
+        payload = {
+            'source_account_id': cny.pk, 'rub_account_id': rub.pk,
+            'source_amount': '1.00', 'rub_amount': '12.00', 'business_date': '2026-08-14',
+        }
+        blocked = self.client.post('/api/accounting/exchanges/', data=payload, content_type='application/json', HTTP_IDEMPOTENCY_KEY='exchange-contract-blocked')
+        self.assertEqual(blocked.status_code, 409)
+        self.assertEqual(blocked.json()['code'], 'day1_incomplete')
+        self.assertIn('details', blocked.json())
+
+        self.complete_day1(staff)
+        record_opening_balance(cny, '10.00', '10.00', 'opening_capital', date(2026, 8, 10), staff, 'exchange-contract-opening')
+        first = self.client.post('/api/accounting/exchanges/', data=payload, content_type='application/json', HTTP_IDEMPOTENCY_KEY='exchange-contract-replay')
+        replay = self.client.post('/api/accounting/exchanges/', data=payload, content_type='application/json', HTTP_IDEMPOTENCY_KEY='exchange-contract-replay')
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(replay.status_code, 200)
+        self.assertEqual(first.json()['transaction']['id'], replay.json()['transaction']['id'])
+        self.assertIsInstance(replay.json()['transaction']['postings'][0]['amount'], str)
+
+    def test_exchange_api_maps_balance_and_currency_errors(self):
+        staff = User.objects.create_user('api-exchange-errors', password='pass', is_staff=True)
+        self.complete_day1(staff)
+        cny = FundAccount.objects.create(name='错误人民币', currency='CNY', creation_idempotency_key='exchange-errors-cny')
+        rub = FundAccount.objects.create(name='错误卢布', currency='RUB', creation_idempotency_key='exchange-errors-rub')
+        rub_target = FundAccount.objects.create(name='错误第二卢布', currency='RUB', creation_idempotency_key='exchange-errors-rub-target')
+        record_opening_balance(cny, '1.00', '1.00', 'opening_capital', date(2026, 8, 10), staff, 'exchange-errors-opening')
+        self.client.force_login(staff)
+        insufficient = self.client.post('/api/accounting/exchanges/', data={
+            'source_account_id': cny.pk, 'rub_account_id': rub.pk, 'source_amount': '2.00', 'rub_amount': '24.00', 'business_date': '2026-08-14',
+        }, content_type='application/json', HTTP_IDEMPOTENCY_KEY='exchange-errors-insufficient')
+        self.assertEqual(insufficient.status_code, 409)
+        self.assertEqual(insufficient.json()['code'], 'insufficient_balance')
+        currency = self.client.post('/api/accounting/exchanges/', data={
+            'source_account_id': rub.pk, 'rub_account_id': rub_target.pk, 'source_amount': '1.00', 'rub_amount': '12.00', 'business_date': '2026-08-14',
+        }, content_type='application/json', HTTP_IDEMPOTENCY_KEY='exchange-errors-currency')
+        self.assertEqual(currency.status_code, 400)
+        self.assertEqual(currency.json()['code'], 'currency_rule')
+
     def test_same_currency_transfer_moves_exact_cost_between_accounts(self):
         staff = User.objects.create_user('api-transfer-staff', password='pass', is_staff=True)
+        self.complete_day1(staff)
         source = FundAccount.objects.create(name='API 转账源', currency='RUB', creation_idempotency_key='api-transfer-source')
         target = FundAccount.objects.create(name='API 转账目标', currency='RUB', creation_idempotency_key='api-transfer-target')
         self.client.force_login(staff)
@@ -251,6 +301,7 @@ class AccountingApiPermissionTest(TestCase):
 
     def test_transactions_are_stable_with_postings_and_account_date_filters(self):
         staff = User.objects.create_user('api-transactions-staff', password='pass', is_staff=True)
+        self.complete_day1(staff)
         cny = FundAccount.objects.create(name='API 流水人民币', currency='CNY', creation_idempotency_key='api-transactions-cny')
         rub = FundAccount.objects.create(name='API 流水卢布', currency='RUB', creation_idempotency_key='api-transactions-rub')
         self.client.force_login(staff)
@@ -321,7 +372,7 @@ class AccountingApiPermissionTest(TestCase):
                         path, data={}, content_type='application/json', HTTP_IDEMPOTENCY_KEY='permission-key',
                     )
                     self.assertEqual(response.status_code, 403)
-                    self.assertEqual(response.json(), {'error': '仅限工作人员访问'})
+                    self.assertEqual(response.json(), {'error': '仅限工作人员访问', 'code': 'forbidden', 'details': {}})
 
     def test_telegram_staff_header_is_not_accounting_authentication(self):
         User.objects.create_user(
@@ -331,7 +382,7 @@ class AccountingApiPermissionTest(TestCase):
         response = self.client.get('/api/accounting/accounts/', HTTP_X_TELEGRAM_ID='api-telegram-42')
 
         self.assertEqual(response.status_code, 403)
-        self.assertEqual(response.json(), {'error': '仅限工作人员访问'})
+        self.assertEqual(response.json(), {'error': '仅限工作人员访问', 'code': 'forbidden', 'details': {}})
 
     def test_staff_writes_require_csrf_token(self):
         staff = User.objects.create_user('api-csrf-staff', password='pass', is_staff=True)
@@ -370,7 +421,7 @@ class AccountingApiPermissionTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json(), {'error': '请求体必须是 JSON 对象'})
+        self.assertEqual(response.json(), {'error': '请求体必须是 JSON 对象', 'code': 'input_error', 'details': {}})
         self.assertEqual(FundAccount.objects.count(), 0)
 
     def test_float_account_id_is_rejected_without_using_integer_account(self):
@@ -436,7 +487,8 @@ class AccountingApiPermissionTest(TestCase):
                     path, data='[]', content_type='application/json', HTTP_IDEMPOTENCY_KEY='api-invalid-json',
                 )
                 self.assertEqual(response.status_code, 400)
-                self.assertEqual(response.json(), {'error': '请求体必须是 JSON 对象'})
+                expected = {'error': '请求体必须是 JSON 对象', 'code': 'input_error', 'details': {}}
+                self.assertEqual(response.json(), expected)
 
         missing_key = self.client.post(
             '/api/accounting/accounts/', data={'name': '无键账户', 'currency': 'CNY'}, content_type='application/json',
@@ -476,6 +528,10 @@ class AccountingApiConcurrencyTest(TransactionTestCase):
     def test_concurrent_same_key_exchange_returns_created_and_replayed_statuses_once(self):
         operator = User.objects.create_user(
             'api-concurrent-operator', password='pass', is_staff=True, telegram_id='api-concurrent-telegram',
+        )
+        Day1Initialization.objects.create(
+            singleton_key='company', status=Day1Initialization.Status.COMPLETED,
+            business_date=date(2026, 8, 10), completed_by=operator,
         )
         cny = FundAccount.objects.create(
             name='API 并发人民币', currency='CNY', creation_idempotency_key='api-concurrent-cny',

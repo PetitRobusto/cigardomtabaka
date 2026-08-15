@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+from collections import Counter
 from datetime import date
 from decimal import Decimal
 
@@ -11,6 +12,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
+from accounting.guards import require_day1_completed
 from accounting.services import (
     LedgerError,
     PostingInput,
@@ -52,6 +54,15 @@ def _cny_posting(category, amount):
     )
 
 
+def _postings_match(transaction_obj, expected):
+    """按账户、科目、币种及双金额核对一整组不可变流水。"""
+    actual = [
+        (row.account_id, row.category, row.currency, row.amount, row.cny_amount)
+        for row in transaction_obj.postings.all()
+    ]
+    return Counter(actual) == Counter(expected)
+
+
 @_retry_sqlite_locked
 @transaction.atomic
 def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note=""):
@@ -62,7 +73,9 @@ def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note
     """
     # 必须在任何业务读取前取得账务 writer gate，保证 SQLite 下整个操作重试。
     _acquire_sqlite_writer_gate()
-    operator = _require_operator(operator)
+    operator_id = getattr(operator, "pk", None)
+    if not operator_id:
+        raise OrderServiceError("必须提供真实操作人 operator")
     if type(business_date) is not date:
         raise LedgerError("业务日期必须是 date")
     if not isinstance(idempotency_key, str) or not idempotency_key:
@@ -75,25 +88,54 @@ def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note
     existing_shipment = SalesShipment.objects.select_related("ledger_transaction").filter(sales_order=order).first()
     if existing_shipment is not None:
         transaction_obj = existing_shipment.ledger_transaction
+        receipt = SalesReceipt.objects.select_related("ledger_transaction").filter(
+            sales_order=order,
+        ).first()
+        receipt_precedes_shipment = (
+            receipt is not None
+            and receipt.ledger_transaction.effective_sequence
+            < transaction_obj.effective_sequence
+        )
+        settlement_category = (
+            LedgerPosting.Category.CUSTOMER_PREPAYMENTS
+            if receipt_precedes_shipment
+            else LedgerPosting.Category.ACCOUNTS_RECEIVABLE
+        )
+        goods = order.goods_amount_cny.quantize(MONEY_PLACES)
+        transport = order.customer_transport_fee_cny.quantize(MONEY_PLACES)
+        amount_due = order.amount_due_cny.quantize(MONEY_PLACES)
+        fifo_cost = existing_shipment.fifo_cost_cny.quantize(MONEY_PLACES)
+        expected_postings = [
+            (None, settlement_category, "CNY", amount_due, amount_due),
+            (None, LedgerPosting.Category.SALES_REVENUE, "CNY", -goods, -goods),
+            (None, LedgerPosting.Category.CUSTOMER_TRANSPORT_REVENUE, "CNY", -transport, -transport),
+            (None, LedgerPosting.Category.COST_OF_GOODS_SOLD, "CNY", fifo_cost, fifo_cost),
+            (None, LedgerPosting.Category.INVENTORY, "CNY", -fifo_cost, -fifo_cost),
+        ]
+        expected_description = note or f"销售单 {order.order_number} 出库"
         if transaction_obj.idempotency_key == idempotency_key:
             if (
                 transaction_obj.transaction_type == LedgerTransaction.TransactionType.SALES_SHIPMENT
+                and transaction_obj.status == LedgerTransaction.Status.POSTED
                 and transaction_obj.business_date == business_date
+                and transaction_obj.operator_id == operator_id
+                and transaction_obj.description == expected_description
                 and transaction_obj.source_type == "sales_order"
                 and transaction_obj.source_id == str(order.pk)
+                and existing_shipment.business_date == business_date
+                and existing_shipment.operator_id == operator_id
+                and order.fifo_cost_cny == fifo_cost
+                and order.total_cost == fifo_cost
+                and _postings_match(transaction_obj, expected_postings)
             ):
                 return order
             raise OrderServiceError("出库幂等键参数不匹配")
         raise OrderServiceError("销售单已经出库")
     existing_transaction = LedgerTransaction.objects.filter(idempotency_key=idempotency_key).first()
     if existing_transaction is not None:
-        if not (
-            existing_transaction.transaction_type == LedgerTransaction.TransactionType.SALES_SHIPMENT
-            and existing_transaction.business_date == business_date
-            and existing_transaction.source_type == "sales_order"
-            and existing_transaction.source_id == str(order.pk)
-        ):
-            raise OrderServiceError("出库幂等键已用于其他业务")
+        raise OrderServiceError("出库幂等事实不完整")
+    operator = _require_operator(operator)
+    require_day1_completed()
     if order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED:
         raise OrderServiceError("只有已确认订单才能出库")
     if order.payment_status not in (
@@ -229,20 +271,17 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
                                 business_date, operator, idempotency_key):
     """记录销售单的一次整单人民币收款，支持出库后收款或出库前预收。"""
     _acquire_sqlite_writer_gate()
-    operator = _require_operator(operator)
     if type(business_date) is not date:
         raise LedgerError("业务日期必须是 date")
     if not isinstance(idempotency_key, str) or not idempotency_key:
         raise LedgerError("幂等键不能为空")
+    operator_id = getattr(operator, "pk", None)
+    if not operator_id:
+        raise LedgerError("必须提供真实操作人 operator")
     try:
         order = SalesOrder.objects.select_for_update().get(pk=order_id)
     except (SalesOrder.DoesNotExist, ValueError, TypeError):
         raise OrderServiceError("销售单不存在")
-    if order.fulfillment_status not in (
-        SalesOrder.FulfillmentStatus.CONFIRMED,
-        SalesOrder.FulfillmentStatus.SHIPPED,
-    ):
-        raise OrderServiceError("只有已确认或已出库订单才能收款")
     try:
         raw_amount = Decimal(str(amount_cny))
         amount = raw_amount.quantize(MONEY_PLACES)
@@ -250,18 +289,9 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
         raise LedgerError("收款金额必须是有效金额") from exc
     if not raw_amount.is_finite() or raw_amount != amount:
         raise LedgerError("收款金额小数位数超出允许精度")
-    if amount <= 0 or amount != order.amount_due_cny.quantize(MONEY_PLACES):
-        raise OrderServiceError("收款金额必须等于销售单应收总额")
     if not isinstance(fund_account, FundAccount) or not fund_account.pk:
         raise LedgerError("收款账户必须是已保存的资金账户")
-    try:
-        account = FundAccount.objects.select_for_update().get(pk=fund_account.pk)
-    except FundAccount.DoesNotExist:
-        raise LedgerError("收款账户不存在")
-    if not account.is_active:
-        raise LedgerError("账户已停用")
-    if account.currency != FundAccount.Currency.CNY:
-        raise LedgerError("销售收款账户必须是人民币账户")
+    account_id = fund_account.pk
     existing_transaction = LedgerTransaction.objects.filter(
         idempotency_key=idempotency_key,
     ).first()
@@ -272,15 +302,17 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
         valid_replay = (
             transaction_obj == existing_transaction
             and transaction_obj.transaction_type == LedgerTransaction.TransactionType.SALES_RECEIPT
+            and transaction_obj.status == LedgerTransaction.Status.POSTED
             and transaction_obj.business_date == business_date
-            and transaction_obj.operator_id == operator.pk
+            and transaction_obj.operator_id == operator_id
             and transaction_obj.source_type == "sales_order"
             and transaction_obj.source_id == str(order.pk)
             and existing.amount_cny == amount
-            and existing.fund_account_id == account.pk
+            and existing.fund_account_id == account_id
             and existing.business_date == business_date
+            and existing.operator_id == operator_id
             and len(postings) == 2
-            and postings[0].account_id == account.pk
+            and postings[0].account_id == account_id
             and postings[0].category == ""
             and postings[0].currency == FundAccount.Currency.CNY
             and postings[0].amount == amount
@@ -298,6 +330,23 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
         return existing
     if existing_transaction is not None:
         raise OrderServiceError("销售收款幂等键已用于其他业务")
+    require_day1_completed()
+    operator = _require_operator(operator)
+    if order.fulfillment_status not in (
+        SalesOrder.FulfillmentStatus.CONFIRMED,
+        SalesOrder.FulfillmentStatus.SHIPPED,
+    ):
+        raise OrderServiceError("只有已确认或已出库订单才能收款")
+    if amount <= 0 or amount != order.amount_due_cny.quantize(MONEY_PLACES):
+        raise OrderServiceError("收款金额必须等于销售单应收总额")
+    try:
+        account = FundAccount.objects.select_for_update().get(pk=account_id)
+    except FundAccount.DoesNotExist:
+        raise LedgerError("收款账户不存在")
+    if not account.is_active:
+        raise LedgerError("账户已停用")
+    if account.currency != FundAccount.Currency.CNY:
+        raise LedgerError("销售收款账户必须是人民币账户")
     if order.payment_status != SalesOrder.PaymentStatus.UNPAID:
         raise OrderServiceError("销售单不是待收款状态")
     credit_category = (
@@ -332,7 +381,9 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
 def refund_sales_order_payment(*, order_id, business_date, operator, idempotency_key):
     """退回已取消销售单的整笔预收款。"""
     _acquire_sqlite_writer_gate()
-    operator = _require_operator(operator)
+    operator_id = getattr(operator, "pk", None)
+    if not operator_id:
+        raise OrderServiceError("必须提供真实操作人 operator")
     if type(business_date) is not date:
         raise LedgerError("业务日期必须是 date")
     if not isinstance(idempotency_key, str) or not idempotency_key:
@@ -368,11 +419,11 @@ def refund_sales_order_payment(*, order_id, business_date, operator, idempotency
             and tx.transaction_type == LedgerTransaction.TransactionType.SALES_REFUND
             and tx.status == LedgerTransaction.Status.POSTED
             and tx.business_date == business_date
-            and tx.operator_id == operator.pk
+            and tx.operator_id == operator_id
             and tx.source_type == "sales_order"
             and tx.source_id == str(order.pk)
             and existing.business_date == business_date
-            and existing.operator_id == operator.pk
+            and existing.operator_id == operator_id
             and len(postings) == 2
             and len(account_postings) == 1
             and len(prepayment_postings) == 1
@@ -382,6 +433,8 @@ def refund_sales_order_payment(*, order_id, business_date, operator, idempotency
         return existing
     if existing_tx is not None:
         raise OrderServiceError("销售退款幂等键已用于其他业务")
+    operator = _require_operator(operator)
+    require_day1_completed()
 
     receipt = SalesReceipt.objects.select_related("fund_account", "ledger_transaction").filter(sales_order=order).first()
     if receipt is None:
@@ -449,40 +502,66 @@ def record_sales_transport_cost(*, order_id, actual_cost_cny, fund_account,
                                 business_date, operator, idempotency_key, note=""):
     """记录已出库销售单实际承担的人肉成本。"""
     _acquire_sqlite_writer_gate()
-    operator = _require_operator(operator)
     if type(business_date) is not date:
         raise LedgerError("业务日期必须是 date")
     if not isinstance(idempotency_key, str) or not idempotency_key:
         raise LedgerError("幂等键不能为空")
+    operator_id = getattr(operator, "pk", None)
+    if not operator_id:
+        raise LedgerError("必须提供真实操作人 operator")
     try:
         order = SalesOrder.objects.select_for_update().get(pk=order_id)
     except (SalesOrder.DoesNotExist, ValueError, TypeError):
         raise OrderServiceError("销售单不存在")
-    if order.fulfillment_status != SalesOrder.FulfillmentStatus.SHIPPED:
-        raise OrderServiceError("只有已出库订单才能记录人肉成本")
     try:
         raw_amount = Decimal(str(actual_cost_cny))
         amount = raw_amount.quantize(MONEY_PLACES)
     except Exception as exc:
         raise LedgerError("人肉成本必须是有效金额") from exc
-    if not raw_amount.is_finite() or raw_amount != amount or amount <= 0:
-        raise LedgerError("人肉成本必须是正的两位小数")
+    if not raw_amount.is_finite() or raw_amount != amount:
+        raise LedgerError("人肉成本小数位数超出允许精度")
     if not isinstance(fund_account, FundAccount) or not fund_account.pk:
         raise LedgerError("付款账户必须是已保存的资金账户")
-    account = FundAccount.objects.select_for_update().filter(pk=fund_account.pk).first()
-    if account is None:
-        raise LedgerError("付款账户不存在")
-    if not account.is_active or account.currency != FundAccount.Currency.CNY:
-        raise LedgerError("人肉成本账户必须是启用的人民币账户")
+    account_id = fund_account.pk
     existing_tx = LedgerTransaction.objects.filter(idempotency_key=idempotency_key).first()
     existing = SalesTransportCost.objects.select_related("ledger_transaction").filter(sales_order=order).first()
     if existing is not None:
         tx = existing.ledger_transaction
-        if existing_tx != tx or tx.transaction_type != LedgerTransaction.TransactionType.SALES_TRANSPORT_COST or tx.status != LedgerTransaction.Status.POSTED or tx.business_date != business_date or tx.operator_id != operator.pk or tx.source_type != "sales_order" or tx.source_id != str(order.pk) or existing.actual_cost_cny != amount or existing.fund_account_id != account.pk or existing.business_date != business_date or existing.operator_id != operator.pk:
+        expected_postings = [
+            (None, LedgerPosting.Category.TRANSPORT_EXPENSE, "CNY", amount, amount),
+            (account_id, LedgerPosting.Category.FUND_ACCOUNT, "CNY", -amount, -amount),
+        ]
+        replay_changed = (
+            existing_tx != tx
+            or tx.transaction_type != LedgerTransaction.TransactionType.SALES_TRANSPORT_COST
+            or tx.status != LedgerTransaction.Status.POSTED
+            or tx.business_date != business_date
+            or tx.operator_id != operator_id
+            or tx.source_type != "sales_order"
+            or tx.source_id != str(order.pk)
+            or existing.actual_cost_cny != amount
+            or existing.fund_account_id != account_id
+            or existing.business_date != business_date
+            or existing.operator_id != operator_id
+            or existing.note != (note or "")
+            or not _postings_match(tx, expected_postings)
+        )
+        if replay_changed:
             raise OrderServiceError("人肉成本幂等键参数不匹配")
         return existing
     if existing_tx is not None:
         raise OrderServiceError("人肉成本幂等键已用于其他业务")
+    require_day1_completed()
+    operator = _require_operator(operator)
+    if order.fulfillment_status != SalesOrder.FulfillmentStatus.SHIPPED:
+        raise OrderServiceError("只有已出库订单才能记录人肉成本")
+    if amount <= 0:
+        raise LedgerError("人肉成本必须是正的两位小数")
+    account = FundAccount.objects.select_for_update().filter(pk=account_id).first()
+    if account is None:
+        raise LedgerError("付款账户不存在")
+    if not account.is_active or account.currency != FundAccount.Currency.CNY:
+        raise LedgerError("人肉成本账户必须是启用的人民币账户")
     ledger = _post_transaction_once(
         transaction_type=LedgerTransaction.TransactionType.SALES_TRANSPORT_COST,
         business_date=business_date,

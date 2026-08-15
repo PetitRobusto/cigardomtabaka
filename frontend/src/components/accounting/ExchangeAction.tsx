@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import type { AccountingApiError, ExchangeActionPayload, FundAccount } from '../../types';
 import { exchangeToRub, parseAccountingApiError } from '../../api';
 import type { ActionState } from '../../features/accounting/actionState';
+import { moscowBusinessDate } from '../../utils/businessDate';
 
 export interface ExchangeActionValue {
   source_account_id?: number | '';
@@ -22,7 +23,8 @@ interface ExchangeActionProps {
   submit?: (payload: ExchangeActionPayload) => Promise<unknown>;
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+// 换汇默认日期按 Moscow 业务日，避免浏览器/UTC 日界造成错期。
+const today = () => moscowBusinessDate();
 const emptyValue = (businessDate: string): ExchangeActionValue => ({ source_amount: '', rub_amount: '', business_date: businessDate });
 
 export function selectActiveAccountId(accounts: FundAccount[], candidate?: number | '' | null): number | '' {

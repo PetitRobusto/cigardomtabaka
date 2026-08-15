@@ -58,3 +58,104 @@
 随后独立复审真实提交路径、状态转换、API payload、React hooks/closure、引导按钮和辅助函数使用情况，未发现新的 blocker。最终验证：前端定向测试 **140/140** 通过，`npm run lint` 通过，`npm run build` 通过（仅非阻断 bundle size warning）。
 
 最终结论：**APPROVED**。
+
+
+## Task 9 total quality review
+
+结论：**CHANGES_REQUIRED**
+
+本轮审查从 `main...95c7fa2` 重新阅读了 Tasks 1–8 的全部后端、迁移、React、两份规格/上下文和计划，没有依赖前一轮结论。未修改生产代码；只运行了定向后端回归（62/62 通过）和 `git diff --check`。测试绿色不能覆盖以下真实业务边界：
+
+### 1. P1：确认销售草稿会清零已经收取的客户人肉费
+
+- 文件：[cigars/services.py](../../cigars/services.py:844-855)，入口：[cigars/sales_api.py](../../cigars/sales_api.py:250-265)
+- 复现：通过创建销售草稿传入 `customer_transport_fee_cny='30.00'`（默认/显式 `transport_payer='customer'`），草稿的 `amount_due_cny` 为商品金额 + 30；调用确认接口后，`confirm_sales_order()` 无条件把 `customer_transport_fee_cny` 设为 `0.00`，并把 `amount_due_cny` 改成商品金额。之后收款、出库和收入 posting 都少记 30 元，客户实际应付金额与账务事实不一致。
+- 影响：客户承担的人肉费在确认这个正常状态转换中丢失，直接造成销售收入/应收和退款金额错误；这也使本轮新增的 `transport_payer` 字段不能贯穿销售生命周期。
+- 建议：确认时保留草稿中的运费与 `transport_payer`，以商品金额 + 客户运费重新计算 `amount_due_cny`；只有明确把承担方改为公司时才将客户收费置零，并补充“创建含客户运费 → 确认 → 收款/出库”回归测试。
+
+### 2. P1：销售动作默认业务日期使用浏览器本地时区而非 Moscow business date
+
+- 文件：[frontend/src/components/sales/SalesOrderCard.tsx](../../frontend/src/components/sales/SalesOrderCard.tsx:8,14)
+- 复现：在非 Moscow 时区的浏览器（例如 UTC−5）于 Moscow 次日凌晨打开订单详情；`today()` 依据浏览器 `getTimezoneOffset()` 初始化日期。执行出库、收款、退款或人肉成本时，默认日期可能仍是前一业务日。服务器按该 payload 写入 ledger 的 `business_date`，没有把它纠正为 Moscow 日。
+- 影响：销售收入、退款和运输费用可跨日/月归属，导致月利润与对账错期；这是生产销售页的默认路径，不只是孤立组件测试问题。
+- 建议：复用前端已有的 Moscow business date helper，并在订单动作卡初始化/跨日时更新；增加跨 UTC 日界的销售动作测试。
+
+### 3. P2：销售动作卡在账户列表变化后仍提交已停用的 stale account id
+
+- 文件：[frontend/src/components/sales/SalesOrderCard.tsx](../../frontend/src/components/sales/SalesOrderCard.tsx:11,17-22,31-33)
+- 复现：打开收款或人肉成本表单并选中 CNY 账户 A；另一窗口停用 A，React query 刷新 `allAccounts` 后 A 从 `accounts` 消失。组件的 effect 只在 `!accountId` 时设置默认值，不会清空/替换已有的 `accountId`；点击执行仍把旧 ID 发给 API。
+- 影响：后端会拒绝停用账户，所以目前不会直接扣错账户，但操作者只能得到提交后的失败，且表单保留了一个不可见的无效选择；这违反动作中心 stale ID 防护契约并增加误重试风险。
+- 建议：账户集合变化时验证当前 ID 是否仍是 active CNY，失效即切换到可用账户或清空并阻止提交；提交前再次按当前列表校验。
+
+### 4. P2：动作卡可选默认日期的组件 API 仍回退到 UTC ISO 日期
+
+- 文件：[frontend/src/components/accounting/ExchangeAction.tsx](../../frontend/src/components/accounting/ExchangeAction.tsx:25,38)、[frontend/src/components/accounting/ExpenseAction.tsx](../../frontend/src/components/accounting/ExpenseAction.tsx:26,33)
+- 复现：直接复用任一动作卡而未传 `businessDate`（现有组件 props 允许省略），在 Moscow 00:30 打开时，`new Date().toISOString().slice(0, 10)` 仍是 UTC 前一天。当前工作台恰好传入 Moscow 日期，但这个公开组件默认仍会产生错误业务日期，且单元测试未覆盖。
+- 影响：未来/其他入口若省略 prop，会把换汇或费用跨日入账；日期边界约束分散且容易回归。
+- 建议：移除 UTC fallback，统一调用已有 `moscowBusinessDate()`，并增加 prop 省略时的跨时区测试。
+
+## 验证
+
+- `.venv/bin/python manage.py test accounting.tests.test_purchase_actions accounting.tests.test_purchase_draft_actions accounting.tests.test_dividend_actions cigars.tests.test_sales_refund_transport cigars.tests.test_sales_transport_payer -v 1`：62/62 通过。
+- `git diff --check main...95c7fa2`：通过。
+
+上述问题均未被现有定向测试覆盖；其中第 1、2 项会改变正式销售金额或账务日期，因此本轮不能批准。
+
+## Task 9 remediation re-review
+
+结论：**CHANGES_REQUIRED**
+
+本轮独立复核了当前全部未提交后端、前端、迁移与测试变更。客户人肉费保留、Moscow 默认业务日期、销售 stale CNY 账户、换汇/费用 UTC fallback、在途付款业务日期，以及通用/opening ledger replay 完整参数核对均已修复；库存调整借贷符号和月利润 gain/loss 方向也一致。未发现为接受旧错误而删除或削弱断言，但仍有以下阻塞项：
+
+### 1. P1：库存调整同 key 并发仍可能重复改变库存，且 replay 不返回原调整批次
+
+- 文件：[cigars/services.py](../../cigars/services.py:1027-1076)、[cigars/services.py](../../cigars/services.py:1088-1195)。
+- `adjust_stock()` 在取得 ledger writer gate 之前先查询幂等交易，随后才锁/修改 `PurchaseBatch`；`StockMovement.idempotency_key` 只有普通索引，没有唯一约束。两个相同 key 的请求都在首笔 ledger 提交前 miss 时，第二个请求可在批次锁释放后再次扣减/增加库存；若单位成本未变，末尾 `_post_transaction_once()` 会把既有相同 posting 当作合法 replay，于是只保留一笔 ledger、却提交两次库存变化。该服务也没有按计划套 `_retry_sqlite_locked`，SQLite 竞争会退化为不稳定锁错误。
+- 顺序 replay 也不绑定原结果：`batch_id` 为空时直接返回该雪茄当前 `order_by('-id').first()`。首次盘盈后若又产生更晚批次，重放首个 key 会返回后一个批次，响应事实与第一次不同。
+- 修复要求：在任何库存读取/修改前取得统一 writer gate 并按 key 锁定持久化的库存调整事实；匹配重放返回原关联批次/调整结果，参数不同稳定 `idempotency_conflict`；补同 key 并发及“后续批次存在后 replay”测试。
+
+### 2. P1：新加的 Day 1 gate 在 legacy agent HTTP 入口变成 500
+
+- 文件：[cigars/agent_api.py](../../cigars/agent_api.py:137-220)、[cigars/agent_api.py](../../cigars/agent_api.py:410-495)，服务 gate 位于 `cigars/services.py:768,947,1034`。
+- `_idempotent_command()` 不捕获 `Day1IncompleteError` 或 `LedgerError`，因此本轮为 legacy 销售创建/取消、库存调整加入的 service gate 会逃出视图。
+- 真实入口复现（临时测试库）：Day 1 未完成时 POST `/api/agent/orders/create/`，带合法 staff、agent 和幂等键，实际响应 **500**，契约要求 **409** 且 `code=day1_incomplete`。库存调整的 ledger 幂等冲突也存在同类 500 路径。
+- 修复要求：统一映射 `Day1IncompleteError`/`LedgerError` 为稳定 `{error, code, details}`，`day1_incomplete` 与 `idempotency_conflict` 返回 409，并增加三个新 gate 入口的 HTTP 契约测试。
+
+### 3. P2：正式库存调整仍允许空原因
+
+- 文件：[cigars/services.py](../../cigars/services.py:1027-1035)、[cigars/agent_api.py](../../cigars/agent_api.py:477-486)。
+- service 的 `reason=''` 是合法默认值，agent 入口也把缺失原因规范成空串；空原因随后进入 ledger description、StockMovement note 和 AdjustmentRecord.reason，违反内部账规格 §11.2 与原 review-a 的修复要求。
+- 修复要求：库存变动前拒绝空白原因，并补 service/API 测试，确认失败无库存、成本池、movement、adjustment record 或 ledger 残留。
+
+验证证据：后端修复/ledger/销售定向 **63/63** 通过；在途汇总、利润、迁移与 agent 库存模块 **66/66** 通过；前端日期/stale 账户定向 **10/10** 通过；`git diff --check` 通过；`manage.py makemigrations --check --dry-run` 输出 `No changes detected`。临时 HTTP 契约测试暴露 500（失败断言 `500 != 409`）。
+
+最终结论：**CHANGES_REQUIRED**。以上三项修复并补齐回归前，Task 9 不能 APPROVED。
+
+## Task 9 final re-review
+
+结论：**APPROVED**
+
+本轮在上一轮三个 blocker 修复后重新阅读当前完整未提交 diff，并复核生产路径、迁移和测试变更；未修改生产代码或测试，未提交。
+
+### 上一轮三个 blocker 关闭证据
+
+- 库存调整 exactly-once：`adjust_stock()` 现在由 `_retry_sqlite_locked` 包裹，并在任何幂等查询、批次锁定或库存修改前取得统一 ledger writer gate；同 key 并发会串行观察同一事实。相同参数 replay 返回同一批次，参数不同抛稳定 `idempotency_conflict`；定向并发测试同时断言批次只扣一次、仅一条 `StockMovement`、仅一笔 ledger。
+- 原批次 replay：ledger `source_id` 持久化规范化请求指纹和实际返回批次 ID；未指定 `batch_id` 且跨多个 FIFO 批次时，后续 replay 从该来源事实解析原结果批次，不再按当前最新主键猜测。回归测试刻意让 FIFO 顺序与主键顺序相反，首次结果与 replay 主键一致。
+- Legacy agent 错误契约：`_idempotent_command()` 在 canonical 与 legacy 两条分支均映射 `Day1IncompleteError`/`LedgerError`；`day1_incomplete`、`idempotency_conflict` 返回 409 JSON。Day 1 失败响应写入 `IdempotencyRecord`，同 body 重放保持相同 409 body/status，不会在 Day 1 状态变化后意外执行旧请求。
+- 空原因无业务残留：service 在 Day 1 gate、writer gate、批次查询和任何库存/成本写入之前规范化并拒绝空白 reason。测试验证批次数量不变且无 ledger/`StockMovement`；按控制流也不会创建 `AdjustmentRecord` 或改变成本池。API 返回可重放的 400 业务错误，只有预期的幂等错误记录，不产生经营事实。
+
+### 原 Task 9 八项 blocker 回归状态
+
+- 库存调整已生成平衡的正式 ledger，盘盈/盘亏符号与月利润 gain/loss 公式一致；在途汇总使用 `PurchasePayment.business_date`；generic/opening replay 核对类型、日期、operator、metadata 与完整 posting，并发唯一键冲突也复核参数。
+- 销售确认/取消、legacy 销售及库存服务维持 Day 1 gate；客户承担的人肉费在草稿确认及 legacy 创建中保留，`amount_due_cny` 为商品金额加客户费用。
+- 销售动作、换汇和费用 fallback 均使用 Moscow business date；销售账户刷新与提交前均重新验证 active CNY，旧 stale ID 不会发送。
+- 旧测试没有被删除或改成接受错误行为：在途 fixture 改为经真实付款服务生成 `PurchasePayment`，原 opening 错误 replay 预期改为“相同参数成功、不同参数冲突”，其余删除行均由更强断言或 Day 1 合法 fixture 替代。
+
+### 验证
+
+- 已有全量证据：后端 **448/448**，前端 **144/144**，lint/build 通过。
+- 本轮独立定向后端：Task 9 修复、agent API、库存并发与 ledger operations 共 **52/52** 通过。
+- 本轮独立定向前端：Moscow 日期与 stale 账户共 **10/10** 通过。
+- `git diff --check` 通过；`manage.py makemigrations --check --dry-run` 输出 `No changes detected`。
+
+最终结论：**APPROVED**。上一轮三个 blocker 与此前八项 blocker 均已关闭，未发现新的合并阻塞项。

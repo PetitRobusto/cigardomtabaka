@@ -724,3 +724,132 @@ export interface Reconciliation {
   created_at: string;
   updated_at: string;
 }
+
+// 账务动作金额始终以字符串承载，避免浏览器浮点数改变资金事实。
+export interface AccountingApiError {
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+  status?: number;
+}
+
+export interface PurchaseActionItem {
+  id?: number;
+  cigar_id: number;
+  cigar_name?: string | null;
+  box_size: number | null;
+  box_quantity: number | null;
+  quantity?: number | null;
+  unit_price_rub_per_box: string | null;
+  packaging_status?: string;
+  review_required?: boolean;
+}
+
+export interface PurchaseAction {
+  id: number;
+  order_number?: string;
+  supplier_id?: number;
+  status: 'draft' | 'in_transit' | 'received' | 'cancelled' | string;
+  version: number;
+  business_date?: string | null;
+  rub_total?: string;
+  paid_cny_cost?: string;
+  items: PurchaseActionItem[];
+}
+
+export interface DividendAction {
+  id: number;
+  status: 'draft' | 'confirmed' | string;
+  version: number;
+  total_cny: string;
+  partner_a_amount_cny?: string | null;
+  partner_b_amount_cny?: string | null;
+  partner_a_account_id?: number | null;
+  partner_b_account_id?: number | null;
+  business_date?: string | null;
+  warning_code?: string | null;
+  warning_ack?: boolean;
+}
+
+export interface DividendPreview {
+  retained_earnings_cny: string;
+  requested_cny: string;
+  warning: {
+    code: 'retained_earnings_exceeded';
+    retained_earnings_cny: string;
+    requested_cny: string;
+    fingerprint: string;
+  } | null;
+  warning_fingerprint: string;
+}
+
+export interface AccountingActionsResponse {
+  purchases: PurchaseAction[];
+  dividends: DividendAction[];
+}
+
+export interface ExchangeActionPayload {
+  source_account_id: number;
+  rub_account_id: number;
+  source_amount: string;
+  rub_amount: string;
+  business_date: string;
+}
+
+export interface PurchaseActionCreatePayload {
+  supplier_id: number;
+  business_date: string;
+  items: PurchaseActionItem[];
+  note: string;
+}
+
+export interface PurchaseActionUpdatePayload {
+  expected_version: number;
+  items: PurchaseActionItem[];
+  note: string;
+}
+
+export interface ExpenseActionPayload {
+  category: 'salary' | 'rent' | 'utilities' | 'other';
+  amount: string;
+  fund_account_id: number;
+  business_date: string;
+  note: string;
+}
+
+export interface DividendCreatePayload {
+  total_cny: string;
+  business_date: string;
+  note: string;
+}
+
+export interface DividendUpdatePayload {
+  total_cny: string;
+  partner_a_amount_cny: string;
+  partner_b_amount_cny: string;
+  partner_a_account_id: number;
+  partner_b_account_id: number;
+  expected_version: number;
+  note: string;
+}
+
+export interface PurchasePayPayload {
+  rub_account_id: number;
+  business_date: string;
+}
+
+export interface PurchaseReceivePayload {
+  business_date: string;
+  note: string;
+}
+
+export interface PurchaseCancelPayload {
+  expected_version: number;
+  note: string;
+}
+
+export interface DividendConfirmPayload {
+  expected_version: number;
+  warning_fingerprint: string;
+  warning_ack: boolean;
+}

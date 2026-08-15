@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
-from django.db import OperationalError
+from django.db import OperationalError, models
 from django.test import TestCase
 from unittest.mock import patch
 
@@ -63,6 +63,49 @@ class DividendActionTest(TestCase):
                 action_type='cancel', idempotency_key='div-cancel',
                 request_fingerprint='x', operator=self.operator,
             ).full_clean()
+
+    def test_retained_earnings_uses_profit_formula_and_subtracts_confirmed_dividend(self):
+        from accounting.dividend_actions import (
+            confirm_dividend, create_dividend_draft, preview_dividend,
+            update_dividend_draft,
+        )
+        from accounting.selectors import monthly_profit, retained_earnings
+
+        account_a, account_b = self._fund_accounts('retained')
+        post_transaction(
+            transaction_type=LedgerTransaction.TransactionType.SALES_SHIPMENT,
+            business_date=self.day,
+            postings=[
+                PostingInput(category=LedgerPosting.Category.SALES_REVENUE,
+                             currency='CNY', amount=Decimal('-100.00'), cny_amount=Decimal('-100.00')),
+                PostingInput(category=LedgerPosting.Category.ACCOUNTS_RECEIVABLE,
+                             currency='CNY', amount=Decimal('100.00'), cny_amount=Decimal('100.00')),
+            ], operator=self.operator, idempotency_key='retained-profit-fact',
+        )
+        before = monthly_profit(month=self.day)
+        self.assertEqual(before['net_profit_cny'], Decimal('100.00'))
+        self.assertEqual(retained_earnings(as_of=self.day), Decimal('100.00'))
+
+        draft = create_dividend_draft(
+            total_cny='50.00', business_date=self.day,
+            operator=self.operator, idempotency_key='retained-dividend-create',
+        )
+        draft = update_dividend_draft(
+            dividend_id=draft.id, total_cny='50.00',
+            partner_a_amount_cny='25.00', partner_b_amount_cny='25.00',
+            partner_a_account_id=account_a.pk, partner_b_account_id=account_b.pk,
+            expected_version=draft.version, idempotency_key='retained-dividend-update',
+            operator=self.operator,
+        )
+        warning = preview_dividend(dividend_id=draft.id, operator=self.operator)
+        confirm_dividend(
+            dividend_id=draft.id, operator=self.operator,
+            idempotency_key='retained-dividend-confirm', expected_version=draft.version,
+            warning_fingerprint=warning.warning_fingerprint, warning_ack=False,
+        )
+        after = monthly_profit(month=self.day)
+        self.assertEqual(before['net_profit_cny'], after['net_profit_cny'])
+        self.assertEqual(retained_earnings(as_of=self.day), Decimal('50.00'))
 
     def test_dividend_replay_conflict_and_stale_warning(self):
         from accounting.dividend_actions import (
@@ -551,3 +594,39 @@ class DividendActionTest(TestCase):
         self.assertFalse(
             LedgerTransaction.objects.filter(idempotency_key='div-shortfall-confirm').exists(),
         )
+
+    def test_confirm_replay_rejects_tampered_linked_ledger_metadata(self):
+        from accounting.dividend_actions import (
+            DividendActionError, confirm_dividend, create_dividend_draft,
+            preview_dividend, update_dividend_draft,
+        )
+
+        account_a, account_b = self._fund_accounts('replay-tampered')
+        draft = create_dividend_draft(
+            total_cny='20.00', business_date=self.day,
+            operator=self.operator, idempotency_key='div-tampered-create',
+        )
+        draft = update_dividend_draft(
+            dividend_id=draft.id, total_cny='20.00',
+            partner_a_amount_cny='10.00', partner_b_amount_cny='10.00',
+            partner_a_account_id=account_a.pk, partner_b_account_id=account_b.pk,
+            expected_version=draft.version, idempotency_key='div-tampered-update',
+            operator=self.operator,
+        )
+        preview = preview_dividend(dividend_id=draft.id, operator=self.operator)
+        posted = confirm_dividend(
+            dividend_id=draft.id, operator=self.operator,
+            idempotency_key='div-tampered-confirm', expected_version=draft.version,
+            warning_fingerprint=preview.warning_fingerprint, warning_ack=True,
+        )
+        ledger = posted.ledger_transaction
+        ledger.source_type = 'tampered'
+        models.Model.save(ledger, update_fields=['source_type'])
+
+        with self.assertRaises(DividendActionError) as raised:
+            confirm_dividend(
+                dividend_id=draft.id, operator=self.operator,
+                idempotency_key='div-tampered-confirm', expected_version=draft.version,
+                warning_fingerprint=preview.warning_fingerprint, warning_ack=True,
+            )
+        self.assertEqual(raised.exception.code, 'idempotency_conflict')

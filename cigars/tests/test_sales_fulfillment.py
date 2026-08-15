@@ -2,9 +2,10 @@ from datetime import date
 from decimal import Decimal
 
 from unittest.mock import patch
+from django.db import models
 from django.test import TestCase
 
-from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
+from accounting.models import Day1Initialization, FundAccount, LedgerPosting, LedgerTransaction
 from accounting.selectors import account_snapshot
 from accounting.services import LedgerError
 from cigars.models import (
@@ -30,6 +31,10 @@ class SalesFulfillmentServiceTest(TestCase):
     def setUp(self):
         self.operator = User.objects.create_user(
             'fulfillment-operator', password='pass', is_staff=True,
+        )
+        Day1Initialization.objects.create(
+            singleton_key='company', status=Day1Initialization.Status.COMPLETED,
+            business_date=self.business_date, completed_by=self.operator,
         )
         brand = Brand.objects.create(english_name='Fulfillment Brand', name='出库品牌')
         self.cigar = Cigar.objects.create(
@@ -236,6 +241,24 @@ class SalesFulfillmentServiceTest(TestCase):
         self.assertEqual(LedgerTransaction.objects.filter(transaction_type=LedgerTransaction.TransactionType.SALES_SHIPMENT).count(), 1)
         self.assertEqual(StockMovement.objects.filter(movement_type=StockMovement.MovementType.SHIP).count(), 1)
 
+
+    def test_ship_same_key_replays_after_original_operator_loses_permission(self):
+        """既有出库事实不能因原操作员后来降权而失去重放能力。"""
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='20.00')
+        from cigars.sales_accounting import ship_sales_order
+
+        first = ship_sales_order(
+            order_id=order.id, business_date=self.business_date,
+            operator=self.operator, idempotency_key='ship-replay-revoked',
+        )
+        self.operator.is_staff = False
+        replay = ship_sales_order(
+            order_id=order.id, business_date=self.business_date,
+            operator=self.operator, idempotency_key='ship-replay-revoked',
+        )
+
+        self.assertEqual(replay.pk, first.pk)
     def test_receive_payment_after_shipment_clears_receivable(self):
         account = FundAccount.objects.create(name='销售收款账户', currency=FundAccount.Currency.CNY, custodian=self.operator, creation_idempotency_key='sales-receipt-account-1')
         self.batch(quantity=3, unit_cost='10.00')
@@ -302,10 +325,72 @@ class SalesFulfillmentServiceTest(TestCase):
         first = receive_sales_order_payment(order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-idempotent-1')
         second = receive_sales_order_payment(order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-idempotent-1')
         self.assertEqual(second.id, first.id)
+        FundAccount.objects.filter(pk=account.pk).update(is_active=False)
+        SalesOrder.objects.filter(pk=order.pk).update(
+            fulfillment_status=SalesOrder.FulfillmentStatus.CANCELLED,
+        )
+        replay_after_state_change = receive_sales_order_payment(
+            order_id=order.id, amount_cny=Decimal('95.00'),
+            fund_account=account, business_date=self.business_date,
+            operator=self.operator, idempotency_key='prepay-idempotent-1',
+        )
+        self.assertEqual(replay_after_state_change.pk, first.pk)
         with self.assertRaises((LedgerError, OrderServiceError)):
             receive_sales_order_payment(order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='prepay-idempotent-2')
         self.assertEqual(SalesReceipt.objects.count(), 1)
         self.assertEqual(LedgerTransaction.objects.filter(transaction_type=LedgerTransaction.TransactionType.SALES_RECEIPT).count(), 1)
+
+    def test_receipt_replay_rejects_non_posted_ledger_fact(self):
+        """损坏为非 POSTED 的流水不能被当作成功收款事实重放。"""
+        account = FundAccount.objects.create(
+            name='预收状态校验账户', currency=FundAccount.Currency.CNY,
+            custodian=self.operator, creation_idempotency_key='prepay-status-account',
+        )
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import receive_sales_order_payment
+
+        receipt = receive_sales_order_payment(
+            order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account,
+            business_date=self.business_date, operator=self.operator,
+            idempotency_key='prepay-status-replay',
+        )
+        transaction_obj = receipt.ledger_transaction
+        transaction_obj.status = LedgerTransaction.Status.DRAFT
+        models.Model.save(transaction_obj, update_fields=['status'])
+
+        with self.assertRaises(OrderServiceError):
+            receive_sales_order_payment(
+                order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account,
+                business_date=self.business_date, operator=self.operator,
+                idempotency_key='prepay-status-replay',
+            )
+
+    def test_receipt_replay_rejects_changed_receipt_operator(self):
+        """收款模型与流水必须指向同一个原操作员。"""
+        account = FundAccount.objects.create(
+            name='预收操作员校验账户', currency=FundAccount.Currency.CNY,
+            custodian=self.operator, creation_idempotency_key='prepay-operator-account',
+        )
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import receive_sales_order_payment
+
+        receipt = receive_sales_order_payment(
+            order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account,
+            business_date=self.business_date, operator=self.operator,
+            idempotency_key='prepay-operator-replay',
+        )
+        other = User.objects.create_user('changed-receipt-operator', is_staff=True)
+        receipt.operator = other
+        models.Model.save(receipt, update_fields=['operator'])
+
+        with self.assertRaises(OrderServiceError):
+            receive_sales_order_payment(
+                order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account,
+                business_date=self.business_date, operator=self.operator,
+                idempotency_key='prepay-operator-replay',
+            )
 
     def test_prepaid_receipt_ledger_failure_rolls_back_everything(self):
         account = FundAccount.objects.create(name='预收回滚账户', currency=FundAccount.Currency.CNY, custodian=self.operator, creation_idempotency_key='prepay-account-4')
@@ -386,3 +471,57 @@ class SalesFulfillmentServiceTest(TestCase):
         ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-date-replay-1')
         with self.assertRaises(OrderServiceError):
             ship_sales_order(order_id=order.id, business_date=date(2026, 8, 11), operator=self.operator, idempotency_key='ship-date-replay-1')
+
+    def test_ship_replay_rejects_changed_note(self):
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import ship_sales_order
+
+        ship_sales_order(
+            order_id=order.id, business_date=self.business_date,
+            operator=self.operator, idempotency_key='ship-note-replay', note='仓库出库',
+        )
+        with self.assertRaises(OrderServiceError):
+            ship_sales_order(
+                order_id=order.id, business_date=self.business_date,
+                operator=self.operator, idempotency_key='ship-note-replay', note='修改后备注',
+            )
+
+    def test_ship_replay_rejects_changed_operator(self):
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='30.00')
+        other = User.objects.create_user('other-ship-operator', is_staff=True)
+        from cigars.sales_accounting import ship_sales_order
+
+        ship_sales_order(
+            order_id=order.id, business_date=self.business_date,
+            operator=self.operator, idempotency_key='ship-operator-replay',
+        )
+        with self.assertRaises(OrderServiceError):
+            ship_sales_order(
+                order_id=order.id, business_date=self.business_date,
+                operator=other, idempotency_key='ship-operator-replay',
+            )
+
+    def test_ship_replay_rejects_corrupted_posting(self):
+        """出库 replay 必须拒绝与 FIFO 事实不一致的损坏流水。"""
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import ship_sales_order
+
+        ship_sales_order(
+            order_id=order.id, business_date=self.business_date,
+            operator=self.operator, idempotency_key='ship-posting-replay',
+        )
+        shipment = SalesShipment.objects.get(sales_order=order)
+        posting = shipment.ledger_transaction.postings.get(
+            category=LedgerPosting.Category.COST_OF_GOODS_SOLD,
+        )
+        posting.cny_amount += Decimal('1.00')
+        models.Model.save(posting, update_fields=['cny_amount'])
+
+        with self.assertRaises(OrderServiceError):
+            ship_sales_order(
+                order_id=order.id, business_date=self.business_date,
+                operator=self.operator, idempotency_key='ship-posting-replay',
+            )

@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.db import close_old_connections
 from django.test import Client, TestCase, TransactionTestCase
 
-from accounting.models import FundAccount, LedgerPosting
+from accounting.models import Day1Initialization, FundAccount, LedgerPosting
 from accounting.services import record_opening_balance
 from threading import Barrier, Thread
 
@@ -32,6 +32,13 @@ class SalesOrderApiTest(TestCase):
             "sales-api-operator", password="pass", is_staff=True
         )
         self.non_staff = User.objects.create_user("sales-api-customer", password="pass")
+        # 销售动作是正式账务事实；普通 API fixture 从已完成 Day 1 开始。
+        Day1Initialization.objects.create(
+            singleton_key="company",
+            status=Day1Initialization.Status.COMPLETED,
+            business_date=date(2026, 8, 10),
+            completed_by=self.operator,
+        )
         brand = Brand.objects.create(english_name="API Brand", name="接口品牌")
         self.cigar = Cigar.objects.create(
             brand=brand.english_name,
@@ -400,6 +407,70 @@ class SalesOrderApiTest(TestCase):
             self.assertLess(response.status_code, 500)
             self.assertEqual(response["Content-Type"], "application/json")
 
+
+    def test_action_api_notes_must_be_strings(self):
+        """正式销售动作拒绝容器备注，避免把畸形 JSON 写入账务事实。"""
+        create = self.create_order(
+            key="api-invalid-create-note",
+            body={**self.body(), "note": {"invalid": True}},
+        )
+        self.assertEqual(create.status_code, 400)
+        self.assertEqual(create.json()["code"], "input_error")
+
+        self.create_batch(quantity=10)
+        draft = self.create_order(key="api-invalid-draft-note")
+        draft_id = draft.json()["sales_order"]["id"]
+        update = self.request(
+            "patch", f"/api/sales/orders/{draft_id}/",
+            {**self.body(), "note": ["invalid"]},
+            "api-invalid-update-note",
+        )
+        self.assertEqual(update.status_code, 400)
+        self.assertEqual(update.json()["code"], "input_error")
+        confirm = self.request(
+            "post", f"/api/sales/orders/{draft_id}/confirm/",
+            {"note": {"invalid": True}}, "api-invalid-confirm-note",
+        )
+        self.assertEqual(confirm.status_code, 400)
+        self.assertEqual(confirm.json()["code"], "input_error")
+        confirmed = self.request(
+            "post", f"/api/sales/orders/{draft_id}/confirm/",
+            {}, "api-valid-confirm-after-invalid-note",
+        )
+        self.assertEqual(confirmed.status_code, 200)
+        cancel = self.request(
+            "post", f"/api/sales/orders/{draft_id}/cancel/",
+            {"note": ["invalid"]}, "api-invalid-cancel-note",
+        )
+        self.assertEqual(cancel.status_code, 400)
+        self.assertEqual(cancel.json()["code"], "input_error")
+
+        ship_order_id = self.action_order("api-invalid-ship-note")
+        ship = self.request(
+            "post", f"/api/sales/orders/{ship_order_id}/ship/",
+            {"business_date": "2026-08-10", "note": {"invalid": True}},
+            "api-invalid-ship-note-action",
+        )
+        self.assertEqual(ship.status_code, 400)
+        self.assertEqual(ship.json()["code"], "input_error")
+
+        transport_order_id = self.action_order("api-invalid-transport-note")
+        from cigars.sales_accounting import ship_sales_order
+        ship_sales_order(
+            order_id=transport_order_id, business_date=date(2026, 8, 10),
+            operator=self.operator, idempotency_key="api-invalid-transport-note-ship",
+        )
+        account = self.action_account("api-invalid-transport-note-account")
+        transport = self.request(
+            "post", f"/api/sales/orders/{transport_order_id}/transport-cost/",
+            {
+                "actual_cost_cny": "1.00", "fund_account_id": account.pk,
+                "business_date": "2026-08-10", "note": ["invalid"],
+            },
+            "api-invalid-transport-note-action",
+        )
+        self.assertEqual(transport.status_code, 400)
+        self.assertEqual(transport.json()["code"], "input_error")
     def test_action_api_requires_staff_json(self):
         order_id = self.action_order("api-auth-action")
         self.client.logout()

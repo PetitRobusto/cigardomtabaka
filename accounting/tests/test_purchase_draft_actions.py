@@ -248,6 +248,50 @@ class PurchaseDraftActionTest(TestCase):
                 )
             self.assertEqual(raised.exception.code, 'idempotency_conflict')
 
+    def test_matching_replays_survive_operator_permission_change(self):
+        created = create_purchase_order(**{
+            **self.create_kwargs(), 'idempotency_key': 'permission-create',
+        })
+        update_order = create_purchase_order(**{
+            **self.create_kwargs(), 'idempotency_key': 'permission-update-create',
+        })
+        update_items = [{
+            **self.canonical_items()[0], 'unit_price_rub_per_box': '120.00',
+        }]
+        update_purchase_order_draft(
+            purchase_order_id=update_order.pk, items=update_items,
+            expected_version=1, idempotency_key='permission-update',
+            operator=self.operator, note='权限变化前更新',
+        )
+        cancel_order = create_purchase_order(**{
+            **self.create_kwargs(), 'idempotency_key': 'permission-cancel-create',
+        })
+        cancel_purchase_order(
+            purchase_order_id=cancel_order.pk, expected_version=1,
+            idempotency_key='permission-cancel', operator=self.operator,
+            note='权限变化前取消',
+        )
+        self.operator.is_staff = False
+        self.operator.save(update_fields=['is_staff'])
+
+        create_replay = create_purchase_order(**{
+            **self.create_kwargs(), 'idempotency_key': 'permission-create',
+        })
+        update_replay = update_purchase_order_draft(
+            purchase_order_id=update_order.pk, items=update_items,
+            expected_version=1, idempotency_key='permission-update',
+            operator=self.operator, note='权限变化前更新',
+        )
+        cancel_replay = cancel_purchase_order(
+            purchase_order_id=cancel_order.pk, expected_version=1,
+            idempotency_key='permission-cancel', operator=self.operator,
+            note='权限变化前取消',
+        )
+
+        self.assertEqual(create_replay.pk, created.pk)
+        self.assertEqual(update_replay.pk, update_order.pk)
+        self.assertEqual(cancel_replay.pk, cancel_order.pk)
+
     def test_box_integer_boundaries_are_stable(self):
         max_integer = 2147483647
         normalized = canonical_purchase_item(

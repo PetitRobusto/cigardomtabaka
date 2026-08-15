@@ -1,12 +1,13 @@
 from datetime import date
 from decimal import Decimal
 
+from django.db import connection
 from django.test import TestCase
 
 from accounting.models import Day1Initialization, FundAccount, LedgerPosting, LedgerTransaction, PurchasePayment
 from accounting.purchase_actions import PurchaseActionError, pay_purchase_order, receive_paid_purchase_order
 from accounting.services import record_opening_balance
-from cigars.models import Brand, Cigar, PurchaseOrder, PurchaseOrderItem, Supplier, User
+from cigars.models import Brand, Cigar, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, StockMovement, Supplier, User
 
 
 class PurchasePaymentTest(TestCase):
@@ -121,6 +122,24 @@ class PurchasePaymentTest(TestCase):
             )
         self.assertEqual(error.exception.code, "idempotency_conflict")
 
+    def test_payment_replay_rejects_tampered_posting(self):
+        payment = pay_purchase_order(
+            purchase_order_id=self.order.id, rub_account_id=self.rub.id,
+            business_date=date(2026, 8, 14), operator=self.operator,
+            idempotency_key="purchase-payment-tampered-posting",
+        )
+        posting_id = payment.ledger_transaction.postings.order_by('id').first().pk
+        with connection.cursor() as cursor:
+            cursor.execute('DELETE FROM accounting_ledgerposting WHERE id = %s', [posting_id])
+
+        with self.assertRaises(PurchaseActionError) as error:
+            pay_purchase_order(
+                purchase_order_id=self.order.id, rub_account_id=self.rub.id,
+                business_date=date(2026, 8, 14), operator=self.operator,
+                idempotency_key="purchase-payment-tampered-posting",
+            )
+        self.assertEqual(error.exception.code, "idempotency_conflict")
+
     def test_receipt_replay_and_other_key_conflict(self):
         first = self.order.items.get()
         first.unit_price_rub_per_box = Decimal("100.00")
@@ -143,15 +162,54 @@ class PurchasePaymentTest(TestCase):
         batches = receive_paid_purchase_order(
             purchase_order_id=self.order.id, business_date=date(2026, 8, 14),
             operator=self.operator, idempotency_key="receipt-replay",
+            note="仓库签收",
         )
         replay = receive_paid_purchase_order(
             purchase_order_id=self.order.id, business_date=date(2026, 8, 14),
             operator=self.operator, idempotency_key="receipt-replay",
+            note="仓库签收",
         )
         self.assertEqual([b.pk for b in replay], [b.pk for b in batches])
+        with self.assertRaises(PurchaseActionError) as note_error:
+            receive_paid_purchase_order(
+                purchase_order_id=self.order.id, business_date=date(2026, 8, 14),
+                operator=self.operator, idempotency_key="receipt-replay",
+                note="签收备注被修改",
+            )
+        self.assertEqual(note_error.exception.code, "idempotency_conflict")
         with self.assertRaises(PurchaseActionError) as error:
             receive_paid_purchase_order(
                 purchase_order_id=self.order.id, business_date=date(2026, 8, 14),
                 operator=self.operator, idempotency_key="receipt-other",
+            )
+        self.assertEqual(error.exception.code, "idempotency_conflict")
+
+    def test_receipt_replay_rejects_missing_receive_movement(self):
+        account = FundAccount.objects.create(
+            name="测试卢布到货流水", currency=FundAccount.Currency.RUB,
+            creation_idempotency_key="fund-rub-receipt-movement", custodian=self.operator,
+        )
+        record_opening_balance(
+            account, Decimal("300.00"), Decimal("100.00"),
+            LedgerPosting.Category.OPENING_CAPITAL, date(2026, 8, 10),
+            self.operator, "opening-rub-receipt-movement",
+        )
+        pay_purchase_order(
+            purchase_order_id=self.order.id, rub_account_id=account.id,
+            business_date=date(2026, 8, 14), operator=self.operator,
+            idempotency_key="payment-for-receipt-movement",
+        )
+        batches = receive_paid_purchase_order(
+            purchase_order_id=self.order.id, business_date=date(2026, 8, 14),
+            operator=self.operator, idempotency_key="receipt-missing-movement", note="到货",
+        )
+        movement = StockMovement.objects.get(purchase_batch=batches[0])
+        with connection.cursor() as cursor:
+            cursor.execute('DELETE FROM cigars_stockmovement WHERE id = %s', [movement.pk])
+
+        with self.assertRaises(PurchaseActionError) as error:
+            receive_paid_purchase_order(
+                purchase_order_id=self.order.id, business_date=date(2026, 8, 14),
+                operator=self.operator, idempotency_key="receipt-missing-movement", note="到货",
             )
         self.assertEqual(error.exception.code, "idempotency_conflict")

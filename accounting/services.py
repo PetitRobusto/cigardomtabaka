@@ -14,6 +14,7 @@ from accounting.models import (
     AccountReconciliation, FundAccount, LedgerPosting, LedgerSequence,
     LedgerTransaction,
 )
+from accounting.guards import require_day1_completed
 from accounting.selectors import account_snapshot
 
 
@@ -29,7 +30,12 @@ ORIGINAL_PLACES = {
 
 
 class LedgerError(Exception):
-    pass
+    """可携带稳定 API code/details 的账务领域错误。"""
+
+    def __init__(self, message, *, code=None, details=None):
+        super().__init__(message)
+        self.code = code
+        self.details = details or {}
 
 
 @dataclass(frozen=True)
@@ -112,6 +118,17 @@ def _require_operator(operator):
     if not persisted.is_operator:
         raise LedgerError('必须提供操作员 operator')
     return persisted
+
+def _operator_for_replay(operator):
+    """重放只确认操作员身份存在，不重新检查当前操作权限。"""
+    user_model = get_user_model()
+    if not isinstance(operator, user_model) or not operator.pk:
+        raise LedgerError('必须提供真实操作人 operator')
+    try:
+        return user_model.objects.get(pk=operator.pk)
+    except user_model.DoesNotExist:
+        raise LedgerError('必须提供真实操作人 operator')
+
 
 
 def _validate_metadata(transaction_type, business_date, idempotency_key):
@@ -488,8 +505,46 @@ def _nonnegative_cny_amount(value, field_name):
 
 def _existing_operation(transaction_type, business_date, operator, idempotency_key):
     _validate_metadata(transaction_type, business_date, idempotency_key)
-    persisted_operator = _require_operator(operator)
-    return persisted_operator, _existing_transaction(idempotency_key, transaction_type)
+    existing = _existing_transaction(idempotency_key, transaction_type)
+    if existing is not None:
+        return _operator_for_replay(operator), existing
+    return _require_operator(operator), None
+
+
+def _money_operation_replay(
+    existing, *, source_account, target_account, source_amount, target_amount,
+    business_date, operator, description, transaction_type,
+):
+    """同一资金动作幂等键只能重放完全一致的原始请求。"""
+    for account in (source_account, target_account):
+        if not isinstance(account, FundAccount) or not account.pk or account._state.adding:
+            raise LedgerError('账户必须是已保存的资金账户')
+    source_amount = _positive_amount(source_amount, source_account.currency, '转出原币金额')
+    target_amount = _positive_amount(target_amount, target_account.currency, '转入原币金额')
+    rows = tuple(existing.postings.order_by('id').values_list(
+        'account_id', 'category', 'currency', 'amount', 'cny_amount',
+    ))
+    expected_rows = (
+        (source_account.pk, '', source_account.currency, -source_amount),
+        (target_account.pk, '', target_account.currency, target_amount),
+    )
+    if (
+        existing.transaction_type != transaction_type
+        or existing.status != LedgerTransaction.Status.POSTED
+        or existing.source_type != ''
+        or existing.source_id != ''
+        or existing.business_date != business_date
+        or existing.operator_id != operator.pk
+        or existing.description != (description or '')
+        or len(rows) != 2
+        or tuple(row[:4] for row in rows) != expected_rows
+        or rows[0][4] >= 0
+        or rows[1][4] <= 0
+        or rows[0][4] + rows[1][4] != 0
+        or (source_account.currency == FundAccount.Currency.CNY and rows[0][4] != -source_amount)
+        or (target_account.currency == FundAccount.Currency.CNY and rows[1][4] != target_amount)
+    ):
+        raise LedgerError('幂等键已用于不同的资金动作参数', code='idempotency_conflict')
 
 
 def _lock_accounts(*accounts):
@@ -604,7 +659,19 @@ def _exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
         LedgerTransaction.TransactionType.EXCHANGE, business_date, operator, idempotency_key,
     )
     if existing is not None:
+        _money_operation_replay(
+            existing,
+            source_account=source_account,
+            target_account=rub_account,
+            source_amount=source_amount,
+            target_amount=rub_amount,
+            business_date=business_date,
+            transaction_type=LedgerTransaction.TransactionType.EXCHANGE,
+            operator=persisted_operator,
+            description=description,
+        )
         return _operation_result(existing, False, return_result)
+    require_day1_completed()
 
     account_map = _lock_accounts(source_account, rub_account)
     source_account = account_map[source_account.pk]
@@ -664,7 +731,19 @@ def _transfer_same_currency(source_account, target_account, amount, business_dat
         LedgerTransaction.TransactionType.TRANSFER, business_date, operator, idempotency_key,
     )
     if existing is not None:
+        _money_operation_replay(
+            existing,
+            source_account=source_account,
+            target_account=target_account,
+            source_amount=amount,
+            target_amount=amount,
+            business_date=business_date,
+            transaction_type=LedgerTransaction.TransactionType.TRANSFER,
+            operator=persisted_operator,
+            description=description,
+        )
         return _operation_result(existing, False, return_result)
+    require_day1_completed()
 
     account_map = _lock_accounts(source_account, target_account)
     source_account = account_map[source_account.pk]

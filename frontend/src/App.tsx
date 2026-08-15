@@ -20,18 +20,32 @@ import PrivnoteViewPage from './pages/PrivnoteViewPage';
 import PriceDashboard from './pages/Dashboard';
 import PriceCigarDetail from './pages/CigarDetail';
 import AlertsPage from './pages/Alerts';
-import SalesAccountingPage from './pages/SalesAccountingPage';
+import SalesPage from './pages/SalesPage';
+import AccountingDashboardPage from './pages/AccountingDashboardPage';
+import Day1SetupPage from './pages/Day1SetupPage';
 import HelpPage from './pages/HelpPage';
 import { decideStaffRoute } from './utils/routeGuard';
+import { BUSINESS_STAFF_PATHS, resolveBusinessRoute } from './pages/businessRoutes';
 import { useAuthStore } from './store/authStore';
 
-function StaffHelpRoute() {
+function StaffGate({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated, user } = useAuthStore();
   const decision = decideStaffRoute({ isLoading, isAuthenticated, isStaff: Boolean(user?.is_staff) });
   if (decision === 'loading') return null;
   if (decision === 'login') return <Navigate to="/login" replace />;
   if (decision === 'home') return <Navigate to="/" replace />;
-  return <HelpPage />;
+  return <>{children}</>;
+}
+
+function LegacySalesRoute() {
+  const location = useLocation();
+  // Hash links from the old combined workspace remain valid after the split.
+  const destination = resolveBusinessRoute(location.pathname, location.hash);
+  return destination !== location.pathname ? <Navigate to={destination} replace /> : <SalesPage />;
+}
+
+function StaffHelpRoute() {
+  return <StaffGate><HelpPage /></StaffGate>;
 }
 
 function AnimatedRoutes() {
@@ -54,7 +68,9 @@ function AnimatedRoutes() {
 
           {/* Inventory */}
           <Route path="/inventory" element={<InventoryPage />} />
-          <Route path="/sales" element={<SalesAccountingPage />} />
+          <Route path={BUSINESS_STAFF_PATHS.sales} element={<StaffGate><LegacySalesRoute /></StaffGate>} />
+          <Route path={BUSINESS_STAFF_PATHS.accounting} element={<StaffGate><AccountingDashboardPage /></StaffGate>} />
+          <Route path={BUSINESS_STAFF_PATHS.day1} element={<StaffGate><Day1SetupPage /></StaffGate>} />
           <Route path="/help" element={<StaffHelpRoute />} />
 
           {/* Price Tracker */}

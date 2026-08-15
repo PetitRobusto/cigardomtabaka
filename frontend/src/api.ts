@@ -6,10 +6,12 @@ import type {
   PaymentMethod, SearchCigarResult, InventoryViewData,
   CustomerResult, QuoteProduct, RecentChangesResponse,
   SalesOrder, PaymentOrder, SalesOrderPayload, FundAccount, MonthlyProfitReport,
-  AccountingSummary, Reconciliation,
+  AccountingSummary, AccountingDashboard, Reconciliation,
+  Day1State,
 } from './types';
 import { writeWithIdempotency } from './api/idempotency';
 
+import type { AccountingActionsResponse, ExchangeActionPayload, PurchaseAction, PurchaseActionCreatePayload, PurchaseActionUpdatePayload, PurchasePayPayload, PurchaseReceivePayload, PurchaseCancelPayload, ExpenseActionPayload, DividendAction, DividendPreview, DividendCreatePayload, DividendUpdatePayload, DividendConfirmPayload, AccountingApiError } from './types';
 function getCSRFToken(): string {
   const match = typeof document === 'undefined' ? null : document.cookie.match(/csrftoken=([^;]+)/);
   return match ? match[1] : '';
@@ -94,6 +96,47 @@ export const receiveSalesOrder = (id: number, payload: { amount_cny: string; fun
 export const refundSalesOrder = (id: number, business_date: string): Promise<SalesOrder> => salesAction(id, 'refund', { business_date });
 export const recordSalesTransportCost = (id: number, payload: { actual_cost_cny: string; fund_account_id: number; business_date: string }): Promise<SalesOrder> => salesAction(id, 'transport-cost', payload);
 
+export const fetchAccountingDashboard = (): Promise<AccountingDashboard> =>
+  api.get('/accounting/dashboard/').then(r => r.data);
+
+export const fetchDay1State = (): Promise<Day1State> =>
+  api.get('/accounting/day1/').then(r => r.data);
+
+export function day1WriteHeaders(version: number, idempotencyKey?: string): Record<string, string> {
+  const headers: Record<string, string> = { 'If-Match': String(version) };
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+  return headers;
+}
+
+export const saveDay1Draft = (payload: unknown, version: number): Promise<Day1State> =>
+  api.put('/accounting/day1/draft/', payload, { headers: day1WriteHeaders(version) }).then(r => r.data);
+
+export const confirmDay1 = (version: number, idempotencyKey: string): Promise<Day1State> =>
+  api.post('/accounting/day1/confirm/', { version }, { headers: day1WriteHeaders(version, idempotencyKey) }).then(r => r.data);
+
+export function day1ErrorMessage(error: unknown, fallback = 'Day 1 保存失败，请稍后重试'): string {
+  if (axios.isAxiosError(error)) {
+    if (error.response?.status === 409 && error.response.data?.code === 'version_conflict') return '另一位经营者已更新，请刷新';
+    const message = error.response?.data?.error;
+    if (typeof message === 'string' && message) return message;
+  }
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+export function day1ValidationDetails(error: unknown): Record<string, string> {
+  if (!axios.isAxiosError(error)) return {};
+  const details = error.response?.data?.details;
+  if (!details || typeof details !== 'object' || Array.isArray(details)) return {};
+  return Object.fromEntries(Object.entries(details).map(([key, value]) => [
+    key,
+    Array.isArray(value) ? value.join('、') : String(value),
+  ]));
+}
+
+export function clearDay1ValidationDetails(details: Record<string, string>, prefix: string): Record<string, string> {
+  return Object.fromEntries(Object.entries(details).filter(([key]) => key !== prefix && !key.startsWith(prefix + '[') && !key.startsWith(prefix + '.')));
+}
+
 export const fetchAccountingAccounts = (): Promise<FundAccount[]> =>
   api.get('/accounting/accounts/').then(r => r.data.accounts || []);
 
@@ -115,6 +158,90 @@ export const confirmReconciliation = (id: number): Promise<Reconciliation> =>
   writeWithIdempotency(`confirm-reconciliation-${id}`, {}, config =>
     api.post(`/accounting/reconciliations/${id}/confirm/`, {}, config),
   ).then(r => r.reconciliation);
+
+// Accounting action helpers.
+export const fetchAccountingActions = (): Promise<AccountingActionsResponse> =>
+  api.get('/accounting/actions/').then(r => r.data);
+
+export const exchangeToRub = (payload: {
+  source_account_id: number;
+  rub_account_id: number;
+  source_amount: string;
+  rub_amount: string;
+  business_date: string;
+}): Promise<unknown> =>
+  writeWithIdempotency<{ transaction: unknown }>('exchange-to-rub', payload, config =>
+    api.post('/accounting/exchanges/', payload, config),
+  ).then(r => r.transaction);
+
+export const createPurchaseOrder = (payload: PurchaseActionCreatePayload): Promise<PurchaseAction> =>
+  writeWithIdempotency<{ purchase_order: PurchaseAction }>('create-purchase-order', payload, config =>
+    api.post('/accounting/purchases/', payload, config),
+  ).then(r => r.purchase_order);
+
+export const updatePurchaseOrder = (id: number, payload: PurchaseActionUpdatePayload): Promise<PurchaseAction> =>
+  writeWithIdempotency<{ purchase_order: PurchaseAction }>(`update-purchase-order-${id}`, payload, config =>
+    api.patch(`/accounting/purchases/${id}/`, payload, config),
+  ).then(r => r.purchase_order);
+
+export const payPurchaseOrder = (id: number, payload: PurchasePayPayload): Promise<PurchaseAction> =>
+  writeWithIdempotency<{ purchase_order: PurchaseAction }>(`pay-purchase-order-${id}`, payload, config =>
+    api.post(`/accounting/purchases/${id}/pay/`, payload, config),
+  ).then(r => r.purchase_order);
+
+export const receivePurchaseOrder = (id: number, payload: PurchaseReceivePayload): Promise<number[]> =>
+  writeWithIdempotency<{ purchase_batches: number[] }>(`receive-purchase-order-${id}`, payload, config =>
+    api.post(`/accounting/purchases/${id}/receive/`, payload, config),
+  ).then(r => r.purchase_batches);
+
+export const cancelPurchaseOrder = (id: number, payload: PurchaseCancelPayload): Promise<PurchaseAction> =>
+  writeWithIdempotency<{ purchase_order: PurchaseAction }>(`cancel-purchase-order-${id}`, payload, config =>
+    api.post(`/accounting/purchases/${id}/cancel/`, payload, config),
+  ).then(r => r.purchase_order);
+
+export const recordExpense = (payload: ExpenseActionPayload): Promise<unknown> =>
+  writeWithIdempotency<{ expense: unknown }>('record-expense', payload, config =>
+    api.post('/accounting/expenses/', payload, config),
+  ).then(r => r.expense);
+
+export const createDividend = (payload: DividendCreatePayload): Promise<DividendAction> =>
+  writeWithIdempotency<{ dividend: DividendAction }>('create-dividend', payload, config =>
+    api.post('/accounting/dividends/', payload, config),
+  ).then(r => r.dividend);
+
+export const updateDividend = (id: number, payload: DividendUpdatePayload): Promise<DividendAction> =>
+  writeWithIdempotency<{ dividend: DividendAction }>(`update-dividend-${id}`, payload, config =>
+    api.patch(`/accounting/dividends/${id}/`, payload, config),
+  ).then(r => r.dividend);
+
+export const previewDividend = (id: number): Promise<DividendPreview> =>
+  writeWithIdempotency<{ preview: DividendPreview }>(`preview-dividend-${id}`, {}, config =>
+    api.post(`/accounting/dividends/${id}/preview/`, {}, config),
+  ).then(r => r.preview);
+
+export const confirmDividend = (id: number, payload: DividendConfirmPayload): Promise<DividendAction> =>
+  writeWithIdempotency<{ dividend: DividendAction }>(`confirm-dividend-${id}`, payload, config =>
+    api.post(`/accounting/dividends/${id}/confirm/`, payload, config),
+  ).then(r => r.dividend);
+
+export function parseAccountingApiError(error: unknown): AccountingApiError {
+  if (axios.isAxiosError(error)) {
+    const response = error.response;
+    const data = response?.data as { error?: unknown; code?: unknown; details?: unknown } | undefined;
+    const details = data?.details && typeof data.details === 'object' && !Array.isArray(data.details)
+      ? data.details as Record<string, unknown> : undefined;
+    return {
+      code: typeof data?.code === 'string' && data.code ? data.code : 'unknown',
+      message: typeof data?.error === 'string' && data.error ? data.error : '账务动作失败，请稍后重试',
+      ...(details ? { details } : {}),
+      ...(typeof response?.status === 'number' ? { status: response.status } : {}),
+    };
+  }
+  return {
+    code: 'unknown',
+    message: error instanceof Error && error.message ? error.message : '账务动作失败，请稍后重试',
+  };
+}
 
 // Privnote APIs
 export const fetchPrivnote = (token: string): Promise<PrivnoteResponse> =>

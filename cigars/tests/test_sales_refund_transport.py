@@ -5,7 +5,8 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.db import connection, models
 
-from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
+from accounting.models import Day1Initialization, FundAccount, LedgerPosting, LedgerTransaction
+from accounting.guards import Day1IncompleteError
 from accounting.selectors import account_snapshot
 from accounting.services import LedgerError, record_opening_balance
 from cigars.models import (
@@ -25,6 +26,10 @@ class SalesRefundAndTransportTest(TestCase):
     def setUp(self):
         self.operator = User.objects.create_user(
             'refund-transport-operator', password='pass', is_staff=True,
+        )
+        Day1Initialization.objects.create(
+            singleton_key='company', status=Day1Initialization.Status.COMPLETED,
+            business_date=self.business_date, completed_by=self.operator,
         )
         brand = Brand.objects.create(english_name='Refund Transport Brand', name='退款人肉品牌')
         self.cigar = Cigar.objects.create(
@@ -130,6 +135,51 @@ class SalesRefundAndTransportTest(TestCase):
         self.assertEqual(order.payment_status, SalesOrder.PaymentStatus.REFUNDED)
         self.assertEqual(order.fulfillment_status, SalesOrder.FulfillmentStatus.CANCELLED)
 
+    def test_sales_services_require_day1_before_formal_facts(self):
+        """All direct sales accounting actions share the Day 1 service gate."""
+        Day1Initialization.objects.all().delete()
+        from cigars.sales_accounting import (
+            receive_sales_order_payment, refund_sales_order_payment,
+            record_sales_transport_cost, ship_sales_order,
+        )
+        account = FundAccount.objects.create(
+            name='Day1 guard sales account', currency=FundAccount.Currency.CNY,
+            custodian=self.operator, creation_idempotency_key='day1-guard-sales-account',
+        )
+        confirmed = SalesOrder.objects.create(
+            fulfillment_status=SalesOrder.FulfillmentStatus.CONFIRMED,
+            payment_status=SalesOrder.PaymentStatus.UNPAID,
+            amount_due_cny=Decimal('10.00'), operator=self.operator,
+        )
+        cancelled = SalesOrder.objects.create(
+            fulfillment_status=SalesOrder.FulfillmentStatus.CANCELLED,
+            payment_status=SalesOrder.PaymentStatus.REFUND_PENDING,
+            amount_due_cny=Decimal('10.00'), operator=self.operator,
+        )
+        shipped = SalesOrder.objects.create(
+            fulfillment_status=SalesOrder.FulfillmentStatus.SHIPPED,
+            payment_status=SalesOrder.PaymentStatus.UNPAID,
+            amount_due_cny=Decimal('10.00'), operator=self.operator,
+        )
+        calls = (
+            lambda: ship_sales_order(order_id=confirmed.id, business_date=self.business_date,
+                                     operator=self.operator, idempotency_key='day1-guard-ship'),
+            lambda: receive_sales_order_payment(order_id=confirmed.id, amount_cny=Decimal('10.00'),
+                                                fund_account=account, business_date=self.business_date,
+                                                operator=self.operator, idempotency_key='day1-guard-receive'),
+            lambda: refund_sales_order_payment(order_id=cancelled.id, business_date=self.business_date,
+                                               operator=self.operator, idempotency_key='day1-guard-refund'),
+            lambda: record_sales_transport_cost(order_id=shipped.id, actual_cost_cny=Decimal('1.00'),
+                                                fund_account=account, business_date=self.business_date,
+                                                operator=self.operator, idempotency_key='day1-guard-transport'),
+        )
+        for action in calls:
+            with self.subTest(action=action):
+                with self.assertRaises(Day1IncompleteError) as raised:
+                    action()
+                self.assertEqual(raised.exception.code, 'day1_incomplete')
+        self.assertEqual(LedgerTransaction.objects.count(), 0)
+
     def test_refund_same_key_replays_and_different_key_rejects(self):
         order, account = self.prepaid_confirmed_order()
         from cigars.sales_accounting import refund_sales_order_payment
@@ -141,6 +191,23 @@ class SalesRefundAndTransportTest(TestCase):
         self.assertEqual(SalesReceipt.objects.count(), 1)
         self.assertEqual(LedgerTransaction.objects.filter(transaction_type=LedgerTransaction.TransactionType.SALES_RECEIPT).count(), 1)
 
+
+    def test_refund_same_key_replays_after_original_operator_loses_permission(self):
+        """退款完成后，原操作员降权不应破坏同参数幂等重放。"""
+        order, _account = self.prepaid_confirmed_order()
+        from cigars.sales_accounting import refund_sales_order_payment
+
+        first = refund_sales_order_payment(
+            order_id=order.id, business_date=self.business_date,
+            operator=self.operator, idempotency_key='refund-replay-revoked',
+        )
+        self.operator.is_staff = False
+        replay = refund_sales_order_payment(
+            order_id=order.id, business_date=self.business_date,
+            operator=self.operator, idempotency_key='refund-replay-revoked',
+        )
+
+        self.assertEqual(replay.pk, first.pk)
     def test_refund_ledger_failure_rolls_back_and_rejects_invalid_source(self):
         order, account = self.prepaid_confirmed_order()
         from cigars.sales_accounting import refund_sales_order_payment
@@ -183,11 +250,47 @@ class SalesRefundAndTransportTest(TestCase):
     def test_transport_cost_same_key_replays_and_different_key_rejects(self):
         order, account, batch = self.shipped_order()
         from cigars.sales_accounting import record_sales_transport_cost
-        first = record_sales_transport_cost(order_id=order.id, actual_cost_cny=Decimal('10.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='transport-idempotent')
-        second = record_sales_transport_cost(order_id=order.id, actual_cost_cny=Decimal('10.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='transport-idempotent')
+        first = record_sales_transport_cost(order_id=order.id, actual_cost_cny=Decimal('10.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='transport-idempotent', note='莫斯科配送')
+        second = record_sales_transport_cost(order_id=order.id, actual_cost_cny=Decimal('10.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='transport-idempotent', note='莫斯科配送')
         self.assertEqual(second.id, first.id)
+        FundAccount.objects.filter(pk=account.pk).update(is_active=False)
+        SalesOrder.objects.filter(pk=order.pk).update(
+            fulfillment_status=SalesOrder.FulfillmentStatus.CANCELLED,
+        )
+        replay_after_state_change = record_sales_transport_cost(
+            order_id=order.id, actual_cost_cny=Decimal('10.00'),
+            fund_account=account, business_date=self.business_date,
+            operator=self.operator, idempotency_key='transport-idempotent',
+            note='莫斯科配送',
+        )
+        self.assertEqual(replay_after_state_change.pk, first.pk)
+        with self.assertRaises((LedgerError, OrderServiceError)):
+            record_sales_transport_cost(order_id=order.id, actual_cost_cny=Decimal('10.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='transport-idempotent', note='备注被修改')
         with self.assertRaises((LedgerError, OrderServiceError)):
             record_sales_transport_cost(order_id=order.id, actual_cost_cny=Decimal('10.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='transport-other')
+
+    def test_transport_replay_rejects_corrupted_posting(self):
+        """人肉费 replay 必须拒绝账户或费用金额被篡改的流水。"""
+        order, account, _batch = self.shipped_order()
+        from cigars.sales_accounting import record_sales_transport_cost
+
+        cost = record_sales_transport_cost(
+            order_id=order.id, actual_cost_cny=Decimal('10.00'),
+            fund_account=account, business_date=self.business_date,
+            operator=self.operator, idempotency_key='transport-posting-replay',
+        )
+        posting = cost.ledger_transaction.postings.get(
+            category=LedgerPosting.Category.TRANSPORT_EXPENSE,
+        )
+        posting.cny_amount += Decimal('1.00')
+        models.Model.save(posting, update_fields=['cny_amount'])
+
+        with self.assertRaises(OrderServiceError):
+            record_sales_transport_cost(
+                order_id=order.id, actual_cost_cny=Decimal('10.00'),
+                fund_account=account, business_date=self.business_date,
+                operator=self.operator, idempotency_key='transport-posting-replay',
+            )
 
     def test_transport_cost_rejects_invalid_status_amount_and_account(self):
         from cigars.sales_accounting import record_sales_transport_cost

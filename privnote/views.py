@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Prefetch, Q, prefetch_related_objects
 from django.http import JsonResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -224,11 +224,28 @@ def search_cigars(request):
         ).values_list('cigar_id', flat=True).distinct()
         cigars_qs = cigars_qs.filter(id__in=in_stock_ids)
 
+    # 空查询用于聚焦时展开库存候选，限制 20 条避免卡顿。
+    result_limit = 20 if stock_only and not q else 30
+    if stock_only and not q:
+        # 无需评分的空查询直接在数据库限制候选，避免物化全库存。
+        cigars_qs = cigars_qs[:result_limit]
     cigars_list = CigarSearchEngine.search(
         cigars=cigars_qs,
         query=q,
         stock_only=False,  # 已在 QuerySet 层过滤
-        limit=30,
+        limit=result_limit,
+    )
+    # 图片和批次仅对最终候选批量查询，避免 autocomplete N+1。
+    prefetch_related_objects(
+        cigars_list,
+        'images',
+        Prefetch(
+            'purchasebatch_set',
+            queryset=PurchaseBatch.objects.filter(remaining__gt=0).select_related(
+                'purchase_order_item',
+            ),
+            to_attr='_search_batches',
+        ),
     )
 
     results = [

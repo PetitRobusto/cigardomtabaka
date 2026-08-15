@@ -56,6 +56,8 @@ class SalesAccountingModelTest(TestCase):
             'operator': self.operator,
             'goods_amount_cny': Decimal('100.00'),
             'customer_transport_fee_cny': Decimal('20.00'),
+            # 该夹具模拟客户支付人肉费，需与收费快照保持一致。
+            'transport_payer': SalesOrder.TransportPayer.CUSTOMER,
             'amount_due_cny': Decimal('120.00'),
         }
         values.update(changes)

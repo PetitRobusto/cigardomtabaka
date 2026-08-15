@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -7,6 +9,120 @@ from django.db.models import Q
 class LedgerMutationError(ValidationError):
     """Raised when ordinary ORM access would bypass ledger invariants."""
 
+
+def _concrete_fields(instance, kwargs):
+    requested = kwargs.get("update_fields")
+    if requested is None or not requested:
+        return {field.name for field in instance._meta.concrete_fields}
+    return set(requested)
+
+
+def _scope_allows(reason, model, fields, operator=None):
+    from .mutation_scope import scope_allows
+    return scope_allows(reason=reason, model=model, fields=fields, operator=operator)
+
+
+def _conditional_update(queryset, **values):
+    """Internal state-conditional write; never exposed on a public manager."""
+    return models.QuerySet.update(queryset, **values)
+
+
+def _instance_update_values(instance, fields):
+    by_name = {field.name: field for field in instance._meta.concrete_fields}
+    return {
+        by_name[name].attname: getattr(instance, by_name[name].attname)
+        for name in fields if name in by_name
+    }
+
+
+class _FinalFactQuerySet(models.QuerySet):
+    """终态事实的 manager 保护；受控服务仍须显式使用 scope。"""
+
+    _status_field = 'status'
+    _final_statuses = frozenset()
+    _append_only = False
+
+    def _reject_finalized(self):
+        if self._append_only or self.filter(**{f'{self._status_field}__in': self._final_statuses}).exists():
+            raise LedgerMutationError('已入账事实不可通过普通 ORM 修改或删除')
+
+    def update(self, **kwargs):
+        self._reject_finalized()
+        return super().update(**kwargs)
+
+    def delete(self):
+        self._reject_finalized()
+        return super().delete()
+
+    def bulk_update(self, objs, fields, **kwargs):
+        objs = tuple(objs)
+        if self._append_only or any(getattr(obj, self._status_field, None) in self._final_statuses for obj in objs):
+            raise LedgerMutationError('已入账事实不可通过普通 ORM 修改')
+        pks = [obj.pk for obj in objs if obj.pk]
+        if pks and self.filter(pk__in=pks).filter(**{f'{self._status_field}__in': self._final_statuses}).exists():
+            raise LedgerMutationError('已入账事实不可通过普通 ORM 修改')
+        return super().bulk_update(objs, fields, **kwargs)
+
+    def bulk_create(self, objs, **kwargs):
+        raise LedgerMutationError('终态事实禁止通过 bulk_create 或 UPSERT 写入')
+
+    def update_or_create(self, defaults=None, **kwargs):
+        if self._append_only or self._final_statuses == {'posted'}:
+            raise LedgerMutationError('终态事实禁止通过 update_or_create')
+        existing = self.filter(**kwargs).first()
+        if existing is not None and getattr(existing, self._status_field, None) in self._final_statuses:
+            raise LedgerMutationError('已入账事实不可通过 update_or_create')
+        return super().update_or_create(defaults=defaults, **kwargs)
+
+    def get_or_create(self, defaults=None, **kwargs):
+        existing = self.filter(**kwargs).first()
+        if existing is not None and (self._append_only or getattr(existing, self._status_field, None) in self._final_statuses):
+            raise LedgerMutationError('已入账事实不可通过普通 ORM 获取并覆盖')
+        return super().get_or_create(defaults=defaults, **kwargs)
+
+
+class PurchasePaymentQuerySet(_FinalFactQuerySet):
+    _final_statuses = {'posted'}
+
+
+class ExpenseQuerySet(_FinalFactQuerySet):
+    _final_statuses = {'posted'}
+
+
+class DividendQuerySet(_FinalFactQuerySet):
+    _final_statuses = {'posted'}
+    _protected_fields = {'status', 'total_cny', 'partner_a_amount_cny', 'partner_b_amount_cny', 'partner_a_account', 'partner_b_account', 'partner_a_account_id', 'partner_b_account_id', 'ledger_transaction', 'ledger_transaction_id'}
+
+    def update(self, **kwargs):
+        if self._protected_fields & kwargs.keys():
+            raise LedgerMutationError('分红金额、账户和入账状态必须通过实例受控确认')
+        return super().update(**kwargs)
+
+    def bulk_update(self, objs, fields, **kwargs):
+        if self._protected_fields & set(fields):
+            raise LedgerMutationError('分红金额、账户和入账状态必须通过实例受控确认')
+        return super().bulk_update(objs, fields, **kwargs)
+
+
+class DraftActionQuerySet(_FinalFactQuerySet):
+    _append_only = True
+
+    def bulk_create(self, objs, **kwargs):
+        objs = tuple(objs)
+        model_name = f'{self.model._meta.app_label}.{self.model.__name__}'
+        reason = {
+            'accounting.PurchaseDraftAction': 'purchase_draft_action',
+            'accounting.DividendDraftAction': 'dividend_draft_action',
+        }.get(model_name)
+        if reason is None:
+            raise LedgerMutationError('未知草稿动作模型')
+        for obj in objs:
+            if obj.pk is not None:
+                raise LedgerMutationError('草稿动作 bulk_create 禁止覆盖既有记录')
+            fields = {field.name for field in obj._meta.concrete_fields}
+            if not _scope_allows(reason, model_name, fields, obj.operator):
+                raise LedgerMutationError('草稿动作 bulk_create 必须位于对应受控作用域')
+        return super(_FinalFactQuerySet, self).bulk_create(objs, **kwargs)
 
 
 class LedgerTransactionQuerySet(models.QuerySet):
@@ -181,6 +297,88 @@ class FundAccount(models.Model):
         return f'{self.name} ({self.currency})'
 
 
+class Day1Initialization(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = 'draft', '草稿'
+        COMPLETED = 'completed', '已完成'
+
+    singleton_key = models.CharField('单例键', max_length=20, unique=True, default='company', editable=False)
+    status = models.CharField('状态', max_length=12, choices=Status.choices, default=Status.DRAFT)
+    business_date = models.DateField('业务日期', null=True, blank=True)
+    version = models.PositiveIntegerField('版本', default=1)
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='updated_day1_initializations', verbose_name='最后更新人')
+    completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='completed_day1_initializations', verbose_name='完成人')
+    completed_at = models.DateTimeField('完成时间', null=True, blank=True)
+    completion_summary = models.JSONField('完成摘要', default=dict)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        verbose_name = '期初初始化'
+        verbose_name_plural = '期初初始化'
+        constraints = [
+            models.CheckConstraint(condition=models.Q(singleton_key='company'), name='day1_initialization_company_singleton'),
+            models.CheckConstraint(condition=models.Q(version__gte=1), name='day1_initialization_version_gte_one'),
+            models.CheckConstraint(condition=models.Q(status__in=['draft', 'completed']), name='day1_initialization_status_valid'),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.singleton_key = 'company'
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'期初初始化 v{self.version}'
+
+
+class Day1DraftAccount(models.Model):
+    class Slot(models.TextChoices):
+        OWNER_CNY = 'owner_cny', '老板人民币'
+        PARTNER_CNY = 'partner_cny', '合伙人人民币'
+        RUB = 'rub', '卢布'
+        USDT = 'usdt', 'USDT'
+
+    initialization = models.ForeignKey(Day1Initialization, on_delete=models.CASCADE, related_name='draft_accounts', verbose_name='期初初始化')
+    slot = models.CharField('固定槽位', max_length=20, choices=Slot.choices)
+    account_name = models.CharField('账户名称', max_length=120)
+    currency = models.CharField('币种', max_length=4, choices=FundAccount.Currency.choices)
+    original_amount = models.DecimalField('原币金额', max_digits=20, decimal_places=8)
+    cny_book_cost = models.DecimalField('人民币账面成本', max_digits=20, decimal_places=2)
+
+    class Meta:
+        verbose_name = '期初资金草稿'
+        verbose_name_plural = '期初资金草稿'
+        constraints = [
+            models.UniqueConstraint(fields=['initialization', 'slot'], name='day1_draft_account_init_slot_unique'),
+            models.CheckConstraint(condition=models.Q(slot__in=['owner_cny', 'partner_cny', 'rub', 'usdt']), name='day1_draft_account_slot_valid'),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(slot__in=['owner_cny', 'partner_cny'], currency='CNY')
+                    | models.Q(slot='rub', currency='RUB')
+                    | models.Q(slot='usdt', currency='USDT')
+                ),
+                name='day1_draft_account_slot_currency_match',
+            ),
+            models.CheckConstraint(condition=models.Q(original_amount__gte=0, cny_book_cost__gte=0), name='day1_draft_account_amounts_gte_zero'),
+        ]
+
+
+class Day1DraftInventory(models.Model):
+    initialization = models.ForeignKey(Day1Initialization, on_delete=models.CASCADE, related_name='draft_inventory', verbose_name='期初初始化')
+    cigar = models.ForeignKey('cigars.Cigar', on_delete=models.PROTECT, related_name='day1_draft_inventory', verbose_name='雪茄')
+    box_size = models.IntegerField('包装支数')
+    box_quantity = models.IntegerField('整盒数量')
+    loose_sticks = models.IntegerField('散支数量')
+    unit_cost_cny = models.DecimalField('人民币单支成本', max_digits=12, decimal_places=2)
+
+    class Meta:
+        verbose_name = '期初库存草稿'
+        verbose_name_plural = '期初库存草稿'
+        constraints = [
+            models.UniqueConstraint(fields=['initialization', 'cigar', 'box_size'], name='day1_draft_inventory_init_cigar_box_unique'),
+            models.CheckConstraint(condition=models.Q(box_size__gt=0), name='day1_draft_inventory_box_size_gt_zero'),
+            models.CheckConstraint(condition=models.Q(box_quantity__gte=0, loose_sticks__gte=0, unit_cost_cny__gte=0), name='day1_draft_inventory_values_gte_zero'),
+        ]
+
+
 class LedgerSequence(models.Model):
     objects = LedgerSequenceQuerySet.as_manager()
 
@@ -205,6 +403,7 @@ class LedgerSequence(models.Model):
 class LedgerTransaction(models.Model):
     class TransactionType(models.TextChoices):
         OPENING_BALANCE = 'opening_balance', '期初余额'
+        DAY1_OPENING = 'day1_opening', 'Day 1 期初资产'
         EXCHANGE = 'exchange', '换汇'
         TRANSFER = 'transfer', '同币种转账'
 
@@ -212,6 +411,11 @@ class LedgerTransaction(models.Model):
         SALES_RECEIPT = 'sales_receipt', '销售收款'
         SALES_TRANSPORT_COST = 'sales_transport_cost', '销售人肉费'
         SALES_REFUND = 'sales_refund', '销售退款'
+        PURCHASE_PAYMENT = 'purchase_payment', '采购付款'
+        PURCHASE_RECEIPT = 'purchase_receipt', '采购到货'
+        EXPENSE = 'expense', '经营费用'
+        DIVIDEND = 'dividend', '分红'
+        INVENTORY_ADJUSTMENT = 'inventory_adjustment', '库存调整'
     class Status(models.TextChoices):
         DRAFT = 'draft', '草稿'
         POSTED = 'posted', '已入账'
@@ -277,6 +481,16 @@ class LedgerPosting(models.Model):
         CUSTOMER_TRANSPORT_REVENUE = 'customer_transport_revenue', '客户人肉费收入'
         COST_OF_GOODS_SOLD = 'cost_of_goods_sold', '销售成本'
         TRANSPORT_EXPENSE = 'transport_expense', '人肉费用'
+        PURCHASE_IN_TRANSIT = 'purchase_in_transit', '在途采购'
+        SALARY_EXPENSE = 'salary_expense', '工资费用'
+        RENT_EXPENSE = 'rent_expense', '房租费用'
+        UTILITIES_EXPENSE = 'utilities_expense', '水电费用'
+        OTHER_EXPENSE = 'other_expense', '其他经营费用'
+        DIVIDEND_DISTRIBUTION = 'dividend_distribution', '分红分配'
+        INVENTORY_ADJUSTMENT_GAIN = 'inventory_adjustment_gain', '库存调整收益'
+        INVENTORY_ADJUSTMENT_LOSS = 'inventory_adjustment_loss', '库存调整损失'
+        RECONCILIATION_GAIN = 'reconciliation_gain', '对账收益'
+        RECONCILIATION_LOSS = 'reconciliation_loss', '对账损失'
     objects = LedgerPostingQuerySet.as_manager()
 
     transaction = models.ForeignKey(LedgerTransaction, on_delete=models.PROTECT, related_name='postings', verbose_name='交易')
@@ -380,3 +594,255 @@ class AccountReconciliation(models.Model):
 
     def delete(self, *args, **kwargs):
         raise LedgerMutationError('对账只能通过受控对账流程删除')
+
+class PurchasePayment(models.Model):
+    class Status(models.TextChoices):
+        POSTED = 'posted', '已入账'
+
+    objects = PurchasePaymentQuerySet.as_manager()
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.POSTED)
+    purchase_order = models.OneToOneField('cigars.PurchaseOrder', on_delete=models.PROTECT)
+    fund_account = models.ForeignKey(FundAccount, on_delete=models.PROTECT)
+    rub_amount = models.DecimalField(max_digits=22, decimal_places=2)
+    cny_cost = models.DecimalField(max_digits=22, decimal_places=2)
+    business_date = models.DateField()
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    ledger_transaction = models.OneToOneField(LedgerTransaction, on_delete=models.PROTECT)
+    idempotency_key = models.CharField(max_length=128, unique=True)
+    request_fingerprint = models.CharField(max_length=64)
+
+    class Meta:
+        base_manager_name = 'objects'
+        constraints = [
+            models.CheckConstraint(condition=Q(status='posted'), name='purchase_payment_status_posted'),
+            models.CheckConstraint(condition=Q(rub_amount__gte=0, cny_cost__gte=0), name='purchase_payment_amounts_nonnegative'),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.status != self.Status.POSTED:
+            raise ValidationError('采购付款状态必须为 posted')
+        if not self._state.adding:
+            raise LedgerMutationError('已入账采购付款不可修改')
+        fields = _concrete_fields(self, kwargs)
+        if not _scope_allows('purchase_payment', 'accounting.PurchasePayment', fields, self.operator):
+            raise LedgerMutationError('采购付款只能在受控入账作用域内创建')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise LedgerMutationError('已入账采购付款不可删除')
+
+
+class Expense(models.Model):
+    class Status(models.TextChoices):
+        POSTED = 'posted', '已入账'
+
+    class Category(models.TextChoices):
+        SALARY = 'salary', '工资'
+        RENT = 'rent', '房租'
+        UTILITIES = 'utilities', '水电'
+        OTHER = 'other', '其他'
+
+    objects = ExpenseQuerySet.as_manager()
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.POSTED)
+    category = models.CharField(max_length=20, choices=Category.choices)
+    fund_account = models.ForeignKey(FundAccount, on_delete=models.PROTECT)
+    original_amount = models.DecimalField(max_digits=22, decimal_places=8)
+    amount_cny = models.DecimalField(max_digits=22, decimal_places=2)
+    business_date = models.DateField()
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    ledger_transaction = models.OneToOneField(LedgerTransaction, on_delete=models.PROTECT)
+    idempotency_key = models.CharField(max_length=128, unique=True)
+    note = models.TextField(blank=True, default='')
+
+    class Meta:
+        base_manager_name = 'objects'
+        constraints = [
+            models.CheckConstraint(condition=Q(status='posted'), name='expense_status_posted'),
+            models.CheckConstraint(condition=Q(original_amount__gte=0, amount_cny__gte=0), name='expense_amounts_nonnegative'),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.status != self.Status.POSTED:
+            raise ValidationError('经营费用状态必须为 posted')
+        if not self._state.adding:
+            raise LedgerMutationError('已入账费用不可修改')
+        fields = _concrete_fields(self, kwargs)
+        if not _scope_allows('expense_post', 'accounting.Expense', fields, self.operator):
+            raise LedgerMutationError('经营费用只能在受控入账作用域内创建')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise LedgerMutationError('已入账费用不可删除')
+
+
+class Dividend(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = 'draft', '草稿'
+        POSTED = 'posted', '已入账'
+
+    objects = DividendQuerySet.as_manager()
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.DRAFT)
+    total_cny = models.DecimalField(max_digits=22, decimal_places=2)
+    partner_a_amount_cny = models.DecimalField(max_digits=22, decimal_places=2)
+    partner_b_amount_cny = models.DecimalField(max_digits=22, decimal_places=2)
+    partner_a_account = models.ForeignKey(FundAccount, on_delete=models.PROTECT, related_name='+', null=True, blank=True)
+    partner_b_account = models.ForeignKey(FundAccount, on_delete=models.PROTECT, related_name='+', null=True, blank=True)
+    business_date = models.DateField()
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    confirmed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    version = models.PositiveIntegerField(default=1)
+    confirm_idempotency_key = models.CharField(max_length=128, unique=True, null=True, blank=True)
+    confirm_request_fingerprint = models.CharField(max_length=64, null=True, blank=True)
+    warning_fingerprint = models.CharField(max_length=64, null=True, blank=True)
+    warning_ack = models.BooleanField(null=True, blank=True)
+    warning_code = models.CharField(max_length=64, blank=True, default='')
+    warning_retained_earnings_cny = models.DecimalField(max_digits=22, decimal_places=2, null=True, blank=True)
+    ledger_transaction = models.OneToOneField(LedgerTransaction, on_delete=models.PROTECT, null=True, blank=True)
+
+    class Meta:
+        base_manager_name = 'objects'
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(total_cny__gte=0, partner_a_amount_cny__gte=0, partner_b_amount_cny__gte=0),
+                name='dividend_amounts_nonnegative',
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        total = Decimal(str(self.total_cny))
+        partner_a = Decimal(str(self.partner_a_amount_cny))
+        partner_b = Decimal(str(self.partner_b_amount_cny))
+        if total != partner_a + partner_b:
+            raise ValidationError('分红两位合伙人金额必须精确合计总额')
+
+    def save(self, *args, **kwargs):
+        requested = kwargs.get('update_fields')
+        if requested is not None and not requested:
+            return None
+        fields = (
+            {field.name for field in self._meta.concrete_fields}
+            if requested is None else set(requested)
+        )
+        self.clean()
+        snapshot_names = {
+            'total_cny', 'partner_a_amount_cny', 'partner_b_amount_cny',
+            'partner_a_account', 'partner_b_account', 'business_date',
+            'created_by', 'updated_by',
+        }
+        persisted = (
+            type(self).objects.filter(pk=self.pk).values(
+                'status', 'version', *(f'{name}_id' if name.endswith('_by') or name.endswith('_account') else name for name in snapshot_names),
+            ).first()
+            if self.pk else None
+        )
+        if self.pk and persisted is None:
+            raise LedgerMutationError('分红记录已被删除或不存在，禁止 stale resurrection')
+        persisted_status = persisted['status'] if persisted else None
+        if persisted_status == self.Status.POSTED:
+            raise LedgerMutationError('已入账分红不可修改')
+        if self.status == self.Status.POSTED:
+            if self.confirmed_by_id is None:
+                raise ValidationError('已入账分红必须记录确认人')
+            if persisted_status is None:
+                if not _scope_allows(
+                    'dividend_confirm', 'accounting.Dividend', fields,
+                    self.confirmed_by,
+                ):
+                    raise LedgerMutationError('分红创建只能在受控作用域内完成')
+                return super().save(*args, **kwargs)
+            # Confirmation may not smuggle a draft business edit alongside the
+            # final confirmation fields, even when update_fields omits it.
+            for name in snapshot_names:
+                field_name = f'{name}_id' if name.endswith('_by') or name.endswith('_account') else name
+                if getattr(self, field_name) != persisted[field_name]:
+                    raise LedgerMutationError('分红确认不得同时修改业务快照字段')
+            confirm_fields = {
+                'status', 'ledger_transaction', 'confirmed_by', 'version',
+                'confirm_idempotency_key', 'confirm_request_fingerprint',
+            }
+            if not _scope_allows(
+                'dividend_confirm', 'accounting.Dividend', confirm_fields,
+                self.confirmed_by,
+            ):
+                raise LedgerMutationError('分红确认只能在受控入账作用域内完成')
+            expected_version = persisted['version'] + 1
+            if self.version != expected_version:
+                raise LedgerMutationError('分红版本冲突，拒绝确认')
+            affected = _conditional_update(
+                type(self).objects.filter(
+                    pk=self.pk,
+                    status=self.Status.DRAFT,
+                    version=persisted['version'],
+                ),
+                **_instance_update_values(self, confirm_fields),
+            )
+            if affected != 1:
+                raise LedgerMutationError('分红已被其他确认操作抢先更新')
+            return None
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk, status=self.Status.POSTED).exists():
+            raise LedgerMutationError('已入账分红不可删除')
+        return super().delete(*args, **kwargs)
+
+
+class PurchaseDraftAction(models.Model):
+    class ActionType(models.TextChoices):
+        CREATE = 'create', '创建'
+        UPDATE = 'update', '编辑'
+        CANCEL = 'cancel', '取消'
+
+    objects = DraftActionQuerySet.as_manager()
+    purchase_order = models.ForeignKey('cigars.PurchaseOrder', null=True, blank=True, on_delete=models.PROTECT)
+    action_type = models.CharField(max_length=12, choices=ActionType.choices)
+    idempotency_key = models.CharField(max_length=128, unique=True)
+    request_fingerprint = models.CharField(max_length=64)
+    result_version = models.PositiveIntegerField(null=True, blank=True)
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        base_manager_name = 'objects'
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise LedgerMutationError('采购草稿动作日志只允许追加')
+        fields = _concrete_fields(self, kwargs)
+        if not _scope_allows('purchase_draft_action', 'accounting.PurchaseDraftAction', fields, self.operator):
+            raise LedgerMutationError('采购草稿动作只能在受控作用域内追加')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise LedgerMutationError('采购草稿动作日志只允许追加')
+
+
+class DividendDraftAction(models.Model):
+    class ActionType(models.TextChoices):
+        CREATE = 'create', '创建'
+        UPDATE = 'update', '编辑'
+
+    objects = DraftActionQuerySet.as_manager()
+    dividend = models.ForeignKey(Dividend, null=True, blank=True, on_delete=models.PROTECT)
+    action_type = models.CharField(max_length=12, choices=ActionType.choices)
+    idempotency_key = models.CharField(max_length=128, unique=True)
+    request_fingerprint = models.CharField(max_length=64)
+    result_version = models.PositiveIntegerField(null=True, blank=True)
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        base_manager_name = 'objects'
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise LedgerMutationError('分红草稿动作日志只允许追加')
+        fields = _concrete_fields(self, kwargs)
+        if not _scope_allows('dividend_draft_action', 'accounting.DividendDraftAction', fields, self.operator):
+            raise LedgerMutationError('分红草稿动作只能在受控作用域内追加')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise LedgerMutationError('分红草稿动作日志只允许追加')

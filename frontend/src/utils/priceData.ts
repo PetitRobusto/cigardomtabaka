@@ -59,7 +59,7 @@ export function groupSnapshots(snapshots: PriceSnapshot[]): CigarGroup[] {
     }
     map[key].prices.push(s);
   });
-  let list = Object.values(map);
+  const list = Object.values(map);
   list.sort((a, b) => {
     const ai = BRANDS_ORDER.indexOf(a.brand);
     const bi = BRANDS_ORDER.indexOf(b.brand);

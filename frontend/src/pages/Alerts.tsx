@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Plus, Trash2, Power, PowerOff, AlertTriangle, TrendingDown, TrendingUp, Activity } from 'lucide-react';
+import { Bell, Plus, Trash2, Power, PowerOff, TrendingDown, TrendingUp, Activity } from 'lucide-react';
 import { fetchAlerts, createAlert, updateAlert, deleteAlert, fetchSources } from '../api';
 import { LoadingState } from '../components/shared/LoadingState';
 import { EmptyState } from '../components/shared/EmptyState';

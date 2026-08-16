@@ -11,7 +11,7 @@ import type {
 } from './types';
 import { writeWithIdempotency } from './api/idempotency';
 
-import type { AccountingActionsResponse, ExchangeActionPayload, PurchaseAction, PurchaseActionCreatePayload, PurchaseActionUpdatePayload, PurchasePayPayload, PurchaseReceivePayload, PurchaseCancelPayload, ExpenseActionPayload, DividendAction, DividendPreview, DividendCreatePayload, DividendUpdatePayload, DividendConfirmPayload, AccountingApiError } from './types';
+import type { AccountingActionsResponse, PurchaseAction, PurchaseActionCreatePayload, PurchaseActionUpdatePayload, PurchasePayPayload, PurchaseReceivePayload, PurchaseCancelPayload, ExpenseActionPayload, DividendAction, DividendPreview, DividendCreatePayload, DividendUpdatePayload, DividendConfirmPayload, AccountingApiError } from './types';
 function getCSRFToken(): string {
   const match = typeof document === 'undefined' ? null : document.cookie.match(/csrftoken=([^;]+)/);
   return match ? match[1] : '';
@@ -366,7 +366,7 @@ async function fetchGuideEndpoint(path: string, method: 'GET' | 'POST'): Promise
     credentials: 'same-origin',
     headers: { 'X-CSRFToken': getCSRFToken() },
   });
-  let data: GuideSummary & { error?: string } = {} as GuideSummary & { error?: string };
+  let data: GuideSummary & { error?: string };
   try {
     data = await response.json() as GuideSummary & { error?: string };
   } catch {

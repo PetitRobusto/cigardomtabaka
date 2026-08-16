@@ -58,13 +58,11 @@ function buildBarData(variants: Variant[]): BarDatum[] {
   const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
 
   // 找到最接近平均价的值
-  let closestPrice = prices[0];
   let closestDelta = Math.abs(prices[0] - avg);
   for (const p of prices) {
     const d = Math.abs(p - avg);
     if (d < closestDelta) {
       closestDelta = d;
-      closestPrice = p;
     }
   }
 

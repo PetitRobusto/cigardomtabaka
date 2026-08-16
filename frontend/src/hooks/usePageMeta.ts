@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
-import { usePageMetaContext, type BreadcrumbItem } from '../contexts/PageMetaContext';
+import { usePageMetaContext } from '../contexts/usePageMetaContext';
+import type { BreadcrumbItem } from '../contexts/PageMetaContext';
 
 interface PageMetaOptions {
   title: string;

@@ -2,39 +2,18 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Lock, Flame, AlertTriangle, Cigarette,
-  Package, CreditCard, MessageSquare, User, Banknote,
-  MapPin, Phone, MessageCircle, FileText, X, ImageIcon
+  Flame, AlertTriangle, Cigarette,
+  Package, CreditCard, MessageSquare, User,
+  MapPin, Phone, MessageCircle, FileText
 } from 'lucide-react';
 import { fetchPrivnote, verifyPrivnotePassword } from '../api';
 import { LoadingState } from '../components/shared/LoadingState';
 import { usePageMeta } from '../hooks/usePageMeta';
-import type { InventoryViewData, PaymentData, MessageData, QuoteData } from '../types';
+import type { InventoryViewData, PaymentData, MessageData, QuoteData, PrivnoteResponse } from '../types';
 
 const base = import.meta.env.BASE_URL;
 
 /* ── Contact Strip ── */
-function ContactStrip() {
-  return (
-    <div className="bg-accent-light border-b border-border px-6 py-3">
-      <div className="max-w-5xl mx-auto flex items-center gap-6 flex-wrap text-sm text-fg">
-        <span className="flex items-center gap-1.5">
-          <MapPin className="w-3.5 h-3.5 text-accent" />
-          Москва, Молодёжная ул. 3
-        </span>
-        <span className="flex items-center gap-1.5">
-          <Phone className="w-3.5 h-3.5 text-accent" />
-          +7 929 638-48-78
-        </span>
-        <span className="flex items-center gap-1.5">
-          <MessageCircle className="w-3.5 h-3.5 text-accent" />
-          WeChat: cigardomtabaka
-        </span>
-        <span className="ml-auto text-muted text-xs">Telegram / WhatsApp 同号</span>
-      </div>
-    </div>
-  );
-}
 
 /* ── Store Header (for payment/inventory/quote) ── */
 function StoreHeader() {
@@ -67,7 +46,7 @@ export default function PrivnoteViewPage() {
   const { token } = useParams<{ token: string }>();
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
-  const [verifiedData, setVerifiedData] = useState<any>(null);
+  const [verifiedData, setVerifiedData] = useState<PrivnoteResponse | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const { setMeta } = usePageMeta();
 

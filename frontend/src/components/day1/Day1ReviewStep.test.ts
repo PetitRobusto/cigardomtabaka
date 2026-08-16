@@ -2,7 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { emptyDay1Draft } from '../../features/day1/day1State';
-import Day1ReviewStep, { createDay1DialogFocusController, day1DialogFocusIndexForActiveElement, nextDay1DialogFocusIndex, restoreDay1DialogTriggerFocus } from './Day1ReviewStep';
+import Day1ReviewStep from './Day1ReviewStep';
+import { createDay1DialogFocusController, day1DialogFocusIndexForActiveElement, nextDay1DialogFocusIndex, restoreDay1DialogTriggerFocus } from './Day1ReviewStep.helpers';
 
 describe('Day1 confirmation dialog keyboard loop', () => {
   it('wraps Tab and Shift+Tab within dialog focusable controls', () => {

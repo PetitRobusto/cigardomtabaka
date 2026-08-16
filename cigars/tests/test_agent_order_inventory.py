@@ -8,7 +8,7 @@ from django.test import Client, TestCase, TransactionTestCase
 from django.utils import timezone
 from django.db import close_old_connections
 
-from accounting.models import LedgerTransaction
+from accounting.models import FundAccount, LedgerTransaction
 from accounting.services import LedgerError
 from accounting.mutation_scope import ledger_mutation_scope
 from cigars.models import (
@@ -966,6 +966,10 @@ class AgentCommandApiTest(TestCase):
             status=Day1Initialization.Status.COMPLETED,
             business_date=date(2026, 8, 10), completed_by=self.operator,
         )
+        self.cny_account = FundAccount.objects.create(
+            name='Agent 人民币账户', currency=FundAccount.Currency.CNY,
+            custodian=self.operator, creation_idempotency_key='agent-cny-account',
+        )
 
     def body(self, key='idem-1', quantity=4):
         return {
@@ -977,6 +981,7 @@ class AgentCommandApiTest(TestCase):
                 'agent_request_id': 'req-api',
             },
             'customer_name': '张三',
+            'business_date': '2026-08-10',
             'items': [{'cigar_id': self.cigar.id, 'quantity': quantity, 'unit_price': 180}],
             'note': 'API 创建',
         }
@@ -986,21 +991,90 @@ class AgentCommandApiTest(TestCase):
             order.save(update_fields=['status', 'paid_cny_cost', 'paid_at'])
 
     def post_json(self, path, body):
-        return self.client.post(path, data=json.dumps(body), content_type='application/json')
+        return self.client.post(
+            path, data=json.dumps(body), content_type='application/json',
+        )
 
-    def test_create_order_before_day1_returns_replayable_409_json(self):
+    def test_sales_command_rejects_non_object_inputs(self):
+        response = self.post_json('/api/agent/orders/create/', [])
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['code'], 'order_service_error')
+
+        body = self.body(key='invalid-agent-object')
+        body['agent'] = 'codex'
+        response = self.post_json('/api/agent/orders/create/', body)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['code'], 'order_service_error')
+
+        body = self.body(key='missing-operator')
+        body.pop('operator_id')
+        response = self.post_json('/api/agent/orders/create/', body)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('operator_id', response.json()['error'])
+
+        body = self.body(key='float-operator')
+        body['operator_id'] = 1.5
+        response = self.post_json('/api/agent/orders/create/', body)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('正整数', response.json()['error'])
+
+    def test_sales_write_requires_business_date(self):
+        body = self.body(key='missing-sales-business-date')
+        body.pop('business_date')
+
+        response = self.post_json('/api/agent/orders/create/', body)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['code'], 'order_service_error')
+        self.assertFalse(SalesOrder.objects.exists())
+
+
+    def test_missing_order_returns_replayable_404_json(self):
+        body = {
+            'idempotency_key': 'missing-sales-order',
+            'operator_id': self.operator.id,
+            'agent': self.body()['agent'],
+            'sales_order_id': 999999,
+            'business_date': '2026-08-10',
+        }
+
+        first = self.post_json('/api/agent/orders/confirm/', body)
+        replay = self.post_json('/api/agent/orders/confirm/', body)
+
+        self.assertEqual(first.status_code, 404)
+        self.assertEqual(first.json()['code'], 'sales_order_not_found')
+        self.assertEqual(replay.json(), first.json())
+        self.assertEqual(
+            IdempotencyRecord.objects.get(key='missing-sales-order').status_code,
+            404,
+        )
+
+    def test_confirm_order_before_day1_returns_replayable_409_json(self):
         from accounting.models import Day1Initialization
+        created = self.post_json(
+            '/api/agent/orders/create/', self.body(key='agent-day1-create'),
+        )
+        order_id = created.json()['sales_order']['id']
         Day1Initialization.objects.update(status=Day1Initialization.Status.DRAFT)
-        body = self.body(key='agent-day1-gate')
+        body = {
+            'idempotency_key': 'agent-day1-confirm',
+            'operator_id': self.operator.id,
+            'agent': self.body()['agent'],
+            'sales_order_id': order_id,
+            'business_date': '2026-08-10',
+        }
 
-        first = self.post_json('/api/agent/orders/create/', body)
-        replay = self.post_json('/api/agent/orders/create/', body)
+        first = self.post_json('/api/agent/orders/confirm/', body)
+        replay = self.post_json('/api/agent/orders/confirm/', body)
 
         self.assertEqual(first.status_code, 409)
         self.assertEqual(first.json()['code'], 'day1_incomplete')
         self.assertEqual(replay.status_code, 409)
         self.assertEqual(replay.json(), first.json())
-        self.assertEqual(IdempotencyRecord.objects.get(key='agent-day1-gate').status_code, 409)
+        self.assertEqual(
+            IdempotencyRecord.objects.get(key='agent-day1-confirm').status_code,
+            409,
+        )
 
     def test_adjust_stock_blank_reason_returns_400_json(self):
         body = {
@@ -1023,7 +1097,7 @@ class AgentCommandApiTest(TestCase):
         self.assertEqual(self.batch.remaining, 10)
         self.assertFalse(StockMovement.objects.exists())
 
-    def test_idempotent_retry_does_not_reserve_twice(self):
+    def test_idempotent_retry_creates_one_draft_without_reserving(self):
         body = self.body()
         first = self.post_json('/api/agent/orders/create/', body)
         second = self.post_json('/api/agent/orders/create/', body)
@@ -1031,23 +1105,43 @@ class AgentCommandApiTest(TestCase):
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 200)
         self.assertEqual(first.json(), second.json())
+        self.assertEqual(first.json()['sales_order']['fulfillment_status'], 'draft')
         self.batch.refresh_from_db()
-        self.assertEqual(self.batch.remaining, 6)
+        self.assertEqual(self.batch.remaining, 10)
+        self.assertEqual(SalesOrder.objects.count(), 1)
         self.assertEqual(IdempotencyRecord.objects.count(), 1)
-        self.assertEqual(StockMovement.objects.filter(movement_type='reserve').count(), 1)
+        self.assertFalse(StockMovement.objects.exists())
 
     def test_idempotency_conflict_returns_409(self):
-        first = self.post_json('/api/agent/orders/create/', self.body(key='idem-conflict', quantity=4))
-        second = self.post_json('/api/agent/orders/create/', self.body(key='idem-conflict', quantity=5))
+        first = self.post_json(
+            '/api/agent/orders/create/',
+            self.body(key='idem-conflict', quantity=4),
+        )
+        second = self.post_json(
+            '/api/agent/orders/create/',
+            self.body(key='idem-conflict', quantity=5),
+        )
 
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 409)
         self.batch.refresh_from_db()
-        self.assertEqual(self.batch.remaining, 6)
+        self.assertEqual(self.batch.remaining, 10)
+        self.assertEqual(SalesOrder.objects.count(), 1)
 
-    def test_idempotent_business_error_is_replayed(self):
-        body = self.body(key='idem-error', quantity=11)
-        first = self.post_json('/api/agent/orders/create/', body)
+    def test_idempotent_confirm_error_is_replayed(self):
+        created = self.post_json(
+            '/api/agent/orders/create/',
+            self.body(key='idem-error-create', quantity=11),
+        )
+        order_id = created.json()['sales_order']['id']
+        body = {
+            'idempotency_key': 'idem-error-confirm',
+            'operator_id': self.operator.id,
+            'agent': self.body()['agent'],
+            'sales_order_id': order_id,
+            'business_date': '2026-08-10',
+        }
+        first = self.post_json('/api/agent/orders/confirm/', body)
         self.batch.positive_adjustment_quantity = 10
         self.batch.positive_adjustment_cost_cny = Decimal('1000.00')
         self.batch.remaining = 20
@@ -1063,20 +1157,194 @@ class AgentCommandApiTest(TestCase):
             'available_box_quantity', 'available_stick_quantity',
             'physical_box_quantity', 'physical_stick_quantity',
         ])
-        second = self.post_json('/api/agent/orders/create/', body)
+        second = self.post_json('/api/agent/orders/confirm/', body)
 
         self.assertEqual(first.status_code, 400)
+        self.assertEqual(first.json()['code'], 'insufficient_stock')
         self.assertEqual(second.status_code, 400)
-        self.batch.refresh_from_db()
-        self.assertEqual(self.batch.quantity, 10)
-        self.assertEqual(self.batch.positive_adjustment_quantity, 10)
-        self.assertEqual(self.batch.positive_adjustment_cost_cny, Decimal('1000.00'))
-        self.assertEqual(self.batch.physical_remaining, 20)
-        self.assertEqual(self.batch.remaining, 20)
-        self.assertEqual(self.batch.remaining_cost_cny, Decimal('2000.00'))
         self.assertEqual(first.json(), second.json())
         self.assertFalse(StockAllocation.objects.exists())
-        self.assertEqual(IdempotencyRecord.objects.get(key='idem-error').status_code, 400)
+        self.assertEqual(
+            IdempotencyRecord.objects.get(key='idem-error-confirm').status_code,
+            400,
+        )
+
+
+
+    def test_agent_can_update_confirm_cancel_and_query_order(self):
+        created = self.post_json(
+            '/api/agent/orders/create/',
+            self.body(key='agent-flow-create', quantity=4),
+        )
+        order_id = created.json()['sales_order']['id']
+        updated_body = self.body(key='agent-flow-update', quantity=3)
+        updated_body['sales_order_id'] = order_id
+        updated_body['customer_name'] = '李四'
+        updated = self.post_json('/api/agent/orders/update/', updated_body)
+
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.json()['sales_order']['customer_name'], '李四')
+        self.assertEqual(updated.json()['sales_order']['items'][0]['quantity'], 3)
+        self.assertEqual(self.batch.remaining, 10)
+
+        order_number = updated.json()['sales_order']['order_number']
+        listed = self.client.get(
+            '/api/agent/orders/',
+            {'q': order_number, 'fulfillment_status': 'draft'},
+        )
+        detail = self.client.get(f'/api/agent/orders/{order_id}/')
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(len(listed.json()['results']), 1)
+        self.assertEqual(detail.json()['sales_order']['id'], order_id)
+
+        confirmed = self.post_json('/api/agent/orders/confirm/', {
+            'idempotency_key': 'agent-flow-confirm',
+            'operator_id': self.operator.id,
+            'agent': self.body()['agent'],
+            'sales_order_id': order_id,
+            'business_date': '2026-08-10',
+            'note': '确认并预留',
+        })
+        self.assertEqual(confirmed.status_code, 200)
+        self.assertEqual(
+            confirmed.json()['sales_order']['fulfillment_status'], 'confirmed',
+        )
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.remaining, 7)
+        reserve = StockMovement.objects.get(movement_type='reserve')
+        self.assertEqual(reserve.agent_name, 'codex')
+        self.assertEqual(reserve.command_name, 'confirm_sales_order')
+        event = OrderEvent.objects.get(command_name='confirm_sales_order')
+        self.assertEqual(event.metadata['business_date'], '2026-08-10')
+
+        cancelled = self.post_json('/api/agent/orders/cancel/', {
+            'idempotency_key': 'agent-flow-cancel',
+            'operator_id': self.operator.id,
+            'agent': self.body()['agent'],
+            'sales_order_id': order_id,
+            'business_date': '2026-08-10',
+            'note': '客户取消',
+        })
+        self.assertEqual(cancelled.status_code, 200)
+        self.assertEqual(
+            cancelled.json()['sales_order']['fulfillment_status'], 'cancelled',
+        )
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.remaining, 10)
+        release = StockMovement.objects.get(movement_type='release_reservation')
+        self.assertEqual(release.agent_name, 'codex')
+
+    def test_agent_can_ship_receive_record_transport_and_report(self):
+        created = self.post_json(
+            '/api/agent/orders/create/',
+            self.body(key='agent-complete-create', quantity=2),
+        )
+        order_id = created.json()['sales_order']['id']
+        common = {
+            'operator_id': self.operator.id,
+            'agent': self.body()['agent'],
+            'sales_order_id': order_id,
+            'business_date': '2026-08-10',
+        }
+        self.assertEqual(self.post_json('/api/agent/orders/confirm/', {
+            **common, 'idempotency_key': 'agent-complete-confirm',
+        }).status_code, 200)
+
+        missing_date = self.post_json('/api/agent/orders/ship/', {
+            **common, 'idempotency_key': 'agent-ship-missing-date',
+            'business_date': '',
+        })
+        self.assertEqual(missing_date.status_code, 400)
+        self.assertEqual(missing_date.json()['code'], 'order_service_error')
+        self.assertFalse(SalesShipment.objects.exists())
+
+        shipped = self.post_json('/api/agent/orders/ship/', {
+            **common, 'idempotency_key': 'agent-complete-ship',
+            'business_date': '2026-08-10', 'note': '实际出库',
+        })
+        self.assertEqual(shipped.status_code, 200)
+        self.assertEqual(
+            shipped.json()['sales_order']['fulfillment_status'], 'shipped',
+        )
+        ship_movement = StockMovement.objects.get(movement_type='ship')
+        self.assertEqual(ship_movement.agent_name, 'codex')
+        self.assertEqual(ship_movement.agent_run_id, 'run-api')
+
+        received = self.post_json('/api/agent/orders/receive/', {
+            **common, 'idempotency_key': 'agent-complete-receive',
+            'business_date': '2026-08-10', 'amount_cny': '360.00',
+            'fund_account_id': self.cny_account.id,
+        })
+        self.assertEqual(received.status_code, 200)
+        self.assertEqual(received.json()['sales_order']['payment_status'], 'paid')
+
+        transport = self.post_json('/api/agent/orders/transport-cost/', {
+            **common, 'idempotency_key': 'agent-complete-transport',
+            'business_date': '2026-08-10', 'actual_cost_cny': '10.00',
+            'fund_account_id': self.cny_account.id, 'note': '人肉支出',
+        })
+        self.assertEqual(transport.status_code, 200)
+        self.assertEqual(
+            transport.json()['sales_order']['contribution_profit'], 150,
+        )
+
+        report = self.client.get('/api/agent/reports/basic/')
+        self.assertEqual(report.status_code, 200)
+        payload = report.json()
+        self.assertEqual(payload['orders']['fulfillment']['shipped'], 1)
+        self.assertEqual(payload['orders']['payment']['paid'], 1)
+        self.assertEqual(payload['sales']['shipped_amount_due_cny'], 360)
+        self.assertEqual(payload['sales']['fifo_cost_cny'], 200)
+        self.assertEqual(payload['sales']['contribution_profit_cny'], 150)
+        self.assertEqual(payload['sales']['received_cny'], 360)
+        self.assertEqual(payload['sales']['refunded_cny'], 0)
+        self.assertEqual(
+            payload['recent_agent_commands'][0]['agent_name'], 'codex',
+        )
+
+    def test_agent_can_refund_cancelled_prepayment_and_old_route_is_gone(self):
+        self.assertEqual(
+            self.post_json('/api/agent/orders/confirm-payment/', {}).status_code,
+            404,
+        )
+        created = self.post_json(
+            '/api/agent/orders/create/',
+            self.body(key='agent-refund-create', quantity=1),
+        )
+        order_id = created.json()['sales_order']['id']
+        common = {
+            'operator_id': self.operator.id,
+            'agent': self.body()['agent'],
+            'sales_order_id': order_id,
+            'business_date': '2026-08-10',
+        }
+        self.assertEqual(self.post_json('/api/agent/orders/confirm/', {
+            **common, 'idempotency_key': 'agent-refund-confirm',
+        }).status_code, 200)
+        self.assertEqual(self.post_json('/api/agent/orders/receive/', {
+            **common, 'idempotency_key': 'agent-refund-receive',
+            'business_date': '2026-08-10', 'amount_cny': '180.00',
+            'fund_account_id': self.cny_account.id,
+        }).status_code, 200)
+        cancelled = self.post_json('/api/agent/orders/cancel/', {
+            **common, 'idempotency_key': 'agent-refund-cancel',
+        })
+        self.assertEqual(
+            cancelled.json()['sales_order']['payment_status'], 'refund_pending',
+        )
+
+        refunded = self.post_json('/api/agent/orders/refund/', {
+            **common, 'idempotency_key': 'agent-refund-fact',
+            'business_date': '2026-08-10',
+        })
+        self.assertEqual(refunded.status_code, 200)
+        self.assertEqual(
+            refunded.json()['sales_order']['payment_status'], 'refunded',
+        )
+        report = self.client.get('/api/agent/reports/basic/').json()
+        self.assertEqual(report['sales']['received_cny'], 180)
+        self.assertEqual(report['sales']['refunded_cny'], 180)
+        self.assertEqual(report['sales']['net_received_cny'], 0)
 
 
 class AgentPurchaseReceivingApiTest(TestCase):
@@ -1457,7 +1725,7 @@ class CanonicalPurchaseMirrorConcurrencyTest(TransactionTestCase):
             }],
         }
 
-    def _concurrent_posts(self, bodies):
+    def _concurrent_posts(self, bodies, path='/api/agent/purchase-orders/create/'):
         barrier = threading.Barrier(len(bodies))
         results = [None] * len(bodies)
 
@@ -1467,8 +1735,7 @@ class CanonicalPurchaseMirrorConcurrencyTest(TransactionTestCase):
                 barrier.wait(timeout=10)
                 client = Client()
                 response = client.post(
-                    '/api/agent/purchase-orders/create/',
-                    data=json.dumps(body), content_type='application/json',
+                    path, data=json.dumps(body), content_type='application/json',
                     HTTP_X_TELEGRAM_ID='mirror-concurrency-telegram',
                 )
                 results[index] = (response.status_code, response.json())
@@ -1486,12 +1753,42 @@ class CanonicalPurchaseMirrorConcurrencyTest(TransactionTestCase):
         self.assertTrue(all(not isinstance(result, Exception) for result in results), results)
         return results
 
+    def _sales_body(self):
+        return {
+            'idempotency_key': 'sales-mirror-concurrent',
+            'operator_id': self.operator.id,
+            'agent': {
+                'agent_name': 'codex', 'agent_run_id': 'sales-mirror-run',
+                'agent_request_id': 'sales-mirror-request',
+            },
+            'business_date': '2026-08-10',
+            'customer_name': '并发客户',
+            'items': [{
+                'cigar_id': self.cigar.id, 'quantity': 1, 'unit_price': '100.00',
+            }],
+        }
+
     def test_same_key_concurrent_create_is_one_success_and_one_replay(self):
         results = self._concurrent_posts([self._body(), self._body()])
         self.assertEqual([status for status, _ in results], [200, 200])
         self.assertEqual(results[0][1], results[1][1])
         self.assertEqual(PurchaseOrder.objects.count(), 1)
         self.assertEqual(IdempotencyRecord.objects.filter(key='mirror-concurrent').count(), 1)
+
+    def test_same_key_concurrent_sales_draft_is_created_once(self):
+        body = self._sales_body()
+        results = self._concurrent_posts(
+            [body, body], path='/api/agent/orders/create/',
+        )
+        self.assertEqual([status for status, _ in results], [200, 200])
+        self.assertEqual(results[0][1], results[1][1])
+        self.assertEqual(SalesOrder.objects.count(), 1)
+        self.assertEqual(
+            IdempotencyRecord.objects.filter(
+                key='sales-mirror-concurrent',
+            ).count(),
+            1,
+        )
 
     def test_different_body_same_key_concurrent_create_is_stable_conflict(self):
         results = self._concurrent_posts([self._body(quantity=25), self._body(quantity=50)])

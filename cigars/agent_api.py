@@ -1,15 +1,17 @@
-"""Command-style API for agents.
+"""面向 Agent 的业务命令接口。
 
-The API intentionally exposes business commands instead of model CRUD.
+接口只暴露业务动作，不允许 Agent 直接修改模型。
 """
 import hashlib
 import json
-from decimal import Decimal, InvalidOperation
+import re
 from datetime import date
+from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 from accounting.business_time import moscow_business_date
 from accounting.guards import Day1IncompleteError
+from accounting.models import FundAccount
 from accounting.services import LedgerError
 from accounting.services import _acquire_sqlite_writer_gate, _retry_sqlite_locked
 from accounting.purchase_actions import PurchaseActionError, canonical_purchase_item, normalize_legacy_purchase_item
@@ -27,6 +29,9 @@ from .models import (
     PurchaseBatch,
     SalesOrder,
     SalesOrderItem,
+    SalesReceipt,
+    SalesRefund,
+    SalesShipment,
     StockMovement,
     Supplier,
     User,
@@ -37,14 +42,19 @@ from .services import (
     InsufficientStockError,
     OrderServiceError,
     adjust_stock,
-    cancel_sales_order,
-    confirm_payment,
+    cancel_confirmed_sales_order,
+    confirm_sales_order,
     create_purchase_order,
-    create_sales_order,
+    create_sales_order_draft,
     get_stock_summary,
     receive_purchase_order,
     serialize_purchase_order,
     serialize_sales_order,
+    update_sales_order_draft,
+)
+from .sales_accounting import (
+    receive_sales_order_payment, record_sales_transport_cost,
+    refund_sales_order_payment, ship_sales_order,
 )
 
 
@@ -54,9 +64,12 @@ def _json_response(payload, status=200):
 
 def _load_json(request):
     try:
-        return json.loads(request.body.decode('utf-8') or '{}')
+        body = json.loads(request.body.decode('utf-8') or '{}')
     except (UnicodeDecodeError, json.JSONDecodeError):
         raise OrderServiceError('请求体必须是 JSON')
+    if not isinstance(body, dict):
+        raise OrderServiceError('请求体必须是 JSON 对象')
+    return body
 
 
 def _canonical_body(body):
@@ -68,21 +81,25 @@ def _request_hash(body):
 
 
 def _resolve_operator(request, body):
+    # 认证只决定调用权限；operator_id 单独记录业务责任人。
     raw_operator_id = body.get('operator_id')
-    if raw_operator_id:
-        try:
-            return User.objects.get(id=int(raw_operator_id))
-        except (TypeError, ValueError, User.DoesNotExist):
-            raise OrderServiceError('operator_id 不存在')
-    if request.user.is_authenticated and request.user.is_staff:
-        return request.user
-    tg_id = request.headers.get('X-Telegram-ID', '').strip()
-    if tg_id:
-        try:
-            return User.objects.get(telegram_id=tg_id, is_staff=True)
-        except User.DoesNotExist:
-            pass
-    raise OrderServiceError('必须提供真实 operator_id')
+    if raw_operator_id in (None, ''):
+        raise OrderServiceError('必须提供真实 operator_id')
+    if type(raw_operator_id) is int:
+        operator_id = raw_operator_id
+    elif (
+        isinstance(raw_operator_id, str)
+        and raw_operator_id.strip().isdigit()
+    ):
+        operator_id = int(raw_operator_id.strip())
+    else:
+        raise OrderServiceError('operator_id 必须是正整数')
+    if operator_id <= 0:
+        raise OrderServiceError('operator_id 必须是正整数')
+    try:
+        return User.objects.get(id=operator_id)
+    except User.DoesNotExist:
+        raise OrderServiceError('operator_id 不存在')
 
 
 def _purchase_error_status(code):
@@ -125,7 +142,7 @@ def _order_service_error_result(exc):
     """兼容服务携带采购 code 时，沿用 canonical HTTP 错误协议。"""
     if exc.code:
         return _purchase_error_body(exc), _purchase_error_status(exc.code)
-    return {'error': str(exc), 'details': exc.details}, 400
+    return {'error': str(exc), 'code': 'order_service_error', 'details': exc.details}, 400
 
 
 def _business_date_from_body(body):
@@ -140,6 +157,8 @@ def _business_date_from_body(body):
 
 def _agent_context(body, command_name):
     agent = body.get('agent') or {}
+    if not isinstance(agent, dict):
+        raise OrderServiceError('agent 必须是 JSON 对象')
     idempotency_key = str(body.get('idempotency_key') or '').strip()
     context = AgentContext.from_mapping(
         agent,
@@ -168,27 +187,47 @@ def _idempotent_command(request, command_name, handler, *, canonical_action=Fals
         try:
             with transaction.atomic():
                 _acquire_sqlite_writer_gate()
-                record = IdempotencyRecord.objects.select_for_update().filter(
-                    key=context.idempotency_key,
-                ).first()
-                if record is not None:
-                    if record.command_name != command_name or record.request_hash != body_hash:
+                # 先占用幂等键，再执行业务动作；并发请求只能有一个创建者。
+                record, created = (
+                    IdempotencyRecord.objects.select_for_update().get_or_create(
+                        key=context.idempotency_key,
+                        defaults={
+                            'command_name': command_name,
+                            'request_hash': body_hash,
+                            'request_body': body,
+                            'response_body': {},
+                            'status_code': 202,
+                            'operator': operator,
+                            'agent_name': context.agent_name,
+                            'agent_run_id': context.agent_run_id,
+                            'agent_request_id': context.agent_request_id,
+                        },
+                    )
+                )
+                if not created:
+                    if (
+                        record.command_name != command_name
+                        or record.request_hash != body_hash
+                    ):
                         return _json_response({
-                            'error': 'idempotency_conflict', 'code': 'idempotency_conflict',
-                            'details': {'idempotency_key': context.idempotency_key},
+                            'error': 'idempotency_conflict',
+                            'code': 'idempotency_conflict',
+                            'details': {
+                                'idempotency_key': context.idempotency_key,
+                            },
                         }, status=409)
-                    return _json_response(record.response_body, status=record.status_code)
-                if record is None:
-                    record = IdempotencyRecord.objects.create(
-                        key=context.idempotency_key, command_name=command_name,
-                        request_hash=body_hash, request_body=body,
-                        response_body={}, status_code=202, operator=operator,
-                        agent_name=context.agent_name, agent_run_id=context.agent_run_id,
-                        agent_request_id=context.agent_request_id,
+                    return _json_response(
+                        record.response_body, status=record.status_code,
                     )
                 try:
                     response_body = handler(body, operator, context)
                     status_code = 200
+                except InsufficientStockError as exc:
+                    response_body = {
+                        'error': str(exc), 'code': 'insufficient_stock',
+                        'details': exc.details,
+                    }
+                    status_code = 400
                 except PurchaseActionError as exc:
                     response_body = _purchase_error_body(exc)
                     status_code = _purchase_error_status(exc.code)
@@ -196,6 +235,13 @@ def _idempotent_command(request, command_name, handler, *, canonical_action=Fals
                     response_body, status_code = _day1_error_result(exc)
                 except LedgerError as exc:
                     response_body, status_code = _ledger_error_result(exc)
+                except SalesOrder.DoesNotExist:
+                    response_body = {
+                        'error': '销售单不存在',
+                        'code': 'sales_order_not_found',
+                        'details': {},
+                    }
+                    status_code = 404
                 except OrderServiceError as exc:
                     response_body, status_code = _order_service_error_result(exc)
                 IdempotencyRecord.objects.filter(pk=record.pk).update(
@@ -230,7 +276,10 @@ def _idempotent_command(request, command_name, handler, *, canonical_action=Fals
             response_body = handler(body, operator, context)
             status_code = 200
         except InsufficientStockError as exc:
-            response_body = {'error': str(exc), 'details': exc.details}
+            response_body = {
+                'error': str(exc), 'code': 'insufficient_stock',
+                'details': exc.details,
+            }
             status_code = 400
         except PurchaseActionError as exc:
             response_body = _purchase_error_body(exc)
@@ -242,7 +291,10 @@ def _idempotent_command(request, command_name, handler, *, canonical_action=Fals
         except OrderServiceError as exc:
             response_body, status_code = _order_service_error_result(exc)
         except SalesOrder.DoesNotExist:
-            response_body = {'error': '销售单不存在'}
+            response_body = {
+                'error': '销售单不存在', 'code': 'sales_order_not_found',
+                'details': {},
+            }
             status_code = 404
 
         IdempotencyRecord.objects.create(
@@ -280,6 +332,45 @@ def _stock_for_cigar(cigar):
         })
         total += batch.remaining
     return {'available_stock': total, 'batches': batches}
+
+
+def _sales_orders_queryset():
+    # 列表和详情共用预载，避免序列化每张订单时重复查询。
+    return SalesOrder.objects.select_related(
+        'customer', 'sales_shipment', 'sales_receipt', 'sales_refund',
+        'sales_transport_cost',
+    ).prefetch_related('items__cigar', 'items__allocations__purchase_batch')
+
+
+def _sales_order_response(order):
+    # 所有命令返回同一销售单结构，避免动作间字段含义漂移。
+    return {'sales_order': serialize_sales_order(order)}
+
+
+def _sales_note(body):
+    # 备注必须保留文本语义，禁止静默转换列表或对象。
+    value = body.get('note', '')
+    if not isinstance(value, str):
+        raise OrderServiceError('note 必须是字符串', details={'note': '必须是字符串'})
+    return value.strip()
+
+
+def _required_business_date(body):
+    # 出库和资金事实必须明确归属业务日，不使用服务器当前日期兜底。
+    if not body.get('business_date'):
+        raise OrderServiceError('必须提供 business_date')
+    return _business_date_from_body(body)
+
+
+def _fund_account_from_body(body):
+    # 此处只解析账户；币种和启用状态由业务服务再次校验。
+    account_id = body.get('fund_account_id')
+    if type(account_id) is not int or account_id <= 0:
+        raise OrderServiceError('fund_account_id 必须是正整数')
+    try:
+        return FundAccount.objects.get(pk=account_id)
+    except FundAccount.DoesNotExist:
+        raise OrderServiceError('资金账户不存在')
 
 
 @staff_required
@@ -444,61 +535,214 @@ def receive_purchase_order_command(request):
 @csrf_exempt
 @staff_required
 def create_sales_order_command(request):
+    # 创建仅生成可编辑草稿，不预留库存。
     if request.method != 'POST':
         return _json_response({'error': 'Method not allowed'}, status=405)
 
     def handler(body, operator, context):
-        order = create_sales_order(
-            items=body.get('items'),
-            operator=operator,
+        order = create_sales_order_draft(
+            items=body.get('items'), operator=operator,
             customer_id=body.get('customer_id'),
             customer_name=str(body.get('customer_name') or '').strip(),
             payment_method_id=body.get('payment_method_id'),
             payment_manual=body.get('payment_manual') or {},
             customer_transport_fee_cny=body.get('customer_transport_fee_cny', 0),
             transport_payer=body.get('transport_payer'),
-            note=str(body.get('note') or '').strip(),
-            agent_context=context,
+            note=_sales_note(body), agent_context=context,
+            business_date=_required_business_date(body),
         )
-        return {'sales_order': serialize_sales_order(order)}
+        return _sales_order_response(order)
 
-    return _idempotent_command(request, 'create_sales_order', handler)
+    return _idempotent_command(request, 'create_sales_order_draft', handler, canonical_action=True)
 
 
 @csrf_exempt
 @staff_required
-def confirm_payment_command(request):
+def update_sales_order_command(request):
+    # 草稿更新采用整单快照替换；确认后的订单不可修改。
     if request.method != 'POST':
         return _json_response({'error': 'Method not allowed'}, status=405)
 
     def handler(body, operator, context):
-        order = confirm_payment(
-            sales_order_id=body.get('sales_order_id'),
-            operator=operator,
-            note=str(body.get('note') or '').strip(),
-            agent_context=context,
+        order = update_sales_order_draft(
+            sales_order_id=body.get('sales_order_id'), items=body.get('items'),
+            operator=operator, customer_id=body.get('customer_id'),
+            customer_name=str(body.get('customer_name') or '').strip(),
+            payment_method_id=body.get('payment_method_id'),
+            payment_manual=body.get('payment_manual') or {},
+            customer_transport_fee_cny=body.get('customer_transport_fee_cny', 0),
+            transport_payer=body.get('transport_payer'),
+            note=_sales_note(body), agent_context=context,
+            business_date=_required_business_date(body),
         )
-        return {'sales_order': serialize_sales_order(order)}
+        return _sales_order_response(order)
 
-    return _idempotent_command(request, 'confirm_payment', handler)
+    return _idempotent_command(request, 'update_sales_order_draft', handler, canonical_action=True)
+
+
+@csrf_exempt
+@staff_required
+def confirm_sales_order_command(request):
+    # 确认订单是预留库存的唯一销售入口。
+    if request.method != 'POST':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+
+    def handler(body, operator, context):
+        order = confirm_sales_order(
+            sales_order_id=body.get('sales_order_id'), operator=operator,
+            note=_sales_note(body), agent_context=context,
+            business_date=_required_business_date(body),
+        )
+        return _sales_order_response(order)
+
+    return _idempotent_command(request, 'confirm_sales_order', handler, canonical_action=True)
 
 
 @csrf_exempt
 @staff_required
 def cancel_sales_order_command(request):
+    # 取消仅处理未出库订单，并释放全部预留。
     if request.method != 'POST':
         return _json_response({'error': 'Method not allowed'}, status=405)
 
     def handler(body, operator, context):
-        order = cancel_sales_order(
-            sales_order_id=body.get('sales_order_id'),
-            operator=operator,
-            note=str(body.get('note') or '').strip(),
+        order = cancel_confirmed_sales_order(
+            sales_order_id=body.get('sales_order_id'), operator=operator,
+            note=_sales_note(body), agent_context=context,
+            business_date=_required_business_date(body),
+        )
+        return _sales_order_response(order)
+
+    return _idempotent_command(request, 'cancel_confirmed_sales_order', handler, canonical_action=True)
+
+
+@csrf_exempt
+@staff_required
+def ship_sales_order_command(request):
+    # 出库确认物理库存和 FIFO 成本，与收款相互独立。
+    if request.method != 'POST':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+
+    def handler(body, operator, context):
+        order = ship_sales_order(
+            order_id=body.get('sales_order_id'),
+            business_date=_required_business_date(body), operator=operator,
+            idempotency_key=context.idempotency_key, note=_sales_note(body),
             agent_context=context,
         )
-        return {'sales_order': serialize_sales_order(order)}
+        return _sales_order_response(order)
 
-    return _idempotent_command(request, 'cancel_sales_order', handler)
+    return _idempotent_command(request, 'ship_sales_order', handler, canonical_action=True)
+
+
+@csrf_exempt
+@staff_required
+def receive_sales_order_payment_command(request):
+    # 一张订单只记录一次人民币整单收款。
+    if request.method != 'POST':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+
+    def handler(body, operator, context):
+        receipt = receive_sales_order_payment(
+            order_id=body.get('sales_order_id'), amount_cny=body.get('amount_cny'),
+            fund_account=_fund_account_from_body(body),
+            business_date=_required_business_date(body), operator=operator,
+            idempotency_key=context.idempotency_key,
+        )
+        return _sales_order_response(receipt.sales_order)
+
+    return _idempotent_command(request, 'receive_sales_order_payment', handler, canonical_action=True)
+
+
+@csrf_exempt
+@staff_required
+def refund_sales_order_payment_command(request):
+    # 退款仅撤销已取消订单的整笔预收款。
+    if request.method != 'POST':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+
+    def handler(body, operator, context):
+        refund = refund_sales_order_payment(
+            order_id=body.get('sales_order_id'),
+            business_date=_required_business_date(body), operator=operator,
+            idempotency_key=context.idempotency_key,
+        )
+        return _sales_order_response(refund.sales_order)
+
+    return _idempotent_command(request, 'refund_sales_order_payment', handler, canonical_action=True)
+
+
+@csrf_exempt
+@staff_required
+def record_sales_transport_cost_command(request):
+    # 实际人肉成本独立入账，并扣减订单贡献利润。
+    if request.method != 'POST':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+
+    def handler(body, operator, context):
+        cost = record_sales_transport_cost(
+            order_id=body.get('sales_order_id'),
+            actual_cost_cny=body.get('actual_cost_cny'),
+            fund_account=_fund_account_from_body(body),
+            business_date=_required_business_date(body), operator=operator,
+            idempotency_key=context.idempotency_key, note=_sales_note(body),
+        )
+        return _sales_order_response(cost.sales_order)
+
+    return _idempotent_command(request, 'record_sales_transport_cost', handler, canonical_action=True)
+
+
+@staff_required
+def sales_orders_query(request):
+    # Agent 按双状态或客户/单号查询销售单。
+    if request.method != 'GET':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+    orders = _sales_orders_queryset()
+    fulfillment = request.GET.get('fulfillment_status', '').strip()
+    payment = request.GET.get('payment_status', '').strip()
+    if fulfillment:
+        if fulfillment not in SalesOrder.FulfillmentStatus.values:
+            return _json_response(
+                {'error': '履约状态无效', 'code': 'invalid_fulfillment_status'},
+                status=400,
+            )
+        orders = orders.filter(fulfillment_status=fulfillment)
+    if payment:
+        if payment not in SalesOrder.PaymentStatus.values:
+            return _json_response(
+                {'error': '收款状态无效', 'code': 'invalid_payment_status'},
+                status=400,
+            )
+        orders = orders.filter(payment_status=payment)
+    query = request.GET.get('q', '').strip()
+    if query:
+        match = re.fullmatch(r'SO-(\d+)', query, re.IGNORECASE)
+        if match:
+            orders = orders.filter(id=int(match.group(1)))
+        elif query.isdigit():
+            orders = orders.filter(Q(id=int(query)) | Q(customer_name__icontains=query))
+        else:
+            orders = orders.filter(customer_name__icontains=query)
+    return _json_response({
+        'results': [
+            serialize_sales_order(order)
+            for order in orders[:_parse_limit(request)]
+        ],
+    })
+
+
+@staff_required
+def sales_order_detail_query(request, order_id):
+    # 详情包含完整销售事实与当前可执行动作。
+    if request.method != 'GET':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+    order = _sales_orders_queryset().filter(pk=order_id).first()
+    if order is None:
+        return _json_response({
+            'error': '销售单不存在', 'code': 'sales_order_not_found',
+            'details': {},
+        }, status=404)
+    return _json_response(_sales_order_response(order))
 
 
 @csrf_exempt
@@ -531,29 +775,76 @@ def adjust_stock_command(request):
 
 @staff_required
 def business_report(request):
-    """GET /api/agent/reports/basic/"""
-    paid_items = SalesOrderItem.objects.filter(sales_order__status='paid')
-    pending_items = SalesOrderItem.objects.filter(sales_order__status='pending_payment')
+    # 报表只读双状态和已发生的出库、收退款事实，不再依赖旧 status。
+    if request.method != 'GET':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+    fulfillment_counts = {
+        status: SalesOrder.objects.filter(fulfillment_status=status).count()
+        for status in SalesOrder.FulfillmentStatus.values
+    }
+    payment_counts = {
+        status: SalesOrder.objects.filter(payment_status=status).count()
+        for status in SalesOrder.PaymentStatus.values
+    }
+    shipment_totals = SalesShipment.objects.aggregate(
+        revenue=Sum('sales_order__amount_due_cny'),
+        fifo_cost=Sum('fifo_cost_cny'),
+        contribution_profit=Sum('sales_order__contribution_profit_cny'),
+    )
+    receipt_total = (
+        SalesReceipt.objects.aggregate(total=Sum('amount_cny'))['total']
+        or Decimal('0.00')
+    )
+    refund_total = (
+        SalesRefund.objects.aggregate(total=Sum('amount_cny'))['total']
+        or Decimal('0.00')
+    )
     stock_value = PurchaseBatch.objects.filter(remaining__gt=0).aggregate(
         qty=Sum('remaining'),
     )
-    movement_counts = StockMovement.objects.values('movement_type').annotate(count=Count('id'))
+    movement_counts = StockMovement.objects.values(
+        'movement_type',
+    ).annotate(count=Count('id'))
     return _json_response({
         'orders': {
-            'pending_payment': SalesOrder.objects.filter(status='pending_payment').count(),
-            'paid': SalesOrder.objects.filter(status='paid').count(),
-            'cancelled': SalesOrder.objects.filter(status='cancelled').count(),
+            'fulfillment': fulfillment_counts,
+            'payment': payment_counts,
         },
         'sales': {
-            'paid_revenue': decimal_to_number(paid_items.aggregate(total=Sum('revenue'))['total'] or Decimal('0.00')),
-            'paid_profit': decimal_to_number(paid_items.aggregate(total=Sum('profit'))['total'] or Decimal('0.00')),
-            'pending_revenue': decimal_to_number(pending_items.aggregate(total=Sum('revenue'))['total'] or Decimal('0.00')),
-            'preorder_items': SalesOrderItem.objects.filter(fulfillment_type='preorder').count(),
+            'shipped_amount_due_cny': decimal_to_number(
+                shipment_totals['revenue'] or Decimal('0.00'),
+            ),
+            'fifo_cost_cny': decimal_to_number(
+                shipment_totals['fifo_cost'] or Decimal('0.00'),
+            ),
+            'contribution_profit_cny': decimal_to_number(
+                shipment_totals['contribution_profit'] or Decimal('0.00'),
+            ),
+            'received_cny': decimal_to_number(receipt_total),
+            'refunded_cny': decimal_to_number(refund_total),
+            'net_received_cny': decimal_to_number(receipt_total - refund_total),
+            'preorder_items': SalesOrderItem.objects.exclude(
+                sales_order__fulfillment_status=SalesOrder.FulfillmentStatus.CANCELLED,
+            ).filter(fulfillment_type='preorder').count(),
         },
         'stock': {
             'available_quantity': stock_value['qty'] or 0,
         },
-        'stock_movements': {row['movement_type']: row['count'] for row in movement_counts},
+        'stock_movements': {
+            row['movement_type']: row['count'] for row in movement_counts
+        },
+        'recent_agent_commands': [
+            {
+                'command_name': record.command_name,
+                'operator_id': record.operator_id,
+                'agent_name': record.agent_name,
+                'agent_run_id': record.agent_run_id,
+                'agent_request_id': record.agent_request_id,
+                'status_code': record.status_code,
+                'created_at': record.created_at.isoformat(),
+            }
+            for record in IdempotencyRecord.objects.order_by('-created_at')[:20]
+        ],
         'recent_order_events': [
             {
                 'sales_order_id': event.sales_order_id,
@@ -563,6 +854,6 @@ def business_report(request):
                 'note': event.note,
                 'created_at': event.created_at.isoformat(),
             }
-            for event in OrderEvent.objects.select_related('operator').order_by('-created_at')[:20]
+            for event in OrderEvent.objects.order_by('-created_at')[:20]
         ],
     })

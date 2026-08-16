@@ -30,8 +30,6 @@ function StockBadgeMini({ inStock, delisted }: { inStock: boolean; delisted?: bo
 }
 
 export function VariantAccordion({ variants }: Props) {
-  if (variants.length === 0) return null;
-
   const grouped: Record<string, Variant[]> = {};
   for (const v of variants) {
     const key = v.source_slug || v.source_name;
@@ -58,6 +56,8 @@ export function VariantAccordion({ variants }: Props) {
 
     return { bestPrice: best, worstPrice: worst, closestAvgPrice: closest, uniquePrices: unique };
   }, [variants]);
+
+  if (variants.length === 0) return null;
 
   function getAnnotation(v: Variant): string | null {
     if (v.delisted || v.price_per_stick == null || uniquePrices <= 1) return null;

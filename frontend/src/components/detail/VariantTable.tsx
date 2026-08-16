@@ -33,8 +33,6 @@ function StockBadge({ delisted, inStock }: { delisted?: boolean; inStock: boolea
 }
 
 export function VariantTable({ variants }: Props) {
-  if (variants.length === 0) return null;
-
   const { bestPrice, worstPrice, closestAvgPrice, uniquePrices } = useMemo(() => {
     const active = variants.filter(v => !v.delisted && v.price_per_stick != null);
     if (active.length === 0) return { bestPrice: null, worstPrice: null, closestAvgPrice: null, uniquePrices: 0 };
@@ -54,6 +52,8 @@ export function VariantTable({ variants }: Props) {
 
     return { bestPrice: best, worstPrice: worst, closestAvgPrice: closest, uniquePrices: unique };
   }, [variants]);
+
+  if (variants.length === 0) return null;
 
   // Annotation helper: return a label chip for the row
   function getAnnotation(v: Variant): { label: string; colorClass: string } | null {

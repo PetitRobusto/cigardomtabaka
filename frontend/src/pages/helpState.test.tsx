@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { Day1StatusNotice, day1StatusErrorState, day1StatusNavigation, type Day1StatusState } from "./helpState";
+import { Day1StatusNotice } from "./helpState";
+import { day1StatusErrorState, day1StatusNavigation, type Day1StatusState } from "./helpState.helpers";
 
 describe("help Day1 status safety", () => {
   it("turns a failed status read into a retryable safe state", () => {

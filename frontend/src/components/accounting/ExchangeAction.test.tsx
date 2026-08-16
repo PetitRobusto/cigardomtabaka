@@ -2,7 +2,8 @@ import type { ComponentProps } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { FundAccount } from '../../types';
-import ExchangeAction, { selectActiveAccountId as selectExchangeAccountId } from './ExchangeAction';
+import ExchangeAction from './ExchangeAction';
+import { selectActiveAccountId as selectExchangeAccountId } from './ExchangeAction.logic';
 
 describe('换汇动作卡 SSR 契约', () => {
   it('只显示 CNY/USDT 转入固定 RUB，并保留 Decimal 字符串输入', () => {

@@ -5,7 +5,8 @@ import { usePageMeta } from '../hooks/usePageMeta';
 import { moscowBusinessDate } from '../utils/businessDate';
 import Day1AccountsStep from '../components/day1/Day1AccountsStep';
 import Day1InventoryStep from '../components/day1/Day1InventoryStep';
-import Day1ReviewStep, { restoreDay1DialogTriggerFocus } from '../components/day1/Day1ReviewStep';
+import Day1ReviewStep from '../components/day1/Day1ReviewStep';
+import { restoreDay1DialogTriggerFocus } from '../components/day1/Day1ReviewStep.helpers';
 import {
   canConfirmWithAcknowledgement, completionSummaryViewModel,
   day1BackgroundInteractionDisabled, day1RouteMode, day1StepTotal, emptyDay1Draft, nextDay1Step, normalizeDay1Draft, previousDay1Step,
@@ -61,9 +62,8 @@ export default function Day1SetupPage() {
   }, [confirmationOpen]);
   useEffect(() => { setMeta({ title: 'Day 1 初始化', breadcrumbs: [{ label: '首页', to: '/' }, { label: '账务工作台', to: '/accounting' }, { label: 'Day 1 初始化' }] }); }, [setMeta]);
 
-  const load = useCallback((preserveLocal = false) => {
-    setLoading(true); setError(''); setValidationDetails({});
-    fetchDay1State().then(data => {
+  const requestDay1State = useCallback((preserveLocal = false) => {
+    return fetchDay1State().then(data => {
       const merged = refreshDay1State({
         localDraft: draftRef.current,
         baseVersion: draftBaseVersionRef.current,
@@ -73,7 +73,14 @@ export default function Day1SetupPage() {
       setServer(merged.server); setDraft(merged.draft); setDraftBaseVersion(merged.baseVersion);
     }).catch(reason => setError(apiErrorMessage(reason, 'Day 1 状态加载失败'))).finally(() => setLoading(false));
   }, []);
-  useEffect(() => { load(); }, [load]);
+  const load = useCallback((preserveLocal = false) => {
+    setLoading(true); setError(''); setValidationDetails({});
+    void requestDay1State(preserveLocal);
+  }, [requestDay1State]);
+  useEffect(() => {
+    // 初始状态已经是 loading，首屏请求无需同步重复写入状态。
+    void requestDay1State();
+  }, [requestDay1State]);
 
   const mode = day1RouteMode(server?.status || 'not_started');
   const errors = useMemo(() => validateDay1Draft(draft), [draft]);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Package, Boxes, Hash, DollarSign } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { fetchInventory } from '../api';
 import { LoadingState } from '../components/shared/LoadingState';
 import { ErrorState } from '../components/shared/ErrorState';

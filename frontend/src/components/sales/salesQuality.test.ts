@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { salesOrderActionBusinessDate, selectActiveCnyAccountId } from './SalesOrderCard';
+import { salesFundAccountError, salesOrderActionBusinessDate, selectActiveCnyAccountId } from './SalesOrderCard.logic';
 import { salesActionBlockedByAccount } from './salesState';
 
 describe('sales account error boundary', () => {
@@ -30,5 +30,11 @@ describe('销售动作账户刷新', () => {
     expect(selectActiveCnyAccountId(accounts, 10)).toBe(20);
     expect(selectActiveCnyAccountId(accounts, 999)).toBe(20);
     expect(selectActiveCnyAccountId([], 10)).toBe(0);
+  });
+
+  it('接受界面已派生出的回退账户，只在完全没有账户时阻止资金动作', () => {
+    expect(salesFundAccountError('receive', 20)).toBe('');
+    expect(salesFundAccountError('transport_cost', 0)).toContain('有效的 CNY');
+    expect(salesFundAccountError('ship', 0)).toBe('');
   });
 });

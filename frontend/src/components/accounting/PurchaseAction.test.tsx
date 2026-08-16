@@ -2,7 +2,8 @@ import type { ComponentProps } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { FundAccount } from '../../types';
-import PurchaseAction, { selectActiveAccountId as selectPurchaseAccountId } from './PurchaseAction';
+import PurchaseAction from './PurchaseAction';
+import { selectActiveAccountId as selectPurchaseAccountId } from './PurchaseAction.logic';
 
 describe('采购动作卡 SSR 契约', () => {
   it('只提供草稿付款/取消和在途整单到货，展示 canonical 盒数', () => {

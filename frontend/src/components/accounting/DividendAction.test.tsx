@@ -2,7 +2,8 @@ import type { ComponentProps } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { FundAccount } from '../../types';
-import DividendAction, { dividendAccountOptions, validateDividendDraft } from './DividendAction';
+import DividendAction from './DividendAction';
+import { dividendAccountOptions, dividendActionResetKey, validateDividendDraft } from './DividendAction.logic';
 
 describe('分红动作卡 SSR 契约', () => {
   it('显示草稿编辑、preview warning 和 acknowledgement 后确认边界', () => {
@@ -48,5 +49,14 @@ describe('分红动作卡 SSR 契约', () => {
 
     expect(options.find(option => option.account.id === 1)).toMatchObject({ disabled: true });
     expect(options.find(option => option.account.id === 2)).toMatchObject({ disabled: false });
+  });
+
+  // key 语义测试覆盖外部更新同步，同时保证普通重渲染不重置输入。
+  it('外部草稿语义变化才会触发内部表单重置', () => {
+    const draft = { id: 20, status: 'draft', version: 1, total_cny: '1000.00' };
+    expect(dividendActionResetKey(draft, 'fp-1', '2026-08-16', false))
+      .toBe(dividendActionResetKey({ ...draft }, 'fp-1', '2026-08-16', false));
+    expect(dividendActionResetKey(draft, 'fp-2', '2026-08-16', false))
+      .not.toBe(dividendActionResetKey(draft, 'fp-1', '2026-08-16', false));
   });
 });

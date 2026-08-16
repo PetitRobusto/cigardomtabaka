@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Day1StatusNotice, day1StatusErrorState, day1StatusLoadingState, day1StatusReadyState, type Day1StatusState } from './helpState';
+import { Day1StatusNotice } from './helpState';
+import { day1StatusErrorState, day1StatusLoadingState, day1StatusReadyState, type Day1StatusState } from './helpState.helpers';
 import { BookOpen, ExternalLink, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MANUAL_CHAPTERS, type ManualChapter } from '../features/guides/guideContent';
@@ -17,11 +18,17 @@ export default function HelpPage() {
   const [day1State, setDay1State] = useState<Day1StatusState>(day1StatusLoadingState());
   const chapter = MANUAL_CHAPTERS.find(item => item.id === chapterId) || MANUAL_CHAPTERS[0];
   useEffect(() => { setMeta({ title: '使用手册', breadcrumbs: [{ label: '首页', to: '/' }, { label: '使用手册' }] }); }, [setMeta]);
-  const loadDay1Status = useCallback(() => {
-    setDay1State(day1StatusLoadingState());
+  const requestDay1Status = useCallback(() => {
     void fetchDay1State().then(data => setDay1State(day1StatusReadyState(data.status))).catch(() => setDay1State(day1StatusErrorState()));
   }, []);
-  useEffect(() => { loadDay1Status(); }, [loadDay1Status]);
+  const loadDay1Status = useCallback(() => {
+    setDay1State(day1StatusLoadingState());
+    requestDay1Status();
+  }, [requestDay1Status]);
+  useEffect(() => {
+    // 初始状态已经是 loading，首屏请求只处理异步完成结果。
+    requestDay1Status();
+  }, [requestDay1Status]);
 
   const day1Status = day1State.status === "ready" ? day1State.day1Status : undefined;
   const decideChapter = () => manualTourDecision(chapter, { day1Status });

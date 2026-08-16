@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiErrorMessage, fetchAccountingAccounts, fetchAccountingActions, fetchAccountingDashboard, fetchAccountingSummary, fetchMonthlyProfit, fetchReconciliations } from '../api';
@@ -33,7 +33,6 @@ export default function AccountingDashboardPage() {
     queryClient.invalidateQueries({ queryKey: ['accounting-actions'] });
   };
   const data = dashboard.data;
-  const latest = useMemo(() => data?.reconciliation.latest || [], [data]);
   const regionStates = dashboardRegionStates({
     accounts: { isError: accounts.isError, hasData: Boolean(accounts.data) },
     summary: { isError: summary.isError, hasData: Boolean(summary.data) },

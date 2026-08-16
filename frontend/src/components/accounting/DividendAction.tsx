@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type {
   DividendAction as DividendDraft,
   DividendConfirmPayload,
@@ -15,6 +15,12 @@ import {
   updateDividend,
 } from '../../api';
 import { initialActionState, reduceActionState, type ActionState } from '../../features/accounting/actionState';
+import {
+  dividendAccountOptions,
+  dividendActionResetKey,
+  validateDividendDraft,
+  type DraftInput,
+} from './DividendAction.logic';
 
 export interface DividendActionProps {
   accounts: FundAccount[];
@@ -27,38 +33,6 @@ export interface DividendActionProps {
   onPreview?: (id: number) => Promise<DividendPreview> | DividendPreview | unknown;
   onConfirm?: (id: number, payload: DividendConfirmPayload) => Promise<DividendDraft> | DividendDraft | unknown;
   onChanged?: () => void;
-}
-
-export type DraftInput = {
-  total: string;
-  partnerA: string;
-  partnerB: string;
-  accountA: string;
-  accountB: string;
-  businessDate: string;
-  note: string;
-};
-
-export function validateDividendDraft({
-  draftDirty,
-  accountA,
-  accountB,
-}: { draftDirty: boolean; accountA: number | string | null | undefined; accountB: number | string | null | undefined }) {
-  if (draftDirty) return { ok: false, code: 'draft_dirty', message: '编辑已变更，请先保存分红草稿' };
-  const idA = Number(accountA);
-  const idB = Number(accountB);
-  if (!Number.isInteger(idA) || idA <= 0 || !Number.isInteger(idB) || idB <= 0) {
-    return { ok: false, code: 'account_required', message: '请选择两个人民币账户' };
-  }
-  if (idA === idB) return { ok: false, code: 'account_same', message: '两个合伙人必须选择不同的人民币账户' };
-  return { ok: true as const };
-}
-
-export function dividendAccountOptions(accounts: FundAccount[], otherSelectedId: number | string | null | undefined) {
-  const otherId = otherSelectedId == null || otherSelectedId === '' ? null : Number(otherSelectedId);
-  return accounts
-    .filter(account => account.currency === 'CNY' && account.is_active)
-    .map(account => ({ account, disabled: account.id === otherId }));
 }
 
 function halfSplit(total: string): [string, string] {
@@ -107,7 +81,7 @@ function warningText(preview: DividendPreview | null): string | null {
 }
 
 /** 分红必须经历编辑、预览和 warning acknowledgement，确认请求始终带版本。 */
-export default function DividendAction({
+function DividendActionForm({
   accounts,
   draft: incomingDraft = null,
   preview: incomingPreview = null,
@@ -127,16 +101,6 @@ export default function DividendAction({
   const [previewDraftVersion, setPreviewDraftVersion] = useState<number | null>(() => incomingPreview && incomingDraft ? incomingDraft.version : null);
   const [acknowledged, setAcknowledged] = useState(incomingAcknowledged);
   const [state, setState] = useState<ActionState>(() => initialActionState());
-
-  useEffect(() => {
-    const nextInput = inputFromDraft(incomingDraft, businessDate);
-    setDraft(incomingDraft);
-    setPreview(incomingPreview);
-    setInput(nextInput);
-    setPersistedInput(nextInput);
-    setPreviewDraftVersion(incomingPreview && incomingDraft ? incomingDraft.version : null);
-    setAcknowledged(incomingAcknowledged);
-  }, [incomingDraft?.id, incomingDraft?.version, incomingPreview?.warning_fingerprint, businessDate, incomingAcknowledged]);
 
   const draftDirty = Boolean(draft && !sameDraftInput(input, persistedInput));
   const activeAccountA = cnyAccounts.some(account => account.id === Number(input.accountA));
@@ -278,4 +242,14 @@ export default function DividendAction({
       {(state.status === 'error' || state.status === 'conflict') && <p role="alert" className="mt-3 text-sm text-[#7A1F2E]">{state.status === 'conflict' ? '数据已被另一位经营者更新，请刷新后重试。' : state.error?.message}</p>}
     </section>
   );
+}
+
+// 通过 key 让外部草稿更新触发一次完整重置，保留原 effect 的同步语义且不产生级联渲染。
+export default function DividendAction(props: DividendActionProps) {
+  const draft = props.draft ?? null;
+  const preview = props.preview ?? null;
+  const acknowledged = props.warningAcknowledged ?? false;
+  const businessDate = props.businessDate ?? '';
+  const resetKey = dividendActionResetKey(draft, preview?.warning_fingerprint, businessDate, acknowledged);
+  return <DividendActionForm key={resetKey} {...props} />;
 }

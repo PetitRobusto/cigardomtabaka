@@ -3,6 +3,7 @@ import type { AccountingApiError, ExchangeActionPayload, FundAccount } from '../
 import { exchangeToRub, parseAccountingApiError } from '../../api';
 import type { ActionState } from '../../features/accounting/actionState';
 import { moscowBusinessDate } from '../../utils/businessDate';
+import { selectActiveAccountId } from './ExchangeAction.logic';
 
 export interface ExchangeActionValue {
   source_account_id?: number | '';
@@ -26,11 +27,6 @@ interface ExchangeActionProps {
 // 换汇默认日期按 Moscow 业务日，避免浏览器/UTC 日界造成错期。
 const today = () => moscowBusinessDate();
 const emptyValue = (businessDate: string): ExchangeActionValue => ({ source_amount: '', rub_amount: '', business_date: businessDate });
-
-export function selectActiveAccountId(accounts: FundAccount[], candidate?: number | '' | null): number | '' {
-  if (accounts.some(account => account.is_active && account.id === candidate)) return candidate as number;
-  return accounts.find(account => account.is_active)?.id || '';
-}
 
 function isConflict(error: AccountingApiError) {
   return error.status === 409 || error.code === 'version_conflict' || error.code === 'conflict';

@@ -1,10 +1,10 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { usePageMetaContext } from '../../contexts/PageMetaContext';
+import { usePageMetaContext } from '../../contexts/usePageMetaContext';
 import Breadcrumb from './Breadcrumb';
 import {
-  LayoutGrid, Package, TrendingUp, Link2, LogIn, LogOut, User, Menu, X,
+  LayoutGrid, Package, TrendingUp, Link2, LogIn, LogOut, Menu, X,
   CircleDollarSign, ClipboardList,
   MapPin, Phone, MessageCircle, BookOpen
 } from 'lucide-react';

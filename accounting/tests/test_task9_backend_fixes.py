@@ -7,6 +7,7 @@ from accounting.models import Day1Initialization, FundAccount, LedgerPosting, Le
 from accounting.selectors import accounting_summary
 from accounting.services import LedgerError, PostingInput, post_transaction, record_opening_balance
 from cigars.models import Brand, Cigar, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, SalesOrder, Supplier, User
+from cigars.tests.inventory_fixtures import create_purchase_batch, force_inventory_update
 from cigars.services import AgentContext, adjust_stock, create_sales_order, create_sales_order_draft, confirm_sales_order
 
 
@@ -31,7 +32,13 @@ class Task9BackendFixesTest(TestCase):
         supplier = Supplier.objects.create(name=f'Task9 supplier {PurchaseOrder.objects.count()}')
         order = PurchaseOrder.objects.create(supplier=supplier, rub_total=Decimal('1.00'), exchange_rate=Decimal('1.0000'), cny_total=Decimal('30.00'), operator=self.operator)
         item = PurchaseOrderItem.objects.create(purchase_order=order, cigar=self.cigar, quantity=quantity, box_size=25, unit_price_rub=Decimal('1.00'), unit_price_cny=Decimal('10.00'))
-        return PurchaseBatch.objects.create(purchase_order_item=item, cigar=self.cigar, quantity=quantity, remaining=quantity, physical_remaining=quantity, original_cost_cny=Decimal(quantity * 10), remaining_cost_cny=Decimal(quantity * 10), unit_cost_cny=Decimal('10.00'))
+        return create_purchase_batch(
+            operator=self.operator, purchase_order_item=item, cigar=self.cigar,
+            quantity=quantity, remaining=quantity, physical_remaining=quantity,
+            original_cost_cny=Decimal(quantity * 10),
+            remaining_cost_cny=Decimal(quantity * 10),
+            unit_cost_cny=Decimal('10.00'),
+        )
 
     def test_in_transit_summary_uses_purchase_payment_business_date(self):
         self.complete_day1()
@@ -212,7 +219,8 @@ class Task9BackendFixesTest(TestCase):
         first = self.batch(quantity=1)
         second = self.batch(quantity=1)
         # 让 FIFO 顺序与主键顺序相反，暴露按最新主键猜结果的错误。
-        PurchaseBatch.objects.filter(pk=first.pk).update(
+        force_inventory_update(
+            PurchaseBatch.objects.filter(pk=first.pk),
             purchased_at=first.purchased_at + timedelta(days=1),
         )
         context = self.context('adjust_stock', 'task9-adjust-result-batch')

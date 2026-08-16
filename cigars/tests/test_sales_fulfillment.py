@@ -22,6 +22,7 @@ from cigars.models import (
     Supplier,
     User,
 )
+from cigars.tests.inventory_fixtures import create_purchase_batch, force_inventory_save
 from cigars.services import AgentContext, OrderServiceError, confirm_sales_order, create_sales_order_draft
 
 
@@ -63,7 +64,7 @@ class SalesFulfillmentServiceTest(TestCase):
             boxes, sticks = divmod(quantity, box_size)
         else:
             boxes, sticks = 0, quantity
-        return PurchaseBatch.objects.create(
+        return create_purchase_batch(
             purchase_order_item=purchase_item, cigar=self.cigar, quantity=quantity,
             remaining=quantity, physical_remaining=quantity,
             original_cost_cny=Decimal(str(quantity)) * Decimal(str(unit_cost)),
@@ -165,7 +166,10 @@ class SalesFulfillmentServiceTest(TestCase):
         batch.original_cost_cny = Decimal('10.01')
         batch.remaining_cost_cny = Decimal('10.01')
         batch.unit_cost_cny = Decimal('3.3366666667')
-        batch.save(update_fields=['original_cost_cny', 'remaining_cost_cny', 'unit_cost_cny'])
+        force_inventory_save(
+            batch,
+            update_fields=['original_cost_cny', 'remaining_cost_cny', 'unit_cost_cny'],
+        )
         order = self.confirmed_order(quantity=3, unit_price='20.00')
         from cigars.sales_accounting import ship_sales_order
         shipped = ship_sales_order(

@@ -159,6 +159,98 @@ class PurchaseOrderItemQuerySet(models.QuerySet):
         _raise_ledger_mutation('采购明细禁止通过 get_or_create')
 
 
+def _raise_inventory_mutation(message):
+    from .inventory_scope import InventoryMutationError
+    raise InventoryMutationError(message)
+
+
+def _require_inventory_scope(instance, *, operation, fields=()):
+    from .inventory_scope import inventory_scope_allows
+    if not inventory_scope_allows(
+        model=instance._meta.label, operation=operation, fields=fields,
+    ):
+        _raise_inventory_mutation('库存事实只能通过统一库存 Module 写入')
+    if operation == 'create':
+        _validate_inventory_create(instance)
+
+
+def _validate_inventory_create(instance):
+    """新事实必须与当前库存动作一致。"""
+    from .inventory_scope import current_inventory_action
+
+    action = current_inventory_action()
+    label = instance._meta.label
+    if label == 'cigars.PurchaseBatch':
+        expected_source = {
+            'opening': 'opening',
+            'receive': 'purchase',
+            'adjust': 'adjustment',
+        }.get(action)
+        item_required = action == 'receive'
+        if (expected_source is None or instance.source != expected_source
+                or bool(instance.purchase_order_item_id) != item_required):
+            _raise_inventory_mutation('采购批次来源与库存动作不一致')
+        if item_required and instance.purchase_order_item.cigar_id != instance.cigar_id:
+            _raise_inventory_mutation('采购批次雪茄与采购明细不一致')
+        return
+    if label == 'cigars.StockAllocation':
+        if (action != 'reserve' or instance.status != 'reserved'
+                or instance.fulfilled_at is not None or instance.released_at is not None
+                or instance.quantity <= 0):
+            _raise_inventory_mutation('新库存分配必须是有效的预留事实')
+        if instance.sales_order_item.cigar_id != instance.purchase_batch.cigar_id:
+            _raise_inventory_mutation('库存分配雪茄与采购批次不一致')
+        return
+    if label == 'cigars.StockMovement':
+        expected_type = {
+            'opening': 'receive', 'receive': 'receive',
+            'reserve': 'reserve', 'release': 'release_reservation',
+            'ship': 'ship', 'adjust': 'adjustment',
+            'split_box': 'split_box',
+        }.get(action)
+        if expected_type is None or instance.movement_type != expected_type:
+            _raise_inventory_mutation('库存流水类型与库存动作不一致')
+        if instance.purchase_batch_id is None:
+            _raise_inventory_mutation('库存流水必须关联采购批次')
+        if instance.purchase_batch.cigar_id != instance.cigar_id:
+            _raise_inventory_mutation('库存流水雪茄与采购批次不一致')
+        sales_action = action in {'reserve', 'release', 'ship'}
+        has_sales_fact = bool(instance.sales_order_id and instance.sales_order_item_id)
+        if sales_action != has_sales_fact:
+            _raise_inventory_mutation('库存流水销售关联与库存动作不一致')
+        if sales_action and (
+            instance.sales_order_item.sales_order_id != instance.sales_order_id
+            or instance.sales_order_item.cigar_id != instance.cigar_id
+        ):
+            _raise_inventory_mutation('库存流水销售明细关联不一致')
+
+
+class InventoryFactQuerySet(models.QuerySet):
+    """库存事实不开放集合写入，所有变化必须逐条校验。"""
+
+    def update(self, **kwargs):
+        if not self.exists():
+            return 0
+        _raise_inventory_mutation('库存事实禁止通过 QuerySet.update 修改')
+
+    def delete(self):
+        if not self.exists():
+            return 0, {}
+        _raise_inventory_mutation('库存事实禁止通过 QuerySet.delete 删除')
+
+    def bulk_create(self, objs, **kwargs):
+        _raise_inventory_mutation('库存事实禁止通过 bulk_create 创建')
+
+    def bulk_update(self, objs, fields, **kwargs):
+        _raise_inventory_mutation('库存事实禁止通过 bulk_update 修改')
+
+    def update_or_create(self, defaults=None, **kwargs):
+        _raise_inventory_mutation('库存事实禁止通过 update_or_create 写入')
+
+    def get_or_create(self, defaults=None, **kwargs):
+        _raise_inventory_mutation('库存事实禁止通过 get_or_create 写入')
+
+
 def brand_logo_path(instance, filename):
     """上传路径: brand_logos/brand_slug.ext"""
     ext = filename.split('.')[-1]
@@ -701,6 +793,7 @@ class PurchaseOrderItem(models.Model):
 
 class PurchaseBatch(models.Model):
     """进货批次（FIFO 核心）"""
+    objects = InventoryFactQuerySet.as_manager()
     class Source(models.TextChoices):
         PURCHASE = 'purchase', '采购入库'
         OPENING = 'opening', '期初库存'
@@ -734,6 +827,9 @@ class PurchaseBatch(models.Model):
     purchased_at = models.DateTimeField('进货日期', auto_now_add=True)
 
     def save(self, *args, **kwargs):
+        operation = 'create' if self._state.adding else 'update'
+        fields = () if self._state.adding else _requested_field_names(self, kwargs)
+        _require_inventory_scope(self, operation=operation, fields=fields)
         if self._state.adding and self.box_size is None and self.purchase_order_item_id:
             self.box_size = self.purchase_order_item.box_size
         if self._state.adding and not any((
@@ -752,8 +848,12 @@ class PurchaseBatch(models.Model):
                 self.available_stick_quantity = self.remaining
         super().save(*args, **kwargs)
 
+    def delete(self, *args, **kwargs):
+        _raise_inventory_mutation('采购批次不可删除，错误业务必须执行反向动作')
+
     class Meta:
         ordering = ['purchased_at']
+        base_manager_name = 'objects'
         constraints = [
             models.CheckConstraint(
                 condition=(
@@ -1030,13 +1130,14 @@ class SalesTransportCost(models.Model):
         verbose_name_plural = '销售人肉成本'
 class StockAllocation(models.Model):
     """销售明细与采购批次之间的库存分配"""
+    objects = InventoryFactQuerySet.as_manager()
     class Status(models.TextChoices):
         RESERVED = 'reserved', '已预留'
         FULFILLED = 'fulfilled', '已出库'
         RELEASED = 'released', '已释放'
 
     sales_order_item = models.ForeignKey(
-        SalesOrderItem, on_delete=models.CASCADE, related_name='allocations',
+        SalesOrderItem, on_delete=models.PROTECT, related_name='allocations',
         verbose_name='销售明细'
     )
     purchase_batch = models.ForeignKey(
@@ -1049,8 +1150,25 @@ class StockAllocation(models.Model):
     fulfilled_at = models.DateTimeField('出库时间', null=True, blank=True)
     released_at = models.DateTimeField('释放时间', null=True, blank=True)
 
+    def save(self, *args, **kwargs):
+        if self._state.adding:
+            _require_inventory_scope(self, operation='create')
+            return super().save(*args, **kwargs)
+        fields = _requested_field_names(self, kwargs)
+        _require_inventory_scope(self, operation='update', fields=fields)
+        persisted = type(self).objects.filter(pk=self.pk).values('status').first()
+        if persisted is None or persisted['status'] != self.Status.RESERVED:
+            _raise_inventory_mutation('库存分配只能从已预留状态流转')
+        if self.status not in {self.Status.FULFILLED, self.Status.RELEASED}:
+            _raise_inventory_mutation('库存分配状态流转无效')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        _raise_inventory_mutation('库存分配不可删除，只能释放或出库')
+
     class Meta:
         ordering = ['id']
+        base_manager_name = 'objects'
         indexes = [
             models.Index(fields=['sales_order_item', 'status']),
             models.Index(fields=['purchase_batch', 'status']),
@@ -1064,6 +1182,7 @@ class StockAllocation(models.Model):
 
 class StockMovement(models.Model):
     """库存流水事实记录"""
+    objects = InventoryFactQuerySet.as_manager()
     class MovementType(models.TextChoices):
         RECEIVE = 'receive', '入库'
         RESERVE = 'reserve', '预留'
@@ -1099,8 +1218,18 @@ class StockMovement(models.Model):
     note = models.TextField('备注', blank=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            _raise_inventory_mutation('库存流水创建后不可修改')
+        _require_inventory_scope(self, operation='create')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        _raise_inventory_mutation('库存流水创建后不可删除')
+
     class Meta:
         ordering = ['-created_at', '-id']
+        base_manager_name = 'objects'
         indexes = [
             models.Index(fields=['cigar', 'created_at']),
             models.Index(fields=['purchase_batch', 'created_at']),

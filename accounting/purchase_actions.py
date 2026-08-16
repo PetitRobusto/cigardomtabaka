@@ -24,11 +24,12 @@ from accounting.models import (
     PurchaseDraftAction, PurchasePayment,
 )
 from accounting.guards import Day1IncompleteError, require_day1_completed
+from cigars.audit import AgentContext
+from cigars.inventory import receive_stock
 from cigars.models import (
     Cigar, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, StockMovement,
     Supplier, User,
 )
-from cigars.services import AgentContext, _record_movement
 
 
 MONEY_PLACES = Decimal('0.01')
@@ -1008,21 +1009,14 @@ def receive_paid_purchase_order(*, purchase_order_id, business_date, operator,
             ):
                 item.actual_cost_cny = actual
                 item.save(update_fields=['actual_cost_cny'])
-            boxes = item.box_quantity
-            batch = PurchaseBatch.objects.create(
-                purchase_order_item=item, cigar=item.cigar,
-                quantity=quantity, remaining=quantity, physical_remaining=quantity,
-                original_cost_cny=actual, remaining_cost_cny=actual,
-                sold_cost_cny=Decimal('0.00'), unit_cost_cny=unit_cost,
-                box_size=item.box_size, original_box_quantity=boxes,
-                original_stick_quantity=0, physical_box_quantity=boxes,
-                available_box_quantity=boxes, physical_stick_quantity=0,
-                available_stick_quantity=0,
-            )
-            _record_movement(
-                movement_type=StockMovement.MovementType.RECEIVE,
-                cigar=item.cigar, purchase_batch=batch, quantity=quantity,
-                operator=operator, context=context, note=note,
+            batch = receive_stock(
+                purchase_order_item=item,
+                quantity=quantity,
+                total_cost_cny=actual,
+                unit_cost_cny=unit_cost,
+                operator=operator,
+                context=context,
+                note=note,
             )
             batches.append(batch)
 

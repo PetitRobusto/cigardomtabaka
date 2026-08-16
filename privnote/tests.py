@@ -17,6 +17,7 @@ from privnote.models import Privnote, PaymentMethod
 from privnote.services import build_payment_data
 from cigars.models import User, Brand, Cigar, SalesOrder, SalesOrderItem, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, CigarPrice
 from accounting.models import FundAccount
+from cigars.tests.inventory_fixtures import create_purchase_batch, force_inventory_save
 
 
 # ═══════════════════════════════════════════════════
@@ -61,7 +62,8 @@ def _create_batch(cigar, remaining=50, box_size=25, unit_cost=200.0, loose=False
             'physical_stick_quantity': remaining,
             'available_stick_quantity': remaining,
         }
-    batch = PurchaseBatch.objects.create(
+    batch = create_purchase_batch(
+        operator=po.operator,
         purchase_order_item=poi, cigar=cigar,
         quantity=remaining, remaining=remaining,
         physical_remaining=remaining,
@@ -610,7 +612,7 @@ class SearchCigarsTestCase(TestCase):
         self.batch.physical_stick_quantity = 5
         self.batch.available_box_quantity = 1
         self.batch.available_stick_quantity = 5
-        self.batch.save(update_fields=[
+        force_inventory_save(self.batch, update_fields=[
             'box_size', 'physical_box_quantity', 'physical_stick_quantity',
             'available_box_quantity', 'available_stick_quantity',
         ])
@@ -622,7 +624,7 @@ class SearchCigarsTestCase(TestCase):
         second.physical_stick_quantity = 3
         second.available_box_quantity = 2
         second.available_stick_quantity = 3
-        second.save(update_fields=[
+        force_inventory_save(second, update_fields=[
             'box_size', 'physical_box_quantity', 'physical_stick_quantity',
             'available_box_quantity', 'available_stick_quantity',
         ])

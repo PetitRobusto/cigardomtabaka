@@ -21,6 +21,8 @@ from accounting.services import (
     _retry_sqlite_locked,
     _strict_external_decimal,
 )
+from cigars.audit import AgentContext
+from cigars.inventory import open_stock
 from cigars.models import Cigar, PurchaseBatch, StockMovement
 from cigars.packaging import declared_box_sizes
 
@@ -359,26 +361,23 @@ def confirm_day1(*, expected_version, operator, idempotency_key):
     for index, row in enumerate(inventory):
         quantity = row.box_quantity * row.box_size + row.loose_sticks
         cost = (Decimal(quantity) * row.unit_cost_cny).quantize(CNY_PLACES)
-        batch = PurchaseBatch.objects.create(
-            purchase_order_item=None, source=PurchaseBatch.Source.OPENING,
-            cigar_id=row.cigar_id, quantity=quantity, remaining=quantity,
-            physical_remaining=quantity, box_size=row.box_size,
-            original_box_quantity=row.box_quantity, original_stick_quantity=row.loose_sticks,
-            physical_box_quantity=row.box_quantity, available_box_quantity=row.box_quantity,
-            physical_stick_quantity=row.loose_sticks, available_stick_quantity=row.loose_sticks,
-            original_cost_cny=cost, remaining_cost_cny=cost,
-            positive_adjustment_quantity=0, positive_adjustment_cost_cny=Decimal('0.00'),
-            adjustment_cost_cny=Decimal('0.00'), sold_cost_cny=Decimal('0.00'),
+        movement_key = f'day1:{initialization.pk}:movement:{index}'
+        batch = open_stock(
+            cigar_id=row.cigar_id,
+            quantity=quantity,
+            box_size=row.box_size,
+            box_quantity=row.box_quantity,
+            loose_sticks=row.loose_sticks,
+            total_cost_cny=cost,
             unit_cost_cny=row.unit_cost_cny,
+            operator=persisted_operator,
+            context=AgentContext(
+                command_name='day1_initialization',
+                idempotency_key=movement_key,
+            ),
+            note=f'day1_initialization:{initialization.pk}',
         )
         batches.append(batch)
-        StockMovement.objects.create(
-            movement_type=StockMovement.MovementType.RECEIVE,
-            cigar_id=row.cigar_id, purchase_batch=batch, quantity=quantity,
-            operator=persisted_operator,
-            idempotency_key=f'day1:{initialization.pk}:movement:{index}',
-            command_name='day1_initialization', note=f'day1_initialization:{initialization.pk}',
-        )
     summary = {
         'initialization_id': initialization.pk, 'idempotency_key': idempotency_key,
         'request_hash': _request_hash(initialization), 'operator_id': persisted_operator.pk,

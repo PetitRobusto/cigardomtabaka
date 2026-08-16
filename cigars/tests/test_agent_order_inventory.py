@@ -28,6 +28,9 @@ from cigars.models import (
     Supplier,
     User,
 )
+from cigars.tests.inventory_fixtures import (
+    create_purchase_batch, create_stock_allocation, force_inventory_save,
+)
 from cigars.services import (
     AgentContext,
     InsufficientStockError,
@@ -74,7 +77,8 @@ def create_batch(cigar, *, remaining, unit_cost, operator=None):
         unit_price_rub=Decimal('10.00'),
         unit_price_cny=Decimal(str(unit_cost)),
     )
-    return PurchaseBatch.objects.create(
+    return create_purchase_batch(
+        operator=operator,
         purchase_order_item=item,
         cigar=cigar,
         quantity=remaining,
@@ -111,7 +115,8 @@ def reserve_allocation(order, cigar, batch, quantity):
         cost=batch.unit_cost_cny * quantity,
         profit=(Decimal('20.00') - batch.unit_cost_cny) * quantity,
     )
-    allocation = StockAllocation.objects.create(
+    allocation = create_stock_allocation(
+        operator=order.operator,
         sales_order_item=item,
         purchase_batch=batch,
         quantity=quantity,
@@ -119,7 +124,9 @@ def reserve_allocation(order, cigar, batch, quantity):
     )
     batch.remaining -= quantity
     batch.available_stick_quantity -= quantity
-    batch.save(update_fields=['remaining', 'available_stick_quantity'])
+    force_inventory_save(
+        batch, update_fields=['remaining', 'available_stick_quantity'],
+    )
     return allocation
 
 
@@ -304,7 +311,9 @@ class OrderInventoryServiceTest(TestCase):
         allocation = order.items.get().allocations.get()
         allocation.status = StockAllocation.Status.FULFILLED
         allocation.fulfilled_at = timezone.now()
-        allocation.save(update_fields=['status', 'fulfilled_at'])
+        force_inventory_save(
+            allocation, update_fields=['status', 'fulfilled_at'],
+        )
         order.refresh_from_db()
         order.status = 'paid'
         order.payment_status = SalesOrder.PaymentStatus.PAID
@@ -398,7 +407,8 @@ class OrderInventoryServiceTest(TestCase):
                 cost=Decimal('10.00'),
                 profit=Decimal('10.00'),
             )
-            StockAllocation.objects.create(
+            create_stock_allocation(
+                operator=self.operator,
                 sales_order_item=item,
                 purchase_batch=batch,
                 quantity=1,
@@ -406,7 +416,9 @@ class OrderInventoryServiceTest(TestCase):
             )
             batch.remaining = 0
             batch.available_stick_quantity = 0
-            batch.save(update_fields=['remaining', 'available_stick_quantity'])
+            force_inventory_save(
+                batch, update_fields=['remaining', 'available_stick_quantity'],
+            )
 
         before = list(PurchaseBatch.objects.filter(id__in=[first_batch.id, second_batch.id]).values_list('remaining', 'sold_cost_cny'))
         with self.assertRaisesRegex(OrderServiceError, '已停用'):
@@ -418,7 +430,7 @@ class OrderInventoryServiceTest(TestCase):
         self.assertEqual(list(PurchaseBatch.objects.filter(id__in=[first_batch.id, second_batch.id]).values_list('remaining', 'sold_cost_cny')), before)
 
     def test_remove_remaining_cost_assigns_last_unit_rounding_tail(self):
-        from cigars.services import _remove_remaining_cost
+        from cigars.inventory import _remove_remaining_cost
         batch = create_batch(self.cigar, remaining=3, unit_cost='3.34', operator=self.operator)
         batch.original_cost_cny = Decimal('10.01')
         batch.remaining_cost_cny = Decimal('10.01')
@@ -591,7 +603,9 @@ class OrderInventoryServiceTest(TestCase):
         batch = create_batch(self.cigar, remaining=3, unit_cost='3.34', operator=self.operator)
         batch.original_cost_cny = Decimal('10.01')
         batch.remaining_cost_cny = Decimal('10.01')
-        batch.save(update_fields=['original_cost_cny', 'remaining_cost_cny'])
+        force_inventory_save(
+            batch, update_fields=['original_cost_cny', 'remaining_cost_cny'],
+        )
 
         adjust_stock(
             cigar_id=self.cigar.id,
@@ -1151,12 +1165,15 @@ class AgentCommandApiTest(TestCase):
         self.batch.physical_box_quantity = 0
         self.batch.physical_stick_quantity = 20
         self.batch.remaining_cost_cny = Decimal('2000.00')
-        self.batch.save(update_fields=[
-            'positive_adjustment_quantity', 'positive_adjustment_cost_cny',
-            'remaining', 'physical_remaining', 'remaining_cost_cny',
-            'available_box_quantity', 'available_stick_quantity',
-            'physical_box_quantity', 'physical_stick_quantity',
-        ])
+        force_inventory_save(
+            self.batch,
+            update_fields=[
+                'positive_adjustment_quantity', 'positive_adjustment_cost_cny',
+                'remaining', 'physical_remaining', 'remaining_cost_cny',
+                'available_box_quantity', 'available_stick_quantity',
+                'physical_box_quantity', 'physical_stick_quantity',
+            ],
+        )
         second = self.post_json('/api/agent/orders/confirm/', body)
 
         self.assertEqual(first.status_code, 400)

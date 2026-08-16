@@ -75,7 +75,7 @@ describe('Day 1 state rules', () => {
   });
 
   it('keeps local edits when a manual refresh receives another shared version', () => {
-    const local = { business_date: '2026-08-14', accounts: [], inventory: [] } as any;
+    const local: Day1DraftInput = { business_date: '2026-08-14', accounts: [], inventory: [] };
     const incoming = { status: 'draft', version: 3, business_date: '2026-08-14', draft: { accounts: [], inventory: [] }, completion_summary: null };
     expect(mergeDay1Refresh(local, incoming, local, true)).toEqual({ server: incoming, draft: local });
   });

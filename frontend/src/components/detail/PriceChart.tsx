@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { BarChart, Bar, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { motion } from 'framer-motion';
 import type { Variant } from '../../types';
-import { buildChartData, variantLabel } from '../../utils/priceData';
+import { buildChartData, cnyPerStick, variantLabel } from '../../utils/priceData';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
@@ -35,19 +35,17 @@ interface BarDatum {
 
 /** 从 variants 提取当前单支 CNY 价格用于柱状图对比 */
 function buildBarData(variants: Variant[]): BarDatum[] {
-  const raw = variants.map((v, i) => {
+  const raw = variants.flatMap((v, i): BarDatum[] => {
     const points = v.points || [];
     const latest = points[points.length - 1];
-    const bs = v.box_size || 1;
-    const perStick = latest && latest.price_cny != null
-      ? +(latest.price_cny / bs).toFixed(2)
-      : (v.price_per_stick ?? 0);
-    return {
+    const perStick = cnyPerStick(latest?.price_cny, v.box_size, v.price_per_stick);
+    if (perStick === null) return [];
+    return [{
       name: `${v.source_short_name || v.source_name} ${v.box_label}`,
       price: perStick,
       color: COLORS[i % COLORS.length],
       tag: null as string | null,
-    };
+    }];
   });
 
   if (raw.length === 0) return raw;
@@ -58,13 +56,11 @@ function buildBarData(variants: Variant[]): BarDatum[] {
   const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
 
   // 找到最接近平均价的值
-  let closestPrice = prices[0];
   let closestDelta = Math.abs(prices[0] - avg);
   for (const p of prices) {
     const d = Math.abs(p - avg);
     if (d < closestDelta) {
       closestDelta = d;
-      closestPrice = p;
     }
   }
 
@@ -159,12 +155,23 @@ export function PriceChart({ variants }: PriceChartProps) {
                 }}
                 labelStyle={{ color: '#1C1917', fontWeight: 700, fontSize: 13 }}
                 itemStyle={{ fontSize: 13 }}
-                formatter={(value: number) => [`¥${value.toLocaleString()}`, '单支价格']}
+                formatter={(value) => {
+                  // Recharts 可能传入非数值占位，先收窄再格式化。
+                  if (typeof value !== 'number') return ['—', '单支价格'];
+                  return [`¥${value.toLocaleString()}`, '单支价格'];
+                }}
               />
               <Bar dataKey="price" radius={[isMobile ? 3 : 6, isMobile ? 3 : 6, 0, 0]} maxBarSize={maxBarSize}
                 label={({ x, y, width, value, index }) => {
+                  if (
+                    typeof index !== 'number'
+                    || typeof x !== 'number'
+                    || typeof y !== 'number'
+                    || typeof width !== 'number'
+                    || typeof value !== 'number'
+                  ) return null;
                   const tag = barData[index]?.tag;
-                  if (!tag) return null as any;
+                  if (!tag) return null;
                   const colors: Record<string, string> = {
                     '最高': '#dc2626',
                     '最低': '#16a34a',

@@ -35,14 +35,14 @@ jobs:
           DJANGO_SECRET_KEY: ci-test-key
         run: |
           python3 manage.py makemigrations --check --dry-run
-          python3 manage.py check --deploy 2>/dev/null || true
+          python3 manage.py check
 
       - name: Run tests
         env:
           DJANGO_DEBUG: "True"
           DJANGO_SECRET_KEY: ci-test-key
         run: |
-          python3 manage.py test cigars privnote --verbosity=1
+          python3 manage.py test cigars privnote accounting --verbosity=1
 
   frontend:
     runs-on: ubuntu-latest
@@ -61,9 +61,18 @@ jobs:
           path: frontend/node_modules
           key: node-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
 
-      - name: Install & Build
+      - name: Install frontend dependencies
         working-directory: frontend
-        run: |
-          npm ci
-          npm run lint
-          npm run build
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Test frontend
+        working-directory: frontend
+        run: npm run test:run
+
+      - name: Build frontend with typecheck
+        working-directory: frontend
+        run: npm run build

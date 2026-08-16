@@ -59,7 +59,7 @@ export function groupSnapshots(snapshots: PriceSnapshot[]): CigarGroup[] {
     }
     map[key].prices.push(s);
   });
-  let list = Object.values(map);
+  const list = Object.values(map);
   list.sort((a, b) => {
     const ai = BRANDS_ORDER.indexOf(a.brand);
     const bi = BRANDS_ORDER.indexOf(b.brand);
@@ -103,11 +103,26 @@ export function extractSourceSlugs(snapshots: PriceSnapshot[]): string[] {
   return [...slugs];
 }
 
+/** 未知盒规或价格必须保持 null，不能伪造成一支装或零元。 */
+export function cnyPerStick(
+  priceCny: number | null | undefined,
+  boxSize: number | null | undefined,
+  fallback: number | null | undefined = null,
+): number | null {
+  if (priceCny == null || boxSize == null || boxSize <= 0) return fallback ?? null;
+  return +(priceCny / boxSize).toFixed(2);
+}
+
 /** 为价格走势图构建数据
  * @param mode 'original' = 原币种 | 'cny_per_stick' = 单支人民币
  */
 export function buildChartData(variants: Variant[], mode: 'original' | 'cny_per_stick' = 'cny_per_stick') {
-  const dateMap: Record<string, Record<string, number | string>> = {};
+  type ChartDatum = {
+    date: string;
+    [key: string]: number | string | null;
+  };
+  // null 表示来源没有可用价格，图表据此保留数据缺口。
+  const dateMap: Record<string, ChartDatum> = {};
   variants.forEach((v) => {
     const currency = v.currency || 'USD';
     const label = mode === 'original'
@@ -119,9 +134,7 @@ export function buildChartData(variants: Variant[], mode: 'original' | 'cny_per_
       if (mode === 'original') {
         dateMap[date][label] = p.price;
       } else {
-        // 单支人民币 = price_cny / box_size
-        const bs = v.box_size || 1;
-        dateMap[date][label] = p.price_cny != null ? +(p.price_cny / bs).toFixed(2) : null;
+        dateMap[date][label] = cnyPerStick(p.price_cny, v.box_size);
       }
     });
   });

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
-import { usePageMetaContext } from '../../contexts/PageMetaContext';
+import { usePageMetaContext } from '../../contexts/usePageMetaContext';
 
 export default function Breadcrumb() {
   const { meta } = usePageMetaContext();

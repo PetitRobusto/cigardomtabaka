@@ -1,5 +1,4 @@
 import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
 
 export function LoadingState({ text = '加载中…' }: { text?: string }) {
   return (

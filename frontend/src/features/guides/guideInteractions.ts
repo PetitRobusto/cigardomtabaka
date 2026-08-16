@@ -35,6 +35,7 @@ export const CONTEXT_TOUR_STEPS: readonly ContextTourStep[] = Object.values(CONT
 export const GUIDE_TARGETS = Object.fromEntries(CONTEXT_TOUR_STEPS.map(step => [step.id, step.target])) as Record<string, string>;
 
 export function completionForAction(action: GuideCompletionAction): { complete: boolean; open: boolean } {
+  void action;
   return { complete: true, open: false };
 }
 

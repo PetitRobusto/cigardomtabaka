@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ExternalLink, TrendingDown, TrendingUp, Minus } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { usePriceFormat } from '../../hooks/usePriceFormat';
 import type { Variant } from '../../types';
 

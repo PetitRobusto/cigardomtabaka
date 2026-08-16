@@ -27,7 +27,10 @@ export default function ContextTour({ stepId, onAction, onMissingTarget, busy = 
   const focusInstruction = useMemo(() => step ? resolveTarget(step.target) : null, [step]);
   const closeRef = useRef<HTMLButtonElement>(null);
   const currentFocusInstruction = useRef(focusInstruction);
-  currentFocusInstruction.current = focusInstruction;
+  useEffect(() => {
+    // 在 effect 中同步最新目标，卸载时可恢复当前引导目标。
+    currentFocusInstruction.current = focusInstruction;
+  }, [focusInstruction]);
 
   useEffect(() => {
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;

@@ -1,5 +1,4 @@
 import { motion } from 'framer-motion';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { BRAND_LOGO_LOCAL } from '../../utils/priceData';
 import type { CigarListItem } from '../../types';
 
@@ -16,7 +15,6 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
   cigar.sources.forEach(s => {
     slugNameMap[s.source_slug] = s.source_short_name || s.source_name;
   });
-  const sourceSlugs = [...new Set(cigar.sources.map(s => s.source_slug))];
 
   return (
     <motion.div

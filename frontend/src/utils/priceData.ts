@@ -107,7 +107,12 @@ export function extractSourceSlugs(snapshots: PriceSnapshot[]): string[] {
  * @param mode 'original' = 原币种 | 'cny_per_stick' = 单支人民币
  */
 export function buildChartData(variants: Variant[], mode: 'original' | 'cny_per_stick' = 'cny_per_stick') {
-  const dateMap: Record<string, Record<string, number | string>> = {};
+  type ChartDatum = {
+    date: string;
+    [key: string]: number | string | null;
+  };
+  // null 表示来源没有可用价格，图表据此保留数据缺口。
+  const dateMap: Record<string, ChartDatum> = {};
   variants.forEach((v) => {
     const currency = v.currency || 'USD';
     const label = mode === 'original'

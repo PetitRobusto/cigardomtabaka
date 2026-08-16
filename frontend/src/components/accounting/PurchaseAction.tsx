@@ -70,8 +70,16 @@ function formatCents(value: bigint): string {
 
 function itemTotal(item: PurchaseOrderAction['items'][number]): string {
   const price = decimalCents(item.unit_price_rub_per_box);
-  if (price === null || !Number.isInteger(item.box_quantity) || item.box_quantity < 0) return "—";
-  return formatCents(price * BigInt(item.box_quantity));
+  const boxQuantity = item.box_quantity;
+  // 待复核的包装数量不能参与采购总额推算。
+  if (
+    price === null
+    || boxQuantity === null
+    || boxQuantity === undefined
+    || !Number.isInteger(boxQuantity)
+    || boxQuantity < 0
+  ) return "—";
+  return formatCents(price * BigInt(boxQuantity));
 }
 
 /** 采购卡只允许一次付款、一次整单到货；表单输入与动作状态彼此隔离。 */

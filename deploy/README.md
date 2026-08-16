@@ -9,7 +9,15 @@
 - ✅ Fail2ban：SSH 防爆破
 - ✅ Nginx + Gunicorn (systemd)
 - ✅ HTTPS (Let's Encrypt, 自动续期)
-- ✅ GitHub Actions CI/CD (push main 自动部署)
+- ✅ GitHub Actions CI/CD（push main 后，只有 CI 全绿才自动部署）
+
+自动部署链路：
+
+```text
+push main → CI 全绿 → Deploy production → /opt/cigardomtabaka
+```
+
+CI 会依次检查 Django、后端测试、前端 TypeScript、ESLint、Vitest 和 production build。任意一步失败都会阻止 production 部署。
 
 ## 二、GitHub Secrets
 

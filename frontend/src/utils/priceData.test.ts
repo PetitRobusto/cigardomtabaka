@@ -24,4 +24,25 @@ describe('buildChartData', () => {
 
     expect(rows[0]['来源 25 · ¥']).toBeNull();
   });
+
+  it('keeps CNY per-stick price unknown when box size is missing', () => {
+    const variants = [{
+      source_slug: 'source',
+      source_name: '来源',
+      box_size: null,
+      box_label: '未知盒规',
+      currency: 'USD',
+      points: [{
+        date: '2026-08-16',
+        price: 100,
+        original_price: 100,
+        price_cny: 700,
+        in_stock: true,
+      }],
+    }] satisfies Variant[];
+
+    const rows = buildChartData(variants, 'cny_per_stick');
+
+    expect(rows[0]['来源 未知盒规 · ¥']).toBeNull();
+  });
 });

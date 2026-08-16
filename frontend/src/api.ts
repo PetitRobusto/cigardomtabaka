@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type {
-  PriceSnapshot, PriceHistoryResponse, Source, AlertItem, AggregatedCigar,
+  PriceSnapshot, PriceHistoryResponse, Source, AlertItem, CigarListItem,
   BrandListResponse, BrandDetailResponse, CigarDetailResponse,
   InventoryResponse, PrivnoteResponse,
   PaymentMethod, SearchCigarResult, InventoryViewData,
@@ -32,27 +32,35 @@ export function apiErrorMessage(error: unknown, fallback = '操作失败，请�
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+// DRF 列表可能直接返回数组，也可能包装在 results 中；其他形状安全降级为空数组。
+function unwrapResults<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (!value || typeof value !== 'object' || !('results' in value)) return [];
+  const results = value.results;
+  return Array.isArray(results) ? results as T[] : [];
+}
+
 // Price tracker APIs
 export const fetchSources = (): Promise<Source[]> =>
-  api.get('/prices/sources/').then(r => r.data.results || r.data);
+  api.get<unknown>('/prices/sources/').then(r => unwrapResults<Source>(r.data));
 
 export const fetchLatestPrices = (): Promise<PriceSnapshot[]> =>
-  api.get('/prices/snapshots/latest/').then(r => r.data.results || r.data);
+  api.get<unknown>('/prices/snapshots/latest/').then(r => unwrapResults<PriceSnapshot>(r.data));
 
 export const fetchPriceHistory = (cigarId: string, days = 30): Promise<PriceHistoryResponse> =>
-  api.get('/prices/snapshots/history/', { params: { cigar_id: cigarId, days } }).then(r => r.data);
+  api.get<PriceHistoryResponse>('/prices/snapshots/history/', { params: { cigar_id: cigarId, days } }).then(r => r.data);
 
 export const fetchAlerts = (): Promise<AlertItem[]> =>
-  api.get('/prices/alerts/').then(r => r.data.results || r.data);
+  api.get<unknown>('/prices/alerts/').then(r => unwrapResults<AlertItem>(r.data));
 export const createAlert = (data: unknown) => api.post('/prices/alerts/', data).then(r => r.data);
 export const updateAlert = (id: number, data: unknown) => api.patch(`/prices/alerts/${id}/`, data).then(r => r.data);
 export const deleteAlert = (id: number) => api.delete(`/prices/alerts/${id}/`).then(r => r.data);
 
-export const fetchAggregatedPrices = (params = {} as Record<string, string>): Promise<AggregatedCigar[]> =>
-  api.get('/prices/snapshots/aggregated/', { params }).then(r => r.data || r.data.results);
+export const fetchAggregatedPrices = (params = {} as Record<string, string>): Promise<CigarListItem[]> =>
+  api.get<unknown>('/prices/snapshots/list/', { params }).then(r => unwrapResults<CigarListItem>(r.data));
 
 export const fetchRecentChanges = (): Promise<RecentChangesResponse> =>
-  api.get('/prices/snapshots/changes/').then(r => r.data);
+  api.get<RecentChangesResponse>('/prices/snapshots/changes/').then(r => r.data);
 
 // Catalog APIs
 export const fetchBrandList = (): Promise<BrandListResponse> =>
@@ -360,19 +368,39 @@ export interface GuideSummary {
   force_show_next_time: boolean;
 }
 
+// 引导状态控制自动展示，必须在写入全局状态前验证完整布尔契约。
+function isGuideSummary(value: unknown): value is GuideSummary {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.version === 'number'
+    && typeof record.auto_show_enabled === 'boolean'
+    && typeof record.should_show === 'boolean'
+    && typeof record.completed_version === 'number'
+    && typeof record.force_show_next_time === 'boolean'
+  );
+}
+
+function guideErrorMessage(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || !('error' in value)) return null;
+  const error = value.error;
+  return typeof error === 'string' && error ? error : null;
+}
+
 async function fetchGuideEndpoint(path: string, method: 'GET' | 'POST'): Promise<GuideSummary> {
   const response = await fetch(path, {
     method,
     credentials: 'same-origin',
     headers: { 'X-CSRFToken': getCSRFToken() },
   });
-  let data: GuideSummary & { error?: string };
+  let data: unknown;
   try {
-    data = await response.json() as GuideSummary & { error?: string };
+    data = await response.json();
   } catch {
     throw new Error('引导状态加载失败');
   }
-  if (!response.ok) throw new Error(data.error || '引导状态加载失败');
+  if (!response.ok) throw new Error(guideErrorMessage(data) || '引导状态加载失败');
+  if (!isGuideSummary(data)) throw new Error('引导状态返回格式错误');
   return data;
 }
 

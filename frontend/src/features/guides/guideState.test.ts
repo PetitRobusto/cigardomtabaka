@@ -127,9 +127,25 @@ describe('guide API clients', () => {
     await expect(fetchGuideStatus()).rejects.toThrow('引导状态加载失败');
   });
 
+  it('rejects a successful response with an incomplete guide summary', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ version: 3 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchGuideStatus()).rejects.toThrow('引导状态返回格式错误');
+  });
+
   it('uses the current CSRF cookie and same-origin credentials for status/complete/replay', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValue({ ok: true, json: async () => ({ version: 3 }) });
+    const summary = {
+      version: 3,
+      auto_show_enabled: true,
+      should_show: true,
+      completed_version: 2,
+      force_show_next_time: false,
+    };
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => summary });
     vi.stubGlobal('fetch', fetchMock);
 
     await fetchGuideStatus();

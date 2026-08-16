@@ -53,6 +53,26 @@ describe('采购动作卡 SSR 契约', () => {
     expect(html).toMatch(/待复核|—/);
   });
 
+  it('已到货采购单提供整单撤销入口，并要求填写原因', () => {
+    const props = {
+      purchases: [{
+        id: 13,
+        status: 'received',
+        version: 3,
+        items: [{ cigar_id: 104, cigar_name: '已到货雪茄', box_size: 25, box_quantity: 1, unit_price_rub_per_box: '25000.00' }],
+      }],
+      rubAccounts: [],
+      businessDate: '2026-08-15',
+      onReverseReceive: () => undefined,
+    } satisfies ComponentProps<typeof PurchaseAction>;
+    const html = renderToStaticMarkup(<PurchaseAction {...props} />);
+    expect(html).toContain('撤销到货');
+    expect(html).toContain('撤销原因');
+    expect(html).toMatch(/data-guide="accounting-purchase-reverse-date"/);
+    expect(html).toMatch(/data-guide="accounting-purchase-reverse-reason"/);
+    expect(html).toMatch(/data-guide="accounting-purchase-reverse-submit"/);
+  });
+
   it('stale 或非 active 的 RUB 账户 id 回退到当前合法账户', () => {
     const accounts = [
       { id: 3, name: '当前卢布银行卡', currency: 'RUB', custodian_id: null, is_active: true },

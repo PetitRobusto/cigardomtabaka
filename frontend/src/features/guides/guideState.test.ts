@@ -55,7 +55,7 @@ describe('guide state', () => {
 describe('manual content', () => {
   it('contains the required chapters with actual application routes and tour mappings', () => {
     expect(MANUAL_CHAPTERS.map(chapter => chapter.id)).toEqual(
-      expect.arrayContaining(['quickstart', 'day1', 'exchange-purchase', 'first-order', 'accounting', 'privnote']),
+      expect.arrayContaining(['quickstart', 'day1', 'exchange-purchase', 'first-order', 'accounting', 'privnote', 'reversals-audit']),
     );
 
     expect(getManualChapter('quickstart')?.route).toBe('/');
@@ -69,7 +69,8 @@ describe('manual content', () => {
 
   it("documents the complete order workflow with stable section titles", () => {
     expect(getManualChapter("first-order")?.sections.map(section => section.title)).toEqual([
-      "创建销售草稿", "添加现货", "设置人肉费", "确认并预留", "出库与收款",
+      "创建销售草稿", "填写客户", "设置人肉费", "从库存添加雪茄", "填写包装、数量和售价",
+      "填写备注并保存", "确认并预留", "按实际日期出库", "按实际到账记录收款",
     ]);
     const text = getManualChapter("first-order")?.sections.flatMap(section => section.paragraphs).join(" ") || "";
     expect(text).toContain("/sales");
@@ -85,6 +86,16 @@ describe('manual content', () => {
     expect(getManualChapter("accounting")?.sections.map(section => section.title)).toEqual([
       "记录实际人肉成本", "记录日常费用", "完成对账", "查看月利润", "合伙人分红",
     ]);
+  });
+
+  it('documents safe reversal and audit flows', () => {
+    const chapter = getManualChapter('reversals-audit');
+    expect(chapter?.route).toBe('/inventory');
+    const text = chapter?.sections.flatMap(section => section.paragraphs).join(' ') || '';
+    expect(text).toContain('撤销到货');
+    expect(text).toContain('整单退货');
+    expect(text).toContain('撤销调整');
+    expect(text).toContain('库存审计');
   });
 
   it("resolves canonical routes and does not mistake public privnote links for the staff page", () => {

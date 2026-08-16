@@ -4,9 +4,16 @@ from django.contrib import admin
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.test import TestCase
+from django.utils import timezone
 
 from cigars.audit import AgentContext
-from cigars.inventory import open_stock, release_order, reserve_order_item
+from cigars.inventory import (
+    InventoryError,
+    adjust_stock,
+    open_stock,
+    release_order,
+    reserve_order_item,
+)
 from cigars.inventory_scope import (
     _INVENTORY_WRITE_CAPABILITY, InventoryMutationError, inventory_mutation_scope,
 )
@@ -19,6 +26,7 @@ from cigars.models import (
     StockMovement,
     User,
 )
+from cigars.tests.inventory_fixtures import force_inventory_update
 
 
 class InventoryWriteBoundaryTest(TestCase):
@@ -126,6 +134,58 @@ class InventoryWriteBoundaryTest(TestCase):
                     remaining_cost_cny=Decimal('10.00'),
                     unit_cost_cny=Decimal('10.00'),
                 )
+
+    def test_reserve_scope_rejects_invalid_packaging_snapshot(self):
+        """预留事实必须保存与销售明细一致的包装快照。"""
+        with self.assertRaises(InventoryMutationError):
+            with transaction.atomic(), inventory_mutation_scope(
+                action='reserve', operator=self.operator,
+                _capability=_INVENTORY_WRITE_CAPABILITY,
+            ):
+                StockAllocation.objects.create(
+                    sales_order_item=self.item,
+                    purchase_batch=self.batch,
+                    quantity=1,
+                    status=StockAllocation.Status.RESERVED,
+                    inventory_form=SalesOrderItem.SaleUnit.BOX,
+                    box_size_snapshot=25,
+                )
+
+    def test_reverse_movement_scope_rejects_wrong_quantity_sign(self):
+        """反向流水的数量方向必须与对应业务动作一致。"""
+        with self.assertRaises(InventoryMutationError):
+            with transaction.atomic(), inventory_mutation_scope(
+                action='reverse_receive', operator=self.operator,
+                _capability=_INVENTORY_WRITE_CAPABILITY,
+            ):
+                StockMovement.objects.create(
+                    movement_type=StockMovement.MovementType.REVERSE_RECEIVE,
+                    cigar=self.cigar,
+                    purchase_batch=self.batch,
+                    quantity=1,
+                    operator=self.operator,
+                )
+
+    def test_positive_adjustment_cannot_reactivate_reversed_batch(self):
+        """已撤销入库批次不能被正向调整重新激活。"""
+        force_inventory_update(
+            PurchaseBatch.objects.filter(pk=self.batch.pk),
+            reversed_at=timezone.now(),
+            reversed_quantity=self.batch.quantity,
+            reversed_cost_cny=self.batch.original_cost_cny,
+        )
+
+        with self.assertRaises(InventoryError):
+            adjust_stock(
+                cigar=self.cigar,
+                quantity_delta=1,
+                inventory_form='stick',
+                operator=self.operator,
+                context=self.context,
+                reason='禁止复活批次',
+                batch_id=self.batch.pk,
+                unit_cost_cny=Decimal('10.00'),
+            )
 
     def test_plain_instance_update_and_delete_are_rejected(self):
         self.batch.remaining = 1

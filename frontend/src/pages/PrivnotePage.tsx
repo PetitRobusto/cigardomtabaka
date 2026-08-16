@@ -356,6 +356,7 @@ export default function PrivnotePage() {
             <div className="flex items-center gap-3">
               <span className="text-xs text-muted uppercase tracking-wider">有效期</span>
               <select
+                data-guide="privnote-duration"
                 value={duration}
                 onChange={e => setDuration(e.target.value)}
                 className="px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent min-w-[120px]"
@@ -368,6 +369,7 @@ export default function PrivnotePage() {
             <div className="flex items-center gap-3">
               <span className="text-xs text-muted uppercase tracking-wider">密码</span>
               <input
+                data-guide="privnote-password"
                 type="text"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
@@ -378,7 +380,7 @@ export default function PrivnotePage() {
             <div className="flex items-center gap-3 ml-auto">
               <label className="flex items-center gap-3 cursor-pointer">
                 <div className="relative">
-                  <input type="checkbox" className="sr-only" checked={burn} onChange={e => setBurn(e.target.checked)} />
+                  <input data-guide="privnote-burn" type="checkbox" className="sr-only" checked={burn} onChange={e => setBurn(e.target.checked)} />
                   <span className={`block w-10 h-[22px] rounded-full transition-colors ${burn ? 'bg-accent' : 'bg-border'}`}>
                     <span className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform ${burn ? 'translate-x-[18px]' : 'translate-x-0'}`} />
                   </span>
@@ -397,6 +399,7 @@ export default function PrivnotePage() {
               const Icon = tab.icon;
               return (
                 <button
+                  data-guide={tab.key === 'quote' ? 'privnote-type' : undefined}
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
@@ -423,6 +426,7 @@ export default function PrivnotePage() {
                     <span className="text-xs text-muted uppercase tracking-wider font-medium">报价单模式</span>
                     <div className="inline-flex bg-accent-light rounded-sm p-1 gap-1">
                       <button
+                        data-guide="privnote-quote-mode-full"
                         type="button"
                         onClick={() => setQuoteMode('full')}
                         className={`px-4 py-2 text-xs font-medium rounded-sm transition-all ${
@@ -434,6 +438,7 @@ export default function PrivnotePage() {
                         完整目录
                       </button>
                       <button
+                        data-guide="privnote-quote-mode-custom"
                         type="button"
                         onClick={() => {
                           setSelectedIds(current => selectedIdsOnCustomEntry(quoteMode, current));
@@ -454,7 +459,7 @@ export default function PrivnotePage() {
                     <div className="flex items-center gap-3 pb-4 border-b border-border">
                       <label className="flex items-center gap-3 cursor-pointer">
                         <div className="relative">
-                          <input type="checkbox" className="sr-only" checked={shippingIncluded} onChange={e => setShippingIncluded(e.target.checked)} />
+                          <input data-guide="privnote-shipping" type="checkbox" className="sr-only" checked={shippingIncluded} onChange={e => setShippingIncluded(e.target.checked)} />
                           <span className={`block w-10 h-[22px] rounded-full transition-colors ${shippingIncluded ? 'bg-accent' : 'bg-border'}`}>
                             <span className={`absolute top-[2px] left-[2px] w-[18px] h-[18px] bg-white rounded-full shadow transition-transform ${shippingIncluded ? 'translate-x-[18px]' : 'translate-x-0'}`} />
                           </span>
@@ -470,6 +475,7 @@ export default function PrivnotePage() {
                     <div className="pb-4 border-b border-border">
                       <label className="block text-xs text-muted uppercase tracking-wider mb-2">客户名称（可选）</label>
                       <input
+                        data-guide="privnote-customer"
                         type="text"
                         value={quoteCustomerName}
                         onChange={e => setQuoteCustomerName(e.target.value)}
@@ -490,6 +496,7 @@ export default function PrivnotePage() {
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
                           <input
+                            data-guide="privnote-quote-search"
                             type="text"
                             value={quoteSearchQ}
                             onChange={e => setQuoteSearchQ(e.target.value)}
@@ -524,6 +531,7 @@ export default function PrivnotePage() {
                                       className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent-light cursor-pointer border-b border-border last:border-0"
                                     >
                                       <input
+                                        data-guide="privnote-quote-product"
                                         type="checkbox"
                                         className="w-4 h-4 accent-accent shrink-0 cursor-pointer"
                                         checked={visibleSelectedIds.includes(p.cigar_id)}
@@ -603,6 +611,7 @@ export default function PrivnotePage() {
                   </div>
                   <div className="p-5 space-y-3">
                     <select
+                      data-guide="privnote-payment-order"
                       value={selectedPaymentOrderId}
                       onChange={e => setSelectedPaymentOrderId(e.target.value)}
                       disabled={ordersLoading}
@@ -634,11 +643,11 @@ export default function PrivnotePage() {
                 <div className="bg-white border border-border rounded-sm overflow-hidden">
                   <div className="px-5 py-4 border-b border-border"><span className="text-xs text-muted uppercase tracking-wider font-medium">收款方式</span></div>
                   <div className="p-5 space-y-4">
-                    <select required value={paymentMethodId} onChange={e => setPaymentMethodId(e.target.value)} className="w-full px-3 py-2.5 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent">
+                    <select data-guide="privnote-payment-method" required value={paymentMethodId} onChange={e => setPaymentMethodId(e.target.value)} className="w-full px-3 py-2.5 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent">
                       <option value="">请选择已绑定的 CNY 收款账户</option>
                       {paymentMethods?.map((pm: PaymentMethod) => <option key={pm.id} value={pm.id}>{pm.label}{pm.remark ? ` · ${pm.remark}` : ''}</option>)}
                     </select>
-                    <label className="block text-xs text-muted uppercase tracking-wider">备注<textarea value={remark} onChange={e => setRemark(e.target.value)} rows={3} placeholder="备注信息…" className="mt-2 w-full px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent resize-none" /></label>
+                    <label className="block text-xs text-muted uppercase tracking-wider">备注<textarea data-guide="privnote-payment-remark" value={remark} onChange={e => setRemark(e.target.value)} rows={3} placeholder="备注信息…" className="mt-2 w-full px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent resize-none" /></label>
                     <div><label className="block text-xs text-muted uppercase tracking-wider mb-2">备注图片</label><FileUploadArea {...paymentImages} /></div>
                   </div>
                 </div>
@@ -653,6 +662,7 @@ export default function PrivnotePage() {
                   </div>
                   <div className="p-5">
                     <textarea
+                      data-guide="privnote-message"
                       value={messageText}
                       onChange={e => setMessageText(e.target.value)}
                       rows={6}
@@ -753,6 +763,7 @@ export default function PrivnotePage() {
                 取消
               </button>
               <button
+                data-guide="privnote-submit"
                 type="submit"
                 disabled={loading || !canSubmit()}
                 className="px-5 py-2.5 bg-accent text-white rounded-sm text-sm font-medium hover:bg-accent-hover active:scale-[0.98] transition-all disabled:opacity-50"

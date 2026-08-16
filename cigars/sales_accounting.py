@@ -12,12 +12,14 @@ from django.db import transaction
 
 from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
 from accounting.guards import require_day1_completed
+from accounting.mutation_scope import ledger_mutation_scope
 from accounting.services import (
     LedgerError,
     PostingInput,
     _post_transaction_once,
     _retry_sqlite_locked,
     _acquire_sqlite_writer_gate,
+    reverse_ledger_transaction,
 )
 from .audit import AgentContext
 from . import inventory as inventory_module
@@ -26,6 +28,7 @@ from .models import (
     SalesShipment,
     SalesReceipt,
     SalesRefund,
+    SalesReturn,
     SalesTransportCost,
 )
 from .services import (
@@ -35,6 +38,24 @@ from .services import (
 
 
 MONEY_PLACES = Decimal("0.01")
+
+
+def _receipt_credit_category(receipt, amount):
+    """返回原收款实际冲销的内部科目。"""
+    categories = [
+        posting.category
+        for posting in receipt.ledger_transaction.postings.all()
+        if posting.account_id is None
+        and posting.category in {
+            LedgerPosting.Category.ACCOUNTS_RECEIVABLE,
+            LedgerPosting.Category.CUSTOMER_PREPAYMENTS,
+        }
+        and posting.amount == -amount
+        and posting.cny_amount == -amount
+    ]
+    if len(categories) != 1:
+        raise OrderServiceError("原销售收款流水不完整，不能退款")
+    return categories[0]
 
 
 def _cny_posting(category, amount):
@@ -322,8 +343,73 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
 
 @_retry_sqlite_locked
 @transaction.atomic
+def return_sales_order(*, order_id, business_date, operator, idempotency_key,
+                       reason, agent_context=None):
+    """整单退回已出库商品并冲正销售出库。"""
+    _acquire_sqlite_writer_gate()
+    operator = _require_operator(operator)
+    require_day1_completed()
+    reason = str(reason or '').strip()
+    if not reason:
+        raise OrderServiceError('退货原因不能为空')
+    order = SalesOrder.objects.select_for_update().filter(pk=order_id).first()
+    if order is None:
+        raise OrderServiceError('销售单不存在')
+    existing = SalesReturn.objects.select_related(
+        'ledger_transaction', 'sales_shipment__ledger_transaction',
+    ).filter(sales_order=order).first()
+    if existing is not None:
+        reverse_ledger_transaction(
+            original_transaction=existing.sales_shipment.ledger_transaction,
+            business_date=business_date, operator=operator,
+            idempotency_key=idempotency_key, reason=reason,
+        )
+        return existing
+    if order.fulfillment_status != SalesOrder.FulfillmentStatus.SHIPPED:
+        raise OrderServiceError('只有已出库订单才能整单退货')
+    shipment = SalesShipment.objects.select_related('ledger_transaction').filter(
+        sales_order=order,
+    ).first()
+    if shipment is None:
+        raise OrderServiceError('销售出库事实不存在')
+    context = agent_context or AgentContext(
+        command_name='return_sales_order', idempotency_key=idempotency_key,
+    )
+    try:
+        returned_cost = inventory_module.return_order(
+            order=order, operator=operator, context=context, note=reason,
+            expected_cost_cny=shipment.fifo_cost_cny,
+        )
+    except inventory_module.InventoryError as error:
+        raise OrderServiceError(str(error), details=error.details) from error
+    if returned_cost != shipment.fifo_cost_cny:
+        raise OrderServiceError('退回库存成本与原销售出库不一致')
+    reversal = reverse_ledger_transaction(
+        original_transaction=shipment.ledger_transaction,
+        business_date=business_date, operator=operator,
+        idempotency_key=idempotency_key, reason=reason,
+    )
+    with ledger_mutation_scope(
+        reason='sales_return_fact', model='cigars.SalesReturn', operator=operator,
+    ):
+        sales_return = SalesReturn.objects.create(
+            sales_order=order, sales_shipment=shipment,
+            amount_cny=order.amount_due_cny, fifo_cost_cny=returned_cost,
+            ledger_transaction=reversal, business_date=business_date,
+            operator=operator, reason=reason,
+        )
+    order.fulfillment_status = SalesOrder.FulfillmentStatus.RETURNED
+    order.status = 'returned'
+    if order.payment_status == SalesOrder.PaymentStatus.PAID:
+        order.payment_status = SalesOrder.PaymentStatus.REFUND_PENDING
+    order.save(update_fields=['fulfillment_status', 'payment_status', 'status'])
+    return sales_return
+
+
+@_retry_sqlite_locked
+@transaction.atomic
 def refund_sales_order_payment(*, order_id, business_date, operator, idempotency_key):
-    """退回已取消销售单的整笔预收款。"""
+    """退回已取消或已退货销售单的整笔收款。"""
     _acquire_sqlite_writer_gate()
     operator_id = getattr(operator, "pk", None)
     if not operator_id:
@@ -338,8 +424,14 @@ def refund_sales_order_payment(*, order_id, business_date, operator, idempotency
         raise OrderServiceError("销售单不存在")
 
     existing_tx = LedgerTransaction.objects.filter(idempotency_key=idempotency_key).first()
+    receipt = SalesReceipt.objects.select_related(
+        "fund_account", "ledger_transaction",
+    ).filter(sales_order=order).first()
     existing = SalesRefund.objects.select_related("ledger_transaction").filter(sales_order=order).first()
     if existing is not None:
+        if receipt is None:
+            raise OrderServiceError("销售单没有可退款的收款")
+        credit_category = _receipt_credit_category(receipt, existing.amount_cny)
         tx = existing.ledger_transaction
         postings = list(tx.postings.all())
         account_postings = [
@@ -350,10 +442,10 @@ def refund_sales_order_payment(*, order_id, business_date, operator, idempotency
             and posting.amount == -existing.amount_cny
             and posting.cny_amount == -existing.amount_cny
         ]
-        prepayment_postings = [
+        offset_postings = [
             posting for posting in postings
             if posting.account_id is None
-            and posting.category == LedgerPosting.Category.CUSTOMER_PREPAYMENTS
+            and posting.category == credit_category
             and posting.currency == FundAccount.Currency.CNY
             and posting.amount == existing.amount_cny
             and posting.cny_amount == existing.amount_cny
@@ -370,7 +462,7 @@ def refund_sales_order_payment(*, order_id, business_date, operator, idempotency
             and existing.operator_id == operator_id
             and len(postings) == 2
             and len(account_postings) == 1
-            and len(prepayment_postings) == 1
+            and len(offset_postings) == 1
         )
         if not valid:
             raise OrderServiceError("销售退款幂等键参数不匹配")
@@ -380,9 +472,8 @@ def refund_sales_order_payment(*, order_id, business_date, operator, idempotency
     operator = _require_operator(operator)
     require_day1_completed()
 
-    receipt = SalesReceipt.objects.select_related("fund_account", "ledger_transaction").filter(sales_order=order).first()
     if receipt is None:
-        raise OrderServiceError("销售单没有可退款的预收款")
+        raise OrderServiceError("销售单没有可退款的收款")
     receipt_tx = receipt.ledger_transaction
     receipt_postings = list(receipt_tx.postings.order_by("id"))
     amount = receipt.amount_cny.quantize(MONEY_PLACES)
@@ -395,10 +486,11 @@ def refund_sales_order_payment(*, order_id, business_date, operator, idempotency
         and posting.amount == amount
         and posting.cny_amount == amount
     ]
-    prepayment_postings = [
+    credit_category = _receipt_credit_category(receipt, amount)
+    credit_postings = [
         posting for posting in receipt_postings
         if posting.account_id is None
-        and posting.category == LedgerPosting.Category.CUSTOMER_PREPAYMENTS
+        and posting.category == credit_category
         and posting.currency == FundAccount.Currency.CNY
         and posting.amount == -amount
         and posting.cny_amount == -amount
@@ -412,11 +504,17 @@ def refund_sales_order_payment(*, order_id, business_date, operator, idempotency
         and receipt_tx.operator_id == receipt.operator_id
         and len(receipt_postings) == 2
         and len(account_postings) == 1
-        and len(prepayment_postings) == 1
+        and len(credit_postings) == 1
     )
     if not valid_receipt:
         raise OrderServiceError("原销售收款流水不完整，不能退款")
-    if order.fulfillment_status != SalesOrder.FulfillmentStatus.CANCELLED or order.payment_status != SalesOrder.PaymentStatus.REFUND_PENDING:
+    if (
+        order.fulfillment_status not in {
+            SalesOrder.FulfillmentStatus.CANCELLED,
+            SalesOrder.FulfillmentStatus.RETURNED,
+        }
+        or order.payment_status != SalesOrder.PaymentStatus.REFUND_PENDING
+    ):
         raise OrderServiceError("销售单不是待退款状态")
     if not account.is_active or account.currency != FundAccount.Currency.CNY:
         raise LedgerError("原收款账户必须是启用的人民币账户")
@@ -425,7 +523,7 @@ def refund_sales_order_payment(*, order_id, business_date, operator, idempotency
         business_date=business_date,
         postings=[
             PostingInput(account=account, currency=FundAccount.Currency.CNY, amount=-amount, cny_amount=-amount),
-            _cny_posting(LedgerPosting.Category.CUSTOMER_PREPAYMENTS, amount),
+            _cny_posting(credit_category, amount),
         ],
         operator=operator, idempotency_key=idempotency_key,
         description=f"销售单 {order.order_number} 退款",
@@ -497,8 +595,11 @@ def record_sales_transport_cost(*, order_id, actual_cost_cny, fund_account,
         raise OrderServiceError("人肉成本幂等键已用于其他业务")
     require_day1_completed()
     operator = _require_operator(operator)
-    if order.fulfillment_status != SalesOrder.FulfillmentStatus.SHIPPED:
-        raise OrderServiceError("只有已出库订单才能记录人肉成本")
+    if order.fulfillment_status not in {
+        SalesOrder.FulfillmentStatus.SHIPPED,
+        SalesOrder.FulfillmentStatus.RETURNED,
+    }:
+        raise OrderServiceError("只有已出库或已退货订单才能记录人肉成本")
     if amount <= 0:
         raise LedgerError("人肉成本必须是正的两位小数")
     account = FundAccount.objects.select_for_update().filter(pk=account_id).first()

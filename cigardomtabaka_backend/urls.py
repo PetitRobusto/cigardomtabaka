@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 from cigars import views
 from cigars import agent_api
 from cigars import sales_api
+from cigars import inventory_api
 from cigars.auth_views import api_login, api_logout, api_me
 from cigars.guide_views import guide_status, guide_complete, guide_replay
 from privnote.views import (
@@ -59,6 +60,7 @@ urlpatterns = [
     path('api/agent/purchase-orders/update/', agent_api.update_purchase_order_command, name='agent_update_purchase_order'),
     path('api/agent/purchase-orders/cancel/', agent_api.cancel_purchase_order_command, name='agent_cancel_purchase_order'),
     path('api/agent/purchase-orders/receive/', agent_api.receive_purchase_order_command, name='agent_receive_purchase_order'),
+    path('api/agent/purchase-orders/reverse-receive/', agent_api.reverse_purchase_receipt_command, name='agent_reverse_purchase_receipt'),
     path('api/agent/orders/', agent_api.sales_orders_query, name='agent_sales_orders'),
     path('api/agent/orders/<int:order_id>/', agent_api.sales_order_detail_query, name='agent_sales_order_detail'),
     path('api/agent/orders/create/', agent_api.create_sales_order_command, name='agent_create_sales_order'),
@@ -68,8 +70,11 @@ urlpatterns = [
     path('api/agent/orders/ship/', agent_api.ship_sales_order_command, name='agent_ship_sales_order'),
     path('api/agent/orders/receive/', agent_api.receive_sales_order_payment_command, name='agent_receive_sales_order_payment'),
     path('api/agent/orders/refund/', agent_api.refund_sales_order_payment_command, name='agent_refund_sales_order_payment'),
+    path('api/agent/orders/return/', agent_api.return_sales_order_command, name='agent_return_sales_order'),
     path('api/agent/orders/transport-cost/', agent_api.record_sales_transport_cost_command, name='agent_record_sales_transport_cost'),
     path('api/agent/stock/adjust/', agent_api.adjust_stock_command, name='agent_adjust_stock'),
+    path('api/agent/stock/adjust/reverse/', agent_api.reverse_stock_adjustment_command, name='agent_reverse_stock_adjustment'),
+    path('api/agent/stock/audit/', agent_api.inventory_audit_query, name='agent_inventory_audit'),
     path('api/agent/reports/basic/', agent_api.business_report, name='agent_business_report'),
     path('api/sales/orders/', sales_api.sales_orders, name='sales_orders'),
     path('api/sales/orders/<int:order_id>/', sales_api.sales_order_detail, name='sales_order_detail'),
@@ -78,7 +83,10 @@ urlpatterns = [
     path('api/sales/orders/<int:order_id>/ship/', sales_api.sales_order_ship, name='sales_order_ship'),
     path('api/sales/orders/<int:order_id>/receive/', sales_api.sales_order_receive, name='sales_order_receive'),
     path('api/sales/orders/<int:order_id>/refund/', sales_api.sales_order_refund, name='sales_order_refund'),
+    path('api/sales/orders/<int:order_id>/return/', sales_api.sales_order_return, name='sales_order_return'),
     path('api/sales/orders/<int:order_id>/transport-cost/', sales_api.sales_order_transport_cost, name='sales_order_transport_cost'),
+    path('api/inventory/adjustments/<int:adjustment_id>/reverse/', inventory_api.inventory_adjustment_reverse, name='inventory_adjustment_reverse'),
+    path('api/inventory/audit/', inventory_api.inventory_audit, name='inventory_audit'),
     path('api/accounting/', include('accounting.urls')),
     path('api/prices/', include('price_tracker.urls')),
     # Privnote — JSON API + customer view API (frontend handled by React SPA)

@@ -9,7 +9,7 @@ interface BrandTabsProps {
 
 export function BrandTabs({ brands, activeBrand, onSelect }: BrandTabsProps) {
   return (
-    <div className="flex flex-wrap gap-2 mb-6 p-2 bg-white rounded-xl border border-border shadow-sm">
+    <div data-guide="prices-filter" className="flex flex-wrap gap-2 mb-6 p-2 bg-white rounded-xl border border-border shadow-sm">
       <button
         className={`relative px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
           !activeBrand

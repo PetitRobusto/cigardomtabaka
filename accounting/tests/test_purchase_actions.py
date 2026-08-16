@@ -1,13 +1,24 @@
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 
-from django.db import connection
+from django.db import connection, models
 from django.test import TestCase
 
 from accounting.models import Day1Initialization, FundAccount, LedgerPosting, LedgerTransaction, PurchasePayment
-from accounting.purchase_actions import PurchaseActionError, pay_purchase_order, receive_paid_purchase_order
+from accounting.purchase_actions import (
+    PurchaseActionError,
+    pay_purchase_order,
+    receive_paid_purchase_order,
+    reverse_received_purchase_order,
+)
 from accounting.services import record_opening_balance
+from accounting.services import LedgerError
 from cigars.models import Brand, Cigar, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, StockMovement, Supplier, User
+from cigars.inventory_audit import audit_inventory
+from cigars.audit import AgentContext
+from cigars.inventory import split_box
+from cigars.tests.inventory_fixtures import force_inventory_update
 
 
 class PurchasePaymentTest(TestCase):
@@ -183,6 +194,336 @@ class PurchasePaymentTest(TestCase):
                 operator=self.operator, idempotency_key="receipt-other",
             )
         self.assertEqual(error.exception.code, "idempotency_conflict")
+
+    def test_receipt_can_be_reversed_and_received_again_with_new_key(self):
+        """未使用到货可整单撤销，并在保留历史后重新到货。"""
+        pay_purchase_order(
+            purchase_order_id=self.order.id,
+            rub_account_id=self.rub.id,
+            business_date=date(2026, 8, 14),
+            operator=self.operator,
+            idempotency_key="payment-for-receipt-reversal",
+        )
+        original_batches = receive_paid_purchase_order(
+            purchase_order_id=self.order.id,
+            business_date=date(2026, 8, 14),
+            operator=self.operator,
+            idempotency_key="receipt-before-reversal",
+            note="首次到货",
+        )
+
+        reversed_batches = reverse_received_purchase_order(
+            purchase_order_id=self.order.id,
+            business_date=date(2026, 8, 15),
+            operator=self.operator,
+            idempotency_key="reverse-receipt-1",
+            reason="仓库确认录错",
+        )
+        replayed = reverse_received_purchase_order(
+            purchase_order_id=self.order.id,
+            business_date=date(2026, 8, 15),
+            operator=self.operator,
+            idempotency_key="reverse-receipt-1",
+            reason="仓库确认录错",
+        )
+
+        self.assertEqual([batch.pk for batch in reversed_batches], [original_batches[0].pk])
+        self.assertEqual([batch.pk for batch in replayed], [original_batches[0].pk])
+        original = PurchaseBatch.objects.get(pk=original_batches[0].pk)
+        self.assertEqual(original.remaining, 0)
+        self.assertEqual(original.reversed_quantity, original.quantity)
+        self.assertEqual(original.reversed_cost_cny, original.original_cost_cny)
+        self.assertIsNotNone(original.reversed_at)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, PurchaseOrder.Status.IN_TRANSIT)
+        self.assertIsNone(self.order.arrival_idempotency_key)
+        item = self.order.items.get()
+        self.assertEqual(item.actual_cost_cny, original.original_cost_cny)
+        historical_receipt = receive_paid_purchase_order(
+            purchase_order_id=self.order.id,
+            business_date=date(2026, 8, 14),
+            operator=self.operator,
+            idempotency_key='receipt-before-reversal',
+            note='首次到货',
+        )
+        self.assertEqual(
+            [batch.pk for batch in historical_receipt],
+            [original.pk],
+        )
+
+        new_batches = receive_paid_purchase_order(
+            purchase_order_id=self.order.id,
+            business_date=date(2026, 8, 16),
+            operator=self.operator,
+            idempotency_key="receipt-after-reversal",
+            note="重新到货",
+        )
+        replayed_new = receive_paid_purchase_order(
+            purchase_order_id=self.order.id,
+            business_date=date(2026, 8, 16),
+            operator=self.operator,
+            idempotency_key="receipt-after-reversal",
+            note="重新到货",
+        )
+        self.assertNotEqual(new_batches[0].pk, original.pk)
+        self.assertEqual([batch.pk for batch in replayed_new], [new_batches[0].pk])
+        self.assertTrue(audit_inventory().ok)
+
+        reverse_received_purchase_order(
+            purchase_order_id=self.order.id,
+            business_date=date(2026, 8, 16),
+            operator=self.operator,
+            idempotency_key='reverse-receipt-2',
+            reason='第二次到货仍录错',
+        )
+        replayed_first_cycle = reverse_received_purchase_order(
+            purchase_order_id=self.order.id,
+            business_date=date(2026, 8, 15),
+            operator=self.operator,
+            idempotency_key='reverse-receipt-1',
+            reason='仓库确认录错',
+        )
+        self.assertEqual(
+            [batch.pk for batch in replayed_first_cycle],
+            [original.pk],
+        )
+
+    def test_receipt_reversal_rolls_back_inventory_when_ledger_fails(self):
+        """到货撤销账务失败时，采购单和批次必须保持已到货。"""
+        pay_purchase_order(
+            purchase_order_id=self.order.id,
+            rub_account_id=self.rub.id,
+            business_date=date(2026, 8, 14),
+            operator=self.operator,
+            idempotency_key='payment-before-failed-reversal',
+        )
+        batch = receive_paid_purchase_order(
+            purchase_order_id=self.order.id,
+            business_date=date(2026, 8, 14),
+            operator=self.operator,
+            idempotency_key='receipt-before-failed-reversal',
+        )[0]
+
+        with patch(
+            'accounting.purchase_actions.reverse_ledger_transaction',
+            side_effect=LedgerError('冲正失败'),
+        ):
+            with self.assertRaises(LedgerError):
+                reverse_received_purchase_order(
+                    purchase_order_id=self.order.id,
+                    business_date=date(2026, 8, 15),
+                    operator=self.operator,
+                    idempotency_key='failed-receipt-reversal',
+                    reason='测试回滚',
+                )
+
+        self.order.refresh_from_db()
+        batch.refresh_from_db()
+        self.assertEqual(self.order.status, PurchaseOrder.Status.RECEIVED)
+        self.assertEqual(batch.remaining, batch.quantity)
+        self.assertIsNone(batch.reversed_at)
+        self.assertFalse(LedgerTransaction.objects.filter(
+            idempotency_key='failed-receipt-reversal',
+        ).exists())
+
+    def test_receipt_reversal_is_blocked_after_batch_is_used(self):
+        """到货批次一旦拆盒或参与库存动作，就不能撤销原到货。"""
+        pay_purchase_order(
+            purchase_order_id=self.order.id,
+            rub_account_id=self.rub.id,
+            business_date=date(2026, 8, 14),
+            operator=self.operator,
+            idempotency_key='payment-before-used-receipt',
+        )
+        batch = receive_paid_purchase_order(
+            purchase_order_id=self.order.id,
+            business_date=date(2026, 8, 14),
+            operator=self.operator,
+            idempotency_key='receipt-before-split',
+        )[0]
+        split_box(
+            batch_id=batch.pk,
+            operator=self.operator,
+            context=AgentContext(command_name='split-received-box'),
+        )
+
+        with self.assertRaises(PurchaseActionError) as raised:
+            reverse_received_purchase_order(
+                purchase_order_id=self.order.id,
+                business_date=date(2026, 8, 15),
+                operator=self.operator,
+                idempotency_key='blocked-used-receipt-reversal',
+                reason='不能撤销已拆盒批次',
+            )
+
+        self.assertEqual(raised.exception.code, 'receipt_already_used')
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, PurchaseOrder.Status.RECEIVED)
+
+    def test_receipt_reversal_rejects_tampered_receive_movement(self):
+        """原到货流水语义损坏时不得继续创建撤销流水。"""
+        pay_purchase_order(
+            purchase_order_id=self.order.id,
+            rub_account_id=self.rub.id,
+            business_date=date(2026, 8, 14),
+            operator=self.operator,
+            idempotency_key='payment-before-tampered-receipt',
+        )
+        batch = receive_paid_purchase_order(
+            purchase_order_id=self.order.id,
+            business_date=date(2026, 8, 14),
+            operator=self.operator,
+            idempotency_key='tampered-receipt',
+        )[0]
+        movement = StockMovement.objects.get(purchase_batch=batch)
+        force_inventory_update(
+            StockMovement.objects.filter(pk=movement.pk),
+            movement_type=StockMovement.MovementType.SPLIT_BOX,
+        )
+
+        with self.assertRaises(PurchaseActionError) as raised:
+            reverse_received_purchase_order(
+                purchase_order_id=self.order.id,
+                business_date=date(2026, 8, 15),
+                operator=self.operator,
+                idempotency_key='reject-tampered-receipt',
+                reason='流水已经损坏',
+            )
+
+        self.assertEqual(raised.exception.code, 'receipt_already_used')
+
+    def test_inventory_audit_reports_tampered_receipt_source(self):
+        """采购到货交易来源被篡改时，库存审计必须报警。"""
+        pay_purchase_order(
+            purchase_order_id=self.order.pk, rub_account_id=self.rub.pk,
+            business_date=date(2026, 8, 14), operator=self.operator,
+            idempotency_key='payment-before-receipt-source-audit',
+        )
+        receive_paid_purchase_order(
+            purchase_order_id=self.order.pk, business_date=date(2026, 8, 14),
+            operator=self.operator, idempotency_key='receipt-source-audit',
+        )
+        transaction_obj = LedgerTransaction.objects.get(
+            idempotency_key='receipt-source-audit',
+        )
+        models.QuerySet.update(
+            LedgerTransaction.objects.filter(pk=transaction_obj.pk),
+            source_id='999999',
+        )
+
+        self.assertIn(
+            'PURCHASE_RECEIPT_LEDGER_MISMATCH',
+            {issue.code for issue in audit_inventory().issues},
+        )
+
+    def test_inventory_audit_reports_tampered_reversed_receipt_source(self):
+        """到货撤销后，原到货交易来源仍必须可追溯到采购单。"""
+        pay_purchase_order(
+            purchase_order_id=self.order.pk, rub_account_id=self.rub.pk,
+            business_date=date(2026, 8, 14), operator=self.operator,
+            idempotency_key='payment-before-reversed-receipt-audit',
+        )
+        receive_paid_purchase_order(
+            purchase_order_id=self.order.pk, business_date=date(2026, 8, 14),
+            operator=self.operator, idempotency_key='reversed-receipt-source-audit',
+        )
+        reverse_received_purchase_order(
+            purchase_order_id=self.order.pk, business_date=date(2026, 8, 15),
+            operator=self.operator, idempotency_key='reverse-before-source-audit',
+            reason='审计历史到货',
+        )
+        transaction_obj = LedgerTransaction.objects.get(
+            idempotency_key='reversed-receipt-source-audit',
+        )
+        models.QuerySet.update(
+            LedgerTransaction.objects.filter(pk=transaction_obj.pk),
+            source_type='tampered_receipt', source_id='999999',
+        )
+
+        self.assertIn(
+            'PURCHASE_RECEIPT_LEDGER_MISMATCH',
+            {issue.code for issue in audit_inventory().issues},
+        )
+
+    def test_receipt_reversal_requires_one_batch_per_order_item(self):
+        """批次与采购明细不是一一对应时不得整单撤销。"""
+        second = PurchaseOrderItem.objects.create(
+            purchase_order=self.order,
+            cigar=self.cigar,
+            quantity=10,
+            box_size=10,
+            box_quantity=1,
+            unit_price_rub_per_box=Decimal('100.00'),
+            packaging_status=PurchaseOrderItem.PackagingStatus.UNREPRESENTABLE,
+        )
+        pay_purchase_order(
+            purchase_order_id=self.order.id,
+            rub_account_id=self.rub.id,
+            business_date=date(2026, 8, 14),
+            operator=self.operator,
+            idempotency_key='payment-before-batch-map-corruption',
+        )
+        batches = receive_paid_purchase_order(
+            purchase_order_id=self.order.id,
+            business_date=date(2026, 8, 14),
+            operator=self.operator,
+            idempotency_key='receipt-before-batch-map-corruption',
+        )
+        first_item = self.order.items.exclude(pk=second.pk).get()
+        force_inventory_update(
+            PurchaseBatch.objects.filter(pk=batches[1].pk),
+            purchase_order_item_id=first_item.pk,
+        )
+
+        with self.assertRaises(PurchaseActionError) as raised:
+            reverse_received_purchase_order(
+                purchase_order_id=self.order.id,
+                business_date=date(2026, 8, 15),
+                operator=self.operator,
+                idempotency_key='reject-invalid-batch-map',
+                reason='批次映射损坏',
+            )
+
+        self.assertEqual(raised.exception.code, 'receipt_already_used')
+
+    def test_receipt_reversal_accepts_multiple_valid_order_items(self):
+        """多明细采购单在事实完整时可整单撤销。"""
+        PurchaseOrderItem.objects.create(
+            purchase_order=self.order,
+            cigar=self.cigar,
+            quantity=10,
+            box_size=10,
+            box_quantity=1,
+            unit_price_rub_per_box=Decimal('100.00'),
+            packaging_status=PurchaseOrderItem.PackagingStatus.UNREPRESENTABLE,
+        )
+        pay_purchase_order(
+            purchase_order_id=self.order.id,
+            rub_account_id=self.rub.id,
+            business_date=date(2026, 8, 14),
+            operator=self.operator,
+            idempotency_key='payment-before-multi-item-reversal',
+        )
+        received = receive_paid_purchase_order(
+            purchase_order_id=self.order.id,
+            business_date=date(2026, 8, 14),
+            operator=self.operator,
+            idempotency_key='multi-item-receipt',
+        )
+
+        reversed_batches = reverse_received_purchase_order(
+            purchase_order_id=self.order.id,
+            business_date=date(2026, 8, 15),
+            operator=self.operator,
+            idempotency_key='multi-item-receipt-reversal',
+            reason='整单录入错误',
+        )
+
+        self.assertEqual(
+            {batch.pk for batch in reversed_batches},
+            {batch.pk for batch in received},
+        )
+        self.assertTrue(all(batch.reversed_at for batch in reversed_batches))
 
     def test_receipt_replay_rejects_missing_receive_movement(self):
         account = FundAccount.objects.create(

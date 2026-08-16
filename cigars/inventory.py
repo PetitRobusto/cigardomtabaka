@@ -1,4 +1,5 @@
 """库存事实的统一写入 Module。"""
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -46,6 +47,29 @@ class ShipmentResult:
 class AdjustmentResult:
     batch: PurchaseBatch
     cost_cny: Decimal
+    lines: tuple
+
+
+@dataclass(frozen=True)
+class AdjustmentLineResult:
+    batch: PurchaseBatch
+    movement: StockMovement
+    quantity_delta: int
+    box_delta: int
+    stick_delta: int
+    cost_delta_cny: Decimal
+    batch_state_after: dict
+
+
+def _batch_state(batch):
+    """保存撤销调整所需的最小批次状态。"""
+    fields = (
+        "remaining", "physical_remaining", "available_box_quantity",
+        "physical_box_quantity", "available_stick_quantity", "physical_stick_quantity",
+        "remaining_cost_cny", "positive_adjustment_quantity",
+        "positive_adjustment_cost_cny", "adjustment_cost_cny",
+    )
+    return {field: str(getattr(batch, field)) for field in fields}
 
 
 def _validated_entry_costs(*, quantity, total_cost_cny, unit_cost_cny):
@@ -84,6 +108,13 @@ def _record_movement(*, movement_type, cigar, quantity, operator, context,
 
 
 def _allocation_uses_boxes(*, allocation, batch):
+    if allocation.inventory_form:
+        return bool(
+            allocation.inventory_form == SalesOrderItem.SaleUnit.BOX
+            and allocation.box_size_snapshot == batch.box_size
+            and batch.box_size
+            and allocation.quantity % batch.box_size == 0
+        )
     item = allocation.sales_order_item
     return bool(
         item.sale_unit == SalesOrderItem.SaleUnit.BOX
@@ -212,6 +243,7 @@ def _reserve_boxes(*, order, item, operator, context, note):
             cigar=item.cigar,
             box_size=item.box_size,
             available_box_quantity__gt=0,
+            reversed_at__isnull=True,
         )
         .order_by("purchased_at", "id")
     )
@@ -241,6 +273,8 @@ def _reserve_boxes(*, order, item, operator, context, note):
             purchase_batch=batch,
             quantity=quantity,
             status=StockAllocation.Status.RESERVED,
+            inventory_form=SalesOrderItem.SaleUnit.BOX,
+            box_size_snapshot=item.box_size,
         )
         _record_movement(
             movement_type=StockMovement.MovementType.RESERVE,
@@ -263,7 +297,11 @@ def _reserve_boxes(*, order, item, operator, context, note):
 def _reserve_sticks(*, order, item, operator, context, note):
     batches = list(
         PurchaseBatch.objects.select_for_update()
-        .filter(cigar=item.cigar, available_stick_quantity__gt=0)
+        .filter(
+            cigar=item.cigar,
+            available_stick_quantity__gt=0,
+            reversed_at__isnull=True,
+        )
         .order_by("purchased_at", "id")
     )
     available = sum(batch.available_stick_quantity for batch in batches)
@@ -290,6 +328,8 @@ def _reserve_sticks(*, order, item, operator, context, note):
             purchase_batch=batch,
             quantity=take,
             status=StockAllocation.Status.RESERVED,
+            inventory_form=SalesOrderItem.SaleUnit.STICK,
+            box_size_snapshot=None,
         )
         _record_movement(
             movement_type=StockMovement.MovementType.RESERVE,
@@ -440,7 +480,10 @@ def ship_order(*, order, operator, context, note=""):
                 batch.save(update_fields=fields)
                 allocation.status = StockAllocation.Status.FULFILLED
                 allocation.fulfilled_at = now
-                allocation.save(update_fields=["status", "fulfilled_at"])
+                allocation.fulfilled_cost_cny = cost
+                allocation.save(update_fields=[
+                    "status", "fulfilled_at", "fulfilled_cost_cny",
+                ])
                 _record_movement(
                     movement_type=StockMovement.MovementType.SHIP,
                     cigar=item.cigar,
@@ -466,7 +509,9 @@ def split_box(*, batch_id, operator, context, note=""):
     """把一个完全可用的完整盒转换为同批次散支。"""
     _acquire_sqlite_writer_gate()
     try:
-        batch = PurchaseBatch.objects.select_for_update().get(pk=batch_id)
+        batch = PurchaseBatch.objects.select_for_update().get(
+            pk=batch_id, reversed_at__isnull=True,
+        )
     except PurchaseBatch.DoesNotExist as exc:
         raise InventoryError("批次不存在") from exc
     if not batch.box_size:
@@ -499,9 +544,212 @@ def split_box(*, batch_id, operator, context, note=""):
     return batch
 
 
+@_retry_sqlite_locked
+@transaction.atomic
+def reverse_purchase_receipt(*, order, operator, context, note=""):
+    """撤销一张完全未使用的采购单到货。"""
+    _acquire_sqlite_writer_gate()
+    items = list(order.items.select_for_update().order_by("id"))
+    batches = list(
+        PurchaseBatch.objects.select_for_update()
+        .filter(purchase_order_item__purchase_order=order, reversed_at__isnull=True)
+        .select_related("cigar")
+        .order_by("id")
+    )
+    batches_by_item = defaultdict(list)
+    for batch in batches:
+        batches_by_item[batch.purchase_order_item_id].append(batch)
+    if not items or len(batches) != len(items) or not order.arrival_idempotency_key:
+        raise InventoryError("采购到货批次不完整，不能撤销")
+    for item in items:
+        matching = batches_by_item.get(item.pk, ())
+        if len(matching) != 1:
+            raise InventoryError("采购明细与到货批次不一致，不能撤销")
+        batch = matching[0]
+        receive_movements = list(batch.stock_movements.all())
+        receive_valid = (
+            len(receive_movements) == 1
+            and receive_movements[0].movement_type == StockMovement.MovementType.RECEIVE
+            and receive_movements[0].quantity == batch.quantity
+            and receive_movements[0].cigar_id == batch.cigar_id
+            and receive_movements[0].idempotency_key == order.arrival_idempotency_key
+            and receive_movements[0].sales_order_id is None
+            and receive_movements[0].sales_order_item_id is None
+        )
+        batch_matches_item = (
+            batch.source == PurchaseBatch.Source.PURCHASE
+            and batch.cigar_id == item.cigar_id
+            and batch.quantity == item.quantity
+            and batch.original_cost_cny == item.actual_cost_cny
+            and batch.box_size == item.box_size
+            and batch.original_box_quantity == item.box_quantity
+            and batch.original_stick_quantity == 0
+        )
+        untouched = (
+            batch.remaining == batch.quantity
+            and batch.physical_remaining == batch.quantity
+            and batch.remaining_cost_cny == batch.original_cost_cny
+            and batch.sold_cost_cny == Decimal("0.00")
+            and batch.adjustment_cost_cny == Decimal("0.00")
+            and batch.positive_adjustment_quantity == 0
+            and batch.positive_adjustment_cost_cny == Decimal("0.00")
+            and batch.reversed_quantity == 0
+            and not batch.stock_allocations.exists()
+            and batch.available_box_quantity == batch.original_box_quantity
+            and batch.physical_box_quantity == batch.original_box_quantity
+            and batch.available_stick_quantity == batch.original_stick_quantity
+            and batch.physical_stick_quantity == batch.original_stick_quantity
+        )
+        if not batch_matches_item or not receive_valid or not untouched:
+            raise InventoryError("采购批次已经被使用，不能撤销到货")
+    now = timezone.now()
+    with inventory_mutation_scope(
+        action="reverse_receive", operator=operator,
+        _capability=_INVENTORY_WRITE_CAPABILITY,
+    ):
+        for batch in batches:
+            quantity = batch.quantity
+            cost = batch.original_cost_cny
+            batch.remaining = 0
+            batch.physical_remaining = 0
+            batch.available_box_quantity = 0
+            batch.physical_box_quantity = 0
+            batch.available_stick_quantity = 0
+            batch.physical_stick_quantity = 0
+            batch.remaining_cost_cny = Decimal("0.00")
+            batch.reversed_quantity = quantity
+            batch.reversed_cost_cny = cost
+            batch.reversed_at = now
+            batch.save(update_fields=[
+                "remaining", "physical_remaining", "available_box_quantity",
+                "physical_box_quantity", "available_stick_quantity",
+                "physical_stick_quantity", "remaining_cost_cny",
+                "reversed_quantity", "reversed_cost_cny", "reversed_at",
+            ])
+            _record_movement(
+                movement_type=StockMovement.MovementType.REVERSE_RECEIVE,
+                cigar=batch.cigar, purchase_batch=batch, quantity=-quantity,
+                operator=operator, context=context, note=note,
+            )
+    return batches
+
+
+def _return_allocations(*, order, expected_cost_cny):
+    """退货前逐条核对订单、分配和原出库流水。"""
+    items = list(order.items.select_for_update().order_by('id'))
+    allocations = list(
+        StockAllocation.objects.select_for_update()
+        .filter(sales_order_item__sales_order=order)
+        .select_related('sales_order_item__cigar', 'purchase_batch')
+        .order_by('id')
+    )
+    if not items or not allocations:
+        raise InventoryError('销售单出库分配不完整，不能退货')
+    by_item = defaultdict(list)
+    for allocation in allocations:
+        by_item[allocation.sales_order_item_id].append(allocation)
+    for item in items:
+        item_allocations = by_item.get(item.pk, ())
+        if sum(row.quantity for row in item_allocations) != item.quantity:
+            raise InventoryError('销售明细出库数量不完整，不能退货')
+        for allocation in item_allocations:
+            batch = allocation.purchase_batch
+            valid_shape = (
+                allocation.inventory_form == item.sale_unit
+                and (
+                    item.sale_unit == SalesOrderItem.SaleUnit.STICK
+                    and allocation.box_size_snapshot is None
+                    or item.sale_unit == SalesOrderItem.SaleUnit.BOX
+                    and item.box_size is not None
+                    and allocation.box_size_snapshot == item.box_size == batch.box_size
+                    and allocation.quantity % item.box_size == 0
+                )
+            )
+            if (
+                allocation.status != StockAllocation.Status.FULFILLED
+                or allocation.fulfilled_cost_cny is None
+                or allocation.fulfilled_cost_cny < 0
+                or allocation.quantity <= 0
+                or not valid_shape
+            ):
+                raise InventoryError('销售单出库分配不完整，不能退货')
+    expected_movements = Counter(
+        (
+            row.sales_order_item_id, row.purchase_batch_id,
+            row.sales_order_item.cigar_id, row.quantity,
+        )
+        for row in allocations
+    )
+    actual_movements = Counter(
+        StockMovement.objects.filter(
+            sales_order=order,
+            movement_type=StockMovement.MovementType.SHIP,
+        ).values_list('sales_order_item_id', 'purchase_batch_id', 'cigar_id', 'quantity')
+    )
+    if expected_movements != actual_movements:
+        raise InventoryError('销售单原出库流水不完整，不能退货')
+    total_cost = sum(
+        (row.fulfilled_cost_cny for row in allocations), Decimal('0.00'),
+    ).quantize(MONEY_PLACES)
+    if expected_cost_cny is not None and total_cost != Decimal(expected_cost_cny).quantize(MONEY_PLACES):
+        raise InventoryError('销售单原出库成本不完整，不能退货')
+    return allocations
+
+
+@_retry_sqlite_locked
+@transaction.atomic
+def return_order(*, order, operator, context, note="", expected_cost_cny=None):
+    """按原出库分配整单恢复库存和成本。"""
+    _acquire_sqlite_writer_gate()
+    allocations = _return_allocations(
+        order=order, expected_cost_cny=expected_cost_cny,
+    )
+    now = timezone.now()
+    total_cost = Decimal("0.00")
+    with inventory_mutation_scope(
+        action="return", operator=operator,
+        _capability=_INVENTORY_WRITE_CAPABILITY,
+    ):
+        for allocation in allocations:
+            batch = PurchaseBatch.objects.select_for_update().get(pk=allocation.purchase_batch_id)
+            quantity = allocation.quantity
+            cost = allocation.fulfilled_cost_cny
+            if batch.sold_cost_cny < cost:
+                raise InventoryError("批次累计销售成本不足，不能退货")
+            batch.remaining += quantity
+            batch.physical_remaining += quantity
+            batch.remaining_cost_cny += cost
+            batch.sold_cost_cny -= cost
+            if _allocation_uses_boxes(allocation=allocation, batch=batch):
+                boxes = quantity // batch.box_size
+                batch.available_box_quantity += boxes
+                batch.physical_box_quantity += boxes
+                shape_fields = ["available_box_quantity", "physical_box_quantity"]
+            else:
+                batch.available_stick_quantity += quantity
+                batch.physical_stick_quantity += quantity
+                shape_fields = ["available_stick_quantity", "physical_stick_quantity"]
+            batch.save(update_fields=[
+                "remaining", "physical_remaining", "remaining_cost_cny",
+                "sold_cost_cny", *shape_fields,
+            ])
+            allocation.status = StockAllocation.Status.RETURNED
+            allocation.returned_at = now
+            allocation.save(update_fields=["status", "returned_at"])
+            _record_movement(
+                movement_type=StockMovement.MovementType.RETURN,
+                cigar=allocation.sales_order_item.cigar,
+                purchase_batch=batch, sales_order=order,
+                sales_order_item=allocation.sales_order_item,
+                quantity=quantity, operator=operator, context=context, note=note,
+            )
+            total_cost += cost
+    return total_cost.quantize(MONEY_PLACES)
+
+
 def _adjustment_batches(*, cigar, batch_id=None):
     queryset = PurchaseBatch.objects.select_for_update().filter(
-        cigar=cigar, remaining__gt=0
+        cigar=cigar, remaining__gt=0, reversed_at__isnull=True,
     )
     if batch_id:
         queryset = queryset.filter(pk=batch_id)
@@ -515,7 +763,7 @@ def _adjustment_batch(*, cigar, batch_id, unit_cost_cny):
     if batch_id:
         try:
             return PurchaseBatch.objects.select_for_update().get(
-                pk=batch_id, cigar=cigar
+                pk=batch_id, cigar=cigar, reversed_at__isnull=True,
             )
         except PurchaseBatch.DoesNotExist as exc:
             raise InventoryError("批次不存在或不匹配") from exc
@@ -586,7 +834,7 @@ def adjust_stock(*, cigar, quantity_delta, inventory_form, operator, context,
                 "remaining", "physical_remaining", available_field, physical_field,
                 "remaining_cost_cny",
             ])
-            _record_movement(
+            movement = _record_movement(
                 movement_type=StockMovement.MovementType.ADJUSTMENT,
                 cigar=cigar,
                 purchase_batch=batch,
@@ -595,7 +843,13 @@ def adjust_stock(*, cigar, quantity_delta, inventory_form, operator, context,
                 context=context,
                 note=reason,
             )
-            return AdjustmentResult(batch=batch, cost_cny=added_cost)
+            line = AdjustmentLineResult(
+                batch=batch, movement=movement, quantity_delta=quantity_delta,
+                box_delta=shape_quantity if inventory_form == "box" else 0,
+                stick_delta=shape_quantity if inventory_form == "stick" else 0,
+                cost_delta_cny=added_cost, batch_state_after=_batch_state(batch),
+            )
+            return AdjustmentResult(batch=batch, cost_cny=added_cost, lines=(line,))
 
         quantity_to_remove = abs(quantity_delta)
         batches = _adjustment_batches(cigar=cigar, batch_id=batch_id)
@@ -620,6 +874,7 @@ def adjust_stock(*, cigar, quantity_delta, inventory_form, operator, context,
         remaining = quantity_to_remove
         total_cost = Decimal("0.00")
         last_batch = None
+        result_lines = []
         for batch in batches:
             if remaining <= 0:
                 break
@@ -649,7 +904,7 @@ def adjust_stock(*, cigar, quantity_delta, inventory_form, operator, context,
                 "remaining", "physical_remaining", *shape_fields,
                 "remaining_cost_cny", "adjustment_cost_cny",
             ])
-            _record_movement(
+            movement = _record_movement(
                 movement_type=StockMovement.MovementType.ADJUSTMENT,
                 cigar=cigar,
                 purchase_batch=batch,
@@ -671,7 +926,62 @@ def adjust_stock(*, cigar, quantity_delta, inventory_form, operator, context,
             total_cost += cost
             remaining -= take
             last_batch = batch
+            result_lines.append(AdjustmentLineResult(
+                batch=batch, movement=movement, quantity_delta=-take,
+                box_delta=-(take // batch.box_size) if inventory_form == "box" else 0,
+                stick_delta=-take if inventory_form == "stick" else 0,
+                cost_delta_cny=-cost, batch_state_after=_batch_state(batch),
+            ))
         return AdjustmentResult(
             batch=last_batch,
             cost_cny=total_cost.quantize(MONEY_PLACES),
+            lines=tuple(result_lines),
         )
+
+
+@_retry_sqlite_locked
+@transaction.atomic
+def reverse_adjustment(*, action, operator, context, note=""):
+    """仅在相关批次未发生后续变化时整次撤销库存调整。"""
+    _acquire_sqlite_writer_gate()
+    lines = list(action.lines.select_related("purchase_batch").order_by("id"))
+    if not lines:
+        raise InventoryError("库存调整缺少逐批事实，不能撤销")
+    locked = {}
+    for line in lines:
+        batch = PurchaseBatch.objects.select_for_update().get(pk=line.purchase_batch_id)
+        if _batch_state(batch) != line.batch_state_after:
+            raise InventoryError("调整后的批次已经发生变化，不能撤销")
+        locked[line.pk] = batch
+    with inventory_mutation_scope(
+        action="reverse_adjustment", operator=operator,
+        _capability=_INVENTORY_WRITE_CAPABILITY,
+    ):
+        for line in lines:
+            batch = locked[line.pk]
+            batch.remaining -= line.quantity_delta
+            batch.physical_remaining -= line.quantity_delta
+            batch.available_box_quantity -= line.box_delta
+            batch.physical_box_quantity -= line.box_delta
+            batch.available_stick_quantity -= line.stick_delta
+            batch.physical_stick_quantity -= line.stick_delta
+            batch.remaining_cost_cny -= line.cost_delta_cny
+            if line.quantity_delta > 0:
+                batch.positive_adjustment_quantity -= line.quantity_delta
+                batch.positive_adjustment_cost_cny -= line.cost_delta_cny
+            else:
+                batch.adjustment_cost_cny += line.cost_delta_cny
+            batch.save(update_fields=[
+                "remaining", "physical_remaining", "available_box_quantity",
+                "physical_box_quantity", "available_stick_quantity",
+                "physical_stick_quantity", "remaining_cost_cny",
+                "positive_adjustment_quantity", "positive_adjustment_cost_cny",
+                "adjustment_cost_cny",
+            ])
+            _record_movement(
+                movement_type=StockMovement.MovementType.REVERSE_ADJUSTMENT,
+                cigar=action.cigar, purchase_batch=batch,
+                quantity=-line.quantity_delta, operator=operator,
+                context=context, note=note,
+            )
+    return tuple(locked.values())

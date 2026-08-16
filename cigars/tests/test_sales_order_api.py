@@ -332,6 +332,29 @@ class SalesOrderApiTest(TestCase):
         self.assertEqual(payload["fulfillment_status"], SalesOrder.FulfillmentStatus.SHIPPED)
         self.assertIn("sales_shipment", payload)
 
+    def test_return_action_api_returns_return_fact_and_actions(self):
+        order_id = self.action_order("api-return")
+        shipped = self.request(
+            "post",
+            f"/api/sales/orders/{order_id}/ship/",
+            {"business_date": "2026-08-10"},
+            "api-return-ship",
+        )
+        self.assertEqual(shipped.status_code, 200)
+
+        response = self.request(
+            "post",
+            f"/api/sales/orders/{order_id}/return/",
+            {"business_date": "2026-08-11", "reason": "客户整单退回"},
+            "api-return-action",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()["sales_order"]
+        self.assertEqual(payload["fulfillment_status"], SalesOrder.FulfillmentStatus.RETURNED)
+        self.assertEqual(payload["sales_return"]["reason"], "客户整单退回")
+        self.assertNotIn("return", payload["available_actions"])
+
     def test_receive_action_api_supports_confirmed_prepayment(self):
         order_id = self.action_order("api-receive")
         account = self.action_account("api-receive-account")

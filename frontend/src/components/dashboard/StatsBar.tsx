@@ -24,7 +24,7 @@ export function StatsBar({ snapshotCount, cigarCount, brandCount, sourceCount }:
   };
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-7">
+    <div data-guide="prices-stats" className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-7">
       {items.map((item, i) => {
         const Icon = item.icon;
         return (

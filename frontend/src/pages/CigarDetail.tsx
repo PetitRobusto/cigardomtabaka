@@ -67,7 +67,7 @@ export default function CigarDetail() {
 
         {variants.length > 0 && (
           <>
-            <DaysFilter days={daysFilter} onChange={setDaysFilter} />
+            <div data-guide="prices-history-filter"><DaysFilter days={daysFilter} onChange={setDaysFilter} /></div>
 
             {/* Card Grid — collapsed by default */}
             <button
@@ -103,9 +103,9 @@ export default function CigarDetail() {
               )}
             </AnimatePresence>
 
-            <VariantTable variants={sortedVariants} />
+            <div data-guide="prices-history-table"><VariantTable variants={sortedVariants} /></div>
             <VariantAccordion variants={sortedVariants} />
-            <PriceChart variants={sortedVariants} />
+            <div data-guide="prices-history-chart"><PriceChart variants={sortedVariants} /></div>
           </>
         )}
       </div>

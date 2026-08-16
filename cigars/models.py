@@ -196,10 +196,30 @@ def _validate_inventory_create(instance):
     if label == 'cigars.StockAllocation':
         if (action != 'reserve' or instance.status != 'reserved'
                 or instance.fulfilled_at is not None or instance.released_at is not None
+                or instance.returned_at is not None or instance.fulfilled_cost_cny is not None
                 or instance.quantity <= 0):
             _raise_inventory_mutation('新库存分配必须是有效的预留事实')
         if instance.sales_order_item.cigar_id != instance.purchase_batch.cigar_id:
             _raise_inventory_mutation('库存分配雪茄与采购批次不一致')
+        if instance.purchase_batch.reversed_at is not None:
+            _raise_inventory_mutation('已撤销入库批次不能参与库存分配')
+        item = instance.sales_order_item
+        if item.sale_unit == SalesOrderItem.SaleUnit.BOX:
+            valid_shape = (
+                instance.inventory_form == SalesOrderItem.SaleUnit.BOX
+                and instance.box_size_snapshot == item.box_size
+                and instance.box_size_snapshot == instance.purchase_batch.box_size
+                and bool(item.box_size)
+                and instance.quantity % item.box_size == 0
+            )
+        else:
+            valid_shape = (
+                item.sale_unit == SalesOrderItem.SaleUnit.STICK
+                and instance.inventory_form == SalesOrderItem.SaleUnit.STICK
+                and instance.box_size_snapshot is None
+            )
+        if not valid_shape:
+            _raise_inventory_mutation('库存分配包装快照与销售明细不一致')
         return
     if label == 'cigars.StockMovement':
         expected_type = {
@@ -207,6 +227,9 @@ def _validate_inventory_create(instance):
             'reserve': 'reserve', 'release': 'release_reservation',
             'ship': 'ship', 'adjust': 'adjustment',
             'split_box': 'split_box',
+            'reverse_receive': 'reverse_receive',
+            'return': 'return',
+            'reverse_adjustment': 'reverse_adjustment',
         }.get(action)
         if expected_type is None or instance.movement_type != expected_type:
             _raise_inventory_mutation('库存流水类型与库存动作不一致')
@@ -214,7 +237,18 @@ def _validate_inventory_create(instance):
             _raise_inventory_mutation('库存流水必须关联采购批次')
         if instance.purchase_batch.cigar_id != instance.cigar_id:
             _raise_inventory_mutation('库存流水雪茄与采购批次不一致')
-        sales_action = action in {'reserve', 'release', 'ship'}
+        if instance.purchase_batch.reversed_at is not None and action != 'reverse_receive':
+            _raise_inventory_mutation('已撤销入库批次不能产生后续库存流水')
+        positive_actions = {
+            'opening', 'receive', 'reserve', 'release', 'ship', 'split_box', 'return',
+        }
+        if action in positive_actions and instance.quantity <= 0:
+            _raise_inventory_mutation('该库存流水数量必须为正数')
+        if action == 'reverse_receive' and instance.quantity >= 0:
+            _raise_inventory_mutation('撤销入库流水数量必须为负数')
+        if action in {'adjust', 'reverse_adjustment'} and instance.quantity == 0:
+            _raise_inventory_mutation('库存调整流水数量不能为零')
+        sales_action = action in {'reserve', 'release', 'ship', 'return'}
         has_sales_fact = bool(instance.sales_order_id and instance.sales_order_item_id)
         if sales_action != has_sales_fact:
             _raise_inventory_mutation('库存流水销售关联与库存动作不一致')
@@ -249,6 +283,36 @@ class InventoryFactQuerySet(models.QuerySet):
 
     def get_or_create(self, defaults=None, **kwargs):
         _raise_inventory_mutation('库存事实禁止通过 get_or_create 写入')
+
+
+class ControlledBusinessFactQuerySet(models.QuerySet):
+    """终态业务事实只允许由受控服务逐条写入。"""
+
+    def update(self, **kwargs):
+        _raise_ledger_mutation('终态业务事实禁止通过 QuerySet.update 修改')
+
+    def delete(self):
+        _raise_ledger_mutation('终态业务事实禁止通过 QuerySet.delete 删除')
+
+    def bulk_create(self, objs, **kwargs):
+        _raise_ledger_mutation('终态业务事实禁止通过 bulk_create 创建')
+
+    def bulk_update(self, objs, fields, **kwargs):
+        _raise_ledger_mutation('终态业务事实禁止通过 bulk_update 修改')
+
+    def update_or_create(self, defaults=None, **kwargs):
+        _raise_ledger_mutation('终态业务事实禁止通过 update_or_create 写入')
+
+    def get_or_create(self, defaults=None, **kwargs):
+        _raise_ledger_mutation('终态业务事实禁止通过 get_or_create 写入')
+
+
+def _require_controlled_fact_create(instance, *, reason, operator):
+    """校验终态事实只能在对应账务动作内创建。"""
+    model = f'{instance._meta.app_label}.{type(instance).__name__}'
+    fields = _requested_field_names(instance, {})
+    if not _scoped_purchase_write(reason, model, fields, operator):
+        _raise_ledger_mutation('终态业务事实必须通过受控服务创建')
 
 
 def brand_logo_path(instance, filename):
@@ -624,6 +688,9 @@ class PurchaseOrder(models.Model):
         receipt_allowed = _scoped_purchase_write(
             'purchase_receipt', 'cigars.PurchaseOrder', changed
         )
+        receipt_reversal_allowed = _scoped_purchase_write(
+            'purchase_receipt_reversal', 'cigars.PurchaseOrder', changed
+        )
         current_final = (
             self.status != self.Status.DRAFT
             or (self.paid_cny_cost or 0) > 0
@@ -637,14 +704,16 @@ class PurchaseOrder(models.Model):
             )
         )
         if self._state.adding:
-            if current_final and not (payment_allowed or receipt_allowed):
+            if current_final and not (payment_allowed or receipt_allowed or receipt_reversal_allowed):
                 _raise_ledger_mutation('付款或到货后的采购单只能在受控作用域内写入')
             return super().save(*args, **kwargs)
-        if persisted_final and not (payment_allowed or receipt_allowed):
+        if persisted_final and not (payment_allowed or receipt_allowed or receipt_reversal_allowed):
             _raise_ledger_mutation('付款或到货后的采购单不可通过普通 ORM 修改')
-        if payment_allowed or receipt_allowed:
+        if payment_allowed or receipt_allowed or receipt_reversal_allowed:
             # Payment starts from draft; receipt transitions an in-transit paid order.
-            if receipt_allowed and not payment_allowed:
+            if receipt_reversal_allowed:
+                condition = models.Q(status=self.Status.RECEIVED)
+            elif receipt_allowed and not payment_allowed:
                 condition = models.Q(status=self.Status.IN_TRANSIT)
             else:
                 condition = models.Q(status=self.Status.DRAFT)
@@ -749,16 +818,21 @@ class PurchaseOrderItem(models.Model):
         receipt_allowed = _scoped_purchase_write(
             'purchase_receipt', 'cigars.PurchaseOrderItem', changed
         )
-        if parent_final and not (payment_allowed or receipt_allowed):
+        receipt_reversal_allowed = _scoped_purchase_write(
+            'purchase_receipt_reversal', 'cigars.PurchaseOrderItem', changed
+        )
+        if parent_final and not (payment_allowed or receipt_allowed or receipt_reversal_allowed):
             _raise_ledger_mutation('付款或到货后的采购明细只能在受控作用域内写入')
         if self._state.adding:
-            if parent_final and not (payment_allowed or receipt_allowed):
+            if parent_final and not (payment_allowed or receipt_allowed or receipt_reversal_allowed):
                 _raise_ledger_mutation('付款或到货后的采购明细只能在受控作用域内写入')
             return super().save(*args, **kwargs)
-        if payment_allowed or receipt_allowed:
-            # Actual cost may be corrected by either payment or receipt action;
-            # preserve the parent state predicate so a concurrent transition wins.
-            parent_condition = _PURCHASE_FINAL_Q
+        if payment_allowed or receipt_allowed or receipt_reversal_allowed:
+            # 条件更新必须同时锁定父单状态，避免并发状态迁移覆盖成本事实。
+            parent_condition = (
+                models.Q(status=PurchaseOrder.Status.RECEIVED)
+                if receipt_reversal_allowed else _PURCHASE_FINAL_Q
+            )
             affected = _conditional_update(
                 type(self).objects.filter(
                     pk=self.pk, purchase_order_id=persisted_parent_id
@@ -823,6 +897,9 @@ class PurchaseBatch(models.Model):
     available_stick_quantity = models.IntegerField("可用散支数", default=0)
     remaining_cost_cny = models.DecimalField('剩余人民币成本池', max_digits=22, decimal_places=2, default=0)
     sold_cost_cny = models.DecimalField('累计销售成本', max_digits=22, decimal_places=2, default=0)
+    reversed_quantity = models.IntegerField('累计撤销入库数量', default=0)
+    reversed_cost_cny = models.DecimalField('累计撤销入库成本', max_digits=22, decimal_places=2, default=0)
+    reversed_at = models.DateTimeField('撤销入库时间', null=True, blank=True)
     unit_cost_cny = models.DecimalField('人民币成本单价', max_digits=12, decimal_places=2)
     purchased_at = models.DateTimeField('进货日期', auto_now_add=True)
 
@@ -875,6 +952,23 @@ class PurchaseBatch(models.Model):
             models.CheckConstraint(condition=models.Q(positive_adjustment_cost_cny__gte=0), name='purchase_batch_positive_adjustment_cost_gte_zero'),
             models.CheckConstraint(condition=models.Q(remaining_cost_cny__gte=0), name='purchase_batch_remaining_cost_gte_zero'),
             models.CheckConstraint(condition=models.Q(sold_cost_cny__gte=0), name='purchase_batch_sold_cost_gte_zero'),
+            models.CheckConstraint(condition=models.Q(reversed_quantity__gte=0), name='purchase_batch_reversed_quantity_gte_zero'),
+            models.CheckConstraint(condition=models.Q(reversed_cost_cny__gte=0), name='purchase_batch_reversed_cost_gte_zero'),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        reversed_at__isnull=True,
+                        reversed_quantity=0,
+                        reversed_cost_cny=0,
+                    )
+                    | models.Q(
+                        reversed_at__isnull=False,
+                        reversed_quantity=models.F('quantity'),
+                        reversed_cost_cny=models.F('original_cost_cny'),
+                    )
+                ),
+                name='purchase_batch_reversal_state_complete',
+            ),
             models.CheckConstraint(condition=models.Q(adjustment_cost_cny__gte=0), name='purchase_batch_adjustment_cost_gte_zero'),
             models.CheckConstraint(condition=models.Q(unit_cost_cny__gte=0), name='purchase_batch_unit_cost_gte_zero'),
         ]
@@ -895,6 +989,7 @@ class SalesOrder(models.Model):
         CONFIRMED = 'confirmed', '已确认/已预留'
         SHIPPED = 'shipped', '已出库'
         CANCELLED = 'cancelled', '已取消'
+        RETURNED = 'returned', '已退货'
 
     class PaymentStatus(models.TextChoices):
         UNPAID = 'unpaid', '未收款'
@@ -945,6 +1040,7 @@ class SalesOrder(models.Model):
         ('shipped', '已发货'),
         ('completed', '已完成'),
         ('cancelled', '已取消'),
+        ('returned', '已退货'),
     ]
     status = models.CharField('状态', max_length=20, choices=STATUS_CHOICES, default='draft')
 
@@ -1007,6 +1103,9 @@ class SalesOrder(models.Model):
             (self.FulfillmentStatus.CANCELLED, self.PaymentStatus.UNPAID): '已取消',
             (self.FulfillmentStatus.CANCELLED, self.PaymentStatus.REFUND_PENDING): '已取消，待退款',
             (self.FulfillmentStatus.CANCELLED, self.PaymentStatus.REFUNDED): '已取消，已退款',
+            (self.FulfillmentStatus.RETURNED, self.PaymentStatus.UNPAID): '已退货，无需退款',
+            (self.FulfillmentStatus.RETURNED, self.PaymentStatus.REFUND_PENDING): '已退货，待退款',
+            (self.FulfillmentStatus.RETURNED, self.PaymentStatus.REFUNDED): '已退货，已退款',
         }
         return statuses.get((self.fulfillment_status, self.payment_status), '状态异常')
 
@@ -1095,7 +1194,7 @@ class SalesReceipt(models.Model):
         verbose_name = '销售收款'
         verbose_name_plural = '销售收款'
 class SalesRefund(models.Model):
-    """一张已取消销售单的一次全额退款事实。"""
+    """一张已取消或已退货销售单的一次全额退款事实。"""
     sales_order = models.OneToOneField(SalesOrder, on_delete=models.PROTECT, related_name='sales_refund', verbose_name='销售单')
     amount_cny = models.DecimalField('退款金额 (CNY)', max_digits=14, decimal_places=2)
     fund_account = models.ForeignKey('accounting.FundAccount', on_delete=models.PROTECT, related_name='sales_refunds', verbose_name='退款资金账户')
@@ -1110,6 +1209,40 @@ class SalesRefund(models.Model):
         ]
         verbose_name = '销售退款'
         verbose_name_plural = '销售退款'
+
+
+class SalesReturn(models.Model):
+    """整单退货及其销售出库冲正事实。"""
+    objects = ControlledBusinessFactQuerySet.as_manager()
+    sales_order = models.OneToOneField(SalesOrder, on_delete=models.PROTECT, related_name='sales_return', verbose_name='销售单')
+    sales_shipment = models.OneToOneField(SalesShipment, on_delete=models.PROTECT, related_name='sales_return', verbose_name='原销售出库')
+    amount_cny = models.DecimalField('退货销售金额 (CNY)', max_digits=14, decimal_places=2)
+    fifo_cost_cny = models.DecimalField('退回库存成本 (CNY)', max_digits=14, decimal_places=2)
+    ledger_transaction = models.OneToOneField('accounting.LedgerTransaction', on_delete=models.PROTECT, related_name='sales_return', verbose_name='冲正交易')
+    business_date = models.DateField('业务日期')
+    operator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='sales_returns', verbose_name='操作人')
+    reason = models.TextField('原因')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            _raise_ledger_mutation('销售退货事实创建后不可修改')
+        _require_controlled_fact_create(
+            self, reason='sales_return_fact', operator=self.operator,
+        )
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        _raise_ledger_mutation('销售退货事实创建后不可删除')
+
+    class Meta:
+        base_manager_name = 'objects'
+        constraints = [
+            models.CheckConstraint(condition=models.Q(amount_cny__gte=0), name='sales_return_amount_gte_zero'),
+            models.CheckConstraint(condition=models.Q(fifo_cost_cny__gte=0), name='sales_return_fifo_cost_gte_zero'),
+        ]
+        verbose_name = '销售退货'
+        verbose_name_plural = '销售退货'
 
 class SalesTransportCost(models.Model):
     """销售单的人肉实际成本及其人民币支付事实。"""
@@ -1135,6 +1268,7 @@ class StockAllocation(models.Model):
         RESERVED = 'reserved', '已预留'
         FULFILLED = 'fulfilled', '已出库'
         RELEASED = 'released', '已释放'
+        RETURNED = 'returned', '已退货'
 
     sales_order_item = models.ForeignKey(
         SalesOrderItem, on_delete=models.PROTECT, related_name='allocations',
@@ -1145,10 +1279,14 @@ class StockAllocation(models.Model):
         verbose_name='采购批次'
     )
     quantity = models.IntegerField('数量')
+    inventory_form = models.CharField('出库形态快照', max_length=8, blank=True, default='')
+    box_size_snapshot = models.IntegerField('盒规快照', null=True, blank=True)
     status = models.CharField('状态', max_length=20, choices=Status.choices, default=Status.RESERVED)
     reserved_at = models.DateTimeField('预留时间', auto_now_add=True)
     fulfilled_at = models.DateTimeField('出库时间', null=True, blank=True)
     released_at = models.DateTimeField('释放时间', null=True, blank=True)
+    returned_at = models.DateTimeField('退货时间', null=True, blank=True)
+    fulfilled_cost_cny = models.DecimalField('出库成本 (CNY)', max_digits=22, decimal_places=2, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         if self._state.adding:
@@ -1156,10 +1294,16 @@ class StockAllocation(models.Model):
             return super().save(*args, **kwargs)
         fields = _requested_field_names(self, kwargs)
         _require_inventory_scope(self, operation='update', fields=fields)
+        from .inventory_scope import current_inventory_action
         persisted = type(self).objects.filter(pk=self.pk).values('status').first()
-        if persisted is None or persisted['status'] != self.Status.RESERVED:
-            _raise_inventory_mutation('库存分配只能从已预留状态流转')
-        if self.status not in {self.Status.FULFILLED, self.Status.RELEASED}:
+        expected = {
+            'release': (self.Status.RESERVED, self.Status.RELEASED),
+            'ship': (self.Status.RESERVED, self.Status.FULFILLED),
+            'return': (self.Status.FULFILLED, self.Status.RETURNED),
+        }.get(current_inventory_action())
+        if persisted is None or expected is None or (
+            persisted['status'], self.status
+        ) != expected:
             _raise_inventory_mutation('库存分配状态流转无效')
         return super().save(*args, **kwargs)
 
@@ -1190,6 +1334,9 @@ class StockMovement(models.Model):
         SHIP = 'ship', '出库'
         ADJUSTMENT = 'adjustment', '库存修正'
         SPLIT_BOX = 'split_box', '拆盒'
+        REVERSE_RECEIVE = 'reverse_receive', '撤销入库'
+        RETURN = 'return', '销售退货'
+        REVERSE_ADJUSTMENT = 'reverse_adjustment', '撤销库存调整'
 
     movement_type = models.CharField('类型', max_length=30, choices=MovementType.choices)
     cigar = models.ForeignKey(Cigar, on_delete=models.PROTECT, verbose_name='雪茄')
@@ -1340,6 +1487,77 @@ class AdjustmentRecord(models.Model):
 
     def __str__(self):
         return f'{self.get_type_display()} {self.cigar} ×{self.quantity}'
+
+
+class InventoryAdjustmentAction(models.Model):
+    """一次完整库存调整及其账务关联。"""
+    objects = ControlledBusinessFactQuerySet.as_manager()
+    class InventoryForm(models.TextChoices):
+        STICK = 'stick', '支'
+        BOX = 'box', '盒'
+
+    cigar = models.ForeignKey(Cigar, on_delete=models.PROTECT, related_name='inventory_adjustment_actions')
+    quantity_delta = models.IntegerField('调整数量')
+    inventory_form = models.CharField('库存形态', max_length=8, choices=InventoryForm.choices)
+    ledger_transaction = models.OneToOneField('accounting.LedgerTransaction', on_delete=models.PROTECT, related_name='inventory_adjustment_action', verbose_name='原调整交易')
+    reversal_transaction = models.OneToOneField('accounting.LedgerTransaction', on_delete=models.PROTECT, related_name='inventory_adjustment_reversal', null=True, blank=True, verbose_name='撤销交易')
+    business_date = models.DateField('业务日期')
+    operator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='inventory_adjustment_actions')
+    reason = models.TextField('原因')
+    idempotency_key = models.CharField('幂等键', max_length=128, unique=True)
+    reversed_at = models.DateTimeField('撤销时间', null=True, blank=True)
+    reversal_operator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='reversed_inventory_adjustments', null=True, blank=True)
+    reversal_reason = models.TextField('撤销原因', blank=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if self._state.adding:
+            _require_controlled_fact_create(
+                self, reason='inventory_adjustment_fact', operator=self.operator,
+            )
+            return super().save(*args, **kwargs)
+        fields = _requested_field_names(self, kwargs)
+        if not _scoped_purchase_write(
+            'inventory_adjustment_reversal', 'cigars.InventoryAdjustmentAction',
+            fields, self.reversal_operator,
+        ):
+            _raise_ledger_mutation('库存调整事实只能通过受控撤销动作更新')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        _raise_ledger_mutation('库存调整事实创建后不可删除')
+
+    class Meta:
+        base_manager_name = 'objects'
+        constraints = [models.CheckConstraint(condition=~models.Q(quantity_delta=0), name='inventory_adjustment_action_delta_nonzero')]
+
+
+class InventoryAdjustmentLine(models.Model):
+    """库存调整在单个批次上的确定变化。"""
+    objects = ControlledBusinessFactQuerySet.as_manager()
+    action = models.ForeignKey(InventoryAdjustmentAction, on_delete=models.PROTECT, related_name='lines')
+    purchase_batch = models.ForeignKey(PurchaseBatch, on_delete=models.PROTECT)
+    stock_movement = models.OneToOneField(StockMovement, on_delete=models.PROTECT)
+    quantity_delta = models.IntegerField('批次数量变化')
+    box_delta = models.IntegerField('完整盒变化', default=0)
+    stick_delta = models.IntegerField('散支变化', default=0)
+    cost_delta_cny = models.DecimalField('库存成本变化 (CNY)', max_digits=22, decimal_places=2)
+    batch_state_after = models.JSONField('动作后批次快照', default=dict)
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            _raise_ledger_mutation('库存调整明细创建后不可修改')
+        _require_controlled_fact_create(
+            self, reason='inventory_adjustment_fact', operator=self.action.operator,
+        )
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        _raise_ledger_mutation('库存调整明细创建后不可删除')
+
+    class Meta:
+        base_manager_name = 'objects'
+        constraints = [models.CheckConstraint(condition=~models.Q(quantity_delta=0), name='inventory_adjustment_line_delta_nonzero')]
 
 
 class CigarPrice(models.Model):

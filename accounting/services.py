@@ -457,6 +457,7 @@ def post_transaction(*, transaction_type, business_date, postings, operator,
                 raise
             time.sleep(_sqlite_retry_delay(attempt, 0.02))
 
+
 def _retry_sqlite_locked(operation):
 
     @wraps(operation)
@@ -471,6 +472,82 @@ def _retry_sqlite_locked(operation):
                 time.sleep(_sqlite_retry_delay(attempt, 0.1))
     return retrying_operation
 
+
+_REVERSIBLE_TRANSACTION_TYPES = frozenset({
+    LedgerTransaction.TransactionType.PURCHASE_RECEIPT,
+    LedgerTransaction.TransactionType.SALES_SHIPMENT,
+    LedgerTransaction.TransactionType.INVENTORY_ADJUSTMENT,
+})
+
+
+@_retry_sqlite_locked
+@transaction.atomic
+def reverse_ledger_transaction(*, original_transaction, business_date, operator,
+                               idempotency_key, reason=''):
+    """追加一笔相反分录，并把原交易关联到该冲正交易。"""
+    _acquire_sqlite_writer_gate()
+    if type(business_date) is not date:
+        raise LedgerError('冲正业务日期必须是 date')
+    if not isinstance(idempotency_key, str) or not idempotency_key:
+        raise LedgerError('冲正幂等键不能为空')
+    reason = str(reason or '').strip()
+    if not reason:
+        raise LedgerError('冲正原因不能为空')
+    operator_id = getattr(operator, 'pk', None)
+    if not operator_id:
+        raise LedgerError('必须提供真实操作人 operator')
+    original_id = getattr(original_transaction, 'pk', None)
+    if not original_id:
+        raise LedgerError('原账务交易不存在')
+    original = LedgerTransaction.objects.select_for_update().filter(pk=original_id).first()
+    if original is None:
+        raise LedgerError('原账务交易不存在')
+    if (
+        original.status != LedgerTransaction.Status.POSTED
+        or original.transaction_type not in _REVERSIBLE_TRANSACTION_TYPES
+        or original.source_type == 'ledger_reversal'
+    ):
+        raise LedgerError('该账务交易不允许冲正')
+    if business_date < original.business_date:
+        raise LedgerError('冲正日期不能早于原交易日期')
+
+    postings = [
+        PostingInput(
+            account=posting.account,
+            category=posting.category,
+            currency=posting.currency,
+            amount=-posting.amount,
+            cny_amount=-posting.cny_amount,
+        )
+        for posting in original.postings.select_related('account').order_by('id')
+    ]
+    if not postings:
+        raise LedgerError('原账务交易没有可冲正分录')
+
+    if original.reversed_by_id is not None:
+        reversal = LedgerTransaction.objects.filter(pk=original.reversed_by_id).first()
+        if reversal is None or reversal.idempotency_key != idempotency_key:
+            raise LedgerError('原账务交易已经冲正', code='already_reversed')
+        # 交给统一入账重放校验全部请求字段和反向分录。
+        return _post_transaction_once(
+            transaction_type=original.transaction_type,
+            business_date=business_date, postings=postings, operator=operator,
+            idempotency_key=idempotency_key, description=reason,
+            source_type='ledger_reversal', source_id=str(original.pk),
+            _writer_gate=False,
+        )
+
+    reversal = _post_transaction_once(
+        transaction_type=original.transaction_type,
+        business_date=business_date, postings=postings, operator=operator,
+        idempotency_key=idempotency_key, description=reason,
+        source_type='ledger_reversal', source_id=str(original.pk),
+        _writer_gate=False,
+    )
+    original.reversed_by = reversal
+    # 终态账务事实只允许在该受信任冲正边界补充关联。
+    models.Model.save(original, update_fields=['reversed_by'])
+    return reversal
 
 def _post_day1_opening(*, business_date, postings, operator, idempotency_key,
                        source_id, description='公司 Day 1 期初资产初始化'):

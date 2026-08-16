@@ -186,6 +186,36 @@ class SalesReportsAndReconciliationTest(TestCase):
         self.assertNotIn('draft_transaction_total', monthly)
         self.assertEqual(monthly['transaction_count'], 0)
 
+    def test_cross_month_return_reverses_profit_in_return_month(self):
+        """跨月退货保留原月利润，并在退货月记录相反利润。"""
+        original = self.posted_transaction(
+            LedgerTransaction.TransactionType.SALES_SHIPMENT,
+            date(2026, 8, 31),
+            [
+                PostingInput(category=LedgerPosting.Category.ACCOUNTS_RECEIVABLE, currency='CNY', amount=Decimal('100.00'), cny_amount=Decimal('100.00')),
+                PostingInput(category=LedgerPosting.Category.SALES_REVENUE, currency='CNY', amount=Decimal('-100.00'), cny_amount=Decimal('-100.00')),
+                PostingInput(category=LedgerPosting.Category.COST_OF_GOODS_SOLD, currency='CNY', amount=Decimal('40.00'), cny_amount=Decimal('40.00')),
+                PostingInput(category=LedgerPosting.Category.INVENTORY, currency='CNY', amount=Decimal('-40.00'), cny_amount=Decimal('-40.00')),
+            ],
+            'cross-month-shipment',
+        )
+        from accounting.services import reverse_ledger_transaction
+
+        reverse_ledger_transaction(
+            original_transaction=original,
+            business_date=date(2026, 9, 1),
+            operator=self.operator,
+            idempotency_key='cross-month-return',
+            reason='次月整单退货',
+        )
+
+        from accounting.selectors import monthly_profit
+
+        august = monthly_profit(month=date(2026, 8, 1))
+        september = monthly_profit(month=date(2026, 9, 1))
+        self.assertEqual(august['net_profit_cny'], Decimal('60.00'))
+        self.assertEqual(september['net_profit_cny'], Decimal('-60.00'))
+
     def test_monthly_profit_includes_expenses_adjustments_and_reconciliation_facts(self):
         """Monthly profit keeps expense, adjustment, and reconciliation facts."""
         categories = {

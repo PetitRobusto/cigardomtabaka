@@ -564,7 +564,7 @@ export interface SalesOrder {
   order_number: string;
   status: string;
   display_status: string;
-  fulfillment_status: 'draft' | 'confirmed' | 'shipped' | 'cancelled' | string;
+  fulfillment_status: 'draft' | 'confirmed' | 'shipped' | 'cancelled' | 'returned' | string;
   payment_status: 'unpaid' | 'paid' | 'refund_pending' | 'refunded' | string;
   customer_id: number | null;
   customer_name: string;
@@ -588,6 +588,7 @@ export interface SalesOrder {
   sales_shipment: { id: number; business_date: string; fifo_cost_cny: number } | null;
   sales_receipt: { id: number; amount_cny: number; business_date: string; fund_account_id: number } | null;
   sales_refund: { id: number; amount_cny: number; business_date: string; fund_account_id: number } | null;
+  sales_return?: { id: number; amount_cny: number; fifo_cost_cny: number; business_date: string; reason: string } | null;
   sales_transport_cost: { id: number; actual_cost_cny: number; business_date: string; fund_account_id: number } | null;
   available_actions: string[];
 }

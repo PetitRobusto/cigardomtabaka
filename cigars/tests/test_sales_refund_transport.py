@@ -137,6 +137,56 @@ class SalesRefundAndTransportTest(TestCase):
         self.assertEqual(order.payment_status, SalesOrder.PaymentStatus.REFUNDED)
         self.assertEqual(order.fulfillment_status, SalesOrder.FulfillmentStatus.CANCELLED)
 
+    def test_returned_order_refund_uses_original_receivable_category(self):
+        """先出库后收款的退货退款必须冲回原应收科目。"""
+        shipped, _transport_account, _batch = self.shipped_order()
+        receipt_account = FundAccount.objects.create(
+            name='退货收款账户',
+            currency=FundAccount.Currency.CNY,
+            custodian=self.operator,
+            creation_idempotency_key='return-refund-account',
+        )
+        from cigars.sales_accounting import (
+            receive_sales_order_payment,
+            refund_sales_order_payment,
+            return_sales_order,
+        )
+
+        receive_sales_order_payment(
+            order_id=shipped.id,
+            amount_cny=Decimal('95.00'),
+            fund_account=receipt_account,
+            business_date=self.business_date,
+            operator=self.operator,
+            idempotency_key='receipt-after-shipment-for-return',
+        )
+        return_sales_order(
+            order_id=shipped.id,
+            business_date=date(2026, 8, 11),
+            operator=self.operator,
+            idempotency_key='return-before-refund',
+            reason='客户退货',
+        )
+        refund = refund_sales_order_payment(
+            order_id=shipped.id,
+            business_date=date(2026, 8, 11),
+            operator=self.operator,
+            idempotency_key='refund-returned-order',
+        )
+
+        self.assertEqual(
+            list(refund.ledger_transaction.postings.order_by('id').values_list(
+                'category', 'amount', 'cny_amount',
+            )),
+            [
+                (LedgerPosting.Category.FUND_ACCOUNT, Decimal('-95.00'), Decimal('-95.00')),
+                (LedgerPosting.Category.ACCOUNTS_RECEIVABLE, Decimal('95.00'), Decimal('95.00')),
+            ],
+        )
+        shipped.refresh_from_db()
+        self.assertEqual(shipped.fulfillment_status, SalesOrder.FulfillmentStatus.RETURNED)
+        self.assertEqual(shipped.payment_status, SalesOrder.PaymentStatus.REFUNDED)
+
     def test_sales_services_require_day1_before_formal_facts(self):
         """All direct sales accounting actions share the Day 1 service gate."""
         Day1Initialization.objects.all().delete()

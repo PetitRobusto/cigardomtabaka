@@ -13,6 +13,7 @@ import { useAuthStore } from '../store/authStore';
 import { usePageMeta } from '../hooks/usePageMeta';
 import type { PaymentMethod, QuoteProduct, PaymentOrder } from '../types';
 import { canSubmitPayment, eligiblePaymentOrders, paymentOrderSummary } from './privnotePayment';
+import { selectedIdsOnCustomEntry, type QuoteMode } from './privnoteQuote';
 
 const DURATIONS = [
   { value: '1', label: '1 小时' },
@@ -30,7 +31,6 @@ const TABS = [
 ];
 
 type TabKey = typeof TABS[number]['key'];
-type QuoteMode = 'full' | 'custom';
 /* ─── Image Upload Hook ─── */
 function useImageUpload() {
   const [images, setImages] = useState<{ url: string; name: string }[]>([]);
@@ -435,7 +435,10 @@ export default function PrivnotePage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => { setSelectedIds(null); setQuoteMode('custom'); }}
+                        onClick={() => {
+                          setSelectedIds(current => selectedIdsOnCustomEntry(quoteMode, current));
+                          setQuoteMode('custom');
+                        }}
                         className={`px-4 py-2 text-xs font-medium rounded-sm transition-all ${
                           quoteMode === 'custom'
                             ? 'bg-white text-fg shadow-sm'

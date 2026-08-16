@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Day1StatusNotice } from './helpState';
 import { day1StatusErrorState, day1StatusLoadingState, day1StatusReadyState, type Day1StatusState } from './helpState.helpers';
 import { BookOpen, ExternalLink, Play } from 'lucide-react';
@@ -7,6 +7,7 @@ import { MANUAL_CHAPTERS, type ManualChapter } from '../features/guides/guideCon
 import { usePageMeta } from '../hooks/usePageMeta';
 import { manualTourDecision } from '../features/guides/manualTour';
 import { fetchDay1State } from '../api';
+import { invalidateLatestRequest, runLatestRequest } from '../utils/latestRequest';
 
 const quickStartOrder = ['账户入账', '汇率换汇', '采购到货', '库存', '销售', '出库与收款', '对账', '月利润'];
 
@@ -16,18 +17,26 @@ export default function HelpPage() {
   const [chapterId, setChapterId] = useState('quickstart');
   const [message, setMessage] = useState('');
   const [day1State, setDay1State] = useState<Day1StatusState>(day1StatusLoadingState());
+  const requestSequence = useRef({ current: 0 });
   const chapter = MANUAL_CHAPTERS.find(item => item.id === chapterId) || MANUAL_CHAPTERS[0];
   useEffect(() => { setMeta({ title: '使用手册', breadcrumbs: [{ label: '首页', to: '/' }, { label: '使用手册' }] }); }, [setMeta]);
   const requestDay1Status = useCallback(() => {
-    void fetchDay1State().then(data => setDay1State(day1StatusReadyState(data.status))).catch(() => setDay1State(day1StatusErrorState()));
+    void runLatestRequest({
+      sequence: requestSequence.current,
+      request: fetchDay1State,
+      onSuccess: data => setDay1State(day1StatusReadyState(data.status)),
+      onError: () => setDay1State(day1StatusErrorState()),
+    });
   }, []);
   const loadDay1Status = useCallback(() => {
     setDay1State(day1StatusLoadingState());
     requestDay1Status();
   }, [requestDay1Status]);
   useEffect(() => {
+    const sequence = requestSequence.current;
     // 初始状态已经是 loading，首屏请求只处理异步完成结果。
     requestDay1Status();
+    return () => invalidateLatestRequest(sequence);
   }, [requestDay1Status]);
 
   const day1Status = day1State.status === "ready" ? day1State.day1Status : undefined;

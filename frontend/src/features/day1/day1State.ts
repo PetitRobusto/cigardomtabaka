@@ -229,7 +229,11 @@ export function buildDay1Payload(state: Day1DraftInput): Day1Payload {
   return {
     business_date: state.business_date,
     accounts,
-    inventory: state.inventory.map(({ cigar_name: _cigarName, ...line }) => line),
+    inventory: state.inventory.map(line => ({
+      // 明确列出载荷字段，避免把仅用于界面展示的名称发送到后端。
+      cigar_id: line.cigar_id, box_size: line.box_size, box_quantity: line.box_quantity,
+      loose_sticks: line.loose_sticks, unit_cost_cny: line.unit_cost_cny,
+    })),
   };
 }
 

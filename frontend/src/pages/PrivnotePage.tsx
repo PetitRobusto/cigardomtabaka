@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Copy, Check,
@@ -13,6 +13,7 @@ import { useAuthStore } from '../store/authStore';
 import { usePageMeta } from '../hooks/usePageMeta';
 import type { PaymentMethod, QuoteProduct, PaymentOrder } from '../types';
 import { canSubmitPayment, eligiblePaymentOrders, paymentOrderSummary } from './privnotePayment';
+import { selectedIdsOnCustomEntry, type QuoteMode } from './privnoteQuote';
 
 const DURATIONS = [
   { value: '1', label: '1 小时' },
@@ -30,7 +31,6 @@ const TABS = [
 ];
 
 type TabKey = typeof TABS[number]['key'];
-type QuoteMode = 'full' | 'custom';
 /* ─── Image Upload Hook ─── */
 function useImageUpload() {
   const [images, setImages] = useState<{ url: string; name: string }[]>([]);
@@ -183,7 +183,7 @@ export default function PrivnotePage() {
   const [quoteMode, setQuoteMode] = useState<QuoteMode>('full');
   const [shippingIncluded, setShippingIncluded] = useState(false);
   const [quoteSearchQ, setQuoteSearchQ] = useState('');
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selectedIds, setSelectedIds] = useState<number[] | null>([]);
   const [customPrices, setCustomPrices] = useState<Record<string, number>>({});
   const [quoteCustomerName, setQuoteCustomerName] = useState('');
 
@@ -193,14 +193,9 @@ export default function PrivnotePage() {
     enabled: activeTab === 'quote',
   });
 
-  // Default select all when switching to custom mode
-  useEffect(() => {
-    if (quoteMode === 'custom' && quoteProducts && quoteProducts.length > 0) {
-      const preorderIds = [...new Set(quoteProducts.filter(p => p.can_preorder).map(p => p.cigar_id))];
-      setSelectedIds(preorderIds);
-    }
-  }, [quoteMode, quoteProducts]);
-
+  // 定制模式默认选择全部可预售商品。
+  const defaultSelectedIds = useMemo(() => quoteProducts ? [...new Set(quoteProducts.filter(p => p.can_preorder).map(p => p.cigar_id))] : [], [quoteProducts]);
+  const visibleSelectedIds = selectedIds ?? defaultSelectedIds;
 
 
   if (!user?.is_staff) {
@@ -213,7 +208,7 @@ export default function PrivnotePage() {
 
   const copyUrl = async () => {
     if (!result?.url) return;
-    let success = false;
+    let success: boolean;
     try {
       await navigator.clipboard.writeText(result.url);
       success = true;
@@ -267,7 +262,7 @@ export default function PrivnotePage() {
       form.append('images', JSON.stringify(messageImages.images));
     } else if (activeTab === 'quote') {
       form.append('quote_mode', quoteMode);
-      form.append('selected_ids', JSON.stringify(selectedIds));
+      form.append('selected_ids', JSON.stringify(visibleSelectedIds));
       form.append('shipping_included', shippingIncluded ? 'true' : 'false');
       if (quoteCustomerName.trim()) {
         form.append('customer_name', quoteCustomerName.trim());
@@ -279,8 +274,7 @@ export default function PrivnotePage() {
 
     try {
       const res = await createPrivnote(form);
-      if (res.url) setResult({ url: res.url, token: res.token });
-      else setError('私密链接创建失败：服务器未返回链接');
+      setResult(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : '私密链接创建失败，请稍后重试');
     } finally {
@@ -314,7 +308,7 @@ export default function PrivnotePage() {
     if (activeTab === 'message') return !!messageText.trim() || attachments.length > 0 || messageImages.images.length > 0;
     if (activeTab === 'quote') {
       if (quoteMode === 'full') return true;
-      return selectedIds.length > 0;
+      return visibleSelectedIds.length > 0;
     }
     return false;
   };
@@ -322,7 +316,7 @@ export default function PrivnotePage() {
   const actionHint = () => {
     if (activeTab === 'quote') {
       if (quoteMode === 'full') return '将生成包含全部 72 款雪茄的完整报价单';
-      return selectedIds.length > 0 ? `已选 ${selectedIds.length} 项商品` : '请勾选要包含在报价单中的雪茄';
+      return visibleSelectedIds.length > 0 ? `已选 ${visibleSelectedIds.length} 项商品` : '请勾选要包含在报价单中的雪茄';
     }
     if (activeTab === 'payment') return selectedPaymentOrder ? '已选择销售单，可生成收款链接' : '选择待收款销售单和收款方式';
     return '输入消息内容并上传附件';
@@ -441,7 +435,10 @@ export default function PrivnotePage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setQuoteMode('custom')}
+                        onClick={() => {
+                          setSelectedIds(current => selectedIdsOnCustomEntry(quoteMode, current));
+                          setQuoteMode('custom');
+                        }}
                         className={`px-4 py-2 text-xs font-medium rounded-sm transition-all ${
                           quoteMode === 'custom'
                             ? 'bg-white text-fg shadow-sm'
@@ -529,12 +526,12 @@ export default function PrivnotePage() {
                                       <input
                                         type="checkbox"
                                         className="w-4 h-4 accent-accent shrink-0 cursor-pointer"
-                                        checked={selectedIds.includes(p.cigar_id)}
+                                        checked={visibleSelectedIds.includes(p.cigar_id)}
                                         onChange={e => {
                                           if (e.target.checked) {
-                                            setSelectedIds(prev => [...prev, p.cigar_id]);
+                                            setSelectedIds(prev => [...(prev ?? defaultSelectedIds), p.cigar_id]);
                                           } else {
-                                            setSelectedIds(prev => prev.filter(id => id !== p.cigar_id));
+                                            setSelectedIds(prev => (prev ?? defaultSelectedIds).filter(id => id !== p.cigar_id));
                                           }
                                         }}
                                       />
@@ -569,7 +566,7 @@ export default function PrivnotePage() {
                         )}
 
                         <div className="flex items-center justify-between pt-3 border-t border-border">
-                          <span className="text-sm text-muted">已选 {selectedIds.length} 项</span>
+                          <span className="text-sm text-muted">已选 {visibleSelectedIds.length} 项</span>
                           <div className="flex gap-3">
                             <button
                               type="button"

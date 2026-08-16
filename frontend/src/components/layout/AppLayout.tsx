@@ -1,18 +1,27 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { usePageMetaContext } from '../../contexts/PageMetaContext';
+import { usePageMetaContext } from '../../contexts/usePageMetaContext';
 import Breadcrumb from './Breadcrumb';
 import {
-  LayoutGrid, Package, TrendingUp, Link2, LogIn, LogOut, User, Menu, X,
+  LayoutGrid, Package, TrendingUp, Link2, LogIn, LogOut, Menu, X,
   CircleDollarSign, ClipboardList,
   MapPin, Phone, MessageCircle, BookOpen
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import GuideController from '../../features/guides/GuideController';
 import { mobileNavItems } from './mobileNav';
 
 const base = import.meta.env.BASE_URL;
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  public?: boolean;
+  external?: boolean;
+}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading, logout } = useAuthStore();
@@ -31,7 +40,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [meta.title]);
 
-  const navItems = [
+  // 显式导航契约让内部与外部入口共用安全的渲染分支。
+  const navItems: NavItem[] = [
     { to: '/', label: '品牌', icon: LayoutGrid, public: true },
     ...(user?.is_staff ? [
       { to: '/inventory', label: '库存', icon: Package },

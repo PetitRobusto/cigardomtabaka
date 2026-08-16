@@ -1,26 +1,11 @@
 import { useState, useEffect } from 'react';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Plus, Trash2, Power, PowerOff, AlertTriangle, TrendingDown, TrendingUp, Activity } from 'lucide-react';
+import { Bell, Plus, Trash2, Power, PowerOff, TrendingDown, TrendingUp, Activity } from 'lucide-react';
 import { fetchAlerts, createAlert, updateAlert, deleteAlert, fetchSources } from '../api';
 import { LoadingState } from '../components/shared/LoadingState';
 import { EmptyState } from '../components/shared/EmptyState';
-
-interface AlertItem {
-  id: number;
-  cigar_name: string;
-  source_name: string;
-  condition: string;
-  condition_label: string;
-  target_price: number;
-  enabled: boolean;
-  last_triggered?: string;
-}
-
-interface Source {
-  id: number;
-  name: string;
-}
+import type { AlertItem, Source } from '../types';
 
 const CONDITION_OPTIONS = [
   { value: 'below', label: '低于', icon: TrendingDown },
@@ -55,8 +40,9 @@ export default function Alerts() {
 
   const load = () => {
     Promise.all([fetchAlerts(), fetchSources()]).then(([a, s]) => {
-      setAlerts(a.results || a || []);
-      setSources(s.results || s || []);
+      // API 层统一解包分页响应，页面只消费领域数组。
+      setAlerts(a);
+      setSources(s);
       setLoading(false);
     }).catch(() => setLoading(false));
   };

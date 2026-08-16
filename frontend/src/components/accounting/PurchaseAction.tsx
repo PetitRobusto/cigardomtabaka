@@ -17,6 +17,7 @@ import {
   reduceActionState,
   type ActionState,
 } from '../../features/accounting/actionState';
+import { selectActiveAccountId } from './PurchaseAction.logic';
 
 export interface PurchaseActionProps {
   purchases: PurchaseOrderAction[];
@@ -33,15 +34,6 @@ type PurchaseInputs = { accountId: string; businessDate: string; note: string };
 const emptyInputs = (businessDate: string): PurchaseInputs => ({
   accountId: '', businessDate, note: '',
 });
-
-export function selectActiveAccountId(
-  accounts: FundAccount[],
-  candidate: number | string | null | undefined,
-): number | '' {
-  const active = accounts.filter(account => account.currency === 'RUB' && account.is_active);
-  const id = Number(candidate);
-  return active.some(account => account.id === id) ? id : (active[0]?.id ?? '');
-}
 
 function errorFor(error: unknown): { code: string; message: string; conflict: boolean } {
   const parsed = parseAccountingApiError(error);
@@ -70,8 +62,16 @@ function formatCents(value: bigint): string {
 
 function itemTotal(item: PurchaseOrderAction['items'][number]): string {
   const price = decimalCents(item.unit_price_rub_per_box);
-  if (price === null || !Number.isInteger(item.box_quantity) || item.box_quantity < 0) return "—";
-  return formatCents(price * BigInt(item.box_quantity));
+  const boxQuantity = item.box_quantity;
+  // 待复核的包装数量不能参与采购总额推算。
+  if (
+    price === null
+    || boxQuantity === null
+    || boxQuantity === undefined
+    || !Number.isInteger(boxQuantity)
+    || boxQuantity < 0
+  ) return "—";
+  return formatCents(price * BigInt(boxQuantity));
 }
 
 /** 采购卡只允许一次付款、一次整单到货；表单输入与动作状态彼此隔离。 */

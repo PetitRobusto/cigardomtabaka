@@ -18,7 +18,7 @@ export default function SalesPage() {
   useEffect(() => { setMeta({ title: '订单中心', breadcrumbs: [{ label: '首页', to: '/' }, { label: '订单中心' }] }); }, [setMeta]);
   const ordersQuery = useQuery({ queryKey: ['sales-orders', search], queryFn: () => fetchSalesOrders({ q: search || undefined, limit: 100 }) });
   const accountsQuery = useQuery({ queryKey: ['accounting-accounts'], queryFn: fetchAccountingAccounts });
-  const orders = ordersQuery.data || [];
+  const orders = useMemo(() => ordersQuery.data || [], [ordersQuery.data]);
   const summary = summarizeSalesOrders(orders);
   const filteredOrders = useMemo(() => orders.filter(order => {
     if (filter === 'unpaid') return order.payment_status === 'unpaid' && order.fulfillment_status !== 'draft' && order.fulfillment_status !== 'cancelled';

@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Day1StatusNotice, day1StatusErrorState, day1StatusLoadingState, day1StatusReadyState, type Day1StatusState } from './helpState';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Day1StatusNotice } from './helpState';
+import { day1StatusErrorState, day1StatusLoadingState, day1StatusReadyState, type Day1StatusState } from './helpState.helpers';
 import { BookOpen, ExternalLink, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MANUAL_CHAPTERS, type ManualChapter } from '../features/guides/guideContent';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { manualTourDecision } from '../features/guides/manualTour';
 import { fetchDay1State } from '../api';
+import { invalidateLatestRequest, runLatestRequest } from '../utils/latestRequest';
 
 const quickStartOrder = ['账户入账', '汇率换汇', '采购到货', '库存', '销售', '出库与收款', '对账', '月利润'];
 
@@ -15,13 +17,27 @@ export default function HelpPage() {
   const [chapterId, setChapterId] = useState('quickstart');
   const [message, setMessage] = useState('');
   const [day1State, setDay1State] = useState<Day1StatusState>(day1StatusLoadingState());
+  const requestSequence = useRef({ current: 0 });
   const chapter = MANUAL_CHAPTERS.find(item => item.id === chapterId) || MANUAL_CHAPTERS[0];
   useEffect(() => { setMeta({ title: '使用手册', breadcrumbs: [{ label: '首页', to: '/' }, { label: '使用手册' }] }); }, [setMeta]);
+  const requestDay1Status = useCallback(() => {
+    void runLatestRequest({
+      sequence: requestSequence.current,
+      request: fetchDay1State,
+      onSuccess: data => setDay1State(day1StatusReadyState(data.status)),
+      onError: () => setDay1State(day1StatusErrorState()),
+    });
+  }, []);
   const loadDay1Status = useCallback(() => {
     setDay1State(day1StatusLoadingState());
-    void fetchDay1State().then(data => setDay1State(day1StatusReadyState(data.status))).catch(() => setDay1State(day1StatusErrorState()));
-  }, []);
-  useEffect(() => { loadDay1Status(); }, [loadDay1Status]);
+    requestDay1Status();
+  }, [requestDay1Status]);
+  useEffect(() => {
+    const sequence = requestSequence.current;
+    // 初始状态已经是 loading，首屏请求只处理异步完成结果。
+    requestDay1Status();
+    return () => invalidateLatestRequest(sequence);
+  }, [requestDay1Status]);
 
   const day1Status = day1State.status === "ready" ? day1State.day1Status : undefined;
   const decideChapter = () => manualTourDecision(chapter, { day1Status });
@@ -49,4 +65,8 @@ export default function HelpPage() {
 }
 
 function ChapterNav({ chapters, active, onSelect }: { chapters: readonly ManualChapter[]; active: string; onSelect: (id: string) => void }) { return <nav aria-label="手册章节" className="space-y-1"><p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider text-gold">开始使用</p>{chapters.filter(item => item.category === 'quickstart').map(item => <ChapterButton key={item.id} chapter={item} active={active === item.id} onSelect={onSelect} />)}<p className="mb-2 mt-6 px-3 text-[11px] font-bold uppercase tracking-wider text-gold">功能参考</p>{chapters.filter(item => item.category === 'reference').map(item => <ChapterButton key={item.id} chapter={item} active={active === item.id} onSelect={onSelect} />)}</nav>; }
+
+/** Render one chapter entry and report the selected chapter to the parent navigation. */
+function ChapterButton({ chapter, active, onSelect }: { chapter: ManualChapter; active: boolean; onSelect: (id: string) => void }) { return <button type="button" onClick={() => onSelect(chapter.id)} className={`block w-full rounded px-3 py-2.5 text-left text-sm ${active ? 'bg-accent-light font-semibold text-accent' : 'text-muted hover:bg-accent-light'}`}>{chapter.title}</button>; }
+
 function ChapterContent({ chapter, onOpen, onPlay, onOpenStep }: { chapter: ManualChapter; onOpen: () => void; onPlay: () => void; onOpenStep: (stepId: string) => void }) { const orderSteps = ["sales-orders", "sales-orders", "sales-orders", "sales-fulfillment", "sales-fulfillment"]; return <article className="max-w-3xl"><p className="text-[11px] font-bold uppercase tracking-[.15em] text-gold">{chapter.category === "quickstart" ? "快速开始" : "功能参考"}</p><h2 className="mt-2 font-display text-3xl font-semibold">{chapter.title}</h2><p className="mt-3 text-sm leading-7 text-muted">{chapter.summary}</p><div className="mt-6 space-y-4">{chapter.sections.map((item, index) => <section key={item.title} className="rounded border border-border bg-white p-5"><h3 className="font-display text-lg font-semibold">{item.title}</h3>{item.paragraphs.map(paragraph => <p key={paragraph} className="mt-2 text-sm leading-7 text-muted">{paragraph}</p>)}{chapter.id === "first-order" && <button type="button" onClick={() => onOpenStep(orderSteps[index])} className="mt-3 text-xs font-semibold text-accent underline underline-offset-2">打开 /sales 并聚焦此步骤</button>}</section>)}</div><div className="mt-6 flex flex-wrap gap-3"><button type="button" onClick={onOpen} className="inline-flex items-center gap-2 rounded border border-border bg-white px-4 py-2.5 text-sm font-semibold"><ExternalLink className="h-4 w-4" />打开功能</button><button type="button" onClick={onPlay} className="inline-flex items-center gap-2 rounded bg-accent px-4 py-2.5 text-sm font-semibold text-white"><BookOpen className="h-4 w-4" />播放本页引导</button></div></article>; }

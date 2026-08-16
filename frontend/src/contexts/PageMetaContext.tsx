@@ -1,32 +1,9 @@
-import { createContext, useContext, useState, useCallback } from 'react';
-
-export interface BreadcrumbItem {
-  label: string;
-  to?: string;
-}
-
-interface PageMeta {
-  title: string;
-  breadcrumbs: BreadcrumbItem[];
-}
-
-interface PageMetaContextValue {
-  meta: PageMeta;
-  setMeta: (meta: PageMeta) => void;
-}
-
-const defaultMeta: PageMeta = {
-  title: 'CigarDomTabaka',
-  breadcrumbs: [],
-};
-
-const PageMetaContext = createContext<PageMetaContextValue>({
-  meta: defaultMeta,
-  setMeta: () => {},
-});
+import { useState, useCallback } from 'react';
+import { defaultMeta, PageMetaContext, type PageMeta } from './pageMetaStore';
+export type { BreadcrumbItem } from './pageMetaStore';
 
 export function PageMetaProvider({ children }: { children: React.ReactNode }) {
-  const [meta, setMetaState] = useState<PageMeta>(defaultMeta);
+  const [meta, setMetaState] = useState(defaultMeta);
 
   const setMeta = useCallback((newMeta: PageMeta) => {
     setMetaState(newMeta);
@@ -37,8 +14,4 @@ export function PageMetaProvider({ children }: { children: React.ReactNode }) {
       {children}
     </PageMetaContext.Provider>
   );
-}
-
-export function usePageMetaContext() {
-  return useContext(PageMetaContext);
 }

@@ -18,8 +18,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Deploy to VPS
+        env:
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -28,6 +32,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           timeout: 60s
           command_timeout: 10m
+          envs: DEPLOY_SHA
           script: |
             set -e
             cd /opt/cigardomtabaka
@@ -35,7 +40,14 @@ jobs:
             echo "=== git pull ==="
             git config --global --add safe.directory /opt/cigardomtabaka 2>/dev/null || true
             git fetch origin main
-            git reset --hard origin/main
+            # 只部署本次 CI 验证的提交；过期 workflow 不得覆盖 production。
+            CURRENT_MAIN_SHA=$(git rev-parse origin/main)
+            if [ "$CURRENT_MAIN_SHA" != "$DEPLOY_SHA" ]; then
+              echo "Skip stale CI result: verified $DEPLOY_SHA, current main is $CURRENT_MAIN_SHA"
+              exit 0
+            fi
+            git cat-file -e "${DEPLOY_SHA}^{commit}"
+            git reset --hard "$DEPLOY_SHA"
 
             echo "=== pip install ==="
             source venv/bin/activate

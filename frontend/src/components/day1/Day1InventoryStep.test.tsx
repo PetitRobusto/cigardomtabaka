@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import * as api from '../../api';
-import Day1InventoryStep, { applyIfDay1InventoryMounted, boxSizesFromCigarDetail, createBoxSizesLoader, createDay1InventoryMountGuard, fetchDeclaredBoxSizes, runDay1InventoryAdd } from './Day1InventoryStep';
+import type { CigarDetailResponse } from '../../types';
+import Day1InventoryStep from './Day1InventoryStep';
+import { applyIfDay1InventoryMounted, boxSizesFromCigarDetail, createBoxSizesLoader, createDay1InventoryMountGuard, fetchDeclaredBoxSizes, runDay1InventoryAdd } from './Day1InventoryStep.helpers';
 
 describe('Day1 inventory packaging contract', () => {
   it('renders a constrained selector from the real cigar detail response shape', () => {
@@ -51,9 +53,35 @@ describe('Day1 inventory packaging contract', () => {
   });
 
   it('loads existing draft rows from the real detail API response', async () => {
-    const fetchDetail = vi.spyOn(api, 'fetchCigarDetail').mockResolvedValue({
-      cigar: { box_sizes: [10, 25] },
-    } as never);
+    // 使用完整响应夹具，让目录 API 变更能在编译期暴露。
+    const detail = {
+      cigar: {
+        id: 4,
+        brand: '测试品牌',
+        english_name: 'Test Cigar',
+        name: '测试雪茄',
+        vitola: 'Robusto',
+        vitola_cn: '罗布图',
+        length: 124,
+        ring_gauge: 50,
+        common_name: '',
+        common_name_cn: '',
+        origin: 'Cuba',
+        status: 'active',
+        release_type: 'regular',
+        release_type_cn: '常规',
+        release_name: '',
+        production_method: 'handmade',
+        packagings: ['10', '25'],
+        box_sizes: [10, 25],
+      },
+      brand: null,
+      images_by_type: {},
+      total_images: 0,
+      related: [],
+      children: [],
+    } satisfies CigarDetailResponse;
+    const fetchDetail = vi.spyOn(api, 'fetchCigarDetail').mockResolvedValue(detail);
     await expect(fetchDeclaredBoxSizes(4)).resolves.toEqual([10, 25]);
     expect(fetchDetail).toHaveBeenCalledWith(4);
     fetchDetail.mockRestore();

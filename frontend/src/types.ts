@@ -65,6 +65,7 @@ export interface PriceHistoryResponse {
   cigar_name_en?: string;
   cigar_brand?: string;
   cigar_brand_cn?: string;
+  release_type_cn?: string;
   variants: Variant[];
 }
 
@@ -92,6 +93,7 @@ export interface CigarListItem {
   cigar_brand: string;
   cigar_brand_cn: string;
   cigar_image_url: string;
+  release_type_cn?: string;
   sources: {
     source_id: number;
     source_name: string;
@@ -519,6 +521,7 @@ export interface RecentChangesResponse {
 // =================== SALES & ACCOUNTING WORKBENCH ===================
 
 export interface PaymentOrderItem {
+  id: number;
   cigar_name: string;
   quantity: number;
   sale_unit: 'stick' | 'box' | string;
@@ -701,9 +704,18 @@ export interface Day1State {
   completion_summary: Day1CompletionSummary | null;
 }
 
+/** Read-only account row returned by the accounting summary endpoint. */
+export interface AccountingSummaryFundAccount {
+  account_id: number;
+  name: string;
+  currency: string;
+  original_balance: string;
+  cny_book_cost: string;
+}
+
 export interface AccountingSummary {
   as_of: string;
-  fund_accounts: (FundAccount & { original_balance: string; cny_book_cost: string })[];
+  fund_accounts: AccountingSummaryFundAccount[];
   accounts_receivable_cny: string;
   customer_prepayments_cny: string;
   inventory_remaining_cost_cny: string;

@@ -1,62 +1,82 @@
 # AGENTS.md — CigarDomTabaka 项目 AI Agent 行为规范
 
-## 核心铁律：Superpowers 流程强制执行
+## 核心流程：风险门禁开发
 
-任何代码相关任务（写功能、修bug、重构、设计、部署）必须先走 Superpowers 流程，禁止跳过！
+直接实现是默认；设计、测试、审查和验证成本必须与业务风险匹配。主代理自动分级并推进，只有不可逆操作、生产数据修改或缺少关键业务决定时才询问用户。
 
-### 必须加载的技能流程
+### 风险分级
 
+| 等级 | 典型范围 | 默认流程 |
+|------|----------|----------|
+| 低 | 文案、样式、帮助内容、小配置、明确类型修复、局部无状态 UI | 当前干净分支直接修改；自审；最小充分验证 |
+| 中 | 普通前后端功能、API 契约、跨文件状态、可恢复数据写入 | 记录简短需求契约；feature branch；实现后补关键测试；一次独立审查 |
+| 高 | 会计、金额、汇率、成本、利润、库存、订单状态、权限、幂等、迁移、production 部署 | 必要时正式设计；feature branch；验证不变量和错误路径；合并前独立审查 |
+
+默认流程：
+
+```text
+需求契约 → 影响范围扫描 → 直接实现 → 目标验证 → 按风险审查 → CI 全量验证 → 合并或部署
 ```
-brainstorming → writing-plans → [实现阶段技能] → verification-before-completion
-```
 
-| 阶段 | 技能 | 触发条件 |
-|------|------|----------|
-| 动脑子 | `brainstorming` | 任何新功能、修改、创意工作之前 |
-| 写计划 | `writing-plans` | 多步骤任务，写入 `.hermes/plans/` |
-| 开发 | `test-driven-development` | 写新代码前先写测试 |
-| 调试 | `systematic-debugging` | 遇到bug，四阶段根因分析 |
-| 审查 | `requesting-code-review` | 提交前安全检查 |
-| 验证 | `verification-before-completion` | 声称完成前跑验证命令 |
-| 收尾 | `finishing-a-development-branch` | 合并回 master |
+- 不强制 TDD 或 RED→GREEN，允许先实现，再补关键行为测试
+- 预计 30 分钟内的任务不写正式计划；仅新增领域模型、修改会计规则、跨多个子系统或涉及不可逆数据时写正式 spec/plan
+- Superpowers 技能按任务价值调用，不组成每个任务的强制流水线
+- 连续两次修复无效时，升级为系统化根因诊断
+- Subagent 可用于并行调查、独立模块和集中审查；自动选择数量和模型，不为每个小步骤串行派发
 
 ---
 
-## 禁忌
+## 禁忌与安全边界
 
-- **绝不先 push 后测试** — 修 bug/改功能必须：本地复现 → 写测试（先失败）→ 修复代码 → 跑测试通过 → git commit → git push
+- **绝不先 push 后验证** — 修改后必须完成与风险匹配的本地目标验证；完整测试主要由 CI 执行
 - 绝不擅自改用户密码调试登录
-- 绝不 git stash 用户未提交的改动（必须先 commit 再切分支）
+- 绝不覆盖或擅自 `git stash` 用户未提交的改动；需要切分支时先获得安全、明确的工作区状态
 - 不使用运行时 slugify 处理品牌重音字符（Partagás/Bolívar/Ramón Allones），必须用硬编码映射表 BRAND_LOGO_LOCAL
 - patch 工具修改 settings/config 前先用 `cat` 验证真实内容（安全过滤会把 AUTH_USER_MODEL 等显示为 `***`）
-- 修完代码必须切回 master，不留在 feature/fix 分支上
-- 报价时用户说"X款 Y元"默认人民币批发价，不动成本；只有明确说"成本"或"卢布"才改成本
-- 不跳过 Superpowers 流程
-- 不直接写前端代码——前端重写用看板 Kanban 派 kimi-coder
+- 报价时用户说“X款 Y元”默认人民币批发价，不动成本；只有明确说“成本”或“卢布”才改成本
+- 默认不 push；只有用户明确要求才 push
+- 不可逆操作和生产数据变更必须先获得用户确认
 
 ---
 
-## Git 工作流
+## 测试与审查
 
-```
-master → git checkout -b feature/xxx → 开发 → commit → merge 回 master → git branch -d feature/xxx
-```
+实现后必须覆盖：
 
-⚠️ 切分支前先 `git commit` 所有未提交改动，禁止 stash。
-⚠️ Commit message 全部使用中文。
+- 会计金额、汇率、成本、利润和库存数量不变量
+- 订单、采购、出库、收付款状态流转
+- 已实际发生的 Bug 回归
+- 数据解析、权限、幂等写入、迁移和不可逆操作
+
+纯排版、颜色、文案、简单组件拼装，以及 TypeScript、Lint 或构建已可靠覆盖的问题，默认不写单元测试。开发期间只跑受影响测试、类型检查、Lint、构建或页面冒烟；完整前后端测试主要由 CI 执行一次。
+
+- 低风险：主代理自审
+- 中风险：完成后一次独立审查
+- 高风险：可在实现期间审查，合并前再做一次最终独立审查
+- 只强制修复 Critical 和当前范围内的 Important；Minor 与无关历史问题记为技术债
+- 修复反馈后只复审受影响区域；审查新增工作超过原范围约 30% 时先汇报
+
+---
+
+## Git 与交付
+
+- 低风险可在当前干净分支开发；中高风险使用 feature branch
+- worktree 仅用于并行、长期或实验性任务
+- Commit message 全部使用中文
+- 默认不 push；只有用户明确要求才 push
+- production 只部署通过 CI 的准确 commit SHA
+- 功能分支完成并合并后切回默认主分支，不遗留无用分支
 
 ---
 
 ## 前端开发
 
 - ⚠️ **所有前端页面走 React SPA (`frontend/`)**，禁止新建 Django 模板页面
-- 涉及视觉/配色/风格 → 先加载 `ui-ux-pro-max` 出预览，让用户选方案
-- 前端/UI 重写 → 用看板 Kanban 派 kimi-coder，自己不写前端代码
-- 后端 Python → 用 coder (deepseek-v4-flash)
+- 涉及新的视觉方向、配色或整体风格时，先做预览并让用户选择
 - 前端源码在 `frontend/`（React + Vite + Tailwind + DaisyUI）
 - 修改 base.html 导航栏 → 必须同时改桌面端和手机端底部导航（BOTTOM NAV）
 - privnote 前端 → React SPA 路由 `/privnote/` 和 `/p/:token/`，不走 Django 模板
-- ⚠️ **前端改动先走 OpenDesign**：所有 UI/Layout/样式改动先在 OpenDesign 原型（`.opendesign/` 目录）中做好，验证通过后应用到项目代码。禁止跳过原型直接改生产代码
+- ⚠️ **视觉改动先走 OpenDesign**：新的 UI/Layout/样式方向先在 OpenDesign 原型（`.opendesign/` 目录）验证，再应用到项目；纯功能、类型、文案和明确的小修复可直接修改 React 源码
 - 📖 [OpenDesign MCP 使用指南 →](.kilo/opendesign-mcp.md) — MCP 工具、工作流、设计 Token
 - 🎨 **OD 项目**: `CigarDomTabaka` (`570372ce-21b8-4752-a21a-bd254f061568`) ↔ 本 Django 项目
 
@@ -182,8 +202,9 @@ cigardomtabaka/                     # Django 项目根目录
 ## 优先级
 
 1. 本文件（AGENTS.md）— 最高
-2. Superpowers 技能规范
+2. 用户当前任务要求
 3. `django-privnote` 技能（privnote 相关工作必加载）
+4. 其他技能规范（按风险和任务价值调用）
 
 ---
 

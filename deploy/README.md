@@ -18,6 +18,8 @@ push main → CI 全绿 → Deploy production → /opt/cigardomtabaka
 ```
 
 CI 会依次检查 Django、后端测试、前端 TypeScript、ESLint、Vitest 和 production build。任意一步失败都会阻止 production 部署。
+Deploy 固定使用触发本次成功 CI 的提交 SHA；如果 `main` 已前进，则跳过旧 CI 的部署，避免发布未经该次 CI 验证的代码。
+
 
 ## 二、GitHub Secrets
 

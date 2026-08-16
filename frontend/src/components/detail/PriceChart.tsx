@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { BarChart, Bar, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { motion } from 'framer-motion';
 import type { Variant } from '../../types';
-import { buildChartData, variantLabel } from '../../utils/priceData';
+import { buildChartData, cnyPerStick, variantLabel } from '../../utils/priceData';
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
@@ -35,19 +35,17 @@ interface BarDatum {
 
 /** 从 variants 提取当前单支 CNY 价格用于柱状图对比 */
 function buildBarData(variants: Variant[]): BarDatum[] {
-  const raw = variants.map((v, i) => {
+  const raw = variants.flatMap((v, i): BarDatum[] => {
     const points = v.points || [];
     const latest = points[points.length - 1];
-    const bs = v.box_size || 1;
-    const perStick = latest && latest.price_cny != null
-      ? +(latest.price_cny / bs).toFixed(2)
-      : (v.price_per_stick ?? 0);
-    return {
+    const perStick = cnyPerStick(latest?.price_cny, v.box_size, v.price_per_stick);
+    if (perStick === null) return [];
+    return [{
       name: `${v.source_short_name || v.source_name} ${v.box_label}`,
       price: perStick,
       color: COLORS[i % COLORS.length],
       tag: null as string | null,
-    };
+    }];
   });
 
   if (raw.length === 0) return raw;

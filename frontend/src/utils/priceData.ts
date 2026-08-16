@@ -103,6 +103,16 @@ export function extractSourceSlugs(snapshots: PriceSnapshot[]): string[] {
   return [...slugs];
 }
 
+/** 未知盒规或价格必须保持 null，不能伪造成一支装或零元。 */
+export function cnyPerStick(
+  priceCny: number | null | undefined,
+  boxSize: number | null | undefined,
+  fallback: number | null | undefined = null,
+): number | null {
+  if (priceCny == null || boxSize == null || boxSize <= 0) return fallback ?? null;
+  return +(priceCny / boxSize).toFixed(2);
+}
+
 /** 为价格走势图构建数据
  * @param mode 'original' = 原币种 | 'cny_per_stick' = 单支人民币
  */
@@ -124,9 +134,7 @@ export function buildChartData(variants: Variant[], mode: 'original' | 'cny_per_
       if (mode === 'original') {
         dateMap[date][label] = p.price;
       } else {
-        // 单支人民币 = price_cny / box_size
-        const bs = v.box_size || 1;
-        dateMap[date][label] = p.price_cny != null ? +(p.price_cny / bs).toFixed(2) : null;
+        dateMap[date][label] = cnyPerStick(p.price_cny, v.box_size);
       }
     });
   });

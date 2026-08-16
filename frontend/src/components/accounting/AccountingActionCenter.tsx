@@ -1,4 +1,11 @@
-import type { AccountingActionsResponse, AccountingApiError, DividendAction, ExpenseActionPayload, FundAccount, PurchaseAction } from '../../types';
+import type {
+  AccountingActionsResponse,
+  AccountingApiError,
+  DividendAction,
+  ExpenseActionPayload,
+  FundAccount,
+  PurchaseAction as PurchaseOrderAction,
+} from '../../types';
 import { apiErrorMessage, exchangeToRub, recordExpense } from '../../api';
 import ExchangeAction from './ExchangeAction';
 import PurchaseAction from './PurchaseAction';
@@ -9,7 +16,7 @@ export interface AccountingActionCenterProps {
   accounts: FundAccount[];
   summaryAccounts?: FundAccount[];
   actions?: AccountingActionsResponse;
-  purchases?: PurchaseAction[];
+  purchases?: PurchaseOrderAction[];
   dividends?: DividendAction[];
   businessDate: string;
   /** 动作列表查询独立于 dashboard；失败只在中心显示。 */

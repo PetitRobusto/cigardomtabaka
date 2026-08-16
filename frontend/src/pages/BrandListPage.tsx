@@ -39,7 +39,7 @@ export default function BrandListPage() {
   return (
     <div data-guide="overview" className="animate-fade-in">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
+        <div data-guide="overview-stats" className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
         <div>
           <h1 className="font-display text-[32px] font-semibold text-fg tracking-tight leading-tight">古巴雪茄目录</h1>
           <p className="text-[13px] text-muted mt-1 uppercase tracking-[0.08em]">{data.total_brands} 个品牌 · 完整收录</p>
@@ -47,7 +47,7 @@ export default function BrandListPage() {
         <div className="relative max-w-xs w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
           <input
-            type="text"
+            data-guide="overview-brand-search" type="text"
             placeholder="搜索品牌名称…"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -60,7 +60,7 @@ export default function BrandListPage() {
       {filteredSections.length === 0 ? (
         <EmptyState title="未找到匹配品牌" description="请尝试其他搜索词" />
       ) : (
-        <div className="space-y-0">
+        <div data-guide="overview-brand-list" className="space-y-0">
           {filteredSections.map((section, sIdx) => (
             <div key={section.key}>
               {sIdx > 0 && <hr className="border-t border-border my-8" />}

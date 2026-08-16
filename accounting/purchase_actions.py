@@ -16,7 +16,7 @@ from accounting.business_time import moscow_business_date
 from accounting.mutation_scope import ledger_mutation_scope
 from accounting.services import (
     LedgerError, PostingInput, _acquire_sqlite_writer_gate, _outflow_cny_cost,
-    _post_transaction_once, _retry_sqlite_locked,
+    _post_transaction_once, _retry_sqlite_locked, reverse_ledger_transaction,
 )
 from accounting.selectors import account_snapshot
 from accounting.models import (
@@ -25,7 +25,7 @@ from accounting.models import (
 )
 from accounting.guards import Day1IncompleteError, require_day1_completed
 from cigars.audit import AgentContext
-from cigars.inventory import receive_stock
+from cigars.inventory import InventoryError, receive_stock, reverse_purchase_receipt
 from cigars.models import (
     Cigar, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, StockMovement,
     Supplier, User,
@@ -778,15 +778,17 @@ def _receipt_replay_facts(*, order, transaction_obj, key, business_date, operato
         return False
 
     items = [item for item, _quantity, _actual in allocations]
-    batches = list(PurchaseBatch.objects.filter(
-        purchase_order_item__purchase_order_id=order.pk,
-    ).order_by('purchase_order_item_id', 'id'))
-    if len(batches) != len(items):
-        return False
     movements = list(StockMovement.objects.filter(
         movement_type=StockMovement.MovementType.RECEIVE,
         purchase_batch__purchase_order_item__purchase_order_id=order.pk,
+        idempotency_key=key,
     ).order_by('purchase_batch_id', 'id'))
+    batch_ids = [movement.purchase_batch_id for movement in movements]
+    batches = list(PurchaseBatch.objects.filter(
+        pk__in=batch_ids,
+    ).order_by('purchase_order_item_id', 'id'))
+    if len(batches) != len(items):
+        return False
     if len(movements) != len(batches):
         return False
     batches_by_item = {}
@@ -798,23 +800,38 @@ def _receipt_replay_facts(*, order, transaction_obj, key, business_date, operato
 
     for item, quantity, actual in allocations:
         matching = batches_by_item.get(item.pk, [])
-        if len(matching) != 1 or item.actual_cost_cny != actual:
+        if len(matching) != 1:
             return False
         batch = matching[0]
         unit_cost = (actual / quantity).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
-        if not (
+        common_valid = (
             batch.cigar_id == item.cigar_id
             and batch.quantity == quantity
-            and batch.remaining == quantity
-            and batch.physical_remaining == quantity
             and batch.original_cost_cny == actual
-            and batch.remaining_cost_cny == actual
             and batch.sold_cost_cny == Decimal('0.00')
             and batch.unit_cost_cny == unit_cost
             and batch.box_size == item.box_size
             and batch.original_box_quantity == item.box_quantity
             and len(movements_by_batch.get(batch.pk, [])) == 1
-        ):
+        )
+        if transaction_obj.reversed_by_id is None:
+            state_valid = (
+                batch.reversed_at is None
+                and batch.remaining == quantity
+                and batch.physical_remaining == quantity
+                and batch.remaining_cost_cny == actual
+                and item.actual_cost_cny == actual
+            )
+        else:
+            state_valid = (
+                batch.reversed_at is not None
+                and batch.remaining == 0
+                and batch.physical_remaining == 0
+                and batch.remaining_cost_cny == Decimal('0.00')
+                and batch.reversed_quantity == quantity
+                and batch.reversed_cost_cny == actual
+            )
+        if not common_valid or not state_valid:
             return False
         movement = movements_by_batch[batch.pk][0]
         if not (
@@ -826,6 +843,15 @@ def _receipt_replay_facts(*, order, transaction_obj, key, business_date, operato
         ):
             return False
     return True
+
+
+def _receipt_batches_for_key(*, order_id, key):
+    batch_ids = StockMovement.objects.filter(
+        movement_type=StockMovement.MovementType.RECEIVE,
+        purchase_batch__purchase_order_item__purchase_order_id=order_id,
+        idempotency_key=key,
+    ).values_list('purchase_batch_id', flat=True)
+    return list(PurchaseBatch.objects.filter(pk__in=batch_ids).order_by('id'))
 
 
 @_retry_sqlite_locked
@@ -956,7 +982,22 @@ def receive_paid_purchase_order(*, purchase_order_id, business_date, operator,
         existing_order_tx = LedgerTransaction.objects.filter(
             source_type='purchase_order', source_id=str(order_id),
             transaction_type=LedgerTransaction.TransactionType.PURCHASE_RECEIPT,
+            reversed_by__isnull=True,
         ).first()
+        if (
+            existing_tx is not None
+            and existing_tx.transaction_type == LedgerTransaction.TransactionType.PURCHASE_RECEIPT
+            and existing_tx.source_type == 'purchase_order'
+            and existing_tx.source_id == str(order_id)
+            and existing_tx.reversed_by_id is not None
+        ):
+            if _receipt_replay_facts(
+                order=replay_order, transaction_obj=existing_tx,
+                key=key, business_date=business_date,
+                operator_id=operator_id, note=note,
+            ):
+                return _receipt_batches_for_key(order_id=order_id, key=key)
+            raise PurchaseActionError('idempotency_conflict')
         if existing_order_tx is not None:
             if (
                 replay_order.arrival_idempotency_key == key
@@ -966,9 +1007,7 @@ def receive_paid_purchase_order(*, purchase_order_id, business_date, operator,
                     operator_id=operator_id, note=note,
                 )
             ):
-                return list(PurchaseBatch.objects.filter(
-                    purchase_order_item__purchase_order_id=order_id,
-                ).order_by('id'))
+                return _receipt_batches_for_key(order_id=order_id, key=key)
             raise PurchaseActionError('idempotency_conflict')
         if existing_tx is not None or replay_order.arrival_idempotency_key:
             raise PurchaseActionError('idempotency_conflict')
@@ -981,7 +1020,10 @@ def receive_paid_purchase_order(*, purchase_order_id, business_date, operator,
             raise PurchaseActionError('invalid_state', {'status': order.status})
         if order.paid_cny_cost is None or order.paid_cny_cost <= 0 or order.paid_at is None:
             raise PurchaseActionError('missing_payment')
-        if PurchaseBatch.objects.filter(purchase_order_item__purchase_order_id=order_id).exists():
+        if PurchaseBatch.objects.filter(
+            purchase_order_item__purchase_order_id=order_id,
+            reversed_at__isnull=True,
+        ).exists():
             raise PurchaseActionError('already_received')
         rows = _canonical_order_rows(order)
         rub_total = _canonical_rub_total(rows)
@@ -1043,6 +1085,81 @@ def receive_paid_purchase_order(*, purchase_order_id, business_date, operator,
         ):
             order.status = PurchaseOrder.Status.RECEIVED
             order.arrival_idempotency_key = key
+            order.legacy_received = False
+            order.save(update_fields=['status', 'arrival_idempotency_key', 'legacy_received'])
+        return batches
+
+
+@_retry_sqlite_locked
+def reverse_received_purchase_order(*, purchase_order_id, business_date, operator,
+                                    idempotency_key, reason=''):
+    """整单撤销一次完全未使用的采购到货。"""
+    business_date = _date(business_date)
+    key = _action_key(idempotency_key)
+    order_id = _purchase_order_id(purchase_order_id)
+    reason = str(reason or '').strip()
+    if not reason:
+        raise PurchaseActionError('reason_required')
+
+    with transaction.atomic():
+        _acquire_sqlite_writer_gate()
+        order = PurchaseOrder.objects.select_for_update().filter(pk=order_id).first()
+        if order is None:
+            raise PurchaseActionError('purchase_order_not_found', {'purchase_order_id': order_id})
+        existing_reversal = LedgerTransaction.objects.filter(idempotency_key=key).first()
+        if existing_reversal is not None:
+            historical_receipt = LedgerTransaction.objects.filter(
+                transaction_type=LedgerTransaction.TransactionType.PURCHASE_RECEIPT,
+                source_type='purchase_order', source_id=str(order.pk),
+                reversed_by=existing_reversal,
+            ).first()
+            if historical_receipt is None:
+                raise PurchaseActionError('idempotency_conflict')
+            reverse_ledger_transaction(
+                original_transaction=historical_receipt,
+                business_date=business_date, operator=operator,
+                idempotency_key=key, reason=reason,
+            )
+            batch_ids = StockMovement.objects.filter(
+                movement_type=StockMovement.MovementType.REVERSE_RECEIVE,
+                purchase_batch__purchase_order_item__purchase_order_id=order.pk,
+                idempotency_key=key,
+            ).values_list('purchase_batch_id', flat=True)
+            return list(PurchaseBatch.objects.filter(pk__in=batch_ids).order_by('id'))
+
+        require_day1_completed()
+        operator = _validate_operator(operator)
+        if order.status != PurchaseOrder.Status.RECEIVED:
+            raise PurchaseActionError('invalid_state', {'status': order.status})
+        original = LedgerTransaction.objects.select_for_update().filter(
+            transaction_type=LedgerTransaction.TransactionType.PURCHASE_RECEIPT,
+            source_type='purchase_order', source_id=str(order.pk),
+            reversed_by__isnull=True,
+        ).first()
+        if original is None:
+            raise PurchaseActionError('missing_receipt_transaction')
+        context = AgentContext(
+            command_name='reverse_received_purchase_order', idempotency_key=key,
+        )
+        try:
+            batches = reverse_purchase_receipt(
+                order=order, operator=operator, context=context, note=reason,
+            )
+        except InventoryError as error:
+            raise PurchaseActionError(
+                'receipt_already_used', {'message': str(error)},
+            ) from error
+        reverse_ledger_transaction(
+            original_transaction=original, business_date=business_date,
+            operator=operator, idempotency_key=key, reason=reason,
+        )
+        with ledger_mutation_scope(
+            reason='purchase_receipt_reversal', model='cigars.PurchaseOrder',
+            operator=operator,
+            allowed_fields={'status', 'arrival_idempotency_key', 'legacy_received'},
+        ):
+            order.status = PurchaseOrder.Status.IN_TRANSIT
+            order.arrival_idempotency_key = None
             order.legacy_received = False
             order.save(update_fields=['status', 'arrival_idempotency_key', 'legacy_received'])
         return batches

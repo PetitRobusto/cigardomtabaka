@@ -29,6 +29,10 @@ import {
   payPurchaseOrder,
   previewDividend,
   receivePurchaseOrder,
+  reverseReceivedPurchaseOrder,
+  reverseInventoryAdjustment,
+  fetchInventoryAudit,
+  returnSalesOrder,
   recordExpense,
   updateDividend,
   updatePurchaseOrder,
@@ -165,6 +169,30 @@ describe('accounting action API contracts', () => {
     expect(client.post).toHaveBeenCalledWith('/accounting/expenses/', {
       category: 'rent', amount: '88.00', fund_account_id: 11, business_date: businessDate, note: '八月房租',
     }, expect.objectContaining({ headers: { 'Idempotency-Key': expect.any(String) } }));
+  });
+
+  it('uses dedicated idempotent endpoints for return, receipt reversal, adjustment reversal, and audit', async () => {
+    client.post
+      .mockReturnValueOnce(response({ sales_order: { id: 61, fulfillment_status: 'returned' } }))
+      .mockReturnValueOnce(response({ purchase_order: { id: 31, status: 'in_transit' } }))
+      .mockReturnValueOnce(response({ adjustment: { id: 7, reversed_at: '2026-08-15T00:00:00Z' } }));
+    client.get.mockReturnValueOnce(response({ ok: true, issue_count: 0, issues: [] }));
+
+    await returnSalesOrder(61, { business_date: businessDate, reason: '客户整单退货' });
+    await reverseReceivedPurchaseOrder(31, { business_date: businessDate, note: '录入错误' });
+    await reverseInventoryAdjustment(7, { business_date: businessDate, reason: '盘点复核' });
+    await expect(fetchInventoryAudit()).resolves.toEqual({ ok: true, issue_count: 0, issues: [] });
+
+    expect(client.post).toHaveBeenNthCalledWith(1, '/sales/orders/61/return/', {
+      business_date: businessDate, reason: '客户整单退货',
+    }, expect.objectContaining({ headers: { 'Idempotency-Key': expect.any(String) } }));
+    expect(client.post).toHaveBeenNthCalledWith(2, '/accounting/purchases/31/reverse-receive/', {
+      business_date: businessDate, note: '录入错误',
+    }, expect.objectContaining({ headers: { 'Idempotency-Key': expect.any(String) } }));
+    expect(client.post).toHaveBeenNthCalledWith(3, '/inventory/adjustments/7/reverse/', {
+      business_date: businessDate, reason: '盘点复核',
+    }, expect.objectContaining({ headers: { 'Idempotency-Key': expect.any(String) } }));
+    expect(client.get).toHaveBeenCalledWith('/inventory/audit/');
   });
 
   it('supports dividend create, update, preview, and warning-confirm', async () => {

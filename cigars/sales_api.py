@@ -43,7 +43,7 @@ class ActionInputError(OrderServiceError):
 
 from .sales_accounting import (
     ship_sales_order, receive_sales_order_payment, refund_sales_order_payment,
-    record_sales_transport_cost,
+    record_sales_transport_cost, return_sales_order,
 )
 
 
@@ -157,7 +157,10 @@ def _denied(request):
 
 def _get_order(order_id):
     try:
-        return SalesOrder.objects.select_related("customer", "sales_shipment", "sales_receipt", "sales_refund", "sales_transport_cost").get(id=order_id)
+        return SalesOrder.objects.select_related(
+            "customer", "sales_shipment", "sales_receipt", "sales_refund",
+            "sales_return", "sales_transport_cost",
+        ).get(id=order_id)
     except (SalesOrder.DoesNotExist, ValueError, TypeError):
         return None
 
@@ -194,7 +197,10 @@ def sales_orders(request):
             raise ValueError
     except (TypeError, ValueError):
         return _error("limit 必须是 1 到 100 之间的整数", 400)
-    orders = SalesOrder.objects.select_related("customer", "sales_shipment", "sales_receipt", "sales_refund", "sales_transport_cost").prefetch_related(
+    orders = SalesOrder.objects.select_related(
+        "customer", "sales_shipment", "sales_receipt", "sales_refund",
+        "sales_return", "sales_transport_cost",
+    ).prefetch_related(
         "items__cigar", "items__allocations__purchase_batch"
     ).all()
     fulfillment = request.GET.get("fulfillment_status", "").strip()
@@ -302,6 +308,13 @@ def _optional_note(body):
     return value
 
 
+def _required_reason(body):
+    value = body.get("reason", body.get("note", ""))
+    if not isinstance(value, str) or not value.strip():
+        raise ActionInputError("reason 必须是非空字符串")
+    return value.strip()
+
+
 def _account(body, operator):
     value = body.get("fund_account_id")
     if type(value) is not int or value <= 0:
@@ -351,6 +364,14 @@ def sales_order_refund(request, order_id):
     return _action(request, order_id, "refund_sales_order_payment", lambda body, operator, context: refund_sales_order_payment(
         order_id=order_id, business_date=_business_date(body), operator=operator,
         idempotency_key=context.idempotency_key,
+    ).sales_order)
+
+
+def sales_order_return(request, order_id):
+    return _action(request, order_id, "return_sales_order", lambda body, operator, context: return_sales_order(
+        order_id=order_id, business_date=_business_date(body), operator=operator,
+        idempotency_key=context.idempotency_key, reason=_required_reason(body),
+        agent_context=context,
     ).sales_order)
 
 

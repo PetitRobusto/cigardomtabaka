@@ -114,6 +114,8 @@ def reserve_allocation(order, cigar, batch, quantity):
         revenue=Decimal('20.00') * quantity,
         cost=batch.unit_cost_cny * quantity,
         profit=(Decimal('20.00') - batch.unit_cost_cny) * quantity,
+        sale_unit=SalesOrderItem.SaleUnit.STICK,
+        sale_quantity=quantity,
     )
     allocation = create_stock_allocation(
         operator=order.operator,
@@ -406,6 +408,8 @@ class OrderInventoryServiceTest(TestCase):
                 revenue=Decimal('20.00'),
                 cost=Decimal('10.00'),
                 profit=Decimal('10.00'),
+                sale_unit=SalesOrderItem.SaleUnit.STICK,
+                sale_quantity=1,
             )
             create_stock_allocation(
                 operator=self.operator,

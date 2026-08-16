@@ -31,6 +31,16 @@ _BATCH_SPLIT_FIELDS = frozenset({
     "physical_box_quantity", "available_box_quantity",
     "physical_stick_quantity", "available_stick_quantity",
 })
+_BATCH_REVERSE_RECEIVE_FIELDS = frozenset({
+    "remaining", "physical_remaining", "available_box_quantity",
+    "physical_box_quantity", "available_stick_quantity", "physical_stick_quantity",
+    "remaining_cost_cny", "reversed_quantity", "reversed_cost_cny", "reversed_at",
+})
+_BATCH_RETURN_FIELDS = frozenset({
+    "remaining", "physical_remaining", "available_box_quantity",
+    "physical_box_quantity", "available_stick_quantity", "physical_stick_quantity",
+    "remaining_cost_cny", "sold_cost_cny",
+})
 
 # 每个动作只开放完成该动作所需的模型与字段。
 ACTION_RULES = {
@@ -57,7 +67,8 @@ ACTION_RULES = {
     "ship": {
         "cigars.PurchaseBatch": {"create": False, "update": _BATCH_SHIP_FIELDS},
         "cigars.StockAllocation": {
-            "create": False, "update": frozenset({"status", "fulfilled_at"}),
+            "create": False,
+            "update": frozenset({"status", "fulfilled_at", "fulfilled_cost_cny"}),
         },
         "cigars.StockMovement": {"create": True, "update": frozenset()},
     },
@@ -67,6 +78,21 @@ ACTION_RULES = {
     },
     "split_box": {
         "cigars.PurchaseBatch": {"create": False, "update": _BATCH_SPLIT_FIELDS},
+        "cigars.StockMovement": {"create": True, "update": frozenset()},
+    },
+    "reverse_receive": {
+        "cigars.PurchaseBatch": {"create": False, "update": _BATCH_REVERSE_RECEIVE_FIELDS},
+        "cigars.StockMovement": {"create": True, "update": frozenset()},
+    },
+    "return": {
+        "cigars.PurchaseBatch": {"create": False, "update": _BATCH_RETURN_FIELDS},
+        "cigars.StockAllocation": {
+            "create": False, "update": frozenset({"status", "returned_at"}),
+        },
+        "cigars.StockMovement": {"create": True, "update": frozenset()},
+    },
+    "reverse_adjustment": {
+        "cigars.PurchaseBatch": {"create": False, "update": _BATCH_ADJUST_FIELDS},
         "cigars.StockMovement": {"create": True, "update": frozenset()},
     },
 }

@@ -26,6 +26,33 @@ REASON_ALLOWED_FIELDS = {
         "cigars.PurchaseOrder": frozenset({"id", "status", "arrival_idempotency_key", "legacy_received"}),
         "cigars.PurchaseOrderItem": frozenset({"id", "actual_cost_cny"}),
     },
+    "purchase_receipt_reversal": {
+        "cigars.PurchaseOrder": frozenset({"id", "status", "arrival_idempotency_key", "legacy_received"}),
+        "cigars.PurchaseOrderItem": frozenset({"id", "actual_cost_cny"}),
+    },
+    "sales_return_fact": {
+        "cigars.SalesReturn": frozenset({
+            "id", "sales_order", "sales_shipment", "amount_cny", "fifo_cost_cny",
+            "ledger_transaction", "business_date", "operator", "reason", "created_at",
+        }),
+    },
+    "inventory_adjustment_fact": {
+        "cigars.InventoryAdjustmentAction": frozenset({
+            "id", "cigar", "quantity_delta", "inventory_form", "ledger_transaction",
+            "reversal_transaction", "business_date", "operator", "reason",
+            "idempotency_key", "reversed_at", "reversal_operator", "reversal_reason",
+            "created_at",
+        }),
+        "cigars.InventoryAdjustmentLine": frozenset({
+            "id", "action", "purchase_batch", "stock_movement", "quantity_delta",
+            "box_delta", "stick_delta", "cost_delta_cny", "batch_state_after",
+        }),
+    },
+    "inventory_adjustment_reversal": {
+        "cigars.InventoryAdjustmentAction": frozenset({
+            "reversal_transaction", "reversed_at", "reversal_operator", "reversal_reason",
+        }),
+    },
     "expense_post": {
         "accounting.Expense": frozenset({"id", "status", "category", "fund_account", "original_amount", "amount_cny", "business_date", "operator", "ledger_transaction", "idempotency_key", "note"}),
     },

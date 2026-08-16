@@ -1,11 +1,11 @@
-"""Order and inventory write services.
+"""订单与库存写服务。
 
-All stock-changing paths should go through this module so PurchaseBatch.remaining
-stays a read model backed by StockMovement facts.
+库存变动统一由本模块处理；PurchaseBatch.remaining 是库存流水支撑的读模型。
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
 import json
@@ -165,6 +165,19 @@ def _record_order_event(order, *, operator, context, note='', metadata=None):
         note=note or '',
         metadata=metadata or {},
     )
+
+
+def _sales_event_metadata(order, business_date=None):
+    # 双状态和业务日期共同构成销售命令的审计快照。
+    if business_date is not None and type(business_date) is not date:
+        raise OrderServiceError('业务日期必须是 date')
+    metadata = {
+        'fulfillment_status': order.fulfillment_status,
+        'payment_status': order.payment_status,
+    }
+    if business_date is not None:
+        metadata['business_date'] = business_date.isoformat()
+    return metadata
 
 
 def serialize_sales_order(order):
@@ -369,8 +382,8 @@ def _transport_payer(raw_payer, customer_fee):
 def create_sales_order_draft(*, items, operator, customer=None, customer_id=None,
                              customer_name="", payment_method_id=None,
                              payment_manual=None, customer_transport_fee_cny=0,
-                             transport_payer=None, note="", agent_context=None):
-    """Create a mutable sales draft without reserving inventory."""
+                             transport_payer=None, note="", agent_context=None, business_date=None):
+    """创建可编辑的销售草稿，不预留库存。"""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="create_sales_order_draft")
     if not isinstance(items, list) or not items:
@@ -451,10 +464,7 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
     ])
     _record_order_event(
         order, operator=operator, context=context, note=note,
-        metadata={
-            "fulfillment_status": order.fulfillment_status,
-            "payment_status": order.payment_status,
-        },
+        metadata=_sales_event_metadata(order, business_date),
     )
     return order
 
@@ -463,8 +473,8 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
 def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, customer_id=None,
                              customer_name="", payment_method_id=None, payment_manual=None,
                              customer_transport_fee_cny=0, transport_payer=None,
-                             note="", agent_context=None):
-    """Replace all snapshots on an unlocked, unpaid draft."""
+                             note="", agent_context=None, business_date=None):
+    """整体替换未锁定、未收款草稿的业务快照。"""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="update_sales_order_draft")
     order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, "销售单ID"))
@@ -528,9 +538,7 @@ def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, 
     order.total_revenue, order.total_cost = order.goods_amount_cny, Decimal("0.00")
     order.total_profit, order.fifo_cost_cny, order.contribution_profit_cny = Decimal("0.00"), Decimal("0.00"), Decimal("0.00")
     order.save()
-    _record_order_event(order, operator=operator, context=context, note=note, metadata={
-        "fulfillment_status": order.fulfillment_status, "payment_status": order.payment_status,
-    })
+    _record_order_event(order, operator=operator, context=context, note=note, metadata=_sales_event_metadata(order, business_date))
     return order
 
 
@@ -576,8 +584,9 @@ def _reserve_box_stock_fifo(*, order, item, operator, context, note=""):
 
 
 @transaction.atomic
-def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note=""):
-    """Confirm an unpaid draft and reserve its in-stock stick items."""
+def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note="",
+                        business_date=None):
+    """确认未收款草稿，并预留其中的现货库存。"""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="confirm_sales_order")
     require_day1_completed()
@@ -610,15 +619,14 @@ def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note=""
     if note:
         order.note = note
     order.save()
-    _record_order_event(order, operator=operator, context=context, note=note, metadata={
-        "fulfillment_status": order.fulfillment_status, "payment_status": order.payment_status,
-    })
+    _record_order_event(order, operator=operator, context=context, note=note, metadata=_sales_event_metadata(order, business_date))
     return order
 
 
 @transaction.atomic
-def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None, note=""):
-    """Release reservations of a confirmed order before shipment."""
+def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None, note="",
+                                 business_date=None):
+    """取消未出库的已确认订单，并释放全部预留。"""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="cancel_confirmed_sales_order")
     require_day1_completed()
@@ -662,9 +670,7 @@ def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None
     if note:
         order.note = note
     order.save()
-    _record_order_event(order, operator=operator, context=context, note=note, metadata={
-        "fulfillment_status": order.fulfillment_status, "payment_status": order.payment_status,
-    })
+    _record_order_event(order, operator=operator, context=context, note=note, metadata=_sales_event_metadata(order, business_date))
     return order
 
 

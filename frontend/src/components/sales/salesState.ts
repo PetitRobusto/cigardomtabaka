@@ -96,12 +96,16 @@ export function statusLabel(status: string): string {
     paid: '已收款',
     refund_pending: '待退款',
     refunded: '已退款',
+    returned: '已退货',
   }[status] ?? status;
 }
 
 export function orderDisplayStatus(order: SalesOrderStateInput): string {
   if (order.fulfillment_status === 'cancelled') {
     return `已取消${order.payment_status === 'refund_pending' ? ' · 待退款' : order.payment_status === 'refunded' ? ' · 已退款' : ''}`;
+  }
+  if (order.fulfillment_status === 'returned') {
+    return `已退货${order.payment_status === 'refund_pending' ? ' · 待退款' : order.payment_status === 'refunded' ? ' · 已退款' : ''}`;
   }
   const fulfillment = order.fulfillment_status === 'draft'
     ? '草稿'
@@ -125,9 +129,10 @@ export function availableActions(order: SalesOrderStateInput): string[] {
     return order.payment_status === 'unpaid' ? ['ship', 'cancel', 'receive'] : ['ship', 'cancel'];
   }
   if (order.fulfillment_status === 'shipped') {
-    return order.payment_status === 'unpaid' ? ['receive', 'transport_cost'] : ['transport_cost'];
+    return order.payment_status === 'unpaid' ? ['return', 'receive', 'transport_cost'] : ['return', 'transport_cost'];
   }
   if (order.fulfillment_status === 'cancelled' && order.payment_status === 'refund_pending') return ['refund'];
+  if (order.fulfillment_status === 'returned' && order.payment_status === 'refund_pending') return ['refund'];
   return [];
 }
 
@@ -138,6 +143,7 @@ export function actionLabel(action: string): string {
     ship: '出库',
     receive: '收款',
     refund: '退款',
+    return: '整单退货',
     transport_cost: '记录人肉成本',
   }[action] ?? action;
 }

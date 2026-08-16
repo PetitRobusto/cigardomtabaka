@@ -85,7 +85,7 @@ export function RecentChangesCarousel({ priceChanges, restocks, onItemClick }: P
   if (priceChanges.length === 0 && restocks.length === 0) return null;
 
   return (
-    <div className="mb-8">
+    <div data-guide="prices-recent-changes" className="mb-8">
       <Section
         title="近期价格变动"
         icon={Activity}

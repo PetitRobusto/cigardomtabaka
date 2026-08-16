@@ -14,7 +14,12 @@ from accounting.guards import Day1IncompleteError
 from accounting.models import FundAccount
 from accounting.services import LedgerError
 from accounting.services import _acquire_sqlite_writer_gate, _retry_sqlite_locked
-from accounting.purchase_actions import PurchaseActionError, canonical_purchase_item, normalize_legacy_purchase_item
+from accounting.purchase_actions import (
+    PurchaseActionError,
+    canonical_purchase_item,
+    normalize_legacy_purchase_item,
+    reverse_received_purchase_order,
+)
 from django.db.models import Count, Q, Sum
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -31,12 +36,14 @@ from .models import (
     SalesOrderItem,
     SalesReceipt,
     SalesRefund,
+    SalesReturn,
     SalesShipment,
     StockMovement,
     Supplier,
     User,
 )
 from .search import CigarSearchEngine
+from .inventory_audit import audit_inventory
 from .services import (
     AgentContext,
     InsufficientStockError,
@@ -48,13 +55,14 @@ from .services import (
     create_sales_order_draft,
     get_stock_summary,
     receive_purchase_order,
+    reverse_stock_adjustment,
     serialize_purchase_order,
     serialize_sales_order,
     update_sales_order_draft,
 )
 from .sales_accounting import (
     receive_sales_order_payment, record_sales_transport_cost,
-    refund_sales_order_payment, ship_sales_order,
+    refund_sales_order_payment, return_sales_order, ship_sales_order,
 )
 
 
@@ -107,7 +115,7 @@ def _purchase_error_status(code):
         return 404
     if code in {
         'invalid_state', 'idempotency_conflict', 'packaging_review_required',
-        'version_conflict', 'day1_incomplete',
+        'version_conflict', 'day1_incomplete', 'receipt_already_used',
     }:
         return 409
     return 400
@@ -338,7 +346,7 @@ def _sales_orders_queryset():
     # 列表和详情共用预载，避免序列化每张订单时重复查询。
     return SalesOrder.objects.select_related(
         'customer', 'sales_shipment', 'sales_receipt', 'sales_refund',
-        'sales_transport_cost',
+        'sales_return', 'sales_transport_cost',
     ).prefetch_related('items__cigar', 'items__allocations__purchase_batch')
 
 
@@ -534,6 +542,33 @@ def receive_purchase_order_command(request):
 
 @csrf_exempt
 @staff_required
+def reverse_purchase_receipt_command(request):
+    # 只撤销完全未使用的整单到货，原采购付款保持不变。
+    if request.method != 'POST':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+
+    def handler(body, operator, context):
+        batches = reverse_received_purchase_order(
+            purchase_order_id=body.get('purchase_order_id'),
+            business_date=_required_business_date(body),
+            operator=operator,
+            idempotency_key=context.idempotency_key,
+            reason=str(body.get('reason') or body.get('note') or '').strip(),
+        )
+        order = batches[0].purchase_order_item.purchase_order if batches else None
+        return {
+            'purchase_order': serialize_purchase_order(order) if order else None,
+            'reversed_batch_ids': [batch.pk for batch in batches],
+        }
+
+    return _idempotent_command(
+        request, 'reverse_received_purchase_order', handler,
+        canonical_action=True,
+    )
+
+
+@csrf_exempt
+@staff_required
 def create_sales_order_command(request):
     # 创建仅生成可编辑草稿，不预留库存。
     if request.method != 'POST':
@@ -657,7 +692,7 @@ def receive_sales_order_payment_command(request):
 @csrf_exempt
 @staff_required
 def refund_sales_order_payment_command(request):
-    # 退款仅撤销已取消订单的整笔预收款。
+    # 退款撤销已取消或已退货订单的整笔原收款。
     if request.method != 'POST':
         return _json_response({'error': 'Method not allowed'}, status=405)
 
@@ -670,6 +705,26 @@ def refund_sales_order_payment_command(request):
         return _sales_order_response(refund.sales_order)
 
     return _idempotent_command(request, 'refund_sales_order_payment', handler, canonical_action=True)
+
+
+@csrf_exempt
+@staff_required
+def return_sales_order_command(request):
+    # 退货只接受完整已出库订单，并按原分配恢复批次成本。
+    if request.method != 'POST':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+
+    def handler(body, operator, context):
+        reason = str(body.get('reason') or body.get('note') or '').strip()
+        returned = return_sales_order(
+            order_id=body.get('sales_order_id'),
+            business_date=_required_business_date(body), operator=operator,
+            idempotency_key=context.idempotency_key, reason=reason,
+            agent_context=context,
+        )
+        return _sales_order_response(returned.sales_order)
+
+    return _idempotent_command(request, 'return_sales_order', handler, canonical_action=True)
 
 
 @csrf_exempt
@@ -773,6 +828,58 @@ def adjust_stock_command(request):
     return _idempotent_command(request, 'adjust_stock', handler)
 
 
+@csrf_exempt
+@staff_required
+def reverse_stock_adjustment_command(request):
+    # 撤销以结构化调整动作 ID 为边界，不接受批次级猜测。
+    if request.method != 'POST':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+
+    def handler(body, operator, context):
+        action = reverse_stock_adjustment(
+            adjustment_id=body.get('adjustment_id'),
+            business_date=_required_business_date(body),
+            operator=operator,
+            idempotency_key=context.idempotency_key,
+            reason=str(body.get('reason') or body.get('note') or '').strip(),
+        )
+        return {
+            'adjustment': {
+                'id': action.pk,
+                'reversal_transaction_id': action.reversal_transaction_id,
+                'reversed_at': action.reversed_at.isoformat() if action.reversed_at else None,
+            },
+        }
+
+    return _idempotent_command(
+        request, 'reverse_stock_adjustment', handler,
+        canonical_action=True,
+    )
+
+
+@staff_required
+def inventory_audit_query(request):
+    # 审计只读全量库存事实，不执行自动修复。
+    if request.method != 'GET':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+    result = audit_inventory()
+    return _json_response({
+        'ok': result.ok,
+        'issue_count': len(result.issues),
+        'issues': [
+            {
+                'code': issue.code,
+                'message': issue.message,
+                'batch_id': issue.batch_id,
+                'order_id': issue.order_id,
+                'allocation_id': issue.allocation_id,
+                'movement_id': issue.movement_id,
+            }
+            for issue in result.issues
+        ],
+    })
+
+
 @staff_required
 def business_report(request):
     # 报表只读双状态和已发生的出库、收退款事实，不再依赖旧 status。
@@ -791,6 +898,12 @@ def business_report(request):
         fifo_cost=Sum('fifo_cost_cny'),
         contribution_profit=Sum('sales_order__contribution_profit_cny'),
     )
+    return_totals = SalesReturn.objects.aggregate(
+        revenue=Sum('amount_cny'),
+        fifo_cost=Sum('fifo_cost_cny'),
+    )
+    returned_revenue = return_totals['revenue'] or Decimal('0.00')
+    returned_cost = return_totals['fifo_cost'] or Decimal('0.00')
     receipt_total = (
         SalesReceipt.objects.aggregate(total=Sum('amount_cny'))['total']
         or Decimal('0.00')
@@ -812,13 +925,14 @@ def business_report(request):
         },
         'sales': {
             'shipped_amount_due_cny': decimal_to_number(
-                shipment_totals['revenue'] or Decimal('0.00'),
+                (shipment_totals['revenue'] or Decimal('0.00')) - returned_revenue,
             ),
             'fifo_cost_cny': decimal_to_number(
-                shipment_totals['fifo_cost'] or Decimal('0.00'),
+                (shipment_totals['fifo_cost'] or Decimal('0.00')) - returned_cost,
             ),
             'contribution_profit_cny': decimal_to_number(
-                shipment_totals['contribution_profit'] or Decimal('0.00'),
+                (shipment_totals['contribution_profit'] or Decimal('0.00'))
+                - (returned_revenue - returned_cost),
             ),
             'received_cny': decimal_to_number(receipt_total),
             'refunded_cny': decimal_to_number(refund_total),

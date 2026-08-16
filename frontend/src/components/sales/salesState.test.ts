@@ -36,7 +36,9 @@ describe('summarizeSalesOrders', () => {
 
   it('为订单状态和动作提供中文工作台标签，并稳健格式化金额', () => {
     expect(statusLabel('refund_pending')).toBe('待退款');
+    expect(statusLabel('returned')).toBe('已退货');
     expect(actionLabel('transport_cost')).toBe('记录人肉成本');
+    expect(actionLabel('return')).toBe('整单退货');
     expect(formatCny('1234.5')).toBe('¥1,234.50');
     expect(formatCny('bad')).toBe('¥0.00');
     expect(formatSignedCny('-123.4')).toBe('-¥123.40');
@@ -47,9 +49,11 @@ describe('summarizeSalesOrders', () => {
     expect(orderDisplayStatus({ fulfillment_status: 'confirmed', payment_status: 'unpaid' })).toBe('待收款');
     expect(orderDisplayStatus({ fulfillment_status: 'shipped', payment_status: 'paid' })).toBe('已出库 · 已收款');
     expect(orderDisplayStatus({ fulfillment_status: 'cancelled', payment_status: 'refund_pending' })).toBe('已取消 · 待退款');
+    expect(orderDisplayStatus({ fulfillment_status: 'returned', payment_status: 'refund_pending' })).toBe('已退货 · 待退款');
     expect(availableActions({ fulfillment_status: 'confirmed', payment_status: 'unpaid' })).toEqual(['ship', 'cancel', 'receive']);
     expect(availableActions({ fulfillment_status: 'cancelled', payment_status: 'refund_pending' })).toEqual(['refund']);
     expect(availableActions({ fulfillment_status: 'cancelled', payment_status: 'refunded' })).toEqual([]);
+    expect(availableActions({ fulfillment_status: 'shipped', payment_status: 'paid' })).toEqual(['return', 'transport_cost']);
   });
 
   it('草稿不进入待收款，并校验金额输入与动作默认金额', () => {

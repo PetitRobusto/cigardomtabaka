@@ -5,7 +5,7 @@ from unittest.mock import patch
 from django.db import models
 from django.test import TestCase
 
-from accounting.models import Day1Initialization, FundAccount, LedgerPosting, LedgerTransaction
+from accounting.models import Day1Initialization, FundAccount, LedgerMutationError, LedgerPosting, LedgerTransaction
 from accounting.selectors import account_snapshot
 from accounting.services import LedgerError
 from cigars.models import (
@@ -16,13 +16,19 @@ from cigars.models import (
     PurchaseOrderItem,
     SalesOrder,
     SalesReceipt,
+    SalesReturn,
     SalesShipment,
     StockAllocation,
     StockMovement,
     Supplier,
     User,
 )
-from cigars.tests.inventory_fixtures import create_purchase_batch, force_inventory_save
+from cigars.tests.inventory_fixtures import (
+    create_purchase_batch,
+    create_stock_movement,
+    force_inventory_save,
+)
+from cigars.inventory_audit import audit_inventory
 from cigars.services import AgentContext, OrderServiceError, confirm_sales_order, create_sales_order_draft
 
 
@@ -64,7 +70,7 @@ class SalesFulfillmentServiceTest(TestCase):
             boxes, sticks = divmod(quantity, box_size)
         else:
             boxes, sticks = 0, quantity
-        return create_purchase_batch(
+        batch = create_purchase_batch(
             purchase_order_item=purchase_item, cigar=self.cigar, quantity=quantity,
             remaining=quantity, physical_remaining=quantity,
             original_cost_cny=Decimal(str(quantity)) * Decimal(str(unit_cost)),
@@ -74,6 +80,14 @@ class SalesFulfillmentServiceTest(TestCase):
             physical_box_quantity=boxes, available_box_quantity=boxes,
             physical_stick_quantity=sticks, available_stick_quantity=sticks,
         )
+        create_stock_movement(
+            operator=self.operator,
+            movement_type=StockMovement.MovementType.RECEIVE,
+            cigar=self.cigar,
+            purchase_batch=batch,
+            quantity=quantity,
+        )
+        return batch
 
     def confirmed_order(self, *, quantity=3, unit_price='30.00', box_size=None):
         item = {
@@ -94,6 +108,20 @@ class SalesFulfillmentServiceTest(TestCase):
             sales_order_id=order.id, operator=self.operator,
             agent_context=self.context('confirm_sales_order'),
         )
+
+    def shipped_cross_batch_order(self, key):
+        """构造跨两个批次出库的订单，供完整性测试使用。"""
+        self.batch(quantity=2, unit_cost='10.00')
+        self.batch(quantity=2, unit_cost='12.00')
+        order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import ship_sales_order
+        ship_sales_order(
+            order_id=order.pk, business_date=self.business_date,
+            operator=self.operator, idempotency_key=key,
+        )
+        return order, list(StockAllocation.objects.filter(
+            sales_order_item__sales_order=order,
+        ).order_by('id'))
 
     def test_ship_unpaid_order_posts_ar_and_fifo_cost(self):
         first = self.batch(quantity=2, unit_cost='10.00')
@@ -141,6 +169,273 @@ class SalesFulfillmentServiceTest(TestCase):
             ],
         )
         self.assertEqual(sum(row[2] for row in ledger.postings.values_list("category", "amount", "cny_amount")), Decimal("0.00"))
+
+    def test_return_restores_cross_batch_cost_and_reverses_shipment(self):
+        """整单退货按原分配成本恢复库存，并保留订单历史金额。"""
+        first = self.batch(quantity=2, unit_cost='10.00')
+        second = self.batch(quantity=2, unit_cost='12.00')
+        order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import return_sales_order, ship_sales_order
+
+        shipped = ship_sales_order(
+            order_id=order.id,
+            business_date=self.business_date,
+            operator=self.operator,
+            idempotency_key='ship-before-return-1',
+            note='出库',
+        )
+        sales_return = return_sales_order(
+            order_id=order.id,
+            business_date=date(2026, 8, 11),
+            operator=self.operator,
+            idempotency_key='return-order-1',
+            reason='客户整单退回',
+        )
+        replayed = return_sales_order(
+            order_id=order.id,
+            business_date=date(2026, 8, 11),
+            operator=self.operator,
+            idempotency_key='return-order-1',
+            reason='客户整单退回',
+        )
+
+        shipped.refresh_from_db()
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(replayed.pk, sales_return.pk)
+        self.assertEqual(shipped.fulfillment_status, SalesOrder.FulfillmentStatus.RETURNED)
+        self.assertEqual(shipped.payment_status, SalesOrder.PaymentStatus.UNPAID)
+        self.assertEqual(shipped.fifo_cost_cny, Decimal('32.00'))
+        self.assertEqual(shipped.total_cost, Decimal('32.00'))
+        self.assertEqual(shipped.total_profit, Decimal('63.00'))
+        self.assertEqual(first.physical_remaining, 2)
+        self.assertEqual(first.remaining_cost_cny, Decimal('20.00'))
+        self.assertEqual(first.sold_cost_cny, Decimal('0.00'))
+        self.assertEqual(second.physical_remaining, 2)
+        self.assertEqual(second.remaining_cost_cny, Decimal('24.00'))
+        self.assertEqual(second.sold_cost_cny, Decimal('0.00'))
+        self.assertEqual(
+            StockAllocation.objects.filter(status=StockAllocation.Status.RETURNED).count(),
+            2,
+        )
+        self.assertEqual(SalesReturn.objects.get(pk=sales_return.pk).fifo_cost_cny, Decimal('32.00'))
+        original = SalesShipment.objects.get(sales_order=shipped).ledger_transaction
+        original_rows = list(original.postings.order_by('id').values_list(
+            'account_id', 'category', 'currency', 'amount', 'cny_amount',
+        ))
+        reversal_rows = list(sales_return.ledger_transaction.postings.order_by('id').values_list(
+            'account_id', 'category', 'currency', 'amount', 'cny_amount',
+        ))
+        self.assertEqual(
+            reversal_rows,
+            [(account, category, currency, -amount, -cny)
+             for account, category, currency, amount, cny in original_rows],
+        )
+        self.assertTrue(audit_inventory().ok)
+        self.client.force_login(self.operator)
+        report = self.client.get('/api/agent/reports/basic/').json()['sales']
+        self.assertEqual(report['shipped_amount_due_cny'], 0)
+        self.assertEqual(report['fifo_cost_cny'], 0)
+        self.assertEqual(report['contribution_profit_cny'], 0)
+
+    def test_sales_return_fact_rejects_plain_orm_writes(self):
+        """整单退货事实创建后不可被普通 ORM 覆盖或删除。"""
+        self.batch(quantity=1, unit_cost='10.00')
+        order = self.confirmed_order(quantity=1, unit_price='30.00')
+        from cigars.sales_accounting import return_sales_order, ship_sales_order
+        ship_sales_order(
+            order_id=order.pk, business_date=self.business_date,
+            operator=self.operator, idempotency_key='ship-return-write-boundary',
+        )
+        sales_return = return_sales_order(
+            order_id=order.pk, business_date=self.business_date,
+            operator=self.operator, idempotency_key='return-write-boundary',
+            reason='边界测试退货',
+        )
+        sales_return.reason = '禁止修改'
+        actions = [
+            lambda: sales_return.save(update_fields=['reason']),
+            sales_return.delete,
+            lambda: SalesReturn.objects.filter(pk=sales_return.pk).update(reason='禁止修改'),
+            lambda: SalesReturn.objects.filter(pk=sales_return.pk).delete(),
+            lambda: SalesReturn.objects.bulk_update([sales_return], ['reason']),
+            lambda: SalesReturn.objects.bulk_create([sales_return]),
+            lambda: SalesReturn.objects.update_or_create(pk=sales_return.pk, defaults={'reason': '禁止修改'}),
+            lambda: SalesReturn.objects.get_or_create(pk=sales_return.pk),
+        ]
+        for write in actions:
+            with self.subTest(write=write):
+                with self.assertRaises(LedgerMutationError):
+                    write()
+
+    def test_return_rejects_missing_allocation_even_when_total_cost_matches(self):
+        """缺少一条分配时，即使剩余成本被改成总成本也不能退货。"""
+        order, allocations = self.shipped_cross_batch_order('ship-before-missing-allocation')
+        shipment = SalesShipment.objects.get(sales_order=order)
+        models.QuerySet.delete(StockAllocation.objects.filter(pk=allocations[0].pk))
+        models.QuerySet.update(
+            StockAllocation.objects.filter(pk=allocations[1].pk),
+            fulfilled_cost_cny=shipment.fifo_cost_cny,
+        )
+        from cigars.sales_accounting import return_sales_order
+
+        with self.assertRaises(OrderServiceError):
+            return_sales_order(
+                order_id=order.pk, business_date=self.business_date,
+                operator=self.operator, idempotency_key='reject-missing-allocation',
+                reason='损坏事实不能退货',
+            )
+        self.assertFalse(StockMovement.objects.filter(
+            sales_order=order, movement_type=StockMovement.MovementType.RETURN,
+        ).exists())
+
+    def test_return_rejects_duplicate_allocation(self):
+        """重复分配不能复用同一条 SHIP 流水恢复两次库存。"""
+        order, allocations = self.shipped_cross_batch_order('ship-before-duplicate-allocation')
+        source = allocations[0]
+        duplicate = StockAllocation(
+            sales_order_item_id=source.sales_order_item_id,
+            purchase_batch_id=source.purchase_batch_id,
+            quantity=source.quantity,
+            inventory_form=source.inventory_form,
+            box_size_snapshot=source.box_size_snapshot,
+            status=source.status,
+            fulfilled_at=source.fulfilled_at,
+            fulfilled_cost_cny=source.fulfilled_cost_cny,
+        )
+        models.Model.save(duplicate, force_insert=True)
+        from cigars.sales_accounting import return_sales_order
+
+        with self.assertRaises(OrderServiceError):
+            return_sales_order(
+                order_id=order.pk, business_date=self.business_date,
+                operator=self.operator, idempotency_key='reject-duplicate-allocation',
+                reason='损坏事实不能退货',
+            )
+
+    def test_return_rejects_quantity_swap_with_same_total_and_cost(self):
+        """分配数量互换后总量和总成本不变，仍必须与逐条 SHIP 流水一致。"""
+        order, allocations = self.shipped_cross_batch_order('ship-before-quantity-swap')
+        self.assertEqual([row.quantity for row in allocations], [2, 1])
+        models.QuerySet.update(
+            StockAllocation.objects.filter(pk=allocations[0].pk), quantity=1,
+        )
+        models.QuerySet.update(
+            StockAllocation.objects.filter(pk=allocations[1].pk), quantity=2,
+        )
+        from cigars.sales_accounting import return_sales_order
+
+        with self.assertRaises(OrderServiceError):
+            return_sales_order(
+                order_id=order.pk, business_date=self.business_date,
+                operator=self.operator, idempotency_key='reject-quantity-swap',
+                reason='损坏事实不能退货',
+            )
+
+    def test_audit_reports_tampered_shipment_cost_posting(self):
+        """销售出库库存成本分录被篡改时，审计必须报警。"""
+        self.batch(quantity=1, unit_cost='10.00')
+        order = self.confirmed_order(quantity=1, unit_price='30.00')
+        from cigars.sales_accounting import ship_sales_order
+        ship_sales_order(
+            order_id=order.pk, business_date=self.business_date,
+            operator=self.operator, idempotency_key='shipment-posting-audit',
+        )
+        shipment = SalesShipment.objects.get(sales_order=order)
+        models.QuerySet.update(
+            LedgerPosting.objects.filter(
+                transaction=shipment.ledger_transaction,
+                category=LedgerPosting.Category.INVENTORY,
+            ),
+            amount=Decimal('-9.00'), cny_amount=Decimal('-9.00'),
+        )
+
+        self.assertIn(
+            'SALES_SHIPMENT_LEDGER_MISMATCH',
+            {issue.code for issue in audit_inventory().issues},
+        )
+
+    def test_return_rolls_back_inventory_when_ledger_reversal_fails(self):
+        """退货冲正失败时，订单和库存必须保持已出库状态。"""
+        batch = self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order(quantity=3, unit_price='30.00')
+        from cigars.sales_accounting import return_sales_order, ship_sales_order
+
+        shipped = ship_sales_order(
+            order_id=order.id,
+            business_date=self.business_date,
+            operator=self.operator,
+            idempotency_key='ship-before-failed-return',
+        )
+        with patch(
+            'cigars.sales_accounting.reverse_ledger_transaction',
+            side_effect=LedgerError('冲正失败'),
+        ):
+            with self.assertRaises(LedgerError):
+                return_sales_order(
+                    order_id=order.id,
+                    business_date=date(2026, 8, 11),
+                    operator=self.operator,
+                    idempotency_key='failed-sales-return',
+                    reason='测试回滚',
+                )
+
+        shipped.refresh_from_db()
+        batch.refresh_from_db()
+        allocation = StockAllocation.objects.get(sales_order_item__sales_order=order)
+        self.assertEqual(shipped.fulfillment_status, SalesOrder.FulfillmentStatus.SHIPPED)
+        self.assertEqual(batch.physical_remaining, 0)
+        self.assertEqual(batch.sold_cost_cny, Decimal('30.00'))
+        self.assertEqual(allocation.status, StockAllocation.Status.FULFILLED)
+        self.assertFalse(SalesReturn.objects.filter(sales_order=order).exists())
+
+    def test_audit_rejects_return_linked_to_another_orders_shipment(self):
+        """退货事实关联到另一订单的出库单时必须报警。"""
+        self.batch(quantity=2, unit_cost='10.00')
+        from cigars.sales_accounting import return_sales_order, ship_sales_order
+
+        first_order = self.confirmed_order(quantity=1, unit_price='30.00')
+        ship_sales_order(
+            order_id=first_order.id,
+            business_date=self.business_date,
+            operator=self.operator,
+            idempotency_key='ship-before-cross-linked-return',
+        )
+        sales_return = return_sales_order(
+            order_id=first_order.id,
+            business_date=date(2026, 8, 11),
+            operator=self.operator,
+            idempotency_key='cross-linked-return',
+            reason='客户退货',
+        )
+        second_order = self.confirmed_order(quantity=1, unit_price='30.00')
+        ship_sales_order(
+            order_id=second_order.id,
+            business_date=self.business_date,
+            operator=self.operator,
+            idempotency_key='other-shipment-for-return-audit',
+        )
+        first_shipment = SalesShipment.objects.get(sales_order=first_order)
+        second_shipment = SalesShipment.objects.get(sales_order=second_order)
+        models.QuerySet.update(
+            LedgerTransaction.objects.filter(pk=first_shipment.ledger_transaction_id),
+            reversed_by_id=None,
+        )
+        models.QuerySet.update(
+            LedgerTransaction.objects.filter(pk=second_shipment.ledger_transaction_id),
+            reversed_by_id=sales_return.ledger_transaction_id,
+        )
+        models.QuerySet.update(
+            SalesReturn.objects.filter(pk=sales_return.pk),
+            sales_shipment_id=second_shipment.pk,
+        )
+
+        result = audit_inventory()
+
+        self.assertIn(
+            'SALES_RETURN_FACT_MISMATCH',
+            {issue.code for issue in result.issues},
+        )
 
 
     def test_ship_box_reduces_physical_box_and_cost(self):

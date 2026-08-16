@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { MANUAL_CHAPTERS, type ManualChapter } from '../features/guides/guideContent';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { manualTourDecision } from '../features/guides/manualTour';
+import { tourStepRoute, tourStepsForRoute } from '../features/guides/guideInteractions';
 import { fetchDay1State } from '../api';
 import { invalidateLatestRequest, runLatestRequest } from '../utils/latestRequest';
 
@@ -46,7 +47,12 @@ export default function HelpPage() {
     if (decision.kind === 'unavailable') { navigate(chapter.route); return; }
     navigate(decision.destination.route, { state: decision.destination.state });
   };
-  const openStep = (stepId: string) => navigate('/sales', { state: { guideTourId: stepId } });
+  const openStep = (stepId: string) => {
+    const route = tourStepRoute(stepId);
+    if (!route) { setMessage('这一步暂时没有可用的页面引导。'); return; }
+    setMessage('');
+    navigate(route, { state: { guideTourId: stepId } });
+  };
   const playTour = () => {
     const decision = decideChapter();
     if (decision.kind === 'unavailable') { setMessage(decision.message); return; }
@@ -66,7 +72,28 @@ export default function HelpPage() {
 
 function ChapterNav({ chapters, active, onSelect }: { chapters: readonly ManualChapter[]; active: string; onSelect: (id: string) => void }) { return <nav aria-label="手册章节" className="space-y-1"><p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider text-gold">开始使用</p>{chapters.filter(item => item.category === 'quickstart').map(item => <ChapterButton key={item.id} chapter={item} active={active === item.id} onSelect={onSelect} />)}<p className="mb-2 mt-6 px-3 text-[11px] font-bold uppercase tracking-wider text-gold">功能参考</p>{chapters.filter(item => item.category === 'reference').map(item => <ChapterButton key={item.id} chapter={item} active={active === item.id} onSelect={onSelect} />)}</nav>; }
 
-/** Render one chapter entry and report the selected chapter to the parent navigation. */
+/** 渲染章节入口，并把选择结果交给上层导航。 */
 function ChapterButton({ chapter, active, onSelect }: { chapter: ManualChapter; active: boolean; onSelect: (id: string) => void }) { return <button type="button" onClick={() => onSelect(chapter.id)} className={`block w-full rounded px-3 py-2.5 text-left text-sm ${active ? 'bg-accent-light font-semibold text-accent' : 'text-muted hover:bg-accent-light'}`}>{chapter.title}</button>; }
 
-function ChapterContent({ chapter, onOpen, onPlay, onOpenStep }: { chapter: ManualChapter; onOpen: () => void; onPlay: () => void; onOpenStep: (stepId: string) => void }) { const orderSteps = ["sales-orders", "sales-orders", "sales-orders", "sales-fulfillment", "sales-fulfillment"]; return <article className="max-w-3xl"><p className="text-[11px] font-bold uppercase tracking-[.15em] text-gold">{chapter.category === "quickstart" ? "快速开始" : "功能参考"}</p><h2 className="mt-2 font-display text-3xl font-semibold">{chapter.title}</h2><p className="mt-3 text-sm leading-7 text-muted">{chapter.summary}</p><div className="mt-6 space-y-4">{chapter.sections.map((item, index) => <section key={item.title} className="rounded border border-border bg-white p-5"><h3 className="font-display text-lg font-semibold">{item.title}</h3>{item.paragraphs.map(paragraph => <p key={paragraph} className="mt-2 text-sm leading-7 text-muted">{paragraph}</p>)}{chapter.id === "first-order" && <button type="button" onClick={() => onOpenStep(orderSteps[index])} className="mt-3 text-xs font-semibold text-accent underline underline-offset-2">打开 /sales 并聚焦此步骤</button>}</section>)}</div><div className="mt-6 flex flex-wrap gap-3"><button type="button" onClick={onOpen} className="inline-flex items-center gap-2 rounded border border-border bg-white px-4 py-2.5 text-sm font-semibold"><ExternalLink className="h-4 w-4" />打开功能</button><button type="button" onClick={onPlay} className="inline-flex items-center gap-2 rounded bg-accent px-4 py-2.5 text-sm font-semibold text-white"><BookOpen className="h-4 w-4" />播放本页引导</button></div></article>; }
+function ChapterContent({ chapter, onOpen, onPlay, onOpenStep }: { chapter: ManualChapter; onOpen: () => void; onPlay: () => void; onOpenStep: (stepId: string) => void }) {
+  const tourSteps = chapter.tourStepId ? tourStepsForRoute(chapter.route, chapter.tourStepId) : [];
+  const stepIndex = new Map(tourSteps.map((step, index) => [step.id, index + 1]));
+  return <article className="max-w-3xl">
+    <p className="text-[11px] font-bold uppercase tracking-[.15em] text-gold">{chapter.category === "quickstart" ? "快速开始" : "功能参考"}</p>
+    <h2 className="mt-2 font-display text-3xl font-semibold">{chapter.title}</h2>
+    <p className="mt-3 text-sm leading-7 text-muted">{chapter.summary}</p>
+    {tourSteps.length > 1 && <div className="mt-5 rounded border border-accent/30 bg-accent-light px-4 py-3">
+      <p className="text-sm font-semibold text-fg">本章页面引导共 {tourSteps.length} 步</p>
+      <p className="mt-1 text-xs leading-5 text-muted">点击“播放本页引导”后，系统会按顺序高亮每个字段或按钮；需要填写的数据由你自己输入，引导不会替你提交业务动作。</p>
+    </div>}
+    <div className="mt-6 space-y-4">{chapter.sections.map(item => {
+      const number = item.tourStepId ? stepIndex.get(item.tourStepId) : undefined;
+      return <section key={item.title} className="rounded border border-border bg-white p-5">
+        <div className="flex items-start justify-between gap-3"><h3 className="font-display text-lg font-semibold">{item.title}</h3>{number && <span className="shrink-0 rounded-full bg-accent-light px-2 py-1 text-[11px] font-semibold text-accent">第 {number}/{tourSteps.length} 步</span>}</div>
+        {item.paragraphs.map(paragraph => <p key={paragraph} className="mt-2 text-sm leading-7 text-muted">{paragraph}</p>)}
+        {item.tourStepId && <button type="button" onClick={() => onOpenStep(item.tourStepId!)} className="mt-3 text-xs font-semibold text-accent underline underline-offset-2">从这一步开始播放后续引导</button>}
+      </section>;
+    })}</div>
+    <div className="mt-6 flex flex-wrap gap-3"><button type="button" onClick={onOpen} className="inline-flex items-center gap-2 rounded border border-border bg-white px-4 py-2.5 text-sm font-semibold"><ExternalLink className="h-4 w-4" />打开功能</button><button type="button" onClick={onPlay} className="inline-flex items-center gap-2 rounded bg-accent px-4 py-2.5 text-sm font-semibold text-white"><BookOpen className="h-4 w-4" />播放本页引导</button></div>
+  </article>;
+}

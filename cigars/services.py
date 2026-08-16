@@ -21,7 +21,7 @@ from accounting.guards import require_day1_completed
 from accounting.models import LedgerPosting, LedgerTransaction
 from accounting.services import (
     LedgerError, PostingInput, _acquire_sqlite_writer_gate, _post_transaction_once,
-    _retry_sqlite_locked,
+    _retry_sqlite_locked, reverse_ledger_transaction,
 )
 
 from .audit import AgentContext
@@ -30,6 +30,8 @@ from .models import (
     AdjustmentRecord,
     Cigar,
     Customer,
+    InventoryAdjustmentAction,
+    InventoryAdjustmentLine,
     OrderEvent,
     PurchaseBatch,
     SalesShipment,
@@ -160,7 +162,9 @@ def serialize_sales_order(order):
                 'status': alloc.status,
                 'unit_cost_cny': _decimal_to_json(alloc.purchase_batch.unit_cost_cny),
                 'cost_cny': _decimal_to_json(
-                    alloc.purchase_batch.unit_cost_cny * alloc.quantity
+                    alloc.fulfilled_cost_cny
+                    if alloc.fulfilled_cost_cny is not None
+                    else alloc.purchase_batch.unit_cost_cny * alloc.quantity
                 ),
             }
             for alloc in item_allocations
@@ -228,6 +232,13 @@ def serialize_sales_order(order):
             'business_date': order.sales_refund.business_date.isoformat(),
             'fund_account_id': order.sales_refund.fund_account_id,
         } if hasattr(order, 'sales_refund') else None),
+        'sales_return': ({
+            'id': order.sales_return.id,
+            'amount_cny': _decimal_to_json(order.sales_return.amount_cny),
+            'fifo_cost_cny': _decimal_to_json(order.sales_return.fifo_cost_cny),
+            'business_date': order.sales_return.business_date.isoformat(),
+            'reason': order.sales_return.reason,
+        } if hasattr(order, 'sales_return') else None),
         'sales_transport_cost': ({
             'id': order.sales_transport_cost.id,
             'actual_cost_cny': _decimal_to_json(order.sales_transport_cost.actual_cost_cny),
@@ -247,12 +258,18 @@ def _sales_order_available_actions(order):
         if order.payment_status == SalesOrder.PaymentStatus.UNPAID:
             actions.append('receive')
     if order.fulfillment_status == SalesOrder.FulfillmentStatus.SHIPPED:
+        actions.append('return')
         if order.payment_status == SalesOrder.PaymentStatus.UNPAID:
             actions.append('receive')
         if not hasattr(order, 'sales_transport_cost'):
             actions.append('transport_cost')
     if order.fulfillment_status == SalesOrder.FulfillmentStatus.CANCELLED and order.payment_status == SalesOrder.PaymentStatus.REFUND_PENDING:
         actions.append('refund')
+    if order.fulfillment_status == SalesOrder.FulfillmentStatus.RETURNED:
+        if order.payment_status == SalesOrder.PaymentStatus.REFUND_PENDING:
+            actions.append('refund')
+        if not hasattr(order, 'sales_transport_cost'):
+            actions.append('transport_cost')
     return actions
 
 def _decimal_to_json(value):
@@ -879,7 +896,7 @@ def _post_stock_adjustment(*, cost_cny, gain, business_date, operator, context, 
 def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None,
                  unit_cost_cny=None, adjustment_type=AdjustmentRecord.AdjustType.LOSS, inventory_form='stick',
                  business_date=None, agent_context=None):
-    """Adjust available stock. Negative adjustments never allow stock below zero."""
+    """调整可用库存；负向调整不得形成负库存。"""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name='adjust_stock')
     reason = str(reason or '').strip()
@@ -967,7 +984,7 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
     except inventory_module.InventoryError as error:
         raise OrderServiceError(str(error), details=error.details) from error
     source_id = f'stock_adjustment:{request_fingerprint}:{result.batch.pk}'
-    _post_stock_adjustment(
+    ledger = _post_stock_adjustment(
         cost_cny=result.cost_cny,
         gain=delta > 0,
         business_date=business_date,
@@ -976,7 +993,89 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
         reason=reason,
         source_id=source_id,
     )
+    with ledger_mutation_scope(
+        reason='inventory_adjustment_fact',
+        model='cigars.InventoryAdjustmentAction', operator=operator,
+    ):
+        action = InventoryAdjustmentAction.objects.create(
+            cigar=cigar,
+            quantity_delta=delta,
+            inventory_form=inventory_form,
+            ledger_transaction=ledger,
+            business_date=business_date,
+            operator=operator,
+            reason=reason,
+            idempotency_key=context.idempotency_key,
+        )
+    # 每条明细单独经过模型门禁，避免 bulk_create 绕过事实校验。
+    with ledger_mutation_scope(
+        reason='inventory_adjustment_fact',
+        model='cigars.InventoryAdjustmentLine', operator=operator,
+    ):
+        for line in result.lines:
+            InventoryAdjustmentLine.objects.create(
+                action=action,
+                purchase_batch=line.batch,
+                stock_movement=line.movement,
+                quantity_delta=line.quantity_delta,
+                box_delta=line.box_delta,
+                stick_delta=line.stick_delta,
+                cost_delta_cny=line.cost_delta_cny,
+                batch_state_after=line.batch_state_after,
+            )
     return result.batch
+
+
+@_retry_sqlite_locked
+@transaction.atomic
+def reverse_stock_adjustment(*, adjustment_id, business_date, operator,
+                             idempotency_key, reason):
+    """整次撤销一笔有结构化逐批事实的库存调整。"""
+    operator = _require_operator(operator)
+    _acquire_sqlite_writer_gate()
+    reason = str(reason or '').strip()
+    if not reason:
+        raise OrderServiceError('撤销原因不能为空')
+    require_day1_completed()
+    action = InventoryAdjustmentAction.objects.select_for_update().filter(
+        pk=_to_positive_int(adjustment_id, '库存调整ID'),
+    ).first()
+    if action is None:
+        raise OrderServiceError('库存调整不存在')
+    context = AgentContext(
+        command_name='reverse_stock_adjustment', idempotency_key=idempotency_key,
+    )
+    if action.reversal_transaction_id is not None:
+        reverse_ledger_transaction(
+            original_transaction=action.ledger_transaction,
+            business_date=business_date, operator=operator,
+            idempotency_key=idempotency_key, reason=reason,
+        )
+        return action
+    try:
+        inventory_module.reverse_adjustment(
+            action=action, operator=operator, context=context, note=reason,
+        )
+    except inventory_module.InventoryError as error:
+        raise OrderServiceError(str(error), details=error.details) from error
+    reversal = reverse_ledger_transaction(
+        original_transaction=action.ledger_transaction,
+        business_date=business_date, operator=operator,
+        idempotency_key=idempotency_key, reason=reason,
+    )
+    action.reversal_transaction = reversal
+    action.reversed_at = timezone.now()
+    action.reversal_operator = operator
+    action.reversal_reason = reason
+    with ledger_mutation_scope(
+        reason='inventory_adjustment_reversal',
+        model='cigars.InventoryAdjustmentAction', operator=operator,
+    ):
+        action.save(update_fields=[
+            'reversal_transaction', 'reversed_at',
+            'reversal_operator', 'reversal_reason',
+        ])
+    return action
 
 
 def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, note='',

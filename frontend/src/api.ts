@@ -75,17 +75,17 @@ export const fetchSalesOrder = (id: number): Promise<SalesOrder> =>
   api.get(`/sales/orders/${id}/`).then(r => r.data.sales_order);
 
 export const createSalesOrder = (payload: SalesOrderPayload): Promise<SalesOrder> =>
-  writeWithIdempotency('create-sales-order', payload, config =>
+  writeWithIdempotency<{ sales_order: SalesOrder }>('create-sales-order', payload, config =>
     api.post('/sales/orders/', payload, config),
   ).then(r => r.sales_order);
 
 export const updateSalesOrder = (id: number, payload: SalesOrderPayload): Promise<SalesOrder> =>
-  writeWithIdempotency(`update-sales-order-${id}`, payload, config =>
+  writeWithIdempotency<{ sales_order: SalesOrder }>(`update-sales-order-${id}`, payload, config =>
     api.patch(`/sales/orders/${id}/`, payload, config),
   ).then(r => r.sales_order);
 
 const salesAction = (id: number, action: string, payload: Record<string, unknown> = {}): Promise<SalesOrder> =>
-  writeWithIdempotency(`${action}-sales-order-${id}`, payload, config =>
+  writeWithIdempotency<{ sales_order: SalesOrder }>(`${action}-sales-order-${id}`, payload, config =>
     api.post(`/sales/orders/${id}/${action}/`, payload, config),
   ).then(r => r.sales_order);
 
@@ -150,12 +150,12 @@ export const fetchReconciliations = (): Promise<Reconciliation[]> =>
   api.get('/accounting/reconciliations/').then(r => r.data.reconciliations || []);
 
 export const createReconciliation = (payload: { account_id: number; business_date: string; actual_amount: string; note: string }): Promise<Reconciliation> =>
-  writeWithIdempotency('create-reconciliation', payload, config =>
+  writeWithIdempotency<{ reconciliation: Reconciliation }>('create-reconciliation', payload, config =>
     api.post('/accounting/reconciliations/', payload, config),
   ).then(r => r.reconciliation);
 
 export const confirmReconciliation = (id: number): Promise<Reconciliation> =>
-  writeWithIdempotency(`confirm-reconciliation-${id}`, {}, config =>
+  writeWithIdempotency<{ reconciliation: Reconciliation }>(`confirm-reconciliation-${id}`, {}, config =>
     api.post(`/accounting/reconciliations/${id}/confirm/`, {}, config),
   ).then(r => r.reconciliation);
 

@@ -16,9 +16,13 @@ vi.mock('axios', () => ({
 
 import {
   cancelPurchaseOrder,
+  confirmReconciliation,
+  confirmSalesOrder,
   confirmDividend,
   createDividend,
   createPurchaseOrder,
+  createReconciliation,
+  createSalesOrder,
   exchangeToRub,
   fetchAccountingActions,
   parseAccountingApiError,
@@ -28,6 +32,7 @@ import {
   recordExpense,
   updateDividend,
   updatePurchaseOrder,
+  updateSalesOrder,
 } from '../api';
 
 const businessDate = '2026-08-15';
@@ -45,6 +50,34 @@ describe('accounting action API contracts', () => {
     expect(client.get).toHaveBeenCalledWith('/accounting/actions/');
   });
 
+
+  it('unwraps sales-order responses for create, update, and workflow actions', async () => {
+    client.post
+      .mockReturnValueOnce(response({ sales_order: { id: 61, status: 'draft' } }))
+      .mockReturnValueOnce(response({ sales_order: { id: 61, status: 'confirmed' } }));
+    client.patch.mockReturnValueOnce(response({ sales_order: { id: 61, status: 'draft', note: 'updated' } }));
+
+    await expect(createSalesOrder({ items: [] })).resolves.toMatchObject({ id: 61, status: 'draft' });
+    await expect(updateSalesOrder(61, { items: [], note: 'updated' })).resolves.toMatchObject({ id: 61, note: 'updated' });
+    await expect(confirmSalesOrder(61)).resolves.toMatchObject({ id: 61, status: 'confirmed' });
+
+    expect(client.post).toHaveBeenNthCalledWith(1, '/sales/orders/', { items: [] }, expect.anything());
+    expect(client.patch).toHaveBeenCalledWith('/sales/orders/61/', { items: [], note: 'updated' }, expect.anything());
+    expect(client.post).toHaveBeenNthCalledWith(2, '/sales/orders/61/confirm/', {}, expect.anything());
+  });
+
+  it('unwraps reconciliation responses for create and confirm', async () => {
+    const payload = { account_id: 11, business_date: businessDate, actual_amount: '100.00', note: '' };
+    client.post
+      .mockReturnValueOnce(response({ reconciliation: { id: 71, status: 'pending' } }))
+      .mockReturnValueOnce(response({ reconciliation: { id: 71, status: 'confirmed' } }));
+
+    await expect(createReconciliation(payload)).resolves.toMatchObject({ id: 71, status: 'pending' });
+    await expect(confirmReconciliation(71)).resolves.toMatchObject({ id: 71, status: 'confirmed' });
+
+    expect(client.post).toHaveBeenNthCalledWith(1, '/accounting/reconciliations/', payload, expect.anything());
+    expect(client.post).toHaveBeenNthCalledWith(2, '/accounting/reconciliations/71/confirm/', {}, expect.anything());
+  });
   it('posts CNY or USDT to RUB with Decimal strings and an idempotency header', async () => {
     client.post.mockReturnValueOnce(response({ transaction: { id: 1 } }));
 

@@ -65,8 +65,9 @@ def _postings_match(transaction_obj, expected):
 
 @_retry_sqlite_locked
 @transaction.atomic
-def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note=""):
-    """出库一张已确认、未收款的销售单，并确认 FIFO 成本。
+def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note="",
+                     agent_context=None):
+    """出库一张已确认的销售单，并确认 FIFO 成本。
 
     出库只减少物理库存；确认阶段已经减少 ``remaining``/``available``，
     因此这里不重复修改可售库存。
@@ -152,7 +153,10 @@ def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note
     if not items:
         raise OrderServiceError("销售单没有明细")
 
-    context = AgentContext(command_name="ship_sales_order", idempotency_key=idempotency_key)
+    # Agent 入口传完整上下文；网页入口沿用默认上下文。
+    context = agent_context or AgentContext(
+        command_name="ship_sales_order", idempotency_key=idempotency_key,
+    )
     now = timezone.now()
     total_cost = Decimal("0.00")
     for item in items:

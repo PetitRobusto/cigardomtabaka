@@ -62,6 +62,7 @@ export type ManualChapterCategory = 'quickstart' | 'reference';
 export interface ManualSection {
   title: string;
   paragraphs: readonly string[];
+  tourStepId?: string;
 }
 
 export interface ManualChapter {
@@ -75,8 +76,9 @@ export interface ManualChapter {
 }
 
 const section = (title: string, ...paragraphs: string[]): ManualSection => ({ title, paragraphs });
+const guidedSection = (tourStepId: string, title: string, ...paragraphs: string[]): ManualSection => ({ title, paragraphs, tourStepId });
 
-/** Static, Chinese manual metadata/content consumed by HelpPage. */
+/** HelpPage 使用的中文手册内容。 */
 export const MANUAL_CHAPTERS: readonly ManualChapter[] = [
 
   {
@@ -97,8 +99,9 @@ export const MANUAL_CHAPTERS: readonly ManualChapter[] = [
     id: 'inventory', category: 'reference', title: '库存与采购',
     summary: '现货数量、采购批次和成本，都在库存页查看和管理。', route: '/inventory', tourStepId: 'inventory-summary',
     sections: [
-      section('查看库存', '可以按品牌或关键词筛选。销售出库后数量会自动扣减，页面上看到的就是当前现货。'),
-      section('采购批次', '每次采购到货都要登记批次和成本。后面算销售成本和利润时用的就是这里的数据，不要省略。'),
+      guidedSection('inventory-summary', '查看库存', '可以按品牌或关键词筛选。销售出库后数量会自动扣减，页面上看到的就是当前现货。'),
+      guidedSection('inventory-brand-filter', '按品牌和款式查找', '先选品牌，再输入中文名、英文名或款式关键词。库存表会显示当前支数、成本和最近入库日期。'),
+      guidedSection('accounting-actions-purchase', '采购批次', '每次采购先在账务页记录卢布付款，整单到货时系统才创建库存批次。后面算销售成本和利润时用的就是批次成本，不要省略。'),
       section('整盒与散支', '同一款雪茄可以按整盒或散支销售。入库时按实际包装登记，库存页会分别显示盒装和散支的可售数量。'),
     ],
   },
@@ -122,10 +125,12 @@ export const MANUAL_CHAPTERS: readonly ManualChapter[] = [
     title: '换汇 → 采购',
     summary: '换汇、采购付款、到货入库，按这个顺序记，每一批货的成本才有据可查。',
     route: '/accounting',
+    tourStepId: 'accounting-actions-exchange',
     sections: [
-      section('记录换汇', '实际换汇发生后，在账务工作台记一笔：从人民币或 USDT 账户转出，转入卢布账户，填好日期和汇率。换汇要记成资金流水，不能只写在备注里。'),
-      section('记录采购付款', '用卢布账户记采购付款，写清供应商和金额。等货到了再登记采购批次，这样每一批货的成本都对得上来源。'),
-      section('确认可售库存', '入库后到库存页核对：数量、包装、成本都对，这批货才算可售。开销售单时只能选有库存的商品。'),
+      guidedSection('accounting-actions-exchange', '记录换汇', '实际换汇发生后，从人民币或 USDT 公司账户转出，转入卢布银行卡，分别填写实际转出、实际到账和业务日期。系统由两边真实金额计算汇率，不需要先把人民币换成 USDT。'),
+      guidedSection('accounting-actions-purchase', '记录采购付款', '打开采购卡，填写实际付款日期，选择实际扣款的卢布银行卡，并写清供应商或批次备注。付款后采购单进入在途，库存不会提前增加。'),
+      guidedSection('accounting-purchase-receive', '确认整单到货', '货物一次到齐并核对每款的盒数、每盒支数后，再点击整单到货。本业务不做部分到货；分两次到货时，应拆成两张采购单。'),
+      guidedSection('inventory-summary', '确认可售库存', '入库后到库存页核对：数量、包装、成本都对，这批货才算可售。开销售单时只能选有库存的商品。'),
     ],
   },
 
@@ -137,11 +142,11 @@ export const MANUAL_CHAPTERS: readonly ManualChapter[] = [
     route: '/accounting',
     tourStepId: 'accounting-reconciliation',
     sections: [
-      section('记录实际人肉成本', '订单履约后，按实际花了多少钱记人肉成本。它和客户付的人肉费是两回事：客户付的是收入，实际花的是成本，两笔金额可以不一样。'),
-      section('记录日常费用', '工资一般从人民币账户出，房租水电一般从卢布账户出——以实际付款的账户为准，填好日期和备注。费用记在费用里，不要混进销售订单。'),
-      section('完成对账', '在 /accounting 的对账区逐个账户核对：系统余额和实际余额对不对得上。有差异就查明原因、处理掉，并写清说明。'),
-      section('查看月利润', '对账完成后看月利润。净利润 = 销售收入 + 人肉费收入 − 销售成本 − 实际人肉成本 − 日常费用。'),
-      section('合伙人分红', '需要分红时，先在账务工作台预览可分配利润，确认无误后再记录本次分红，系统会自动从对应账户扣减。'),
+      guidedSection('accounting-actions-expense', '记录实际人肉成本', '订单履约后，按实际花了多少钱记人肉成本。它和客户付的人肉费是两回事：客户付的是收入，实际花的是成本，两笔金额可以不一样。'),
+      guidedSection('accounting-actions-expense', '记录日常费用', '工资一般从人民币账户出，房租水电一般从卢布账户出——以实际付款的账户为准，填好日期和备注。费用记在费用里，不要混进销售订单。'),
+      guidedSection('accounting-reconciliation', '完成对账', '在 /accounting 的对账区逐个账户核对：系统余额和实际余额对不对得上。有差异就查明原因、处理掉，并写清说明。'),
+      guidedSection('accounting-profit-month', '查看月利润', '先选择月份，再核对销售收入、客户人肉费收入、FIFO 销售成本、实际人肉成本和日常费用。退款和冲正进入实际发生的月份。'),
+      guidedSection('accounting-actions-dividend', '合伙人分红', '需要分红时，先在账务工作台预览可分配利润，确认无误后再记录本次分红，系统会自动从对应账户扣减。'),
     ],
   },
 
@@ -153,11 +158,15 @@ export const MANUAL_CHAPTERS: readonly ManualChapter[] = [
     route: '/sales',
     tourStepId: 'sales-orders',
     sections: [
-      section('创建销售草稿', '先人工核对报价，再打开 /sales 点“新建销售单”，填客户名称、商品、售价和备注。“保存草稿”只是把单子存下来：不会确认订单、不会占用库存，也不会收款。'),
-      section('添加现货', '在“添加雪茄”输入框里输入关键词，列表会列出当前有库存的雪茄；选整盒或散支，填好售价。就算搜索时能选到，保存时如果库存不够，系统也会拦下这张单子。'),
-      section('设置人肉费', '在“人肉费承担方”里选由谁承担。选“客户承担”：填向客户收的人肉费（不能为负），这笔钱计入应收。选“公司承担”：向客户收的费用必须为 0，实际产生的人肉成本等履约后再记。'),
-      section('确认并预留', '保存草稿后回到 /sales 的订单卡片，确认前再检查一遍商品和金额。只有你亲手点“确认”，系统才会锁定订单并预留库存——页面引导只做演示，不会替你确认。'),
-      section('出库与收款', '货什么时候出、钱什么时候到，就按什么顺序操作：先在订单卡片上点出库，再记录一次性人民币收款并选择到账账户。实际人肉成本、对账和利润都在账务工作台处理。'),
+      guidedSection('sales-orders', '创建销售草稿', '打开 /sales 后从“新建销售单”开始。完整引导会逐项高亮本节所有字段；它只说明怎么填，不会替你保存、确认、出库或收款。'),
+      guidedSection('sales-customer', '填写客户', '填写客户姓名或便于查询的称呼。临时客户可以写“散客”，但同一客户长期交易时应保持名称一致。'),
+      guidedSection('sales-transport-payer', '设置人肉费', '先选客户承担还是公司承担。客户承担时填写向客户收取的人民币金额，这笔钱进入订单应收；公司承担时客户人肉费固定为 0，实际成本在履约后另记。'),
+      guidedSection('sales-item-search', '从库存添加雪茄', '点击搜索框会显示当前库存，也可以输入中文名、英文名或品牌筛选。点选商品后，再选择整盒或单支；库存不足时保存或确认会被阻止。'),
+      guidedSection('sales-item-unit', '填写包装、数量和售价', '整盒销售要核对每盒支数，数量填写盒数；单支销售填写支数。售价一律填写人民币销售单价，不要填卢布采购成本。成本由系统按 FIFO 批次计算。'),
+      guidedSection('sales-order-note', '填写备注并保存', '交货约定或报价说明写在备注里。核对商品、数量、售价和应收总额后保存草稿；草稿不会占用库存，也不会产生资金流水。'),
+      guidedSection('sales-confirm', '确认并预留', '在订单列表打开刚保存的草稿，再次核对后点击确认。确认后立即预留库存；出库前如客户取消，可用取消动作释放预留。'),
+      guidedSection('sales-ship', '按实际日期出库', '货物真正交付时打开已确认订单，点击出库，填写实际交付日期并提交。出库会扣减库存，并固化这张订单使用的 FIFO 批次成本。'),
+      guidedSection('sales-receive', '按实际到账记录收款', '客户付款后打开原订单，填写实际到账日期和人民币金额，选择真正收到钱的公司人民币账户，再记录一次性人民币收款。客户先付款也可以先收款后出库。'),
     ],
   },
 
@@ -170,8 +179,10 @@ export const MANUAL_CHAPTERS: readonly ManualChapter[] = [
     route: '/privnote',
     tourStepId: 'privnote-create',
     sections: [
-      section('选择类型', '四种类型各有用途：库存链接展示现货和零售价；批发报价链接按当前批发价生成价目表；收款链接发给客户付款；消息链接用来发一次性的文字消息。'),
-      section('发送链接', '创建后把链接复制发给客户。链接是一次性的，客户打开看过即焚，查看页上不会显示任何内部信息。'),
+      guidedSection('privnote-type', '选择类型', '四种类型各有用途：库存链接展示现货和零售价；批发报价链接按当前批发价生成价目表；收款链接关联已有销售单；消息链接发送一次性文字。完整引导默认演示批发报价。'),
+      guidedSection('privnote-duration', '设置访问规则', '选择有效期；需要时设置访问密码。开启阅后即焚后，客户第一次查看就会消耗链接，发送前要确认是否需要多次查看。'),
+      guidedSection('privnote-quote-mode-full', '选择报价内容', '完整报价使用当前可报价目录；只想发几款时切换定制选择。是否包含运费按与客户的约定设置，并填写客户名称。'),
+      guidedSection('privnote-submit', '生成并发送链接', '最后核对客户可见内容，再生成链接并复制发送。查看页不会显示成本、内部账户或其他经营信息。'),
       section('报价实时更新', '批发报价链接在客户打开时按最新的批发价和库存实时生成，之后价格或库存有变动，客户看到的内容也会自动跟着变。'),
     ],
   },
@@ -184,8 +195,24 @@ export const MANUAL_CHAPTERS: readonly ManualChapter[] = [
     route: '/prices',
     tourStepId: 'prices-dashboard',
     sections: [
-      section('查看报价', '价格页汇总了各个来源的最新报价和库存状态，点进单款雪茄可以看历史价格走势。'),
+      guidedSection('prices-dashboard', '查看报价', '价格页汇总了各个来源的最新报价和库存状态，点进单款雪茄可以看历史价格走势。'),
+      guidedSection('prices-filter', '按品牌筛选', '先按品牌缩小范围，再从价格卡片打开单款历史。外部报价用于采购参考，不会自动成为库存成本。'),
       section('价格提醒', '给自己关心的款式设一个目标价，价格到了就能及时跟进市场变化。'),
+    ],
+  },
+
+  {
+    id: 'reversals-audit',
+    category: 'reference',
+    title: '撤销、退货与库存审计',
+    summary: '库存事实不能直接删除；发生错误时按原动作反向处理，并在审计页确认数量和成本仍然一致。',
+    route: '/inventory',
+    sections: [
+      guidedSection('accounting-purchase-reverse-date', '撤销未使用的采购到货', '采购到货录错时，只能撤销一整次到货，而且这批货必须完全没有被预留、出库、拆盒或调整。到采购记录里填写撤销日期和原因，再提交“撤销到货”；系统会保留原到货和反向流水，把批次库存与采购订单退回在途。'),
+      guidedSection('sales-return', '整单销售退货后重建', '整单退货只适用于已经出库的订单。先在原销售单执行整单退货，系统按原出库批次和成本恢复库存，并把退款记到原收款科目；再新建一张销售单，不能修改旧单假装没有卖过。实际已经发生的人肉成本不会因为退货被抹掉。'),
+      guidedSection('inventory-adjustment-reversal', '撤销整次库存调整', '库存调整撤销必须针对原来那一次完整调整。只要调整后相关批次又发生了入库、预留、出库或其他调整，系统就会阻止撤销，避免把别人的新变化覆盖掉；没有后续变化时选择“撤销调整”即可生成反向流水。'),
+      guidedSection('inventory-audit', '运行库存一致性审计', '库存审计是只读检查：逐批比较采购数量、预留、出库、退货、调整和当前可用数量，并同时核对成本守恒。发现异常先暂停新的出库，记录审计结果和订单号，再按对应的撤销或重建流程处理，不要直接改数据库。'),
+      section('每种反向操作的边界', '撤销到货、退货和撤销调整都会保留原事实并新增一笔相反流水，重复点击同一个动作应返回同一结果而不会再次扣库存。任何不能明确对应原单、原批次或原调整明细的情况，都先人工核对，不要猜测成本。'),
     ],
   },
 ];

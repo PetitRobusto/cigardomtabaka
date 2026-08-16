@@ -32,6 +32,14 @@ def create_purchase_batch(*, operator=None, **fields):
 
 
 def create_stock_allocation(*, operator, **fields):
+    item = fields.get('sales_order_item')
+    if item is not None:
+        # 测试工厂默认生成与销售明细一致的包装快照。
+        fields.setdefault('inventory_form', item.sale_unit)
+        fields.setdefault(
+            'box_size_snapshot',
+            item.box_size if item.sale_unit == item.SaleUnit.BOX else None,
+        )
     with transaction.atomic(), inventory_mutation_scope(
         action="reserve", operator=operator,
         _capability=_INVENTORY_WRITE_CAPABILITY,

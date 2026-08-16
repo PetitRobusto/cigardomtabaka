@@ -10,7 +10,11 @@ import {
   isGuideExcludedRoute,
   resolveTourTarget,
   createGuideActionRunner,
+  tourStepRoute,
+  canAdvanceTourStep,
 } from './guideInteractions';
+import { MANUAL_CHAPTERS } from './guideContent';
+
 
 describe('guide interaction contracts', () => {
   it('persists welcome actions but keeps contextual actions local', () => {
@@ -26,30 +30,62 @@ describe('guide interaction contracts', () => {
     expect(completionForAction('finish')).toEqual({ complete: true, open: false });
   });
 
-  it('keeps contextual tour ids attached to real sales page targets', () => {
-    expect(CONTEXT_TOUR_GROUPS.sales.map(step => step.id)).toEqual(['sales-orders', 'sales-fulfillment']);
-    expect(CONTEXT_TOUR_GROUPS.accounting.map(step => step.id)).toEqual(['accounting-actions-exchange', 'accounting-actions-purchase', 'accounting-actions-expense', 'accounting-actions-dividend', 'accounting-reconciliation', 'accounting-profit']);
+  it('keeps sales creation separate from later fulfillment and return actions', () => {
+    expect(CONTEXT_TOUR_GROUPS.salesCreate.map(step => step.id)).toEqual([
+      'sales-orders', 'sales-customer', 'sales-transport-payer', 'sales-transport-fee',
+      'sales-item-search', 'sales-item-unit', 'sales-item-quantity', 'sales-item-price',
+      'sales-order-note', 'sales-save-draft', 'sales-fulfillment', 'sales-confirm',
+    ]);
+    expect(CONTEXT_TOUR_GROUPS.salesCreate.filter(step => step.waitForTarget).map(step => step.id)).toEqual([
+      'sales-item-unit', 'sales-item-quantity', 'sales-item-price', 'sales-fulfillment', 'sales-confirm',
+    ]);
+    expect(CONTEXT_TOUR_GROUPS.salesReturn.map(step => step.id)).toEqual([
+      'sales-return', 'sales-return-date', 'sales-return-reason', 'sales-return-submit',
+    ]);
     expect(CONTEXT_TOUR_STEPS.every(step => step.target.startsWith('[data-guide="'))).toBe(true);
-    expect(CONTEXT_TOUR_GROUPS.inventory.map(step => step.id)).toEqual(['inventory-summary']);
-    expect(CONTEXT_TOUR_GROUPS.privnote.map(step => step.id)).toEqual(['privnote-create']);
-    expect(CONTEXT_TOUR_GROUPS.prices.map(step => step.id)).toEqual(['prices-dashboard']);
     expect(CONTEXT_TOUR_STEPS.map(step => step.id)).toEqual(expect.arrayContaining(['sales-orders', 'accounting-profit']));
     expect(resolveTourTarget('sales-orders', ['[data-guide="sales-orders"]'])).toBe('[data-guide="sales-orders"]');
     expect(resolveTourTarget('missing', ['[data-guide="sales-orders"]'])).toBeNull();
   });
 
   it('only resolves a tour sequence for the current route', () => {
-    expect(tourStepsForRoute('/sales', 'sales-orders').map(step => step.id)).toEqual(['sales-orders', 'sales-fulfillment']);
-    expect(tourStepsForRoute('/accounting', 'accounting-actions-exchange').map(step => step.id)).toEqual(['accounting-actions-exchange', 'accounting-actions-purchase', 'accounting-actions-expense', 'accounting-actions-dividend', 'accounting-reconciliation', 'accounting-profit']);
+    expect(tourStepsForRoute('/sales', 'sales-orders').map(step => step.id)).toEqual(CONTEXT_TOUR_GROUPS.salesCreate.map(step => step.id));
+    expect(tourStepsForRoute('/sales', 'sales-return').map(step => step.id)).toEqual(CONTEXT_TOUR_GROUPS.salesReturn.map(step => step.id));
+    expect(tourStepsForRoute('/accounting', 'accounting-actions-exchange').map(step => step.id)).toEqual(CONTEXT_TOUR_GROUPS.accountingExchange.map(step => step.id));
+    expect(tourStepsForRoute('/accounting', 'accounting-actions-exchange').map(step => step.id)).not.toContain('accounting-actions-purchase');
+    expect(tourStepsForRoute('/accounting', 'accounting-purchase-reverse-date').map(step => step.id)).toEqual([
+      'accounting-purchase-reverse-date', 'accounting-purchase-reverse-reason', 'accounting-purchase-reverse-submit',
+    ]);
     expect(tourStepsForRoute('/sales#accounting', 'accounting-reconciliation')).toEqual([]);
     expect(tourStepsForRoute('/prices', 'sales-orders')).toEqual([]);
     expect(tourStepsForRoute('/unknown', 'sales-orders')).toEqual([]);
+    expect(tourStepsForRoute('/prices/cigar/7/example', 'prices-history-filter').map(step => step.id)).toEqual(['prices-history-filter', 'prices-history-table', 'prices-history-chart']);
   });
 
   it('registers every target used by contextual tours', () => {
     expect(Object.keys(GUIDE_TARGETS)).toEqual(expect.arrayContaining(['inventory-summary', 'privnote-create', 'prices-dashboard']));
     expect(new Set(Object.values(GUIDE_TARGETS)).size).toBe(Object.keys(GUIDE_TARGETS).length);
   });
+
+  it('resolves every Help section tour to its real application route', () => {
+    const guidedSections = MANUAL_CHAPTERS.flatMap(chapter => chapter.sections)
+      .filter(section => section.tourStepId);
+    expect(guidedSections.length).toBeGreaterThan(10);
+    for (const section of guidedSections) {
+      expect(tourStepRoute(section.tourStepId!), section.title).toMatch(/^\//);
+    }
+    expect(tourStepRoute('inventory-summary')).toBe('/inventory');
+    expect(tourStepRoute('accounting-actions-exchange')).toBe('/accounting');
+    expect(tourStepRoute('missing-step')).toBeNull();
+  });
+
+  it('keeps every major Help tour multi-step and target selectors unique', () => {
+    for (const [group, steps] of Object.entries(CONTEXT_TOUR_GROUPS)) {
+      expect(steps.length, group).toBeGreaterThan(1);
+      expect(new Set(steps.map(step => step.target)).size, group).toBe(steps.length);
+    }
+  });
+
 
 
   it('only advances after completion succeeds', async () => {
@@ -74,6 +110,12 @@ describe('guide interaction contracts', () => {
 
   it('does not complete when a required target is missing', () => {
     expect(missingTargetAction()).toEqual({ complete: false, open: false, error: '当前页面暂时无法播放本页引导，请刷新后重试。' });
+  });
+
+  it('allows the tour to continue after a completed action removes its button', () => {
+    expect(canAdvanceTourStep(false, false)).toBe(false);
+    expect(canAdvanceTourStep(true, false)).toBe(true);
+    expect(canAdvanceTourStep(false, true)).toBe(true);
   });
 
   it('excludes public and login routes from the authenticated controller', () => {

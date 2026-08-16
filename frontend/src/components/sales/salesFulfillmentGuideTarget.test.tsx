@@ -13,4 +13,5 @@ describe("sales fulfillment guide target", () => {
     expect(html).toMatch(/<button[^>]*data-guide="sales-fulfillment"/);
     expect(html).toContain("SO-0007");
   });
+
 });

@@ -104,6 +104,7 @@ export const shipSalesOrder = (id: number, business_date: string): Promise<Sales
 export const receiveSalesOrder = (id: number, payload: { amount_cny: string; fund_account_id: number; business_date: string }): Promise<SalesOrder> => salesAction(id, 'receive', payload);
 export const refundSalesOrder = (id: number, business_date: string): Promise<SalesOrder> => salesAction(id, 'refund', { business_date });
 export const recordSalesTransportCost = (id: number, payload: { actual_cost_cny: string; fund_account_id: number; business_date: string }): Promise<SalesOrder> => salesAction(id, 'transport-cost', payload);
+export const returnSalesOrder = (id: number, payload: { business_date: string; reason: string }): Promise<SalesOrder> => salesAction(id, 'return', payload);
 
 export const fetchAccountingDashboard = (): Promise<AccountingDashboard> =>
   api.get('/accounting/dashboard/').then(r => r.data);
@@ -207,6 +208,45 @@ export const cancelPurchaseOrder = (id: number, payload: PurchaseCancelPayload):
   writeWithIdempotency<{ purchase_order: PurchaseAction }>(`cancel-purchase-order-${id}`, payload, config =>
     api.post(`/accounting/purchases/${id}/cancel/`, payload, config),
   ).then(r => r.purchase_order);
+
+export const reverseReceivedPurchaseOrder = (id: number, payload: { business_date: string; note: string }): Promise<PurchaseAction> =>
+  writeWithIdempotency<{ purchase_order: PurchaseAction }>(`reverse-receive-purchase-order-${id}`, payload, config =>
+    api.post(`/accounting/purchases/${id}/reverse-receive/`, payload, config),
+  ).then(r => r.purchase_order);
+
+export const reverseInventoryAdjustment = (id: number, payload: { business_date: string; reason: string }): Promise<unknown> =>
+  writeWithIdempotency<{ adjustment: unknown }>(`reverse-inventory-adjustment-${id}`, payload, config =>
+    api.post(`/inventory/adjustments/${id}/reverse/`, payload, config),
+  ).then(r => r.adjustment);
+
+export interface InventoryAuditIssue {
+  batch_id?: number;
+  code?: string;
+  message?: string;
+  [key: string]: unknown;
+}
+
+export interface InventoryAuditResult {
+  ok: boolean;
+  issue_count: number;
+  issues: InventoryAuditIssue[];
+  recent_adjustments?: InventoryAdjustmentSummary[];
+}
+
+export interface InventoryAdjustmentSummary {
+  id: number;
+  cigar_id: number;
+  cigar_name: string;
+  quantity_delta: number;
+  inventory_form: string;
+  business_date: string;
+  reason: string;
+  reversed_at: string | null;
+  can_reverse: boolean;
+}
+
+export const fetchInventoryAudit = (): Promise<InventoryAuditResult> =>
+  api.get<InventoryAuditResult>('/inventory/audit/').then(r => r.data);
 
 export const recordExpense = (payload: ExpenseActionPayload): Promise<unknown> =>
   writeWithIdempotency<{ expense: unknown }>('record-expense', payload, config =>

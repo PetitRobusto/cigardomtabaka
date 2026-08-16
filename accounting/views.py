@@ -24,7 +24,8 @@ from accounting.dividend_actions import (
 from accounting.expense_actions import ExpenseActionError, record_expense
 from accounting.purchase_actions import (
     PurchaseActionError, cancel_purchase_order, create_purchase_order,
-    pay_purchase_order, receive_paid_purchase_order, update_purchase_order_draft,
+    pay_purchase_order, receive_paid_purchase_order,
+    reverse_received_purchase_order, update_purchase_order_draft,
 )
 from accounting.models import (
     AccountReconciliation, Dividend, FundAccount, LedgerPosting,
@@ -77,6 +78,7 @@ _ERROR_STATUS = {
     'historical_replay_required': 409,
     'missing_payment': 409,
     'already_received': 409,
+    'receipt_already_used': 409,
     'ledger_error': 409,
     'supplier_not_found': 404,
     'cigar_not_found': 404,
@@ -652,9 +654,13 @@ def actions(request):
             status=405,
         )
     return JsonResponse({
-        # 待处理列表同时展示草稿和已付款待到货采购单。
+        # 已到货采购单保留在动作中心，便于发现录错后执行受控撤销。
         'purchases': [serialize_purchase_order(row) for row in PurchaseOrder.objects.filter(
-            status__in=(PurchaseOrder.Status.DRAFT, PurchaseOrder.Status.IN_TRANSIT),
+            status__in=(
+                PurchaseOrder.Status.DRAFT,
+                PurchaseOrder.Status.IN_TRANSIT,
+                PurchaseOrder.Status.RECEIVED,
+            ),
         ).prefetch_related('items__cigar')[:50]],
         'dividends': [serialize_dividend(row) for row in Dividend.objects.filter(status=Dividend.Status.DRAFT)[:50]],
     })
@@ -692,6 +698,16 @@ def purchase_action(request, purchase_id=None, action=None):
                 operator=request.accounting_operator, idempotency_key=key, note=_optional_note(payload),
             )
             return JsonResponse({'purchase_batches': [batch.pk for batch in batches]})
+        if action == 'reverse-receive':
+            reverse_received_purchase_order(
+                purchase_order_id=purchase_id,
+                business_date=_parse_iso_date(payload.get('business_date'), 'business_date'),
+                operator=request.accounting_operator,
+                idempotency_key=key,
+                reason=_optional_note(payload),
+            )
+            order = PurchaseOrder.objects.prefetch_related('items__cigar').get(pk=purchase_id)
+            return JsonResponse({'purchase_order': serialize_purchase_order(order)})
         if action == 'cancel':
             order = cancel_purchase_order(
                 purchase_order_id=purchase_id, operator=request.accounting_operator,

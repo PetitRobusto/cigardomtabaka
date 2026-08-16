@@ -159,12 +159,23 @@ export function PriceChart({ variants }: PriceChartProps) {
                 }}
                 labelStyle={{ color: '#1C1917', fontWeight: 700, fontSize: 13 }}
                 itemStyle={{ fontSize: 13 }}
-                formatter={(value: number) => [`¥${value.toLocaleString()}`, '单支价格']}
+                formatter={(value) => {
+                  // Recharts 可能传入非数值占位，先收窄再格式化。
+                  if (typeof value !== 'number') return ['—', '单支价格'];
+                  return [`¥${value.toLocaleString()}`, '单支价格'];
+                }}
               />
               <Bar dataKey="price" radius={[isMobile ? 3 : 6, isMobile ? 3 : 6, 0, 0]} maxBarSize={maxBarSize}
                 label={({ x, y, width, value, index }) => {
+                  if (
+                    typeof index !== 'number'
+                    || typeof x !== 'number'
+                    || typeof y !== 'number'
+                    || typeof width !== 'number'
+                    || typeof value !== 'number'
+                  ) return null;
                   const tag = barData[index]?.tag;
-                  if (!tag) return null as any;
+                  if (!tag) return null;
                   const colors: Record<string, string> = {
                     '最高': '#dc2626',
                     '最低': '#16a34a',

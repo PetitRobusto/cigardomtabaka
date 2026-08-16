@@ -1,6 +1,6 @@
 import axios from 'axios';
 import type {
-  PriceSnapshot, PriceHistoryResponse, Source, AggregatedCigar,
+  PriceSnapshot, PriceHistoryResponse, Source, AlertItem, AggregatedCigar,
   BrandListResponse, BrandDetailResponse, CigarDetailResponse,
   InventoryResponse, PrivnoteResponse,
   PaymentMethod, SearchCigarResult, InventoryViewData,
@@ -42,7 +42,8 @@ export const fetchLatestPrices = (): Promise<PriceSnapshot[]> =>
 export const fetchPriceHistory = (cigarId: string, days = 30): Promise<PriceHistoryResponse> =>
   api.get('/prices/snapshots/history/', { params: { cigar_id: cigarId, days } }).then(r => r.data);
 
-export const fetchAlerts = () => api.get('/prices/alerts/').then(r => r.data);
+export const fetchAlerts = (): Promise<AlertItem[]> =>
+  api.get('/prices/alerts/').then(r => r.data.results || r.data);
 export const createAlert = (data: unknown) => api.post('/prices/alerts/', data).then(r => r.data);
 export const updateAlert = (id: number, data: unknown) => api.patch(`/prices/alerts/${id}/`, data).then(r => r.data);
 export const deleteAlert = (id: number) => api.delete(`/prices/alerts/${id}/`).then(r => r.data);

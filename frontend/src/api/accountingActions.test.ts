@@ -170,7 +170,19 @@ describe('accounting action API contracts', () => {
   it('supports dividend create, update, preview, and warning-confirm', async () => {
     client.post
       .mockReturnValueOnce(response({ dividend: { id: 51, status: 'draft' } }))
-      .mockReturnValueOnce(response({ preview: { warning_code: 'retained_earnings' } }))
+      .mockReturnValueOnce(response({
+        preview: {
+          retained_earnings_cny: '500.00',
+          requested_cny: '1000.00',
+          warning: {
+            code: 'retained_earnings_exceeded',
+            retained_earnings_cny: '500.00',
+            requested_cny: '1000.00',
+            fingerprint: 'fp',
+          },
+          warning_fingerprint: 'fp',
+        },
+      }))
       .mockReturnValueOnce(response({ dividend: { id: 51, status: 'confirmed' } }));
     client.patch.mockReturnValueOnce(response({ dividend: { id: 51, version: 2 } }));
 

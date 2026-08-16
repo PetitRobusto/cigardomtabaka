@@ -15,6 +15,7 @@ import {
 } from '../features/day1/day1State';
 import { day1WriteGate, refreshDay1State, saveDay1DraftAtBase, saveThenConfirmDay1 } from '../features/day1/day1Workflow';
 import type { Day1State } from '../types';
+import { invalidateLatestRequest, runLatestRequest } from '../utils/latestRequest';
 
 const stepLabels = ['规则与日期', '账户', '库存', '核对生效'];
 
@@ -47,6 +48,7 @@ export default function Day1SetupPage() {
   const [confirmationKey, setConfirmationKey] = useState('');
   const draftRef = useRef(draft);
   const draftBaseVersionRef = useRef(draftBaseVersion);
+  const requestSequence = useRef({ current: 0 });
   const prepareButtonRef = useRef<HTMLButtonElement>(null);
   // Confirmation success replaces the trigger, so retain a focusable frozen-summary fallback.
   const completedSummaryRef = useRef<HTMLDivElement>(null);
@@ -63,23 +65,31 @@ export default function Day1SetupPage() {
   useEffect(() => { setMeta({ title: 'Day 1 初始化', breadcrumbs: [{ label: '首页', to: '/' }, { label: '账务工作台', to: '/accounting' }, { label: 'Day 1 初始化' }] }); }, [setMeta]);
 
   const requestDay1State = useCallback((preserveLocal = false) => {
-    return fetchDay1State().then(data => {
-      const merged = refreshDay1State({
-        localDraft: draftRef.current,
-        baseVersion: draftBaseVersionRef.current,
-        incoming: data,
-        mode: preserveLocal ? 'preserve-local' : 'discard-local',
-      });
-      setServer(merged.server); setDraft(merged.draft); setDraftBaseVersion(merged.baseVersion);
-    }).catch(reason => setError(apiErrorMessage(reason, 'Day 1 状态加载失败'))).finally(() => setLoading(false));
+    return runLatestRequest({
+      sequence: requestSequence.current,
+      request: fetchDay1State,
+      onSuccess: data => {
+        const merged = refreshDay1State({
+          localDraft: draftRef.current,
+          baseVersion: draftBaseVersionRef.current,
+          incoming: data,
+          mode: preserveLocal ? 'preserve-local' : 'discard-local',
+        });
+        setServer(merged.server); setDraft(merged.draft); setDraftBaseVersion(merged.baseVersion);
+      },
+      onError: reason => setError(apiErrorMessage(reason, 'Day 1 状态加载失败')),
+      onSettled: () => setLoading(false),
+    });
   }, []);
   const load = useCallback((preserveLocal = false) => {
     setLoading(true); setError(''); setValidationDetails({});
     void requestDay1State(preserveLocal);
   }, [requestDay1State]);
   useEffect(() => {
+    const sequence = requestSequence.current;
     // 初始状态已经是 loading，首屏请求无需同步重复写入状态。
     void requestDay1State();
+    return () => invalidateLatestRequest(sequence);
   }, [requestDay1State]);
 
   const mode = day1RouteMode(server?.status || 'not_started');

@@ -21,6 +21,9 @@ from accounting.selectors import account_snapshot
 from accounting.services import CUTOVER_DATE, LedgerError, PostingInput, post_transaction
 from cigars.models import StockMovement
 from cigars.models import Cigar, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, Supplier, User
+from cigars.tests.inventory_fixtures import (
+    create_purchase_batch, create_stock_movement, force_create_purchase_batch,
+)
 
 
 class Day1ServiceTest(TestCase):
@@ -276,7 +279,7 @@ class Day1ServiceTest(TestCase):
     def test_confirmation_rolls_back_every_generated_fact_on_inventory_failure(self):
         draft = self.save_draft()
         with patch(
-            'accounting.day1.StockMovement.objects.create',
+            'cigars.inventory.StockMovement.objects.create',
             side_effect=RuntimeError('injected movement failure'),
         ):
             with self.assertRaises(RuntimeError):
@@ -308,7 +311,7 @@ class Day1ServiceTest(TestCase):
         self.assertIn(expected, raised.exception.conflicts)
 
     def existing_opening_batch(self):
-        return PurchaseBatch.objects.create(
+        return create_purchase_batch(
             purchase_order_item=None, source=PurchaseBatch.Source.OPENING,
             cigar=self.cigar, quantity=1, remaining=1,
             physical_remaining=1, original_stick_quantity=1,
@@ -342,7 +345,7 @@ class Day1ServiceTest(TestCase):
     def test_confirmation_reports_existing_stock_movement_fact(self):
         draft = self.save_draft()
         batch = self.existing_opening_batch()
-        StockMovement.objects.create(
+        create_stock_movement(
             movement_type=StockMovement.MovementType.RECEIVE,
             cigar=self.cigar, purchase_batch=batch, quantity=1,
             operator=self.operator,
@@ -480,7 +483,7 @@ class Day1ModelTest(TestCase):
             name='期初雪茄',
         )
 
-        batch = PurchaseBatch.objects.create(
+        batch = create_purchase_batch(
             purchase_order_item=None,
             source=PurchaseBatch.Source.OPENING,
             cigar=cigar,
@@ -508,7 +511,7 @@ class Day1ModelTest(TestCase):
         )
 
         with self.assertRaises(IntegrityError), transaction.atomic():
-            PurchaseBatch.objects.create(
+            force_create_purchase_batch(
                 purchase_order_item=None,
                 source=PurchaseBatch.Source.PURCHASE,
                 cigar=cigar,
@@ -536,7 +539,7 @@ class Day1ModelTest(TestCase):
         )
 
         with self.assertRaises(IntegrityError), transaction.atomic():
-            PurchaseBatch.objects.create(
+            force_create_purchase_batch(
                 purchase_order_item=item,
                 source=PurchaseBatch.Source.OPENING,
                 cigar=cigar,
@@ -573,7 +576,7 @@ class Day1ModelTest(TestCase):
         cigar = Cigar.objects.create(
             brand='Day 1 Brand', english_name='Agent Opening Cigar', name='代理期初雪茄',
         )
-        batch = PurchaseBatch.objects.create(
+        batch = create_purchase_batch(
             purchase_order_item=None,
             source=PurchaseBatch.Source.OPENING,
             cigar=cigar,
@@ -589,7 +592,11 @@ class Day1ModelTest(TestCase):
         with patch('cigars.agent_api.receive_purchase_order', return_value=[batch]):
             response = client.post(
                 '/api/agent/purchase-orders/receive/',
-                data='{"idempotency_key":"day1-opening-receive","agent":{"agent_name":"test"}}',
+                data=json.dumps({
+                    'operator_id': operator.pk,
+                    'idempotency_key': 'day1-opening-receive',
+                    'agent': {'agent_name': 'test'},
+                }),
                 content_type='application/json',
             )
 

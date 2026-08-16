@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
@@ -24,6 +24,8 @@ from accounting.services import (
     _retry_sqlite_locked,
 )
 
+from .audit import AgentContext
+from . import inventory as inventory_module
 from .models import (
     AdjustmentRecord,
     Cigar,
@@ -59,24 +61,6 @@ class InsufficientStockError(OrderServiceError):
     """Raised when an in-stock sale or adjustment would make stock negative."""
 
 
-@dataclass(frozen=True)
-class AgentContext:
-    agent_name: str = ''
-    agent_run_id: str = ''
-    agent_request_id: str = ''
-    command_name: str = ''
-    idempotency_key: str = ''
-
-    @classmethod
-    def from_mapping(cls, raw=None, *, command_name='', idempotency_key=''):
-        raw = raw or {}
-        return cls(
-            agent_name=str(raw.get('agent_name') or raw.get('name') or '').strip(),
-            agent_run_id=str(raw.get('agent_run_id') or raw.get('run_id') or '').strip(),
-            agent_request_id=str(raw.get('agent_request_id') or raw.get('request_id') or '').strip(),
-            command_name=command_name or str(raw.get('command_name') or '').strip(),
-            idempotency_key=idempotency_key or str(raw.get('idempotency_key') or '').strip(),
-        )
 
 
 def _to_money(raw, field_name):
@@ -129,29 +113,6 @@ def _require_operator(operator):
     return operator
 
 
-def _movement_meta(context: AgentContext):
-    return {
-        'agent_name': context.agent_name,
-        'agent_run_id': context.agent_run_id,
-        'agent_request_id': context.agent_request_id,
-        'command_name': context.command_name,
-        'idempotency_key': context.idempotency_key,
-    }
-
-
-def _record_movement(*, movement_type, cigar, quantity, operator, context,
-                     purchase_batch=None, sales_order=None, sales_order_item=None, note=''):
-    return StockMovement.objects.create(
-        movement_type=movement_type,
-        cigar=cigar,
-        purchase_batch=purchase_batch,
-        sales_order=sales_order,
-        sales_order_item=sales_order_item,
-        quantity=quantity,
-        operator=operator,
-        note=note or '',
-        **_movement_meta(context),
-    )
 
 
 def _record_order_event(order, *, operator, context, note='', metadata=None):
@@ -544,45 +505,18 @@ def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, 
 
 
 
-def _allocation_uses_boxes(*, allocation, batch):
-    item = allocation.sales_order_item
-    return bool(
-        item.sale_unit == SalesOrderItem.SaleUnit.BOX and batch.box_size == item.box_size
-        and batch.box_size and allocation.quantity % batch.box_size == 0
-    )
-
-def _reserve_box_stock_fifo(*, order, item, operator, context, note=""):
-    box_size = item.box_size
-    batches = list(PurchaseBatch.objects.select_for_update().filter(
-        cigar=item.cigar, box_size=box_size, available_box_quantity__gt=0,
-    ).order_by("purchased_at", "id"))
-    available_boxes = sum(batch.available_box_quantity for batch in batches)
-    if available_boxes < item.sale_quantity:
-        raise InsufficientStockError(
-            f"{item.cigar.name or item.cigar.english_name} 整盒库存不足",
-            details={"cigar_id": item.cigar_id, "requested": item.sale_quantity, "available": available_boxes, "unit": "boxes"},
+def _reserve_box_stock_fifo(*, order, item, operator, context, note=''):
+    try:
+        return inventory_module.reserve_order_item(
+            order=order, item=item, operator=operator, context=context, note=note,
         )
-    remaining_boxes, item_cost = item.sale_quantity, Decimal("0.00")
-    for batch in batches:
-        take_boxes = min(batch.available_box_quantity, remaining_boxes)
-        if not take_boxes:
-            continue
-        quantity = take_boxes * box_size
-        batch.remaining -= quantity
-        batch.available_box_quantity -= take_boxes
-        batch.save(update_fields=["remaining", "available_box_quantity"])
-        StockAllocation.objects.create(sales_order_item=item, purchase_batch=batch, quantity=quantity, status=StockAllocation.Status.RESERVED)
-        _record_movement(
-            movement_type=StockMovement.MovementType.RESERVE, cigar=item.cigar, purchase_batch=batch,
-            sales_order=order, sales_order_item=item, quantity=quantity, operator=operator, context=context, note=note,
-        )
-        item_cost += batch.unit_cost_cny * quantity
-        remaining_boxes -= take_boxes
-        if not remaining_boxes:
-            break
-    return item_cost.quantize(MONEY_PLACES)
+    except inventory_module.InventoryInsufficientError as error:
+        raise InsufficientStockError(str(error), details=error.details) from error
+    except inventory_module.InventoryError as error:
+        raise OrderServiceError(str(error), details=error.details) from error
 
 
+@_retry_sqlite_locked
 @transaction.atomic
 def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note="",
                         business_date=None):
@@ -590,6 +524,7 @@ def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note=""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="confirm_sales_order")
     require_day1_completed()
+    _acquire_sqlite_writer_gate()
     order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, "销售单ID"))
     if (order.fulfillment_status != SalesOrder.FulfillmentStatus.DRAFT or
             order.payment_status != SalesOrder.PaymentStatus.UNPAID):
@@ -623,6 +558,7 @@ def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note=""
     return order
 
 
+@_retry_sqlite_locked
 @transaction.atomic
 def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None, note="",
                                  business_date=None):
@@ -630,6 +566,7 @@ def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="cancel_confirmed_sales_order")
     require_day1_completed()
+    _acquire_sqlite_writer_gate()
     order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, "销售单ID"))
     if order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED:
         raise OrderServiceError("当前订单不能取消")
@@ -643,27 +580,12 @@ def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None
     if SalesShipment.objects.filter(sales_order=order).exists():
         raise OrderServiceError("已出库订单不能取消")
     now = timezone.now()
-    allocations = StockAllocation.objects.select_for_update().filter(
-        sales_order_item__sales_order=order, status=StockAllocation.Status.RESERVED,
-    ).select_related("sales_order_item__cigar").order_by("purchase_batch_id", "id")
-    for allocation in allocations:
-        batch = PurchaseBatch.objects.select_for_update().get(id=allocation.purchase_batch_id)
-        batch.remaining += allocation.quantity
-        if _allocation_uses_boxes(allocation=allocation, batch=batch):
-            batch.available_box_quantity += allocation.quantity // batch.box_size
-            fields = ["remaining", "available_box_quantity"]
-        else:
-            batch.available_stick_quantity += allocation.quantity
-            fields = ["remaining", "available_stick_quantity"]
-        batch.save(update_fields=fields)
-        allocation.status, allocation.released_at = StockAllocation.Status.RELEASED, now
-        allocation.save(update_fields=["status", "released_at"])
-        _record_movement(
-            movement_type=StockMovement.MovementType.RELEASE_RESERVATION,
-            cigar=allocation.sales_order_item.cigar, purchase_batch=batch, sales_order=order,
-            sales_order_item=allocation.sales_order_item, quantity=allocation.quantity,
-            operator=operator, context=context, note=note,
+    try:
+        inventory_module.release_order(
+            order=order, operator=operator, context=context, note=note,
         )
+    except inventory_module.InventoryError as error:
+        raise OrderServiceError(str(error), details=error.details) from error
     order.fulfillment_status = SalesOrder.FulfillmentStatus.CANCELLED
     order.payment_status = (SalesOrder.PaymentStatus.REFUND_PENDING if order.payment_status == SalesOrder.PaymentStatus.PAID else SalesOrder.PaymentStatus.UNPAID)
     order.status, order.cancelled_at = "cancelled", now
@@ -674,39 +596,23 @@ def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None
     return order
 
 
+@_retry_sqlite_locked
 @transaction.atomic
 def split_purchase_batch_box(*, batch_id, operator, agent_context=None, note=''):
-    """Convert one fully available physical box into individually available sticks."""
+    """把一个可用完整盒拆成同批次散支。"""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name='split_purchase_batch_box')
     require_day1_completed()
+    _acquire_sqlite_writer_gate()
     try:
-        batch = PurchaseBatch.objects.select_for_update().get(
-            id=_to_positive_int(batch_id, '批次ID')
+        return inventory_module.split_box(
+            batch_id=_to_positive_int(batch_id, '批次ID'),
+            operator=operator,
+            context=context,
+            note=note,
         )
-    except PurchaseBatch.DoesNotExist:
-        raise OrderServiceError('批次不存在')
-    if not batch.box_size:
-        raise OrderServiceError('散支批次不能拆盒')
-    if batch.physical_box_quantity < 1:
-        raise OrderServiceError('批次没有完整物理盒可拆')
-    if batch.available_box_quantity < 1:
-        raise OrderServiceError('批次没有可用完整盒可拆')
-
-    batch.physical_box_quantity -= 1
-    batch.available_box_quantity -= 1
-    batch.physical_stick_quantity += batch.box_size
-    batch.available_stick_quantity += batch.box_size
-    batch.save(update_fields=[
-        'physical_box_quantity', 'available_box_quantity',
-        'physical_stick_quantity', 'available_stick_quantity',
-    ])
-    _record_movement(
-        movement_type=StockMovement.MovementType.SPLIT_BOX,
-        cigar=batch.cigar, purchase_batch=batch, quantity=batch.box_size,
-        operator=operator, context=context, note=note,
-    )
-    return batch
+    except inventory_module.InventoryError as error:
+        raise OrderServiceError(str(error), details=error.details) from error
 
 
 def create_purchase_order(*, supplier_id, items, business_date=None, operator,
@@ -767,6 +673,7 @@ def create_purchase_order(*, supplier_id, items, business_date=None, operator,
     return order
 
 
+@_retry_sqlite_locked
 @transaction.atomic
 def create_sales_order(*, items, operator, customer=None, customer_id=None,
                        customer_name='', payment_method_id=None, payment_manual=None,
@@ -775,6 +682,7 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name='create_sales_order')
     require_day1_completed()
+    _acquire_sqlite_writer_gate()
     if not isinstance(items, list) or not items:
         raise OrderServiceError('至少需要一个商品')
 
@@ -886,60 +794,15 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
 
 
 def _reserve_stock_fifo(*, order, item, cigar, quantity, operator, context, note=''):
-    batches = list(
-        PurchaseBatch.objects.select_for_update()
-        .filter(cigar=cigar, available_stick_quantity__gt=0)
-        .order_by('purchased_at', 'id')
-    )
-    available = sum(batch.available_stick_quantity for batch in batches)
-    if available < quantity:
-        raise InsufficientStockError(
-            f'{cigar.name or cigar.english_name} 现货库存不足',
-            details={
-                'cigar_id': cigar.id,
-                'requested': quantity,
-                'available': available,
-            },
+    # 保留旧内部签名，库存事实统一由库存 Module 写入。
+    try:
+        return inventory_module.reserve_order_item(
+            order=order, item=item, operator=operator, context=context, note=note,
         )
-
-    remaining_to_allocate = quantity
-    item_cost = Decimal('0.00')
-    for batch in batches:
-        if remaining_to_allocate <= 0:
-            break
-        take = min(batch.available_stick_quantity, remaining_to_allocate)
-        batch.remaining -= take
-        batch.available_stick_quantity -= take
-        batch.save(update_fields=['remaining', 'available_stick_quantity'])
-        StockAllocation.objects.create(
-            sales_order_item=item,
-            purchase_batch=batch,
-            quantity=take,
-            status=StockAllocation.Status.RESERVED,
-        )
-        _record_movement(
-            movement_type=StockMovement.MovementType.RESERVE,
-            cigar=cigar,
-            purchase_batch=batch,
-            sales_order=order,
-            sales_order_item=item,
-            quantity=take,
-            operator=operator,
-            context=context,
-            note=note,
-        )
-        item_cost += (batch.unit_cost_cny * take)
-        remaining_to_allocate -= take
-    return item_cost.quantize(MONEY_PLACES)
-
-
-def _remove_remaining_cost(batch, quantity):
-    """Return exact removed cost, assigning rounding residue to the last unit."""
-    if quantity > batch.physical_remaining:
-        raise InsufficientStockError('批次物理库存不足')
-    if quantity == batch.physical_remaining:
-        return batch.remaining_cost_cny
-    return (batch.remaining_cost_cny * quantity / batch.physical_remaining).quantize(MONEY_PLACES)
+    except inventory_module.InventoryInsufficientError as error:
+        raise InsufficientStockError(str(error), details=error.details) from error
+    except inventory_module.InventoryError as error:
+        raise OrderServiceError(str(error), details=error.details) from error
 
 @transaction.atomic
 def confirm_payment(*, sales_order_id, operator, agent_context=None, note=''):
@@ -949,11 +812,13 @@ def confirm_payment(*, sales_order_id, operator, agent_context=None, note=''):
     raise OrderServiceError('confirm_payment 已停用；请使用独立的收款与出库服务')
 
 
+@_retry_sqlite_locked
 @transaction.atomic
 def cancel_sales_order(*, sales_order_id, operator, agent_context=None, note=''):
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name='cancel_sales_order')
     require_day1_completed()
+    _acquire_sqlite_writer_gate()
     order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, '销售单ID'))
     if order.status == 'cancelled':
         return order
@@ -971,36 +836,12 @@ def cancel_sales_order(*, sales_order_id, operator, agent_context=None, note='')
     if SalesShipment.objects.filter(sales_order=order).exists():
         raise OrderServiceError('已出库订单不能取消')
 
-    now = timezone.now()
-    allocations = (
-        StockAllocation.objects.select_for_update()
-        .filter(sales_order_item__sales_order=order, status=StockAllocation.Status.RESERVED)
-        .select_related('purchase_batch', 'sales_order_item__cigar')
-    )
-    for alloc in allocations:
-        batch = PurchaseBatch.objects.select_for_update().get(id=alloc.purchase_batch_id)
-        batch.remaining += alloc.quantity
-        if _allocation_uses_boxes(allocation=alloc, batch=batch):
-            batch.available_box_quantity += alloc.quantity // batch.box_size
-            shape_field = 'available_box_quantity'
-        else:
-            batch.available_stick_quantity += alloc.quantity
-            shape_field = 'available_stick_quantity'
-        batch.save(update_fields=['remaining', shape_field])
-        alloc.status = StockAllocation.Status.RELEASED
-        alloc.released_at = now
-        alloc.save(update_fields=['status', 'released_at'])
-        _record_movement(
-            movement_type=StockMovement.MovementType.RELEASE_RESERVATION,
-            cigar=alloc.sales_order_item.cigar,
-            purchase_batch=batch,
-            sales_order=order,
-            sales_order_item=alloc.sales_order_item,
-            quantity=alloc.quantity,
-            operator=operator,
-            context=context,
-            note=note,
+    try:
+        inventory_module.release_order(
+            order=order, operator=operator, context=context, note=note,
         )
+    except inventory_module.InventoryError as error:
+        raise OrderServiceError(str(error), details=error.details) from error
 
     order.status = 'cancelled'
     order.fulfillment_status = SalesOrder.FulfillmentStatus.CANCELLED
@@ -1105,158 +946,37 @@ def adjust_stock(*, cigar_id, quantity_delta, operator, reason='', batch_id=None
     except Cigar.DoesNotExist:
         raise OrderServiceError('雪茄不存在')
 
-    if delta > 0:
-        batch = _get_or_create_adjustment_batch(
+    normalized_unit_cost = (
+        None if unit_cost_cny is None
+        else _to_signed_money(unit_cost_cny, '成本单价')
+    )
+    try:
+        result = inventory_module.adjust_stock(
             cigar=cigar,
-            quantity=delta,
-            operator=operator,
-            batch_id=batch_id,
-            unit_cost_cny=unit_cost_cny,
-        )
-        if inventory_form == 'box':
-            if not batch.box_size:
-                raise OrderServiceError('散支批次不能按 box 修正')
-            if delta % batch.box_size:
-                raise OrderServiceError('box 修正数量必须是包装支数的整数倍')
-            shape_quantity = delta // batch.box_size
-            available_field, physical_field = 'available_box_quantity', 'physical_box_quantity'
-        else:
-            shape_quantity = delta
-            available_field, physical_field = 'available_stick_quantity', 'physical_stick_quantity'
-        added_cost = (batch.unit_cost_cny * delta).quantize(MONEY_PLACES)
-        batch.positive_adjustment_quantity += delta
-        batch.positive_adjustment_cost_cny += added_cost
-        batch.remaining += delta
-        batch.physical_remaining += delta
-        batch.remaining_cost_cny += added_cost
-        setattr(batch, available_field, getattr(batch, available_field) + shape_quantity)
-        setattr(batch, physical_field, getattr(batch, physical_field) + shape_quantity)
-        batch.save(update_fields=[
-            'positive_adjustment_quantity', 'positive_adjustment_cost_cny',
-            'remaining', 'physical_remaining', available_field, physical_field, 'remaining_cost_cny',
-        ])
-        _record_movement(
-            movement_type=StockMovement.MovementType.ADJUSTMENT, cigar=cigar, purchase_batch=batch,
-            quantity=delta, operator=operator, context=context, note=reason,
-        )
-        source_id = f'stock_adjustment:{request_fingerprint}:{batch.pk}'
-        _post_stock_adjustment(cost_cny=added_cost, gain=True,
-                               business_date=business_date, operator=operator, context=context, reason=reason, source_id=source_id)
-        return batch
-
-    quantity_to_remove = abs(delta)
-    batches = _adjustment_batches(cigar=cigar, batch_id=batch_id)
-    if inventory_form == 'box':
-        batch = batches[0]
-        if not batch.box_size:
-            raise OrderServiceError('散支批次不能按 box 修正')
-        if quantity_to_remove % batch.box_size:
-            raise OrderServiceError('box 修正数量必须是包装支数的整数倍')
-        available = batch.available_box_quantity * batch.box_size
-    else:
-        available = sum(batch.available_stick_quantity for batch in batches)
-    if available < quantity_to_remove:
-        raise InsufficientStockError(
-            f'{cigar.name or cigar.english_name} 可修正库存不足',
-            details={'cigar_id': cigar.id, 'requested': quantity_to_remove, 'available': available},
-        )
-
-    remaining_to_remove = quantity_to_remove
-    last_batch = None
-    total_adjustment_cost = Decimal('0.00')
-    for batch in batches:
-        if remaining_to_remove <= 0:
-            break
-        if inventory_form == 'box':
-            take = min(batch.available_box_quantity, remaining_to_remove // batch.box_size) * batch.box_size
-        else:
-            take = min(batch.available_stick_quantity, remaining_to_remove)
-        if not take:
-            continue
-        cost = _remove_remaining_cost(batch, take)
-        batch.adjustment_cost_cny += cost
-        batch.remaining -= take
-        if inventory_form == 'box':
-            batch.available_box_quantity -= take // batch.box_size
-            batch.physical_box_quantity -= take // batch.box_size
-            shape_fields = ['available_box_quantity', 'physical_box_quantity']
-        else:
-            batch.available_stick_quantity -= take
-            batch.physical_stick_quantity -= take
-            shape_fields = ['available_stick_quantity', 'physical_stick_quantity']
-        batch.physical_remaining -= take
-        batch.remaining_cost_cny -= cost
-        batch.save(update_fields=[
-            'remaining', 'physical_remaining', *shape_fields, 'remaining_cost_cny', 'adjustment_cost_cny',
-        ])
-        last_batch = batch
-        _record_movement(
-            movement_type=StockMovement.MovementType.ADJUSTMENT,
-            cigar=cigar,
-            purchase_batch=batch,
-            quantity=-take,
+            quantity_delta=delta,
+            inventory_form=inventory_form,
             operator=operator,
             context=context,
-            note=reason,
-        )
-        AdjustmentRecord.objects.create(
-            cigar=cigar,
-            batch=batch,
-            type=adjustment_type,
-            quantity=take,
-            unit_cost_cny=batch.unit_cost_cny,
-            cost_cny=cost,
-            operator=operator,
             reason=reason,
+            batch_id=batch_id_for_source,
+            unit_cost_cny=normalized_unit_cost,
+            adjustment_type=adjustment_type,
         )
-        total_adjustment_cost += cost
-        remaining_to_remove -= take
-    source_id = f'stock_adjustment:{request_fingerprint}:{last_batch.pk}'
-    _post_stock_adjustment(cost_cny=total_adjustment_cost, gain=False,
-                           business_date=business_date, operator=operator, context=context, reason=reason, source_id=source_id)
-    return last_batch
-
-
-def _adjustment_batches(*, cigar, batch_id=None):
-    qs = PurchaseBatch.objects.select_for_update().filter(cigar=cigar, remaining__gt=0)
-    if batch_id:
-        qs = qs.filter(id=_to_positive_int(batch_id, '批次ID'))
-    batches = list(qs.order_by('purchased_at', 'id'))
-    if batch_id and not batches:
-        raise OrderServiceError('批次不存在或无可用库存')
-    return batches
-
-
-def _get_or_create_adjustment_batch(*, cigar, quantity, operator, batch_id=None, unit_cost_cny=None):
-    if batch_id:
-        try:
-            return PurchaseBatch.objects.select_for_update().get(
-                id=_to_positive_int(batch_id, '批次ID'),
-                cigar=cigar,
-            )
-        except PurchaseBatch.DoesNotExist:
-            raise OrderServiceError('批次不存在或不匹配')
-    if unit_cost_cny is None:
-        raise OrderServiceError('正向库存修正需要 unit_cost_cny')
-    unit_cost = _to_signed_money(unit_cost_cny, '成本单价')
-    if unit_cost < 0:
-        raise OrderServiceError('成本单价不能为负数')
-    # 库存调整不是采购，不创建 PurchaseOrder 或付款/到货镜像。
-    return PurchaseBatch.objects.create(
-        purchase_order_item=None,
-        source=PurchaseBatch.Source.ADJUSTMENT,
-        cigar=cigar,
-        original_cost_cny=Decimal('0.00'),
-        positive_adjustment_quantity=0,
-        positive_adjustment_cost_cny=Decimal('0.00'),
-        adjustment_cost_cny=Decimal('0.00'),
-        quantity=0,
-        remaining=0,
-        physical_remaining=0,
-        remaining_cost_cny=Decimal('0.00'),
-        sold_cost_cny=Decimal('0.00'),
-        unit_cost_cny=unit_cost,
+    except inventory_module.InventoryInsufficientError as error:
+        raise InsufficientStockError(str(error), details=error.details) from error
+    except inventory_module.InventoryError as error:
+        raise OrderServiceError(str(error), details=error.details) from error
+    source_id = f'stock_adjustment:{request_fingerprint}:{result.batch.pk}'
+    _post_stock_adjustment(
+        cost_cny=result.cost_cny,
+        gain=delta > 0,
+        business_date=business_date,
+        operator=operator,
+        context=context,
+        reason=reason,
+        source_id=source_id,
     )
+    return result.batch
 
 
 def receive_purchase_order(*, purchase_order_id, operator, agent_context=None, note='',

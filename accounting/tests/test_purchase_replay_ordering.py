@@ -13,6 +13,7 @@ from accounting.purchase_actions import (
 from accounting.tests import purchase_spec_coverage_cases as cases
 from cigars.models import PurchaseBatch, PurchaseOrderItem, StockMovement
 from cigars.sales_accounting import ship_sales_order
+from cigars.tests.inventory_fixtures import create_purchase_batch
 from cigars.services import (
     AgentContext, confirm_sales_order, create_sales_order_draft,
     receive_purchase_order, split_purchase_batch_box,
@@ -64,7 +65,8 @@ class PurchaseReplayOrderingTest(cases.PurchaseSpecMixin, TestCase):
     def test_receipt_rejects_existing_batch_without_posting(self):
         self.pay(key="existing-batch-payment")
         item = self.order.items.get()
-        PurchaseBatch.objects.create(
+        create_purchase_batch(
+            operator=self.operator,
             purchase_order_item=item, cigar=item.cigar,
             quantity=25, remaining=25, physical_remaining=25,
             original_cost_cny=Decimal("0.00"), remaining_cost_cny=Decimal("0.00"),

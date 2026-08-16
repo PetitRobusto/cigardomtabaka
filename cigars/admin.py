@@ -101,8 +101,21 @@ class SalesOrderAdmin(admin.ModelAdmin):
     date_hierarchy = 'created_at'
 
 
+class ReadOnlyInventoryFactAdmin(admin.ModelAdmin):
+    """库存事实只能通过业务动作写入，后台仅用于查询。"""
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(PurchaseBatch)
-class PurchaseBatchAdmin(admin.ModelAdmin):
+class PurchaseBatchAdmin(ReadOnlyInventoryFactAdmin):
     list_display = [
         'cigar', 'quantity', 'positive_adjustment_quantity', 'physical_remaining', 'remaining',
         'original_cost_cny', 'positive_adjustment_cost_cny', 'remaining_cost_cny',
@@ -118,29 +131,20 @@ class AdjustmentRecordAdmin(admin.ModelAdmin):
 
 
 @admin.register(StockAllocation)
-class StockAllocationAdmin(admin.ModelAdmin):
+class StockAllocationAdmin(ReadOnlyInventoryFactAdmin):
     list_display = ['sales_order_item', 'purchase_batch', 'quantity', 'status', 'reserved_at']
     list_filter = ['status']
     search_fields = ['sales_order_item__sales_order__customer_name', 'purchase_batch__cigar__english_name']
 
 
 @admin.register(StockMovement)
-class StockMovementAdmin(admin.ModelAdmin):
+class StockMovementAdmin(ReadOnlyInventoryFactAdmin):
     list_display = ['movement_type', 'cigar', 'purchase_batch', 'sales_order', 'quantity',
                     'operator', 'agent_name', 'command_name', 'created_at']
     list_filter = ['movement_type', 'agent_name', 'command_name']
     search_fields = ['cigar__brand', 'cigar__english_name', 'sales_order__customer_name',
                      'operator__username', 'agent_name', 'idempotency_key', 'note']
     date_hierarchy = 'created_at'
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
 
 
 @admin.register(OrderEvent)

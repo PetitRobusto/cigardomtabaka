@@ -24,6 +24,8 @@ from cigars.models import (
     User,
 )
 
+from cigars.tests.inventory_fixtures import create_purchase_batch
+
 
 class SalesOrderApiTest(TestCase):
     def setUp(self):
@@ -95,7 +97,8 @@ class SalesOrderApiTest(TestCase):
             unit_price_cny=Decimal(unit_cost),
         )
         boxes, sticks = divmod(quantity, box_size)
-        return PurchaseBatch.objects.create(
+        return create_purchase_batch(
+            operator=self.operator,
             purchase_order_item=item,
             cigar=self.cigar,
             quantity=quantity,

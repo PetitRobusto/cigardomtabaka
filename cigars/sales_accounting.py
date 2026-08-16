@@ -9,7 +9,6 @@ from datetime import date
 from decimal import Decimal
 
 from django.db import transaction
-from django.utils import timezone
 
 from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
 from accounting.guards import require_day1_completed
@@ -20,23 +19,17 @@ from accounting.services import (
     _retry_sqlite_locked,
     _acquire_sqlite_writer_gate,
 )
+from .audit import AgentContext
+from . import inventory as inventory_module
 from .models import (
-    PurchaseBatch,
     SalesOrder,
-    SalesOrderItem,
     SalesShipment,
     SalesReceipt,
     SalesRefund,
     SalesTransportCost,
-    StockAllocation,
-    StockMovement,
 )
 from .services import (
-    AgentContext,
     OrderServiceError,
-    _allocation_uses_boxes,
-    _record_movement,
-    _remove_remaining_cost,
     _require_operator,
 )
 
@@ -157,72 +150,19 @@ def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note
     context = agent_context or AgentContext(
         command_name="ship_sales_order", idempotency_key=idempotency_key,
     )
-    now = timezone.now()
-    total_cost = Decimal("0.00")
-    for item in items:
-        if item.fulfillment_type == SalesOrderItem.FulfillmentType.PREORDER:
-            raise OrderServiceError("预售明细不能通过现货出库")
-        allocations = list(
-            StockAllocation.objects.select_for_update()
-            .filter(sales_order_item=item)
-            .order_by("id")
+    try:
+        shipment = inventory_module.ship_order(
+            order=order, operator=operator, context=context, note=note,
         )
-        reserved = [a for a in allocations if a.status == StockAllocation.Status.RESERVED]
-        if len(reserved) != len(allocations) or sum(a.quantity for a in reserved) != item.quantity:
-            raise OrderServiceError("销售明细库存预留不完整，不能出库")
-
-        item_cost = Decimal("0.00")
-        for allocation in reserved:
-            batch = PurchaseBatch.objects.select_for_update().get(pk=allocation.purchase_batch_id)
-            quantity = allocation.quantity
-            if quantity > batch.physical_remaining:
-                raise OrderServiceError("出库时物理库存不足")
-            cost = _remove_remaining_cost(batch, quantity)
-            batch.physical_remaining -= quantity
-            batch.remaining_cost_cny -= cost
-            batch.sold_cost_cny += cost
-            if _allocation_uses_boxes(allocation=allocation, batch=batch):
-                boxes = quantity // batch.box_size
-                if boxes > batch.physical_box_quantity:
-                    raise OrderServiceError("出库时完整盒库存不足")
-                batch.physical_box_quantity -= boxes
-                fields = [
-                    "physical_remaining", "physical_box_quantity",
-                    "remaining_cost_cny", "sold_cost_cny",
-                ]
-            else:
-                if quantity > batch.physical_stick_quantity:
-                    raise OrderServiceError("出库时散支库存不足")
-                batch.physical_stick_quantity -= quantity
-                fields = [
-                    "physical_remaining", "physical_stick_quantity",
-                    "remaining_cost_cny", "sold_cost_cny",
-                ]
-            batch.save(update_fields=fields)
-            allocation.status = StockAllocation.Status.FULFILLED
-            allocation.fulfilled_at = now
-            allocation.save(update_fields=["status", "fulfilled_at"])
-            _record_movement(
-                movement_type=StockMovement.MovementType.SHIP,
-                cigar=item.cigar,
-                purchase_batch=batch,
-                sales_order=order,
-                sales_order_item=item,
-                quantity=quantity,
-                operator=operator,
-                context=context,
-                note=note,
-            )
-            item_cost += cost
-
-        item_cost = item_cost.quantize(MONEY_PLACES)
+    except inventory_module.InventoryError as error:
+        raise OrderServiceError(str(error), details=error.details) from error
+    for item in items:
+        item_cost = shipment.item_costs[item.pk]
         item.cost = item_cost
         item.unit_cost = (item_cost / item.quantity).quantize(MONEY_PLACES)
         item.profit = (item.revenue - item_cost).quantize(MONEY_PLACES)
-        item.save(update_fields=["cost", "unit_cost", "profit"])
-        total_cost += item_cost
-
-    total_cost = total_cost.quantize(MONEY_PLACES)
+        item.save(update_fields=['cost', 'unit_cost', 'profit'])
+    total_cost = shipment.total_cost_cny
     goods = order.goods_amount_cny.quantize(MONEY_PLACES)
     transport = order.customer_transport_fee_cny.quantize(MONEY_PLACES)
     amount_due = order.amount_due_cny.quantize(MONEY_PLACES)

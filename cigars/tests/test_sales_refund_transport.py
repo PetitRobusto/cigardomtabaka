@@ -14,6 +14,7 @@ from cigars.models import (
     SalesOrder, SalesReceipt, SalesRefund, SalesShipment, SalesTransportCost,
     StockAllocation, StockMovement, Supplier, User,
 )
+from cigars.tests.inventory_fixtures import create_purchase_batch
 from cigars.services import (
     AgentContext, OrderServiceError, cancel_confirmed_sales_order,
     confirm_sales_order, create_sales_order_draft,
@@ -54,7 +55,8 @@ class SalesRefundAndTransportTest(TestCase):
             purchase_order=purchase_order, cigar=self.cigar, quantity=quantity,
             unit_price_rub=Decimal('1.00'), unit_price_cny=Decimal(str(unit_cost)),
         )
-        return PurchaseBatch.objects.create(
+        return create_purchase_batch(
+            operator=self.operator,
             purchase_order_item=item, cigar=self.cigar, quantity=quantity,
             remaining=quantity, physical_remaining=quantity,
             original_cost_cny=Decimal(str(quantity)) * Decimal(str(unit_cost)),

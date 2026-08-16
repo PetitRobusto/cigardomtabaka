@@ -18,6 +18,7 @@ from cigars.models import (
     Supplier,
     User,
 )
+from cigars.tests.inventory_fixtures import create_purchase_batch, force_inventory_update
 from cigars.services import AgentContext, create_sales_order_draft
 
 
@@ -62,7 +63,7 @@ class SalesOrderWorkflowTest(TestCase):
             unit_price_rub=Decimal('1.00'),
             unit_price_cny=Decimal(unit_cost),
         )
-        return PurchaseBatch.objects.create(
+        return create_purchase_batch(
             purchase_order_item=purchase_item,
             cigar=self.cigar,
             quantity=remaining,
@@ -378,9 +379,9 @@ class SalesOrderWorkflowTest(TestCase):
         from django.db import IntegrityError, transaction
         batch = self.batch(remaining=25, box_size=25)
         with self.assertRaises(IntegrityError), transaction.atomic():
-            PurchaseBatch.objects.filter(pk=batch.pk).update(available_box_quantity=2)
+            force_inventory_update(PurchaseBatch.objects.filter(pk=batch.pk), available_box_quantity=2)
         with self.assertRaises(IntegrityError), transaction.atomic():
-            PurchaseBatch.objects.filter(pk=batch.pk).update(physical_stick_quantity=1)
+            force_inventory_update(PurchaseBatch.objects.filter(pk=batch.pk), physical_stick_quantity=1)
 
     def test_sales_item_database_constraint_requires_consistent_sale_unit_snapshot(self):
         """销售单位快照是数据库事实，bulk update 也不能绕过其形态关系。"""

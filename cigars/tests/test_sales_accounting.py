@@ -26,6 +26,7 @@ from cigars.models import (
     User,
 )
 from privnote.models import PaymentMethod
+from cigars.tests.inventory_fixtures import create_purchase_batch, force_inventory_update
 
 
 class SalesAccountingModelTest(TestCase):
@@ -132,7 +133,7 @@ class SalesAccountingModelTest(TestCase):
             unit_price_rub=Decimal('1.00'),
             unit_price_cny=Decimal('10.00'),
         )
-        batch = PurchaseBatch.objects.create(
+        batch = create_purchase_batch(
             purchase_order_item=purchase_item,
             cigar=self.cigar,
             quantity=10,
@@ -161,7 +162,7 @@ class SalesAccountingModelTest(TestCase):
             purchase_order=purchase_order, cigar=self.cigar, quantity=10, box_size=10,
             unit_price_rub=Decimal('1.00'), unit_price_cny=Decimal('10.00'),
         )
-        batch = PurchaseBatch.objects.create(
+        batch = create_purchase_batch(
             purchase_order_item=purchase_item, cigar=self.cigar, quantity=10, remaining=6,
             physical_remaining=8, unit_cost_cny=Decimal('10.00'),
             original_cost_cny=Decimal('100.00'),
@@ -178,7 +179,9 @@ class SalesAccountingModelTest(TestCase):
         ):
             with self.subTest(changes=changes):
                 with self.assertRaises(IntegrityError), transaction.atomic():
-                    PurchaseBatch.objects.filter(pk=batch.pk).update(**changes)
+                    force_inventory_update(
+                        PurchaseBatch.objects.filter(pk=batch.pk), **changes,
+                    )
     def test_sales_facts_are_one_to_one_and_protect_their_accounting_references(self):
         order = self.order()
         shipment = SalesShipment.objects.create(
@@ -1022,7 +1025,7 @@ class PurchaseBatchCostFactsModelTest(TestCase):
             unit_price_rub=Decimal('1.00'),
             unit_price_cny=Decimal('10.00'),
         )
-        batch = PurchaseBatch.objects.create(
+        batch = create_purchase_batch(
             purchase_order_item=purchase_item,
             cigar=self.cigar,
             quantity=10,
@@ -1048,7 +1051,11 @@ class PurchaseBatchCostFactsModelTest(TestCase):
         def assert_rejected(model, pk, changes):
             with self.subTest(model=model.__name__, changes=changes):
                 with self.assertRaises(IntegrityError), transaction.atomic():
-                    model.objects.filter(pk=pk).update(**changes)
+                    queryset = model.objects.filter(pk=pk)
+                    if model is PurchaseBatch:
+                        force_inventory_update(queryset, **changes)
+                    else:
+                        queryset.update(**changes)
 
         assert_rejected(PurchaseBatch, batch.pk, {'positive_adjustment_quantity': -1})
         for field in (
@@ -1060,7 +1067,8 @@ class PurchaseBatchCostFactsModelTest(TestCase):
         assert_rejected(AdjustmentRecord, adjustment.pk, {'cost_cny': Decimal('-0.01')})
         assert_rejected(PurchaseBatch, batch.pk, {'physical_remaining': 11})
 
-        PurchaseBatch.objects.filter(pk=batch.pk).update(
+        force_inventory_update(
+            PurchaseBatch.objects.filter(pk=batch.pk),
             positive_adjustment_quantity=4,
             physical_remaining=14,
             physical_stick_quantity=14,
@@ -1097,7 +1105,7 @@ class PurchaseBatchPackagingModelTest(TestCase):
             purchase_order=order, cigar=self.cigar, quantity=5, box_size=None,
             unit_price_rub=Decimal('1.00'), unit_price_cny=Decimal('10.00'),
         )
-        batch = PurchaseBatch.objects.create(
+        batch = create_purchase_batch(
             purchase_order_item=item, cigar=self.cigar, quantity=5, remaining=3, physical_remaining=4,
             original_cost_cny=Decimal('50.00'), remaining_cost_cny=Decimal('30.00'),
             sold_cost_cny=Decimal('20.00'), unit_cost_cny=Decimal('10.00'),

@@ -245,31 +245,52 @@ export function parseAccountingApiError(error: unknown): AccountingApiError {
 }
 
 // Privnote APIs
+interface CreatePrivnoteResponse {
+  url: string;
+  token: string;
+}
+
+function isCreatePrivnoteResponse(value: unknown): value is CreatePrivnoteResponse {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && 'url' in value
+    && typeof value.url === 'string'
+    && 'token' in value
+    && typeof value.token === 'string',
+  );
+}
+
+function privnoteErrorMessage(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || !('error' in value)) return null;
+  return typeof value.error === 'string' && value.error ? value.error : null;
+}
+
 export const fetchPrivnote = (token: string): Promise<PrivnoteResponse> =>
   api.get(`/privnote/${token}/`).then(r => r.data);
 
 export const verifyPrivnotePassword = (token: string, password: string): Promise<PrivnoteResponse> =>
   api.post(`/privnote/${token}/`, { password }).then(r => r.data);
 
-export const createPrivnote = (data: FormData) =>
-  fetch('/privnote/create/', {
+export const createPrivnote = async (data: FormData): Promise<CreatePrivnoteResponse> => {
+  const response = await fetch('/privnote/create/', {
     method: 'POST',
     body: data,
     credentials: 'same-origin',
     headers: { 'X-CSRFToken': getCSRFToken() },
-  }).then(async r => {
-    let body: { error?: string; [key: string]: unknown } = {};
-    try {
-      body = await r.json();
-    } catch {
-      if (!r.ok) throw new Error('私密链接创建失败，请稍后重试');
-    }
-    if (!r.ok) {
-      const message = typeof body?.error === 'string' ? body.error : '私密链接创建失败';
-      throw new Error(message);
-    }
-    return body;
   });
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    if (!response.ok) throw new Error('私密链接创建失败，请稍后重试');
+    throw new Error('服务器返回格式错误');
+  }
+  if (!response.ok) throw new Error(privnoteErrorMessage(body) || '私密链接创建失败');
+  // 页面只消费通过运行时校验的完整创建结果。
+  if (!isCreatePrivnoteResponse(body)) throw new Error('服务器返回格式错误');
+  return body;
+};
 
 // ── Privnote upgrade APIs (NOT under /api/ prefix) ──
 

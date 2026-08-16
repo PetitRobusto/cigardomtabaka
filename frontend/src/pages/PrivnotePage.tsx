@@ -279,8 +279,7 @@ export default function PrivnotePage() {
 
     try {
       const res = await createPrivnote(form);
-      if (res.url) setResult({ url: res.url, token: res.token });
-      else setError('私密链接创建失败：服务器未返回链接');
+      setResult(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : '私密链接创建失败，请稍后重试');
     } finally {

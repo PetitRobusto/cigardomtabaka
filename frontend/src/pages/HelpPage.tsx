@@ -84,7 +84,7 @@ function ChapterContent({ chapter, onOpen, onPlay, onOpenStep }: { chapter: Manu
     <p className="mt-3 text-sm leading-7 text-muted">{chapter.summary}</p>
     {tourSteps.length > 1 && <div className="mt-5 rounded border border-accent/30 bg-accent-light px-4 py-3">
       <p className="text-sm font-semibold text-fg">本章页面引导共 {tourSteps.length} 步</p>
-      <p className="mt-1 text-xs leading-5 text-muted">点击“播放本页引导”后，系统会按顺序高亮每个字段或按钮；需要填写的数据由你自己输入，引导不会替你提交业务动作。</p>
+      <p className="mt-1 text-xs leading-5 text-muted">点击“播放本页引导”后，页面会按顺序高亮每个字段或按钮；数据由你自己填写，引导不会替你提交任何操作。</p>
     </div>}
     <div className="mt-6 space-y-4">{chapter.sections.map(item => {
       const number = item.tourStepId ? stepIndex.get(item.tourStepId) : undefined;

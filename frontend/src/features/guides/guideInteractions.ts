@@ -12,9 +12,9 @@ export interface ContextTourStep {
 
 const salesCreateSteps: readonly ContextTourStep[] = [
   { id: 'sales-orders', title: '创建销售单', description: '从这张表单开始。引导只会高亮字段，不会代你保存或确认订单。', target: '[data-guide="sales-orders"]', route: '/sales' },
-  { id: 'sales-customer', title: '填写客户', description: '填写客户名称；临时散客也可以写“散客”，方便之后查找订单。', target: '[data-guide="sales-order-customer"]', route: '/sales' },
+  { id: 'sales-customer', title: '填写客户', description: '填客户名称；临时散客也可以写“散客”，方便之后查找订单。', target: '[data-guide="sales-order-customer"]', route: '/sales' },
   { id: 'sales-transport-payer', title: '选择人肉费承担方', description: '客户承担时，人肉费计入应收；公司承担时，客户人肉费自动为 0，实际成本在履约后另记。', target: '[data-guide="sales-order-transport-payer"]', route: '/sales' },
-  { id: 'sales-transport-fee', title: '填写客户人肉费', description: '如果选择客户承担，填客户实际要付的人肉费；金额只能是非负数，选择公司承担时这里会锁定为 0。', target: '[data-guide="sales-order-transport-fee"]', route: '/sales' },
+  { id: 'sales-transport-fee', title: '填写客户人肉费', description: '选择客户承担时，填客户实际要付的人肉费，金额不能是负数；选择公司承担时，这里会锁定为 0。', target: '[data-guide="sales-order-transport-fee"]', route: '/sales' },
   { id: 'sales-item-search', title: '搜索库存商品', description: '点击输入框会加载库存列表。输入中文名、英文名或品牌，再从下拉列表点选一款现货。', target: '[data-guide="sales-order-item-search"]', route: '/sales' },
   { id: 'sales-item-unit', title: '选择销售单位', description: '商品加入后选择整盒或单支；整盒销售还要核对每盒支数。请先在上一步选中商品。', target: '[data-guide="sales-order-item-unit"]', route: '/sales', waitForTarget: true },
   { id: 'sales-item-quantity', title: '填写数量', description: '填写本次销售的盒数或支数，必须大于 0，系统会按包装换算占用库存。', target: '[data-guide="sales-order-item-quantity"]', route: '/sales', waitForTarget: true },
@@ -26,9 +26,9 @@ const salesCreateSteps: readonly ContextTourStep[] = [
 ];
 
 const salesShipmentSteps: readonly ContextTourStep[] = [
-  { id: 'sales-ship', title: '登记出库', description: '货物实际交付时点击出库并填写业务日期。出库会扣减库存并固化本次销售的批次成本。', target: '[data-guide="sales-action-ship"]', route: '/sales', waitForTarget: true },
+  { id: 'sales-ship', title: '登记出库', description: '货物实际交付时点击出库并填写业务日期。出库会扣减库存，本次销售的批次成本在这一步定下来。', target: '[data-guide="sales-action-ship"]', route: '/sales', waitForTarget: true },
   { id: 'sales-ship-date', title: '填写出库日期', description: '填写货物实际交付的业务日期，再执行出库。', target: '[data-guide="sales-ship-date"]', route: '/sales', waitForTarget: true },
-  { id: 'sales-ship-submit', title: '提交出库', description: '核对日期后执行出库；库存和本次批次成本会在这一步固化。', target: '[data-guide="sales-ship-submit"]', route: '/sales', waitForTarget: true },
+  { id: 'sales-ship-submit', title: '提交出库', description: '核对日期后执行出库，库存和本次批次成本在这一步定下来。', target: '[data-guide="sales-ship-submit"]', route: '/sales', waitForTarget: true },
 ];
 
 const salesReceiptSteps: readonly ContextTourStep[] = [
@@ -51,7 +51,7 @@ const accountingExchangeSteps: readonly ContextTourStep[] = [
   { id: 'accounting-exchange-source-account', title: '选择转出账户', description: '选择实际转出人民币或 USDT 的公司账户。', target: '[data-guide="accounting-exchange-source-account"]', route: '/accounting' },
   { id: 'accounting-exchange-source-amount', title: '填写转出金额', description: '填银行卡或钱包实际转出的原币金额。', target: '[data-guide="accounting-exchange-source-amount"]', route: '/accounting' },
   { id: 'accounting-exchange-rub-account', title: '选择卢布账户', description: '选择实际收到卢布的公司银行卡账户。', target: '[data-guide="accounting-exchange-rub-account"]', route: '/accounting' },
-  { id: 'accounting-exchange-rub-amount', title: '填写转入金额', description: '填实际到账的卢布数量，汇率由两边实际数量体现。', target: '[data-guide="accounting-exchange-rub-amount"]', route: '/accounting' },
+  { id: 'accounting-exchange-rub-amount', title: '填写转入金额', description: '填实际到账的卢布金额，汇率由两边的实际金额自动算出。', target: '[data-guide="accounting-exchange-rub-amount"]', route: '/accounting' },
   { id: 'accounting-exchange-date', title: '填写换汇日期', description: '使用实际换汇发生的业务日期。', target: '[data-guide="accounting-exchange-date"]', route: '/accounting' },
   { id: 'accounting-exchange-submit', title: '提交换汇', description: '核对两边账户和金额后记录换汇，系统会同步资金余额和卢布成本。', target: '[data-guide="accounting-exchange-submit"]', route: '/accounting' },
 ];
@@ -127,7 +127,7 @@ export const CONTEXT_TOUR_GROUPS: Readonly<Record<string, readonly ContextTourSt
     { id: 'overview', title: '业务总览', description: '先从这里确认今天要做的是库存、销售还是账务。顶部入口分别进入对应工作台，数据会共享同一套雪茄目录和资金账户。', target: '[data-guide="overview"]', route: '/' },
     { id: 'overview-stats', title: '查看目录摘要', description: '先看品牌总数和目录状态，再决定是否进入库存或价格页继续核对。', target: '[data-guide="overview-stats"]', route: '/' },
     { id: 'overview-brand-search', title: '搜索品牌', description: '输入中文或英文品牌名快速缩小目录范围。', target: '[data-guide="overview-brand-search"]', route: '/' },
-    { id: 'overview-brand-list', title: '打开业务入口', description: '品牌卡片进入目录详情；库存、销售和账务请使用顶部导航，跨路由入口不在本次总览引导中连续执行。', target: '[data-guide="overview-brand-list"]', route: '/' },
+    { id: 'overview-brand-list', title: '打开业务入口', description: '点品牌卡片进入目录详情。库存、销售和账务请从顶部导航进入，本次引导不覆盖那些页面。', target: '[data-guide="overview-brand-list"]', route: '/' },
   ],
   inventoryBrowse: [
     { id: 'inventory-summary', title: '库存概览', description: '先确认品牌、款式、总支数和总成本，再开始筛选。', target: '[data-guide="inventory-summary"]', route: '/inventory' },
@@ -163,7 +163,7 @@ export const CONTEXT_TOUR_GROUPS: Readonly<Record<string, readonly ContextTourSt
     { id: 'prices-dashboard', title: '价格追踪总览', description: '先看当前价格数据是否加载完成，再按品牌筛选。', target: '[data-guide="prices-dashboard"]', route: '/prices' },
     { id: 'prices-stats', title: '查看价格统计', description: '统计显示价格条目、款式、品牌和来源数量，用来判断数据覆盖范围。', target: '[data-guide="prices-stats"]', route: '/prices' },
     { id: 'prices-filter', title: '筛选品牌', description: '选择品牌查看该品牌的价格卡片，点“全部品牌”恢复全量。', target: '[data-guide="prices-filter"]', route: '/prices' },
-    { id: 'prices-list', title: '打开单款价格', description: '点击一张价格卡进入单款详情；详情页的历史筛选和图表是另一条路由引导。', target: '[data-guide="prices-list"]', route: '/prices' },
+    { id: 'prices-list', title: '打开单款价格', description: '点击一张价格卡进入单款详情；详情页的历史筛选和图表有单独的引导。', target: '[data-guide="prices-list"]', route: '/prices' },
   ],
   pricesDetail: [
     { id: 'prices-history-filter', title: '选择历史范围', description: '先选择 7、14、30 或 90 天，决定历史数据的时间范围。', target: '[data-guide="prices-history-filter"]', route: '/prices/cigar' },

@@ -1,6 +1,6 @@
 export type Day1StatusState = { status: 'loading' | 'ready' | 'error'; day1Status?: string; message?: string };
 
-export const DAY1_STATUS_ERROR_MESSAGE = '状态无法确认，将安全返回账务工作台';
+export const DAY1_STATUS_ERROR_MESSAGE = '暂时无法确认初始化状态，将返回账务工作台。';
 
 export function day1StatusLoadingState(): Day1StatusState { return { status: 'loading' }; }
 export function day1StatusReadyState(day1Status: string): Day1StatusState { return { status: 'ready', day1Status }; }

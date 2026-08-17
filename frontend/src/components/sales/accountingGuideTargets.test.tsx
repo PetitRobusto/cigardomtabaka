@@ -19,4 +19,10 @@ describe("accounting guide target contract", () => {
     expect(html).toMatch(/<section data-guide="accounting-reconciliation"/);
     expect(html).toMatch(/<div data-guide="accounting-profit"/);
   });
+
+  it("可由工作台操作按钮打开现有对账弹窗", () => {
+    const html = renderToStaticMarkup(<AccountingPanel month="2026-08" onChanged={() => {}} reconciliationOpen accounts={[{ id: 7, name: "人民币账户", currency: "CNY", custodian_id: null, is_active: true }]} reconciliations={[]} />);
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('新建账户对账');
+  });
 });

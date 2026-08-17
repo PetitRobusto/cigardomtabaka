@@ -128,7 +128,9 @@ function decimalPlaces(value: string): number | null {
   if (!match) return null;
   const mantissa = normalized.split(/[eE]/i)[0].replace(/^[+-]/, '');
   const exponent = Number(match[1] || 0);
-  return Math.max(0, (mantissa.split('.')[1]?.length || 0) - exponent);
+  // 尾随零不增加金额精度，例如数据库返回的 100.00000000 仍是整数。
+  const fraction = (mantissa.split('.')[1] || '').replace(/0+$/, '');
+  return Math.max(0, fraction.length - exponent);
 }
 
 function hasExcessDecimalPlaces(value: string, places: number): boolean {

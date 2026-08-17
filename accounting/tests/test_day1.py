@@ -103,6 +103,17 @@ class Day1ServiceTest(TestCase):
         self.assertEqual(Day1DraftInventory.objects.get().loose_sticks, 3)
         self.assertEqual(self.generated_counts(), (0, 0, 0, 0, 0))
 
+    def test_saved_draft_serializes_original_amount_with_currency_precision(self):
+        from accounting.day1_serializers import serialize_day1_state
+
+        state = serialize_day1_state(self.save_draft())
+        accounts = {row['slot']: row for row in state['draft']['accounts']}
+
+        self.assertEqual(accounts['owner_cny']['original_amount'], '100.00')
+        self.assertEqual(accounts['partner_cny']['original_amount'], '0.00')
+        self.assertEqual(accounts['rub']['original_amount'], '1200.00')
+        self.assertEqual(accounts['usdt']['original_amount'], '10.00000000')
+
     def test_confirmation_posts_all_assets_through_day1_opening_shape(self):
         from accounting.day1 import confirm_day1, save_day1_draft
 

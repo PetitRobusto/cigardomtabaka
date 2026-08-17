@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import AccountingActionCenter from './AccountingActionCenter';
 
 describe('账务动作中心 SSR 契约', () => {
-  it('四张动作卡使用可聚焦的稳定引导 section', () => {
+  it('默认只渲染换汇表单，并保留全部操作入口', () => {
     const props = {
       accounts: [],
       purchases: [],
@@ -13,11 +13,23 @@ describe('账务动作中心 SSR 契约', () => {
       onChanged: () => undefined,
     } satisfies ComponentProps<typeof AccountingActionCenter>;
     const html = renderToStaticMarkup(<AccountingActionCenter {...props} />);
-    for (const target of ['exchange', 'purchase', 'expense', 'dividend']) {
-      expect(html).toMatch(new RegExp(`<section(?=[^>]*data-guide="accounting-actions-${target}")(?=[^>]*tabindex="-1")[^>]*>`));
+    for (const label of ['换汇', '采购', '记录费用', '分红', '账户对账']) {
+      expect(html).toContain(label);
     }
-    // 引导定位不能落在提交按钮上，避免误触真实账务动作。
-    expect(html).not.toMatch(/<button[^>]*data-guide=/);
+    expect(html).toMatch(/<section(?=[^>]*data-guide="accounting-actions-exchange")(?=[^>]*tabindex="-1")[^>]*>/);
+    expect(html).not.toContain('data-guide="accounting-actions-purchase"');
+    expect(html).not.toContain('data-guide="accounting-actions-expense"');
+    expect(html).not.toContain('data-guide="accounting-actions-dividend"');
+  });
+
+  it('可按帮助引导直接打开采购表单', () => {
+    const html = renderToStaticMarkup(<AccountingActionCenter
+      accounts={[]}
+      businessDate="2026-08-15"
+      initialAction="purchase"
+    />);
+    expect(html).toContain('data-guide="accounting-actions-purchase"');
+    expect(html).not.toContain('data-guide="accounting-actions-exchange"');
   });
 
   it('摘要账户应优先使用带余额的 summaryAccounts 数据', () => {

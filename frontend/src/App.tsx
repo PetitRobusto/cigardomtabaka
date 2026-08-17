@@ -9,7 +9,7 @@ import BrandDetailPage from './pages/BrandDetailPage';
 import CigarCatalogDetailPage from './pages/CigarCatalogDetailPage';
 
 // Inventory & Auth
-import InventoryPage from './pages/InventoryPage';
+import InventoryPage from './pages/InventoryWorkbenchPage';
 import LoginPage from './pages/LoginPage';
 
 // Privnote

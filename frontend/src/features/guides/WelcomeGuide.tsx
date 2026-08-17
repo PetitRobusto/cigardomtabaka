@@ -45,7 +45,7 @@ export default function WelcomeGuide({ stepIndex, onPrevious, onNext, onAction, 
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-fg/70 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="welcome-guide-title">
       <div ref={dialogRef} className="relative w-full max-w-2xl rounded-2xl border border-border bg-cream p-6 shadow-2xl sm:p-9">
         <button ref={closeRef} type="button" aria-label="关闭引导" disabled={busy} onClick={() => onAction('close')} className="absolute right-4 top-4 rounded p-2 text-xl leading-none text-muted hover:bg-accent-light hover:text-fg">×</button>
-        <p className="text-[11px] font-bold uppercase tracking-[.15em] text-gold">欢迎加入 · 第 {stepIndex + 1} / {GUIDE_STEPS.length} 步</p>
+        <p className="text-[11px] font-bold uppercase tracking-[.15em] text-gold">新手引导 · 第 {stepIndex + 1} / {GUIDE_STEPS.length} 步</p>
         <div className="my-6 flex gap-1.5" aria-label={`${GUIDE_STEPS.length}步进度`}>
           {GUIDE_STEPS.map((item, index) => <i key={item.id} className={`h-1.5 flex-1 rounded-full ${index <= stepIndex ? 'bg-accent' : 'bg-border'}`} />)}
         </div>

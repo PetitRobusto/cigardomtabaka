@@ -77,7 +77,7 @@ export default function GuideController() {
 
   if (!staff || excluded) return null;
   return <>
-    {statusError && <div role="status" className="fixed bottom-4 left-4 z-[100] flex max-w-sm items-start gap-3 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span>{statusError} 已安全关闭引导，可稍后从帮助中心重播。</span><button type="button" aria-label="关闭引导错误" onClick={() => setStatusError('')} className="shrink-0 text-lg leading-none">×</button></div>}
+    {statusError && <div role="status" className="fixed bottom-4 left-4 z-[100] flex max-w-sm items-start gap-3 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span>{statusError}，引导已关闭，可稍后从帮助中心重新播放。</span><button type="button" aria-label="关闭引导错误" onClick={() => setStatusError('')} className="shrink-0 text-lg leading-none">×</button></div>}
     {welcomeOpen && <WelcomeGuide busy={actionBusy} stepIndex={stepIndex} onPrevious={() => setStepIndex(value => Math.max(0, value - 1))} onNext={() => setStepIndex(value => value + 1)} onAction={async action => { const succeeded = await handleAction(action); if (succeeded && action === 'finish') navigate('/sales', { state: { guideTourId: 'sales-orders' } }); }} />}
     {!welcomeOpen && requestedTour && <><style>{'.guide-target-highlight{position:relative;z-index:70;outline:3px solid #7A1F2E;outline-offset:5px;box-shadow:0 0 0 9999px rgba(44,36,22,.36),0 8px 28px rgba(122,31,46,.25);border-radius:8px;}'}</style><ContextTour busy={actionBusy} stepId={requestedTour} onAction={action => { void handleAction(action, 'context'); }} onMissingTarget={handleMissingTarget} /></>}
   </>;

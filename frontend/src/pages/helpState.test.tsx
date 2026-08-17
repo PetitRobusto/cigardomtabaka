@@ -6,10 +6,10 @@ import { day1StatusErrorState, day1StatusNavigation, type Day1StatusState } from
 describe("help Day1 status safety", () => {
   it("turns a failed status read into a retryable safe state", () => {
     const state = day1StatusErrorState();
-    expect(state.message).toBe("状态无法确认，将安全返回账务工作台");
+    expect(state.message).toBe("暂时无法确认初始化状态，将返回账务工作台。");
     expect(day1StatusNavigation(state)).toBe("/accounting");
     const html = renderToStaticMarkup(<Day1StatusNotice state={state} onRetry={vi.fn()} />);
-    expect(html).toContain("状态无法确认，将安全返回账务工作台");
+    expect(html).toContain("暂时无法确认初始化状态，将返回账务工作台。");
     expect(html).toContain("重试");
   });
 

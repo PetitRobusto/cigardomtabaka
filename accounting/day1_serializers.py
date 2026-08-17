@@ -1,6 +1,6 @@
 """Stable JSON read models for the one-time Day 1 workflow."""
 
-from accounting.models import Day1DraftAccount
+from accounting.models import Day1DraftAccount, FundAccount
 
 
 _SLOT_ORDER = {
@@ -9,6 +9,12 @@ _SLOT_ORDER = {
     Day1DraftAccount.Slot.RUB: 2,
     Day1DraftAccount.Slot.USDT: 3,
 }
+
+
+def _original_amount(row):
+    """按账户币种输出可直接再次提交的原币精度。"""
+    places = 8 if row.currency == FundAccount.Currency.USDT else 2
+    return format(row.original_amount, f'.{places}f')
 
 
 def _serialize_draft(initialization):
@@ -27,7 +33,7 @@ def _serialize_draft(initialization):
                 'slot': row.slot,
                 'name': row.account_name,
                 'currency': row.currency,
-                'original_amount': format(row.original_amount, '.8f'),
+                'original_amount': _original_amount(row),
                 'cny_book_cost': format(row.cny_book_cost, '.2f'),
             }
             for row in accounts

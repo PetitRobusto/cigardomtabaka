@@ -4,6 +4,7 @@ import {
   availableActions,
   actionNeedsFundAccount,
   formatCny,
+  formatOriginalAmount,
   formatSignedCny,
   initialActionAmount,
   orderDisplayStatus,
@@ -41,6 +42,8 @@ describe('summarizeSalesOrders', () => {
     expect(actionLabel('return')).toBe('整单退货');
     expect(formatCny('1234.5')).toBe('¥1,234.50');
     expect(formatCny('bad')).toBe('¥0.00');
+    expect(formatOriginalAmount('1200.00000000', 'RUB')).toBe('1,200.00');
+    expect(formatOriginalAmount('12.34000000', 'USDT')).toBe('12.34');
     expect(formatSignedCny('-123.4')).toBe('-¥123.40');
     expect(formatSignedCny('123.4')).toBe('¥123.40');
   });

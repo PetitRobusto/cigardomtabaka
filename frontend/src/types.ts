@@ -622,6 +622,14 @@ export interface MonthlyProfitReport {
   customer_transport_revenue_cny: string;
   cost_of_goods_sold_cny: string;
   transport_expense_cny: string;
+  salary_expense_cny: string;
+  rent_expense_cny: string;
+  utilities_expense_cny: string;
+  other_expense_cny: string;
+  inventory_adjustment_gain_cny: string;
+  inventory_adjustment_loss_cny: string;
+  reconciliation_gain_cny: string;
+  reconciliation_loss_cny: string;
   net_profit_cny: string;
   transaction_count: number;
 }

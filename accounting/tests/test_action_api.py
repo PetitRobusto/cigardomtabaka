@@ -218,14 +218,15 @@ class ActionApiContractTest(TestCase):
         self.assertEqual(PurchaseBatch.objects.filter(purchase_order_item__purchase_order_id=order_id).count(), 1)
         self.assertEqual(len(received.json()['purchase_batches']), 1)
 
-    def test_salary_from_rub_is_currency_rule_and_operational_error_is_busy(self):
+    def test_salary_from_rub_is_supported_and_operational_error_is_busy(self):
         self.complete_day1()
         rub = FundAccount.objects.create(name='动作卢布', currency='RUB', creation_idempotency_key='action-rub')
+        record_opening_balance(rub, Decimal('10.00'), Decimal('1.00'), LedgerPosting.Category.OPENING_CAPITAL, date(2026, 8, 10), self.operator, 'action-rub-opening')
         response = self.request('post', '/api/accounting/expenses/', {
             'category': 'salary', 'amount': '1.00', 'fund_account_id': rub.pk, 'business_date': '2026-08-14',
         }, key='action-rub-salary')
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()['code'], 'currency_rule')
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(response.json()['expense'])
         with patch('accounting.views.record_expense', side_effect=OperationalError('database is locked')):
             expense_count = Expense.objects.count()
             ledger_count = LedgerTransaction.objects.count()

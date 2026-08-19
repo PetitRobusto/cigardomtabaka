@@ -126,6 +126,19 @@ describe('Day 1 state rules', () => {
     expect(validateDay1Draft(draft).some(error => error.includes('小数位数超出允许精度'))).toBe(true);
   });
 
+  it('accepts fixed-width trailing zeros returned by a saved draft', () => {
+    const draft = emptyDay1Draft('2026-08-14');
+    draft.accounts = [
+      { slot: 'owner_cny', name: '我的人民币账户', currency: 'CNY', original_amount: '1111.00000000', cny_book_cost: '1111.00' },
+      { slot: 'partner_cny', name: '合伙人人民币账户', currency: 'CNY', original_amount: '1111.00000000', cny_book_cost: '1111.00' },
+      { slot: 'rub', name: '卢布账户', currency: 'RUB', original_amount: '200000.00000000', cny_book_cost: '21000.00' },
+      { slot: 'usdt', name: 'USDT账户', currency: 'USDT', original_amount: '300.00000000', cny_book_cost: '2100.00' },
+    ];
+    draft.inventory = [{ cigar_id: 4, box_size: 25, box_quantity: 1, loose_sticks: 0, unit_cost_cny: '1.00' }];
+
+    expect(validateDay1Draft(draft)).toEqual([]);
+  });
+
   it('rejects stale search responses after the query request changes', () => {
     expect(isLatestDay1SearchRequest(1, 2)).toBe(false);
     expect(isLatestDay1SearchRequest(2, 2)).toBe(true);

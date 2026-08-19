@@ -8,6 +8,7 @@ urlpatterns = [
     path('day1/', views.day1_status, name='day1_status'),
     path('day1/draft/', views.day1_draft, name='day1_draft'),
     path('day1/confirm/', views.day1_confirm, name='day1_confirm'),
+    path('accounts/<int:account_id>/', views.account_detail, name='account_detail'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('accounts/', views.accounts, name='accounts'),
     path('opening-balances/', views.opening_balances, name='opening_balances'),

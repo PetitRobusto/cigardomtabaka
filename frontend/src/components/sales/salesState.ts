@@ -153,6 +153,13 @@ export function formatCny(value: number | string | null | undefined): string {
   return `¥${amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** 账户原币显示按币种收口；RUB/CNY 固定两位，USDT 保留有效精度。 */
+export function formatOriginalAmount(value: number | string | null | undefined, currency: string): string {
+  const amount = amountOf(value);
+  const digits = currency === 'USDT' ? { minimumFractionDigits: 2, maximumFractionDigits: 8 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+  return amount.toLocaleString('zh-CN', digits);
+}
+
 export function formatSignedCny(value: number | string | null | undefined): string {
   const amount = amountOf(value);
   return amount < 0 ? `-${formatCny(Math.abs(amount))}` : formatCny(amount);

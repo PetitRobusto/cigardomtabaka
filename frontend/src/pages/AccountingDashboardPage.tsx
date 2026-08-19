@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'react-router-dom';
 import { apiErrorMessage, fetchAccountingAccounts, fetchAccountingActions, fetchAccountingDashboard, fetchAccountingSummary, fetchMonthlyProfit, fetchReconciliations } from '../api';
 import { usePageMeta } from '../hooks/usePageMeta';
 import AccountingPanel from '../components/sales/AccountingPanel';
-import AccountingActionCenter from '../components/accounting/AccountingActionCenter';
+import AccountingActionCenter, { type AccountingActionKind } from '../components/accounting/AccountingActionCenter';
+import MonthlyProfitSummary from '../components/accounting/MonthlyProfitSummary';
 import { formatCny, formatSignedCny } from '../components/sales/salesState';
 import { dashboardDay1Action, dashboardRegionStates, dashboardStatDisplay } from './businessRoutes';
 import { moscowBusinessDate, moscowBusinessMonth } from '../utils/businessDate';
@@ -12,7 +14,11 @@ import { moscowBusinessDate, moscowBusinessMonth } from '../utils/businessDate';
 export default function AccountingDashboardPage() {
   const { setMeta } = usePageMeta();
   const queryClient = useQueryClient();
+  const location = useLocation();
   const [month, setMonth] = useState(moscowBusinessMonth());
+  const [reconciliationOpen, setReconciliationOpen] = useState(false);
+  const guideTourId = (location.state as { guideTourId?: string } | null)?.guideTourId;
+  const initialAction = accountingActionForGuide(guideTourId);
   useEffect(() => { setMeta({ title: '账务工作台', breadcrumbs: [{ label: '首页', to: '/' }, { label: '账务工作台' }] }); }, [setMeta]);
   const dashboard = useQuery({ queryKey: ['accounting-dashboard'], queryFn: fetchAccountingDashboard });
   const day1Completed = dashboard.data?.day1_status === 'completed' && !dashboard.data.requires_day1;
@@ -22,7 +28,7 @@ export default function AccountingDashboardPage() {
   const reconciliations = useQuery({ queryKey: ['reconciliations'], queryFn: fetchReconciliations, enabled: Boolean(dashboard.data && !dashboard.data.requires_day1) });
   // 动作列表单独查询，局部失败时不清空 dashboard 的统计快照。
   const actions = useQuery({ queryKey: ['accounting-actions'], queryFn: fetchAccountingActions, enabled: day1Completed });
-  // Refresh the dashboard snapshot and its supporting action panels together.
+  // 一次刷新账务快照及其关联操作数据，避免页面各区域时间点不一致。
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['accounting-dashboard'] });
     queryClient.invalidateQueries({ queryKey: ['accounting-accounts'] });
@@ -42,7 +48,17 @@ export default function AccountingDashboardPage() {
   return <div className="w-full animate-fade-in">
     <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Accounting desk</p><h1 className="mt-1 font-display text-3xl font-semibold tracking-tight sm:text-4xl">账务工作台</h1><p className="mt-2 text-sm text-muted">资金、库存成本、利润和对账的真实快照。</p></div><div className="flex gap-2"><input data-guide="accounting-profit-month" type="month" value={month} onChange={event => setMonth(event.target.value)} className="rounded border border-border bg-white px-3 py-2 text-sm" /><button type="button" onClick={refresh} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
     {dashboard.error && <div className="mb-5 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{apiErrorMessage(dashboard.error, '账务数据加载失败')}</div>}
-    {data && <><section className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat label="人民币资金" value={moneyStat(data.stats.cny_funds_total)} /><Stat label="库存成本" value={moneyStat(data.stats.inventory_book_cost_cny)} /><Stat label="本月利润" value={signedMoneyStat(data.stats.month_net_profit_cny)} tone="text-success" /><Stat label="待收订单" value={moneyStat(data.stats.accounts_receivable_cny)} /></section>{!day1Completed ? <Day1Card status={data.day1_status} /> : <><AccountingActionCenter accounts={accounts.data || data.accounts || []} summaryAccounts={data.accounts} actions={actions.data} businessDate={moscowBusinessDate()} actionsLoading={actions.isLoading} actionsError={actions.isError ? apiErrorMessage(actions.error, "账务动作列表加载失败") : undefined} onChanged={refresh} /><AccountingPanel
+    {data && <>
+      <section className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat label="人民币资金" value={moneyStat(data.stats.cny_funds_total)} /><Stat label="库存成本" value={moneyStat(data.stats.inventory_book_cost_cny)} /><Stat label="本月利润" value={signedMoneyStat(data.stats.month_net_profit_cny)} tone="text-success" /><Stat label="待收订单" value={moneyStat(data.stats.accounts_receivable_cny)} /></section>
+      {!day1Completed ? <Day1Card status={data.day1_status} /> : <>
+        <MonthlyProfitSummary
+          profit={regionStates.profit === 'ready' ? profit.data : undefined}
+          profitError={regionStates.profit === 'error' ? apiErrorMessage(profit.error, '月度利润加载失败') : undefined}
+          month={month}
+        />
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] lg:items-start">
+          <AccountingActionCenter accounts={accounts.data || data.accounts || []} summaryAccounts={data.accounts} actions={actions.data} businessDate={moscowBusinessDate()} actionsLoading={actions.isLoading} actionsError={actions.isError ? apiErrorMessage(actions.error, '账务动作列表加载失败') : undefined} onChanged={refresh} initialAction={initialAction} onOpenReconciliation={() => setReconciliationOpen(true)} />
+        <AccountingPanel
       accounts={regionStates.accounts === 'ready' ? accounts.data : undefined}
       summary={regionStates.summary === 'ready' ? summary.data : undefined}
       profit={regionStates.profit === 'ready' ? profit.data : undefined}
@@ -51,8 +67,18 @@ export default function AccountingDashboardPage() {
       summaryError={regionStates.summary === 'error' ? apiErrorMessage(summary.error, '库存与账务摘要加载失败') : undefined}
       profitError={regionStates.profit === 'error' ? apiErrorMessage(profit.error, '月度利润加载失败') : undefined}
       reconciliationError={regionStates.reconciliation === 'error' ? apiErrorMessage(reconciliations.error, '账户对账加载失败') : undefined}
-      month={month} onChanged={refresh} showStats={false} /></>}</>}
+      month={month} onChanged={refresh} showStats={false} showProfit={false}
+      reconciliationOpen={reconciliationOpen}
+            onReconciliationOpenChange={setReconciliationOpen} />
+        </div></>}</>}
   </div>;
+}
+
+function accountingActionForGuide(guideTourId?: string): AccountingActionKind {
+  if (guideTourId?.includes('purchase')) return 'purchase';
+  if (guideTourId?.includes('expense')) return 'expense';
+  if (guideTourId?.includes('dividend')) return 'dividend';
+  return 'exchange';
 }
 
 function moneyStat(value: string | null): string { return dashboardStatDisplay(value == null ? null : formatCny(value)); }

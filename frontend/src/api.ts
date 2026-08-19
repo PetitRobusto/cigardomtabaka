@@ -150,6 +150,16 @@ export function clearDay1ValidationDetails(details: Record<string, string>, pref
 export const fetchAccountingAccounts = (): Promise<FundAccount[]> =>
   api.get('/accounting/accounts/').then(r => r.data.accounts || []);
 
+
+export const createAccountingAccount = (payload: { name: string; currency: string }): Promise<FundAccount> =>
+  writeWithIdempotency<{ account: FundAccount }>('create-account', payload, config =>
+    api.post('/accounting/accounts/', payload, config),
+  ).then(r => r.account);
+
+export const updateAccountingAccount = (id: number, payload: { name?: string; is_active?: boolean }): Promise<FundAccount> =>
+  writeWithIdempotency<{ account: FundAccount }>(`update-account-${id}`, payload, config =>
+    api.patch(`/accounting/accounts/${id}/`, payload, config),
+  ).then(r => r.account);
 export const fetchAccountingSummary = (asOf: string): Promise<AccountingSummary> =>
   api.get('/accounting/reports/summary/', { params: { as_of: asOf } }).then(r => r.data);
 

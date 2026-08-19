@@ -412,6 +412,43 @@ def accounts(request):
 
 
 @staff_json_required
+def account_detail(request, account_id):
+    """账户只允许改名或停用，币种一旦产生流水就必须保持不变。"""
+    if request.method != 'PATCH':
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
+    try:
+        payload = _json_object(request)
+        account = FundAccount.objects.get(pk=account_id)
+        if 'currency' in payload:
+            raise ApiInputError('账户币种不能修改')
+        update_fields = []
+        if 'name' in payload:
+            name = payload.get('name')
+            if not isinstance(name, str) or not name.strip() or len(name.strip()) > 120:
+                raise ApiInputError('账户名称不能为空且不能超过120个字符')
+            account.name = name.strip()
+            update_fields.append('name')
+        if 'is_active' in payload:
+            if not isinstance(payload['is_active'], bool):
+                raise ApiInputError('账户启用状态无效')
+            account.is_active = payload['is_active']
+            update_fields.append('is_active')
+        if not update_fields:
+            raise ApiInputError('没有可修改的账户字段')
+        try:
+            with transaction.atomic():
+                account.save(update_fields=update_fields)
+        except IntegrityError:
+            raise ApiInputError('账户名称已存在')
+        return JsonResponse({'account': serialize_account(account)})
+    except FundAccount.DoesNotExist:
+        return error_response(ApiInputError('资金账户不存在', code='account_not_found'))
+    except ApiInputError as error:
+        return error_response(error)
+
+@staff_json_required
+
+
 def opening_balances(request):
     if request.method != 'POST':
         return _json_error('请求方法不支持', status=405, code='method_not_allowed')

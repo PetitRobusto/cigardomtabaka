@@ -99,7 +99,14 @@ class Day1ApiTest(TestCase):
         self.assertEqual(saved.status_code, 200)
         self.assertEqual(saved.json()['status'], 'draft')
         self.assertEqual(saved.json()['version'], 1)
-        self.assertEqual(saved.json()['draft']['accounts'][0]['original_amount'], '100.00000000')
+        accounts = {
+            row['slot']: row
+            for row in saved.json()['draft']['accounts']
+        }
+        self.assertEqual(accounts['owner_cny']['original_amount'], '100.00')
+        self.assertEqual(accounts['partner_cny']['original_amount'], '0.00')
+        self.assertEqual(accounts['rub']['original_amount'], '1200.00')
+        self.assertEqual(accounts['usdt']['original_amount'], '10.00000000')
         self.assertEqual(saved.json()['draft']['inventory'][0]['unit_cost_cny'], '12.50')
         self.assertEqual(draft.json(), saved.json())
         self.assertEqual(confirmed.status_code, 200)

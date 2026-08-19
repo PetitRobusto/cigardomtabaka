@@ -59,16 +59,16 @@ def _normalise_business_date(value):
 
 _CATEGORY_RULES = {
     Expense.Category.SALARY: (
-        FundAccount.Currency.CNY, LedgerPosting.Category.SALARY_EXPENSE,
+        {FundAccount.Currency.CNY, FundAccount.Currency.RUB}, LedgerPosting.Category.SALARY_EXPENSE,
     ),
     Expense.Category.RENT: (
-        FundAccount.Currency.RUB, LedgerPosting.Category.RENT_EXPENSE,
+        {FundAccount.Currency.CNY, FundAccount.Currency.RUB}, LedgerPosting.Category.RENT_EXPENSE,
     ),
     Expense.Category.UTILITIES: (
-        FundAccount.Currency.RUB, LedgerPosting.Category.UTILITIES_EXPENSE,
+        {FundAccount.Currency.CNY, FundAccount.Currency.RUB}, LedgerPosting.Category.UTILITIES_EXPENSE,
     ),
     Expense.Category.OTHER: (
-        FundAccount.Currency.RUB, LedgerPosting.Category.OTHER_EXPENSE,
+        {FundAccount.Currency.CNY, FundAccount.Currency.RUB}, LedgerPosting.Category.OTHER_EXPENSE,
     ),
 }
 
@@ -168,7 +168,7 @@ def record_expense(*, category, amount, fund_account_id, business_date,
     with transaction.atomic():
         _acquire_sqlite_writer_gate()
         try:
-            currency, posting_category = _CATEGORY_RULES[category]
+            allowed_currencies, posting_category = _CATEGORY_RULES[category]
         except KeyError:
             raise ExpenseActionError('invalid_category')
         key = _normalise_key(idempotency_key)
@@ -196,7 +196,7 @@ def record_expense(*, category, amount, fund_account_id, business_date,
         account = FundAccount.objects.select_for_update().filter(pk=account_id).first()
         if account is None:
             raise ExpenseActionError('account_not_found')
-        if account.currency != currency:
+        if account.currency not in allowed_currencies:
             raise ExpenseActionError('currency_rule')
         if not account.is_active:
             raise ExpenseActionError('account_inactive')

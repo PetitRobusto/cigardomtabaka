@@ -148,10 +148,6 @@ class ExpenseActionTest(TestCase):
                 'expense-inactive-case',
             ),
             (
-                Expense.Category.SALARY, self.rub.pk, 'currency_rule',
-                'expense-currency-case',
-            ),
-            (
                 Expense.Category.RENT, self.rub.pk, 'insufficient_balance',
                 'expense-balance-case',
             ),

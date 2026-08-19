@@ -42,7 +42,7 @@ describe('账务动作中心 SSR 契约', () => {
       onChanged: () => undefined,
     } satisfies ComponentProps<typeof AccountingActionCenter>;
     const html = renderToStaticMarkup(<AccountingActionCenter {...props} />);
-    expect(html).toContain('12345.67');
+    expect(html).toContain('12,345.67');
     expect(html).toContain('人民币账户');
     expect(html).not.toContain('当前接口未提供余额');
   });

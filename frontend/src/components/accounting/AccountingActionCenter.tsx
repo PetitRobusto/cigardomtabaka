@@ -13,6 +13,7 @@ import ExchangeAction from './ExchangeAction';
 import PurchaseAction from './PurchaseAction';
 import ExpenseAction from './ExpenseAction';
 import DividendActionCard from './DividendAction';
+import { formatOriginalAmount } from '../sales/salesState';
 export type AccountingActionKind = 'exchange' | 'purchase' | 'expense' | 'dividend';
 
 export interface AccountingActionCenterProps {
@@ -37,7 +38,7 @@ function hasValue(value: string | null | undefined): value is string {
 }
 
 function accountAmount(account: FundAccount): { value: string; currency: string } | null {
-  if (hasValue(account.original_balance)) return { value: account.original_balance, currency: account.currency };
+  if (hasValue(account.original_balance)) return { value: formatOriginalAmount(account.original_balance, account.currency), currency: account.currency };
   if (hasValue(account.cny_book_cost)) return { value: account.cny_book_cost, currency: '人民币账面成本' };
   return null;
 }
@@ -97,13 +98,13 @@ export default function AccountingActionCenter({
   }[activeAction];
 
   return (
-    <section aria-labelledby="accounting-actions-title" className="mb-7 overflow-hidden rounded-md border border-border bg-white shadow-sm">
-      <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
+    <section aria-labelledby="accounting-actions-title" className="mb-7 w-full overflow-hidden rounded-md border border-border bg-white shadow-sm">
+      <div className="grid gap-4 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:items-start">
         <div>
           <h2 id="accounting-actions-title" className="font-display text-lg font-semibold">记录经营动作</h2>
           <p className="mt-1 text-xs text-muted">选择一种动作，只展开当前需要填写的表单。</p>
         </div>
-        <div className="min-w-0 text-xs text-muted lg:max-w-[38rem]">
+        <div className="min-w-0 text-xs text-muted lg:max-w-none lg:justify-self-end lg:text-right">
           <span className="font-semibold text-fg">当前账户</span>
           {accountsWithAmount.length > 0 ? (
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">

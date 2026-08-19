@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import ExpenseAction from './ExpenseAction';
 
 describe('经营费用动作卡 SSR 契约', () => {
-  it('体现工资用 CNY、其他费用用 RUB 的分类过滤', () => {
+  it('费用类别不再强制绑定币种', () => {
     const props = {
       accounts: [
         { id: 1, name: '人民币账户', currency: 'CNY', custodian_id: null, is_active: true },
@@ -17,10 +17,22 @@ describe('经营费用动作卡 SSR 契约', () => {
     } satisfies ComponentProps<typeof ExpenseAction>;
     const html = renderToStaticMarkup(<ExpenseAction {...props} />);
     expect(html).toContain('工资');
-    expect(html).toContain('CNY');
-    expect(html).not.toContain('卢布银行卡');
+    expect(html).toContain('支付币种');
+    expect(html).toContain('人民币（CNY）');
   });
-
+  it('选择任意费用时可使用卢布账户', () => {
+    const html = renderToStaticMarkup(<ExpenseAction
+      accounts={[
+        { id: 1, name: '人民币账户', currency: 'CNY', custodian_id: null, is_active: true },
+        { id: 3, name: '卢布银行卡', currency: 'RUB', custodian_id: null, is_active: true },
+      ]}
+      category="rent"
+      value={{ fund_account_id: 3 }}
+    />);
+    expect(html).toContain('房租');
+    expect(html).toContain('卢布银行卡');
+    expect(html).toContain('value="3"');
+  });
   it('显式 businessDate 应作为默认业务日期', () => {
     const props = {
       accounts: [{ id: 1, name: '人民币账户', currency: 'CNY', custodian_id: null, is_active: true }],

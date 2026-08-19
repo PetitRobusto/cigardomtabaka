@@ -92,6 +92,35 @@ class AccountingApiPermissionTest(TestCase):
         self.assertEqual(conflicting.status_code, 400)
         self.assertEqual(conflicting.json(), {'error': '幂等键已用于不同账户请求', 'code': 'input_error', 'details': {}})
 
+    def test_staff_can_rename_and_deactivate_account_without_changing_currency(self):
+        staff = User.objects.create_user('api-account-edit-staff', password='pass', is_staff=True)
+        account = FundAccount.objects.create(
+            name='待改名账户', currency='RUB', creation_idempotency_key='api-edit-account',
+        )
+        self.client.force_login(staff)
+
+        renamed = self.client.patch(
+            f'/api/accounting/accounts/{account.pk}/', data={'name': '卢布银行卡'},
+            content_type='application/json',
+        )
+        self.assertEqual(renamed.status_code, 200)
+        self.assertEqual(renamed.json()['account']['name'], '卢布银行卡')
+        self.assertEqual(renamed.json()['account']['currency'], 'RUB')
+
+        disabled = self.client.patch(
+            f'/api/accounting/accounts/{account.pk}/', data={'is_active': False},
+            content_type='application/json',
+        )
+        self.assertEqual(disabled.status_code, 200)
+        self.assertFalse(disabled.json()['account']['is_active'])
+
+        currency_change = self.client.patch(
+            f'/api/accounting/accounts/{account.pk}/', data={'currency': 'CNY'},
+            content_type='application/json',
+        )
+        self.assertEqual(currency_change.status_code, 400)
+        self.assertEqual(currency_change.json()['error'], '账户币种不能修改')
+
     def test_opening_balance_returns_transaction_and_decimal_string_snapshot(self):
         staff = User.objects.create_user('api-opening-staff', password='pass', is_staff=True)
         account = FundAccount.objects.create(

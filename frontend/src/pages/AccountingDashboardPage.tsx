@@ -56,7 +56,8 @@ export default function AccountingDashboardPage() {
           profitError={regionStates.profit === 'error' ? apiErrorMessage(profit.error, '月度利润加载失败') : undefined}
           month={month}
         />
-        <AccountingActionCenter accounts={accounts.data || data.accounts || []} summaryAccounts={data.accounts} actions={actions.data} businessDate={moscowBusinessDate()} actionsLoading={actions.isLoading} actionsError={actions.isError ? apiErrorMessage(actions.error, '账务动作列表加载失败') : undefined} onChanged={refresh} initialAction={initialAction} onOpenReconciliation={() => setReconciliationOpen(true)} />
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] lg:items-start">
+          <AccountingActionCenter accounts={accounts.data || data.accounts || []} summaryAccounts={data.accounts} actions={actions.data} businessDate={moscowBusinessDate()} actionsLoading={actions.isLoading} actionsError={actions.isError ? apiErrorMessage(actions.error, '账务动作列表加载失败') : undefined} onChanged={refresh} initialAction={initialAction} onOpenReconciliation={() => setReconciliationOpen(true)} />
         <AccountingPanel
       accounts={regionStates.accounts === 'ready' ? accounts.data : undefined}
       summary={regionStates.summary === 'ready' ? summary.data : undefined}
@@ -68,7 +69,8 @@ export default function AccountingDashboardPage() {
       reconciliationError={regionStates.reconciliation === 'error' ? apiErrorMessage(reconciliations.error, '账户对账加载失败') : undefined}
       month={month} onChanged={refresh} showStats={false} showProfit={false}
       reconciliationOpen={reconciliationOpen}
-      onReconciliationOpenChange={setReconciliationOpen} /></>}</>}
+            onReconciliationOpenChange={setReconciliationOpen} />
+        </div></>}</>}
   </div>;
 }
 

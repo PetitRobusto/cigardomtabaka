@@ -414,6 +414,20 @@ export interface CustomerResult {
   id: number;
   name: string;
   phone: string;
+  created_at?: string;
+  deleted_at?: string | null;
+  order_count?: number;
+  active_order_count?: number;
+  total_amount_cny?: number;
+}
+
+export interface SalesCustomer extends CustomerResult {
+  created_at: string;
+  deleted_at: string | null;
+  order_count: number;
+  active_order_count: number;
+  total_amount_cny: number;
+  recent_orders: SalesOrder[];
 }
 
 export interface ExtraFee {
@@ -571,7 +585,7 @@ export interface SalesOrder {
   payment_status: 'unpaid' | 'paid' | 'refund_pending' | 'refunded' | string;
   customer_id: number | null;
   customer_name: string;
-  customer?: { id: number; name: string; phone: string } | null;
+  customer?: { id: number; name: string; phone: string; deleted_at: string | null } | null;
   goods_amount_cny: number;
   customer_transport_fee_cny: number;
   transport_payer: 'customer' | 'company';
@@ -628,6 +642,8 @@ export interface MonthlyProfitReport {
   salary_expense_cny: string;
   rent_expense_cny: string;
   utilities_expense_cny: string;
+  professional_expense_cny: string;
+  interest_expense_cny: string;
   other_expense_cny: string;
   inventory_adjustment_gain_cny: string;
   inventory_adjustment_loss_cny: string;
@@ -834,7 +850,7 @@ export interface PurchaseActionUpdatePayload {
 }
 
 export interface ExpenseActionPayload {
-  category: 'salary' | 'rent' | 'utilities' | 'other';
+  category: 'salary' | 'rent' | 'utilities' | 'professional' | 'interest' | 'other';
   amount: string;
   fund_account_id: number;
   business_date: string;

@@ -42,7 +42,12 @@ jobs:
           DJANGO_DEBUG: "True"
           DJANGO_SECRET_KEY: ci-test-key
         run: |
-          python3 manage.py test cigars privnote accounting --verbosity=1
+          python3 manage.py test cigars privnote accounting \
+            --settings=cigardomtabaka_backend.settings_test \
+            --parallel=2 \
+            --durations=20 \
+            --timing \
+            --verbosity=1
 
   frontend:
     runs-on: ubuntu-latest

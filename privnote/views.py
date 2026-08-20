@@ -365,9 +365,10 @@ def list_payment_orders(request):
 def search_customers(request):
     """GET /privnote/api/search-customers/?q=xxx"""
     q = request.GET.get('q', '').strip()
-    if not q:
-        return JsonResponse({'results': []})
-    customers = Customer.objects.filter(name__icontains=q)[:20]
+    customers = Customer.objects.filter(deleted_at__isnull=True)
+    if q:
+        customers = customers.filter(name__icontains=q)
+    customers = customers[:20]
     results = [{'id': c.id, 'name': c.name, 'phone': c.phone} for c in customers]
     return JsonResponse({'results': results})
 

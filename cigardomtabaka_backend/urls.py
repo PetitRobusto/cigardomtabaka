@@ -85,6 +85,8 @@ urlpatterns = [
     path('api/sales/orders/<int:order_id>/refund/', sales_api.sales_order_refund, name='sales_order_refund'),
     path('api/sales/orders/<int:order_id>/return/', sales_api.sales_order_return, name='sales_order_return'),
     path('api/sales/orders/<int:order_id>/transport-cost/', sales_api.sales_order_transport_cost, name='sales_order_transport_cost'),
+    path('api/sales/customers/', sales_api.sales_customers, name='sales_customers'),
+    path('api/sales/customers/<int:customer_id>/', sales_api.sales_customer_detail, name='sales_customer_detail'),
     path('api/inventory/adjustments/<int:adjustment_id>/reverse/', inventory_api.inventory_adjustment_reverse, name='inventory_adjustment_reverse'),
     path('api/inventory/audit/', inventory_api.inventory_audit, name='inventory_audit'),
     path('api/accounting/', include('accounting.urls')),

@@ -1,6 +1,11 @@
 import type { Day1CompletionSummary } from '../../types';
 import { moscowBusinessDate } from '../../utils/businessDate';
 
+export {
+  cigarSearchDisplayName as day1CigarDisplayName,
+  cigarSearchReleaseLabel as day1CigarReleaseLabel,
+} from '../../utils/cigarSearchDisplay';
+
 export const day1StepTotal = 4;
 
 export type Day1Status = 'not_started' | 'draft' | 'completed' | string;
@@ -207,17 +212,6 @@ export function declaredBoxSizes(boxSizes: unknown[]): number[] {
 
 export function isLatestDay1SearchRequest(requestId: number, currentRequestId: number): boolean {
   return requestId === currentRequestId;
-}
-
-export function day1CigarDisplayName(cigar: { name: string; brand: string; brand_cn?: string }): string {
-  const name = cigar.name.trim();
-  const brand = (cigar.brand_cn || cigar.brand).trim();
-  if (!brand || name.toLocaleLowerCase().startsWith(brand.toLocaleLowerCase())) return name;
-  return `${brand} ${name}`;
-}
-
-export function day1CigarReleaseLabel(cigar: { is_regular: boolean; release_type_cn?: string }): string {
-  return cigar.is_regular ? '常规款' : cigar.release_type_cn?.trim() || '特别款';
 }
 
 export function uniqueDay1InventoryCigarIds(inventory: Pick<Day1InventoryInput, 'cigar_id'>[]): number[] {

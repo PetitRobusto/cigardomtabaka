@@ -15,7 +15,7 @@ from django.core.exceptions import ValidationError
 
 from privnote.models import Privnote, PaymentMethod
 from privnote.services import build_payment_data
-from cigars.models import User, Brand, Cigar, SalesOrder, SalesOrderItem, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, CigarPrice
+from cigars.models import User, Brand, Cigar, Customer, SalesOrder, SalesOrderItem, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, CigarPrice
 from accounting.models import FundAccount
 from cigars.tests.inventory_fixtures import create_purchase_batch, force_inventory_save
 
@@ -682,6 +682,31 @@ class SearchCigarsTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         # 候选数增加时，图片和批次查询不应按雪茄逐条增长。
         self.assertLessEqual(len(queries), 8)
+
+
+class SearchCustomersTestCase(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user, self.password = _create_staff_user()
+        self.client.login(username=self.user.username, password=self.password)
+        Customer.objects.create(name='王先生', phone='13800000000')
+        Customer.objects.create(name='李女士', phone='')
+        Customer.objects.create(name='已删除客户', deleted_at=timezone.now())
+
+    def test_empty_query_lists_active_customers_for_focus_autocomplete(self):
+        response = self.client.get('/privnote/api/search-customers/?q=')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [customer['name'] for customer in response.json()['results']],
+            ['李女士', '王先生'],
+        )
+
+    def test_query_filters_customer_names(self):
+        response = self.client.get('/privnote/api/search-customers/?q=王')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['results'], [
+            {'id': Customer.objects.get(name='王先生').id, 'name': '王先生', 'phone': '13800000000'},
+        ])
 
 
 # ═══════════════════════════════════════════════════

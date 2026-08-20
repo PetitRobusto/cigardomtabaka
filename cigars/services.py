@@ -198,6 +198,7 @@ def serialize_sales_order(order):
             'id': order.customer_id,
             'name': order.customer.name,
             'phone': order.customer.phone,
+            'deleted_at': order.customer.deleted_at.isoformat() if order.customer.deleted_at else None,
         } if getattr(order, 'customer', None) is not None else None),
         'goods_amount_cny': _decimal_to_json(order.goods_amount_cny),
         'customer_transport_fee_cny': _decimal_to_json(order.customer_transport_fee_cny),
@@ -252,7 +253,7 @@ def serialize_sales_order(order):
 def _sales_order_available_actions(order):
     actions = []
     if order.fulfillment_status == SalesOrder.FulfillmentStatus.DRAFT:
-        actions.append('confirm')
+        actions.extend(['confirm', 'cancel'])
     if order.fulfillment_status == SalesOrder.FulfillmentStatus.CONFIRMED:
         actions.extend(['ship', 'cancel'])
         if order.payment_status == SalesOrder.PaymentStatus.UNPAID:
@@ -335,7 +336,7 @@ def _get_customer(raw_customer_id):
         return None
     customer_id = _to_positive_int(raw_customer_id, '客户ID')
     try:
-        return Customer.objects.get(id=customer_id)
+        return Customer.objects.get(id=customer_id, deleted_at__isnull=True)
     except Customer.DoesNotExist:
         raise OrderServiceError('客户不存在')
 
@@ -579,12 +580,26 @@ def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note=""
 @transaction.atomic
 def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None, note="",
                                  business_date=None):
-    """取消未出库的已确认订单，并释放全部预留。"""
+    """取消草稿或未出库的已确认订单；已确认订单同时释放预留。"""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="cancel_confirmed_sales_order")
-    require_day1_completed()
     _acquire_sqlite_writer_gate()
     order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, "销售单ID"))
+    if order.fulfillment_status == SalesOrder.FulfillmentStatus.DRAFT:
+        if order.payment_status != SalesOrder.PaymentStatus.UNPAID or order.locked:
+            raise OrderServiceError("当前订单不能取消")
+        if StockAllocation.objects.filter(sales_order_item__sales_order=order).exists():
+            raise OrderServiceError("存在库存分配的草稿不能取消")
+        now = timezone.now()
+        order.fulfillment_status = SalesOrder.FulfillmentStatus.CANCELLED
+        order.status, order.cancelled_at = "cancelled", now
+        order.locked, order.locked_by, order.locked_at = True, operator, now
+        if note:
+            order.note = note
+        order.save()
+        _record_order_event(order, operator=operator, context=context, note=note, metadata=_sales_event_metadata(order, business_date))
+        return order
+    require_day1_completed()
     if order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED:
         raise OrderServiceError("当前订单不能取消")
     if order.payment_status not in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PAID):

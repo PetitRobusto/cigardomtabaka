@@ -53,7 +53,7 @@ describe('采购动作卡 SSR 契约', () => {
     expect(html).toMatch(/待复核|—/);
   });
 
-  it('已到货采购单提供整单撤销入口，并要求填写原因', () => {
+  it('已到货采购单默认隐藏撤销表单，只显示危险操作展开入口', () => {
     const props = {
       purchases: [{
         id: 13,
@@ -66,11 +66,12 @@ describe('采购动作卡 SSR 契约', () => {
       onReverseReceive: () => undefined,
     } satisfies ComponentProps<typeof PurchaseAction>;
     const html = renderToStaticMarkup(<PurchaseAction {...props} />);
-    expect(html).toContain('撤销到货');
-    expect(html).toContain('撤销原因');
-    expect(html).toMatch(/data-guide="accounting-purchase-reverse-date"/);
-    expect(html).toMatch(/data-guide="accounting-purchase-reverse-reason"/);
-    expect(html).toMatch(/data-guide="accounting-purchase-reverse-submit"/);
+    expect(html).toContain('显示撤销到货');
+    expect(html).toMatch(/data-guide="accounting-purchase-reverse-reveal"/);
+    expect(html).not.toContain('撤销原因');
+    expect(html).not.toMatch(/data-guide="accounting-purchase-reverse-date"/);
+    expect(html).not.toMatch(/data-guide="accounting-purchase-reverse-reason"/);
+    expect(html).not.toMatch(/data-guide="accounting-purchase-reverse-submit"/);
   });
 
   it('stale 或非 active 的 RUB 账户 id 回退到当前合法账户', () => {

@@ -7,13 +7,13 @@ import hashlib
 import json
 
 from django.db import transaction
+from django.core.serializers.json import DjangoJSONEncoder
 from django.utils import timezone
 
 from accounting.business_time import moscow_business_date
 from accounting.guards import require_day1_completed
 from accounting.models import (
-    Day1DraftAccount, Day1DraftInventory, Day1Initialization,
-    FundAccount, LedgerPosting, LedgerTransaction,
+    Day1Initialization, FundAccount, LedgerPosting, LedgerTransaction,
 )
 from accounting.services import (
     CUTOVER_DATE, CNY_PLACES, ORIGINAL_PLACES, LedgerError, PostingInput,
@@ -61,24 +61,22 @@ class Day1ConfirmationResult:
 
 
 _SLOTS = (
-    Day1DraftAccount.Slot.OWNER_CNY,
-    Day1DraftAccount.Slot.PARTNER_CNY,
-    Day1DraftAccount.Slot.RUB,
-    Day1DraftAccount.Slot.USDT,
+    'owner_cny',
+    'partner_cny',
+    'rub',
+    'usdt',
 )
 _SLOT_CURRENCIES = {
-    Day1DraftAccount.Slot.OWNER_CNY: FundAccount.Currency.CNY,
-    Day1DraftAccount.Slot.PARTNER_CNY: FundAccount.Currency.CNY,
-    Day1DraftAccount.Slot.RUB: FundAccount.Currency.RUB,
-    Day1DraftAccount.Slot.USDT: FundAccount.Currency.USDT,
+    'owner_cny': FundAccount.Currency.CNY,
+    'partner_cny': FundAccount.Currency.CNY,
+    'rub': FundAccount.Currency.RUB,
+    'usdt': FundAccount.Currency.USDT,
 }
 
 
 def get_day1_state():
     """Read the singleton without creating a draft."""
-    return Day1Initialization.objects.prefetch_related(
-        'draft_accounts', 'draft_inventory',
-    ).filter(singleton_key='company').first()
+    return Day1Initialization.objects.filter(singleton_key='company').first()
 
 
 def get_or_create_day1_draft():
@@ -119,6 +117,22 @@ def _integer(value, field, positive=False):
 
 def _declared_box_sizes(cigar):
     return set(declared_box_sizes(cigar.packagings))
+
+
+def _draft_payload(payload):
+    if not isinstance(payload, dict):
+        raise Day1ValidationError(details={'payload': '必须是对象'})
+    return json.loads(json.dumps(payload, cls=DjangoJSONEncoder, ensure_ascii=False))
+
+
+def _draft_business_date(payload):
+    value = payload.get('business_date')
+    if not isinstance(value, str):
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def _normalize_payload(payload):
@@ -200,14 +214,16 @@ def save_day1_draft(*, payload, expected_version, operator):
     persisted_operator = _require_operator(operator)
     if isinstance(expected_version, bool) or not isinstance(expected_version, int) or expected_version < 0:
         raise Day1VersionConflict('草稿版本无效')
-    normalized = _normalize_payload(payload)
+    raw_payload = _draft_payload(payload)
+    business_date = _draft_business_date(raw_payload)
     _acquire_sqlite_writer_gate()
     initialization = Day1Initialization.objects.select_for_update().filter(singleton_key='company').first()
     if initialization is None:
         if expected_version != 0:
             raise Day1VersionConflict('草稿版本已变化')
         initialization = Day1Initialization.objects.create(
-            singleton_key='company', version=1, business_date=normalized['business_date'],
+            singleton_key='company', version=1, business_date=business_date,
+            draft_payload=raw_payload,
             updated_by=persisted_operator,
         )
     else:
@@ -218,44 +234,17 @@ def save_day1_draft(*, payload, expected_version, operator):
                 f'草稿版本冲突：expected={expected_version}, actual={initialization.version}',
             )
         initialization.version += 1
-        initialization.business_date = normalized['business_date']
+        initialization.business_date = business_date
+        initialization.draft_payload = raw_payload
         initialization.updated_by = persisted_operator
-        initialization.save(update_fields=['version', 'business_date', 'updated_by', 'updated_at'])
-    initialization.draft_accounts.all().delete()
-    initialization.draft_inventory.all().delete()
-    Day1DraftAccount.objects.bulk_create([
-        Day1DraftAccount(
-            initialization=initialization, slot=row['slot'], account_name=row['name'],
-            currency=row['currency'], original_amount=row['original_amount'],
-            cny_book_cost=row['cny_book_cost'],
-        ) for row in normalized['accounts']
-    ])
-    Day1DraftInventory.objects.bulk_create([
-        Day1DraftInventory(initialization=initialization, **row)
-        for row in normalized['inventory']
-    ])
+        initialization.save(update_fields=[
+            'version', 'business_date', 'draft_payload', 'updated_by', 'updated_at',
+        ])
     return initialization
 
 
 def _snapshot_payload(initialization):
-    return {
-        'business_date': initialization.business_date.isoformat(),
-        'accounts': [
-            {
-                'slot': row.slot, 'name': row.account_name, 'currency': row.currency,
-                'original_amount': str(row.original_amount), 'cny_book_cost': str(row.cny_book_cost),
-            }
-            for row in initialization.draft_accounts.order_by('slot', 'id')
-        ],
-        'inventory': [
-            {
-                'cigar_id': row.cigar_id, 'box_size': row.box_size,
-                'box_quantity': row.box_quantity, 'loose_sticks': row.loose_sticks,
-                'unit_cost_cny': str(row.unit_cost_cny),
-            }
-            for row in initialization.draft_inventory.order_by('cigar_id', 'box_size', 'id')
-        ],
-    }
+    return initialization.draft_payload
 
 
 def _request_hash(initialization):
@@ -310,31 +299,32 @@ def confirm_day1(*, expected_version, operator, idempotency_key):
     conflicts = _conflicts_for_confirmation()
     if conflicts:
         raise Day1Conflict('期初初始化前提冲突', conflicts)
-    _normalize_payload(_snapshot_payload(initialization))
-    accounts = list(initialization.draft_accounts.order_by('slot', 'id'))
-    inventory = list(initialization.draft_inventory.order_by('cigar_id', 'box_size', 'id'))
-    if len(accounts) != 4 or {row.slot for row in accounts} != set(_SLOTS):
-        raise Day1ValidationError(details={'accounts': '草稿账户槽位不完整'})
+    normalized = _normalize_payload(_snapshot_payload(initialization))
+    accounts = normalized['accounts']
+    inventory = normalized['inventory']
+    initialization.business_date = normalized['business_date']
 
     account_objects = {}
     for row in accounts:
-        account_objects[row.slot] = FundAccount.objects.create(
-            name=row.account_name, currency=row.currency,
+        account_objects[row['slot']] = FundAccount.objects.create(
+            name=row['name'], currency=row['currency'],
             custodian=persisted_operator,
-            creation_idempotency_key=f'day1:{initialization.pk}:{row.slot}',
+            creation_idempotency_key=f"day1:{initialization.pk}:{row['slot']}",
         )
-    total_accounts = sum((row.cny_book_cost for row in accounts), Decimal('0.00')).quantize(CNY_PLACES)
+    total_accounts = sum(
+        (row['cny_book_cost'] for row in accounts), Decimal('0.00'),
+    ).quantize(CNY_PLACES)
     total_inventory = Decimal('0.00')
     postings = [
         PostingInput(
-            account=account_objects[row.slot], currency=row.currency,
-            amount=row.original_amount, cny_amount=row.cny_book_cost,
+            account=account_objects[row['slot']], currency=row['currency'],
+            amount=row['original_amount'], cny_amount=row['cny_book_cost'],
         ) for row in accounts
-        if row.original_amount != 0 or row.cny_book_cost != 0
+        if row['original_amount'] != 0 or row['cny_book_cost'] != 0
     ]
     for row in inventory:
-        quantity = row.box_quantity * row.box_size + row.loose_sticks
-        cost = (Decimal(quantity) * row.unit_cost_cny).quantize(CNY_PLACES)
+        quantity = row['box_quantity'] * row['box_size'] + row['loose_sticks']
+        cost = (Decimal(quantity) * row['unit_cost_cny']).quantize(CNY_PLACES)
         total_inventory += cost
     total_inventory = total_inventory.quantize(CNY_PLACES)
     if total_inventory:
@@ -359,17 +349,17 @@ def confirm_day1(*, expected_version, operator, idempotency_key):
     )
     batches = []
     for index, row in enumerate(inventory):
-        quantity = row.box_quantity * row.box_size + row.loose_sticks
-        cost = (Decimal(quantity) * row.unit_cost_cny).quantize(CNY_PLACES)
+        quantity = row['box_quantity'] * row['box_size'] + row['loose_sticks']
+        cost = (Decimal(quantity) * row['unit_cost_cny']).quantize(CNY_PLACES)
         movement_key = f'day1:{initialization.pk}:movement:{index}'
         batch = open_stock(
-            cigar_id=row.cigar_id,
+            cigar_id=row['cigar_id'],
             quantity=quantity,
-            box_size=row.box_size,
-            box_quantity=row.box_quantity,
-            loose_sticks=row.loose_sticks,
+            box_size=row['box_size'],
+            box_quantity=row['box_quantity'],
+            loose_sticks=row['loose_sticks'],
             total_cost_cny=cost,
-            unit_cost_cny=row.unit_cost_cny,
+            unit_cost_cny=row['unit_cost_cny'],
             operator=persisted_operator,
             context=AgentContext(
                 command_name='day1_initialization',
@@ -388,22 +378,22 @@ def confirm_day1(*, expected_version, operator, idempotency_key):
         'inventory_count': len(batches), 'ledger_transaction_id': transaction_record.pk,
         'accounts': [
             {
-                'slot': row.slot,
-                'name': row.account_name,
-                'currency': row.currency,
-                'original_amount': str(row.original_amount),
-                'cny_book_cost': str(row.cny_book_cost),
-                'account_id': account_objects[row.slot].pk,
+                'slot': row['slot'],
+                'name': row['name'],
+                'currency': row['currency'],
+                'original_amount': str(row['original_amount']),
+                'cny_book_cost': str(row['cny_book_cost']),
+                'account_id': account_objects[row['slot']].pk,
             }
             for row in accounts
         ],
         'inventory': [
             {
-                'cigar_id': row.cigar_id,
-                'box_size': row.box_size,
-                'box_quantity': row.box_quantity,
-                'loose_sticks': row.loose_sticks,
-                'unit_cost_cny': str(row.unit_cost_cny),
+                'cigar_id': row['cigar_id'],
+                'box_size': row['box_size'],
+                'box_quantity': row['box_quantity'],
+                'loose_sticks': row['loose_sticks'],
+                'unit_cost_cny': str(row['unit_cost_cny']),
                 'quantity': batch.quantity,
                 'total_cost_cny': str(batch.original_cost_cny),
                 'batch_id': batch.pk,
@@ -415,5 +405,8 @@ def confirm_day1(*, expected_version, operator, idempotency_key):
     initialization.completed_by = persisted_operator
     initialization.completed_at = timezone.now()
     initialization.completion_summary = summary
-    initialization.save(update_fields=['status', 'completed_by', 'completed_at', 'completion_summary', 'updated_at'])
+    initialization.save(update_fields=[
+        'status', 'business_date', 'completed_by', 'completed_at',
+        'completion_summary', 'updated_at',
+    ])
     return _result_from_summary(initialization)

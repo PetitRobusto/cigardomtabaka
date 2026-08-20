@@ -1,6 +1,11 @@
 import type { Day1CompletionSummary } from '../../types';
 import { moscowBusinessDate } from '../../utils/businessDate';
 
+export {
+  cigarSearchDisplayName as day1CigarDisplayName,
+  cigarSearchReleaseLabel as day1CigarReleaseLabel,
+} from '../../utils/cigarSearchDisplay';
+
 export const day1StepTotal = 4;
 
 export type Day1Status = 'not_started' | 'draft' | 'completed' | string;
@@ -224,8 +229,8 @@ export function buildDay1Payload(state: Day1DraftInput): Day1Payload {
       slot,
       name: source.name,
       currency,
-      original_amount: source.original_amount || '0',
-      cny_book_cost: cnyBookCost || '0',
+      original_amount: source.original_amount,
+      cny_book_cost: cnyBookCost,
     };
   });
   return {

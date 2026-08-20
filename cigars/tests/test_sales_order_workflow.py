@@ -321,13 +321,20 @@ class SalesOrderWorkflowTest(TestCase):
         with self.assertRaises(OrderServiceError):
             confirm_sales_order(sales_order_id=order.id, operator=self.operator, agent_context=self.context("confirm_sales_order"))
 
-    def test_cancel_rejects_draft_shipped_and_cancelled_orders(self):
+    def test_cancel_accepts_draft_and_rejects_shipped_and_cancelled_orders(self):
         from cigars.services import OrderServiceError, cancel_confirmed_sales_order
         draft = create_sales_order_draft(
             items=[{"cigar_id": self.cigar.id, "sale_unit": "stick", "quantity": 1, "unit_price": "30.00"}],
             operator=self.operator, agent_context=self.context("create_sales_order_draft"),
         )
-        for status in (SalesOrder.FulfillmentStatus.DRAFT, SalesOrder.FulfillmentStatus.SHIPPED, SalesOrder.FulfillmentStatus.CANCELLED):
+        cancelled = cancel_confirmed_sales_order(
+            sales_order_id=draft.id, operator=self.operator,
+            agent_context=self.context("cancel_sales_order_draft"),
+        )
+        self.assertEqual(cancelled.fulfillment_status, SalesOrder.FulfillmentStatus.CANCELLED)
+        self.assertTrue(cancelled.locked)
+        self.assertFalse(StockAllocation.objects.exists())
+        for status in (SalesOrder.FulfillmentStatus.SHIPPED, SalesOrder.FulfillmentStatus.CANCELLED):
             draft.fulfillment_status = status; draft.save(update_fields=["fulfillment_status"])
             with self.assertRaises(OrderServiceError):
                 cancel_confirmed_sales_order(sales_order_id=draft.id, operator=self.operator, agent_context=self.context("cancel_confirmed_sales_order"))

@@ -4,7 +4,7 @@ import type { AccountingApiError, ExpenseActionPayload, FundAccount } from '../.
 import type { ActionState } from '../../features/accounting/actionState';
 import { moscowBusinessDate } from '../../utils/businessDate';
 
-export type ExpenseCategory = 'salary' | 'rent' | 'utilities' | 'other' | 'salary_expense';
+export type ExpenseCategory = 'salary' | 'rent' | 'utilities' | 'professional' | 'interest' | 'other' | 'salary_expense';
 export interface ExpenseActionValue {
   amount: string;
   fund_account_id?: number | '';
@@ -48,7 +48,14 @@ export default function ExpenseAction({ accounts, businessDate = today(), catego
   const accountId = filteredAccounts.some(account => account.id === current.fund_account_id)
     ? current.fund_account_id || ''
     : filteredAccounts[0]?.id || '';
-  const categoryLabel: Record<Exclude<ExpenseCategory, 'salary_expense'>, string> = { salary: '工资', rent: '房租', utilities: '水电', other: '其他经营费用' };
+  const categoryLabel: Record<Exclude<ExpenseCategory, 'salary_expense'>, string> = {
+    salary: '工资',
+    rent: '房租',
+    utilities: '水电',
+    professional: '会计（专业服务）',
+    interest: '利息支出（财务费用）',
+    other: '其他经营费用',
+  };
 
   const update = (patch: Partial<ExpenseActionValue>) => {
     const next = { ...current, ...patch };

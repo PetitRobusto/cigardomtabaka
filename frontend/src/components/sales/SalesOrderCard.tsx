@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ChevronRight, CircleDollarSign, PackageCheck, RotateCcw, Truck, X } from 'lucide-react';
 import type { FundAccount, SalesOrder } from '../../types';
 import { apiErrorMessage, cancelSalesOrder, confirmSalesOrder, receiveSalesOrder, recordSalesTransportCost, refundSalesOrder, returnSalesOrder, shipSalesOrder } from '../../api';
-import { actionLabel, actionNeedsFundAccount, availableActions, formatCny, initialActionAmount, orderDisplayStatus, salesActionBlockedByAccount, statusLabel, validateMoneyInput } from './salesState';
+import { actionLabel, actionNeedsFundAccount, formatCny, initialActionAmount, orderDisplayStatus, receiveAmountMatchesDue, salesActionBlockedByAccount, statusLabel, validateMoneyInput } from './salesState';
 import { salesFundAccountError, salesOrderActionBusinessDate, selectActiveCnyAccountId } from './SalesOrderCard.logic';
 
 interface Props { order: SalesOrder; accounts: FundAccount[]; accountsError?: string; onChanged: () => void; }
@@ -19,10 +19,14 @@ export default function SalesOrderCard({ order, accounts: allAccounts, accountsE
   const [error, setError] = useState('');
   // 账户异步刷新后直接派生有效账户，避免 effect 级联更新并保留提交边界。
   const selectedAccountId = selectActiveCnyAccountId(allAccounts, accountId);
-  const actions = Array.isArray(order.available_actions) ? order.available_actions : availableActions(order);
+  const actions = Array.isArray(order.available_actions) ? order.available_actions : [];
 
   const run = async () => {
     setError('');
+    if (action === 'receive' && !receiveAmountMatchesDue(receiptAmount, order.amount_due_cny)) {
+      setError(`收款金额必须等于应收 ${formatCny(order.amount_due_cny)}`);
+      return;
+    }
     if (action === 'return' && (!date || !returnReason.trim())) {
       setError('退货日期和退货原因不能为空');
       return;

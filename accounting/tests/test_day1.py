@@ -13,8 +13,7 @@ from unittest.mock import patch
 from importlib import import_module
 
 from accounting.models import (
-    Day1Initialization, Day1DraftAccount, Day1DraftInventory, FundAccount,
-    LedgerPosting, LedgerTransaction,
+    Day1Initialization, FundAccount, LedgerPosting, LedgerTransaction,
 )
 from accounting.business_time import moscow_business_date
 from accounting.selectors import account_snapshot
@@ -73,7 +72,7 @@ class Day1ServiceTest(TestCase):
             StockMovement.objects.count(),
         )
 
-    def test_shared_draft_uses_optimistic_version_and_replaces_children(self):
+    def test_shared_draft_uses_optimistic_version_and_replaces_payload(self):
         from accounting.day1 import Day1VersionConflict, save_day1_draft
 
         first = save_day1_draft(
@@ -87,9 +86,8 @@ class Day1ServiceTest(TestCase):
                 payload=self.payload(name='不应覆盖'), expected_version=0,
                 operator=self.partner,
             )
-        self.assertEqual(
-            Day1DraftAccount.objects.get(slot='owner_cny').account_name, '老板人民币',
-        )
+        first.refresh_from_db()
+        self.assertEqual(first.draft_payload['accounts'][0]['name'], '老板人民币')
 
         updated = save_day1_draft(
             payload=self.payload(name='新老板人民币', loose_sticks=3),
@@ -97,10 +95,9 @@ class Day1ServiceTest(TestCase):
             operator=self.partner,
         )
         self.assertEqual(updated.version, 2)
-        self.assertEqual(
-            Day1DraftAccount.objects.get(slot='owner_cny').account_name, '新老板人民币',
-        )
-        self.assertEqual(Day1DraftInventory.objects.get().loose_sticks, 3)
+        updated.refresh_from_db()
+        self.assertEqual(updated.draft_payload['accounts'][0]['name'], '新老板人民币')
+        self.assertEqual(updated.draft_payload['inventory'][0]['loose_sticks'], 3)
         self.assertEqual(self.generated_counts(), (0, 0, 0, 0, 0))
 
     def test_saved_draft_serializes_original_amount_with_currency_precision(self):
@@ -113,6 +110,34 @@ class Day1ServiceTest(TestCase):
         self.assertEqual(accounts['partner_cny']['original_amount'], '0.00')
         self.assertEqual(accounts['rub']['original_amount'], '1200.00')
         self.assertEqual(accounts['usdt']['original_amount'], '10.00000000')
+
+    def test_incomplete_draft_saves_without_confirmation_validation(self):
+        from accounting.day1 import Day1ValidationError, confirm_day1, save_day1_draft
+        from accounting.day1_serializers import serialize_day1_state
+
+        payload = self.payload()
+        payload['accounts'][0]['name'] = ''
+        payload['accounts'][0]['original_amount'] = ''
+        payload['accounts'][0]['cny_book_cost'] = ''
+        payload['inventory'][0]['box_quantity'] = 0
+        payload['inventory'][0]['loose_sticks'] = 0
+        payload['inventory'][0]['unit_cost_cny'] = ''
+
+        draft = save_day1_draft(
+            payload=payload, expected_version=0, operator=self.operator,
+        )
+
+        state = serialize_day1_state(draft)
+        self.assertEqual(state['draft']['accounts'][0]['name'], '')
+        self.assertEqual(state['draft']['accounts'][0]['original_amount'], '')
+        self.assertEqual(state['draft']['inventory'][0]['unit_cost_cny'], '')
+        with self.assertRaises(Day1ValidationError):
+            confirm_day1(
+                expected_version=draft.version,
+                operator=self.operator,
+                idempotency_key='incomplete-day1-draft',
+            )
+        self.assertEqual(self.generated_counts(), (0, 0, 0, 0, 0))
 
     def test_confirmation_posts_all_assets_through_day1_opening_shape(self):
         from accounting.day1 import confirm_day1, save_day1_draft
@@ -224,7 +249,7 @@ class Day1ServiceTest(TestCase):
         self.assertEqual(result.opening_capital_cny, Decimal('607.50'))
         self.assertEqual(self.generated_counts(), (4, 1, 5, 1, 1))
 
-    def test_draft_rejects_box_size_not_declared_by_catalog(self):
+    def test_confirmation_rejects_box_size_not_declared_by_catalog(self):
         from accounting.day1 import Day1ValidationError
 
         self.cigar.packagings = json.dumps({
@@ -234,20 +259,19 @@ class Day1ServiceTest(TestCase):
         invalid = self.payload()
         invalid['inventory'][0]['box_size'] = 99
 
+        draft = self.save_draft(invalid)
         with self.assertRaises(Day1ValidationError) as raised:
-            self.save_draft(invalid)
+            self.confirm(draft)
 
         self.assertIn('inventory[0].box_size', raised.exception.details)
-        self.assertFalse(Day1Initialization.objects.exists())
+        self.assertEqual(self.generated_counts(), (0, 0, 0, 0, 0))
 
     def test_confirmation_revalidates_tampered_foreign_currency_draft(self):
         from accounting.day1 import Day1ValidationError
 
         draft = self.save_draft()
-        Day1DraftAccount.objects.filter(slot='rub').update(
-            original_amount=Decimal('1200.00'),
-            cny_book_cost=Decimal('0.00'),
-        )
+        draft.draft_payload['accounts'][2]['cny_book_cost'] = '0.00'
+        draft.save(update_fields=['draft_payload'])
 
         with self.assertRaises(Day1ValidationError):
             self.confirm(draft)
@@ -258,7 +282,8 @@ class Day1ServiceTest(TestCase):
         from accounting.day1 import Day1ValidationError
 
         draft = self.save_draft()
-        Day1DraftInventory.objects.update(unit_cost_cny=Decimal('0.00'))
+        draft.draft_payload['inventory'][0]['unit_cost_cny'] = '0.00'
+        draft.save(update_fields=['draft_payload'])
 
         with self.assertRaises(Day1ValidationError):
             self.confirm(draft)
@@ -269,7 +294,9 @@ class Day1ServiceTest(TestCase):
         from accounting.day1 import Day1ValidationError
 
         draft = self.save_draft()
-        Day1DraftInventory.objects.update(box_quantity=0, loose_sticks=0)
+        draft.draft_payload['inventory'][0]['box_quantity'] = 0
+        draft.draft_payload['inventory'][0]['loose_sticks'] = 0
+        draft.save(update_fields=['draft_payload'])
 
         with self.assertRaises(Day1ValidationError):
             self.confirm(draft)
@@ -364,20 +391,28 @@ class Day1ServiceTest(TestCase):
 
         self.assert_confirmation_conflict(draft, 'stock_movements_exist')
 
-    def test_invalid_draft_payload_leaves_no_partial_shared_draft(self):
-        from accounting.day1 import Day1ValidationError, save_day1_draft
+    def test_invalid_draft_payload_is_saved_without_creating_business_facts(self):
+        from accounting.day1 import Day1ValidationError, confirm_day1, save_day1_draft
 
         invalid = self.payload()
         invalid['accounts'][0]['cny_book_cost'] = '99.00'
+        draft = save_day1_draft(
+            payload=invalid, expected_version=0, operator=self.operator,
+        )
+        self.assertEqual(draft.draft_payload['accounts'], invalid['accounts'])
+        self.assertEqual(draft.draft_payload['inventory'], invalid['inventory'])
+        self.assertEqual(
+            draft.draft_payload['business_date'], invalid['business_date'].isoformat(),
+        )
         with self.assertRaises(Day1ValidationError):
-            save_day1_draft(
-                payload=invalid, expected_version=0, operator=self.operator,
+            confirm_day1(
+                expected_version=draft.version,
+                operator=self.operator,
+                idempotency_key='invalid-draft-confirm',
             )
-        self.assertFalse(Day1Initialization.objects.exists())
-        self.assertFalse(Day1DraftAccount.objects.exists())
-        self.assertFalse(Day1DraftInventory.objects.exists())
+        self.assertEqual(self.generated_counts(), (0, 0, 0, 0, 0))
 
-    def test_draft_rejects_future_moscow_business_date(self):
+    def test_confirmation_rejects_future_moscow_business_date(self):
         from accounting.day1 import Day1ValidationError
 
         invalid = self.payload()
@@ -385,8 +420,9 @@ class Day1ServiceTest(TestCase):
             moscow_business_date() + timedelta(days=1)
         ).isoformat()
 
+        draft = self.save_draft(invalid)
         with self.assertRaises(Day1ValidationError) as raised:
-            self.save_draft(invalid)
+            self.confirm(draft)
 
         self.assertIn('business_date', raised.exception.details)
 
@@ -562,26 +598,6 @@ class Day1ModelTest(TestCase):
                 unit_cost_cny=Decimal('10.00'),
             )
 
-    def test_draft_account_slot_currency_pairing_is_database_constrained(self):
-        initialization = Day1Initialization.objects.create()
-        invalid_rows = (
-            (Day1DraftAccount.Slot.OWNER_CNY, 'RUB'),
-            (Day1DraftAccount.Slot.PARTNER_CNY, 'USDT'),
-            (Day1DraftAccount.Slot.RUB, 'CNY'),
-            (Day1DraftAccount.Slot.USDT, 'RUB'),
-        )
-        for slot, currency in invalid_rows:
-            with self.subTest(slot=slot, currency=currency):
-                with self.assertRaises(IntegrityError), transaction.atomic():
-                    Day1DraftAccount.objects.create(
-                        initialization=initialization,
-                        slot=slot,
-                        account_name=f'{slot}-{currency}',
-                        currency=currency,
-                        original_amount=Decimal('1.00'),
-                        cny_book_cost=Decimal('1.00'),
-                    )
-
     def test_opening_batch_is_safe_through_receive_endpoint_representation(self):
         operator = User.objects.create_user('day1-agent-user', password='pass', is_staff=True)
         cigar = Cigar.objects.create(
@@ -682,49 +698,114 @@ class Day1MigrationTest(TransactionTestCase):
                     schema_editor,
                 )
 
-    def test_draft_account_slot_is_unique_per_initialization(self):
-        initialization = Day1Initialization.objects.create()
-        Day1DraftAccount.objects.create(
-            initialization=initialization,
-            slot=Day1DraftAccount.Slot.OWNER_CNY,
-            account_name='老板人民币',
-            currency='CNY',
-            original_amount=Decimal('100.00'),
-            cny_book_cost=Decimal('100.00'),
+
+class Day1DraftPayloadMigrationTest(TransactionTestCase):
+    migrate_from = [('accounting', '0014_inventory_adjustment_transaction')]
+    migrate_to = [('accounting', '0015_day1initialization_draft_payload')]
+
+    def tearDown(self):
+        MigrationExecutor(connection).migrate(
+            MigrationExecutor(connection).loader.graph.leaf_nodes(),
+        )
+        super().tearDown()
+
+    def assert_rollback_refused(self, draft_payload):
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_to)
+        apps = executor.loader.project_state(self.migrate_to).apps
+        Initialization = apps.get_model('accounting', 'Day1Initialization')
+        Initialization.objects.create(draft_payload=draft_payload)
+
+        executor = MigrationExecutor(connection)
+        with self.assertRaisesRegex(RuntimeError, '无法回滚'):
+            executor.migrate(self.migrate_from)
+
+    def test_legacy_relational_draft_is_copied_before_tables_are_removed(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_from)
+        old_apps = executor.loader.project_state(self.migrate_from).apps
+        UserModel = old_apps.get_model('cigars', 'User')
+        CigarModel = old_apps.get_model('cigars', 'Cigar')
+        Initialization = old_apps.get_model('accounting', 'Day1Initialization')
+        DraftAccount = old_apps.get_model('accounting', 'Day1DraftAccount')
+        DraftInventory = old_apps.get_model('accounting', 'Day1DraftInventory')
+        operator = UserModel.objects.create(username='draft-migration', is_staff=True)
+        cigar = CigarModel.objects.create(
+            brand='Migration Brand', english_name='Migration Draft', name='迁移草稿',
+        )
+        initialization = Initialization.objects.create(
+            business_date=date(2026, 8, 13), updated_by_id=operator.pk,
+        )
+        DraftAccount.objects.create(
+            initialization=initialization, slot='owner_cny',
+            account_name='我的人民币', currency='CNY',
+            original_amount=Decimal('100.00'), cny_book_cost=Decimal('100.00'),
+        )
+        DraftInventory.objects.create(
+            initialization=initialization, cigar=cigar, box_size=25,
+            box_quantity=1, loose_sticks=2, unit_cost_cny=Decimal('12.50'),
         )
 
-        with self.assertRaises(IntegrityError), transaction.atomic():
-            Day1DraftAccount.objects.create(
-                initialization=initialization,
-                slot=Day1DraftAccount.Slot.OWNER_CNY,
-                account_name='重复账户',
-                currency='CNY',
-                original_amount=Decimal('1.00'),
-                cny_book_cost=Decimal('1.00'),
-            )
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_to)
+        new_apps = executor.loader.project_state(self.migrate_to).apps
+        migrated = new_apps.get_model(
+            'accounting', 'Day1Initialization',
+        ).objects.get(pk=initialization.pk)
 
-    def test_draft_inventory_is_unique_by_cigar_and_box_size(self):
-        initialization = Day1Initialization.objects.create()
-        cigar = Cigar.objects.create(
-            brand='Day 1 Brand',
-            english_name='Inventory Cigar',
-            name='库存雪茄',
-        )
-        Day1DraftInventory.objects.create(
-            initialization=initialization,
-            cigar=cigar,
-            box_size=25,
-            box_quantity=1,
-            loose_sticks=2,
-            unit_cost_cny=Decimal('12.50'),
-        )
+        self.assertEqual(migrated.draft_payload['business_date'], '2026-08-13')
+        self.assertEqual(migrated.draft_payload['accounts'][0]['name'], '我的人民币')
+        self.assertEqual(migrated.draft_payload['inventory'][0]['cigar_id'], cigar.pk)
+        self.assertNotIn('accounting_day1draftaccount', connection.introspection.table_names())
+        self.assertNotIn('accounting_day1draftinventory', connection.introspection.table_names())
 
-        with self.assertRaises(IntegrityError), transaction.atomic():
-            Day1DraftInventory.objects.create(
-                initialization=initialization,
-                cigar=cigar,
-                box_size=25,
-                box_quantity=2,
-                loose_sticks=0,
-                unit_cost_cny=Decimal('12.50'),
-            )
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_from)
+        restored_apps = executor.loader.project_state(self.migrate_from).apps
+        restored_account = restored_apps.get_model(
+            'accounting', 'Day1DraftAccount',
+        ).objects.get(initialization_id=initialization.pk)
+        restored_inventory = restored_apps.get_model(
+            'accounting', 'Day1DraftInventory',
+        ).objects.get(initialization_id=initialization.pk)
+        self.assertEqual(restored_account.account_name, '我的人民币')
+        self.assertEqual(restored_inventory.cigar_id, cigar.pk)
+
+    def test_rollback_refuses_to_silently_drop_incomplete_json_draft(self):
+        self.assert_rollback_refused({
+            'business_date': '',
+            'accounts': [{
+                'slot': 'owner_cny', 'name': '', 'currency': 'CNY',
+                'original_amount': '', 'cny_book_cost': '',
+            }],
+            'inventory': [],
+        })
+
+    def test_rollback_refuses_amount_precision_the_legacy_table_would_round(self):
+        self.assert_rollback_refused({
+            'business_date': None,
+            'accounts': [{
+                'slot': 'owner_cny', 'name': '老板人民币', 'currency': 'CNY',
+                'original_amount': '1.00000000', 'cny_book_cost': '1.234',
+            }],
+            'inventory': [],
+        })
+
+    def test_rollback_refuses_amount_sqlite_cannot_store_losslessly(self):
+        self.assert_rollback_refused({
+            'business_date': None,
+            'accounts': [{
+                'slot': 'owner_cny', 'name': '老板人民币', 'currency': 'CNY',
+                'original_amount': '123456789012.12345678',
+                'cny_book_cost': '1.00',
+            }],
+            'inventory': [],
+        })
+
+    def test_rollback_refuses_fields_the_legacy_tables_cannot_store(self):
+        self.assert_rollback_refused({
+            'business_date': None,
+            'accounts': [],
+            'inventory': [],
+            'future_field': '不能静默丢失',
+        })

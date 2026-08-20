@@ -127,7 +127,7 @@ class Day1ApiTest(TestCase):
             1,
         )
 
-    def test_draft_requires_if_match_and_returns_structured_errors(self):
+    def test_draft_requires_if_match_but_accepts_incomplete_fields(self):
         self.client.force_login(self.staff)
 
         missing = self.client.put(
@@ -135,23 +135,24 @@ class Day1ApiTest(TestCase):
             data=self.payload(),
             content_type='application/json',
         )
-        invalid = self.payload()
-        invalid['accounts'][0]['cny_book_cost'] = '99.00'
-        invalid_response = self.client.put(
+        incomplete = self.payload()
+        incomplete['accounts'][0]['original_amount'] = ''
+        incomplete['accounts'][0]['cny_book_cost'] = ''
+        incomplete_response = self.client.put(
             '/api/accounting/day1/draft/',
-            data=invalid,
+            data=incomplete,
             content_type='application/json',
             HTTP_IF_MATCH='0',
         )
-        saved = self.save_draft()
         stale = self.save_draft(version='0')
 
         self.assertEqual(missing.status_code, 400)
         self.assertEqual(missing.json()['error'], 'If-Match 版本不能为空')
-        self.assertEqual(invalid_response.status_code, 400)
-        self.assertEqual(invalid_response.json()['code'], 'validation_error')
-        self.assertIn('accounts[0]', invalid_response.json()['details'])
-        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(incomplete_response.status_code, 200)
+        self.assertEqual(
+            incomplete_response.json()['draft']['accounts'][0]['original_amount'],
+            '',
+        )
         self.assertEqual(stale.status_code, 409)
         self.assertEqual(stale.json()['code'], 'version_conflict')
 

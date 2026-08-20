@@ -73,9 +73,10 @@ export function summarizeSalesOrders(orders: SalesOrderSummaryInput[]): SalesOrd
       fulfillmentSummary.count += 1;
       fulfillmentSummary.amount += amount;
     }
-    const paymentSummary = fulfillment !== 'draft' && fulfillment !== 'cancelled' && payment === 'paid'
+    const active = fulfillment === 'confirmed' || fulfillment === 'shipped';
+    const paymentSummary = active && payment === 'paid'
       ? summary.paid
-      : fulfillment !== 'draft' && fulfillment !== 'cancelled' && payment === 'unpaid'
+      : active && payment === 'unpaid'
         ? summary.unpaid
         : undefined;
     if (paymentSummary) {
@@ -84,6 +85,22 @@ export function summarizeSalesOrders(orders: SalesOrderSummaryInput[]): SalesOrd
     }
   }
   return summary;
+}
+
+export function activeSalesAmount(orders: SalesOrderSummaryInput[]): number {
+  return orders.reduce((total, order) => (
+    order.fulfillment_status === 'confirmed' || order.fulfillment_status === 'shipped'
+      ? total + amountOf(order.amount_due_cny)
+      : total
+  ), 0);
+}
+
+export function activeSalesProfit<T extends SalesOrderSummaryInput & { contribution_profit?: number | string }>(orders: T[]): number {
+  return orders.reduce((total, order) => (
+    order.fulfillment_status === 'confirmed' || order.fulfillment_status === 'shipped'
+      ? total + amountOf(order.contribution_profit)
+      : total
+  ), 0);
 }
 
 export function statusLabel(status: string): string {
@@ -124,7 +141,7 @@ export function orderDisplayStatus(order: SalesOrderStateInput): string {
 }
 
 export function availableActions(order: SalesOrderStateInput): string[] {
-  if (order.fulfillment_status === 'draft') return ['confirm'];
+  if (order.fulfillment_status === 'draft') return ['confirm', 'cancel'];
   if (order.fulfillment_status === 'confirmed') {
     return order.payment_status === 'unpaid' ? ['ship', 'cancel', 'receive'] : ['ship', 'cancel'];
   }
@@ -134,6 +151,10 @@ export function availableActions(order: SalesOrderStateInput): string[] {
   if (order.fulfillment_status === 'cancelled' && order.payment_status === 'refund_pending') return ['refund'];
   if (order.fulfillment_status === 'returned' && order.payment_status === 'refund_pending') return ['refund'];
   return [];
+}
+
+export function receiveAmountMatchesDue(value: string, amountDue: number | string): boolean {
+  return validateMoneyInput(value) && Number(value) === Number(amountDue);
 }
 
 export function actionLabel(action: string): string {
@@ -169,6 +190,10 @@ export function validateMoneyInput(value: string): boolean {
   if (!value.trim() || !/^\d+(?:\.\d{1,2})?$/.test(value.trim())) return false;
   const amount = Number(value);
   return Number.isFinite(amount) && amount >= 0;
+}
+
+export function validatePositiveMoneyInput(value: string): boolean {
+  return validateMoneyInput(value) && Number(value) > 0;
 }
 
 export function initialActionAmount(action: string, amountDue: number | string): string {

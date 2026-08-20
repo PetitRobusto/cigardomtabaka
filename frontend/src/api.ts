@@ -4,7 +4,7 @@ import type {
   BrandListResponse, BrandDetailResponse, CigarDetailResponse,
   InventoryResponse, PrivnoteResponse,
   PaymentMethod, SearchCigarResult, InventoryViewData,
-  CustomerResult, QuoteProduct, RecentChangesResponse,
+  CustomerResult, SalesCustomer, QuoteProduct, RecentChangesResponse,
   SalesOrder, PaymentOrder, SalesOrderPayload, FundAccount, MonthlyProfitReport,
   AccountingSummary, AccountingDashboard, Reconciliation,
   Day1State,
@@ -77,8 +77,29 @@ export const fetchInventory = (params?: { brand?: string; q?: string }): Promise
   api.get('/inventory/', { params }).then(r => r.data);
 
 // Sales order workflow APIs. Equivalent pending writes share an idempotency key.
-export const fetchSalesOrders = (params?: { q?: string; fulfillment_status?: string; payment_status?: string; limit?: number }): Promise<SalesOrder[]> =>
+export const fetchSalesOrders = (params?: { q?: string; fulfillment_status?: string; payment_status?: string; date_from?: string; date_to?: string; limit?: number }): Promise<SalesOrder[]> =>
   api.get('/sales/orders/', { params }).then(r => r.data.results || []);
+
+export const fetchSalesCustomers = (q = ''): Promise<CustomerResult[]> =>
+  api.get('/sales/customers/', { params: { q } }).then(r => r.data.results || []);
+
+export const fetchSalesCustomer = (id: number): Promise<SalesCustomer> =>
+  api.get(`/sales/customers/${id}/`).then(r => r.data.customer);
+
+export const createSalesCustomer = (payload: { name: string; phone: string }): Promise<SalesCustomer> =>
+  writeWithIdempotency<{ customer: SalesCustomer }>('create-sales-customer', payload, config =>
+    api.post('/sales/customers/', payload, config),
+  ).then(r => r.customer);
+
+export const updateSalesCustomer = (id: number, payload: { name: string; phone: string }): Promise<SalesCustomer> =>
+  writeWithIdempotency<{ customer: SalesCustomer }>(`update-sales-customer-${id}`, payload, config =>
+    api.patch(`/sales/customers/${id}/`, payload, config),
+  ).then(r => r.customer);
+
+export const deleteSalesCustomer = (id: number): Promise<SalesCustomer> =>
+  writeWithIdempotency<{ customer: SalesCustomer }>(`delete-sales-customer-${id}`, {}, config =>
+    api.delete(`/sales/customers/${id}/`, { ...config, data: {} }),
+  ).then(r => r.customer);
 
 export const fetchSalesOrder = (id: number): Promise<SalesOrder> =>
   api.get(`/sales/orders/${id}/`).then(r => r.data.sales_order);
@@ -385,12 +406,7 @@ export const previewInventoryPrivnote = (): Promise<{ preview: InventoryViewData
   }).then(r => r.json());
 
 export const searchCustomers = (q: string): Promise<CustomerResult[]> =>
-  fetch(`/privnote/api/search-customers/?q=${encodeURIComponent(q)}`, {
-    credentials: 'same-origin',
-    headers: { 'X-CSRFToken': getCSRFToken() },
-  })
-    .then(r => r.json())
-    .then(d => Array.isArray(d?.results) ? d.results : []);
+  fetchSalesCustomers(q);
 
 export const fetchQuoteProducts = (): Promise<QuoteProduct[]> =>
   fetch('/privnote/api/quote-products/', {

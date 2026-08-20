@@ -1,53 +1,13 @@
 """Stable JSON read models for the one-time Day 1 workflow."""
 
-from accounting.models import Day1DraftAccount, FundAccount
-
-
-_SLOT_ORDER = {
-    Day1DraftAccount.Slot.OWNER_CNY: 0,
-    Day1DraftAccount.Slot.PARTNER_CNY: 1,
-    Day1DraftAccount.Slot.RUB: 2,
-    Day1DraftAccount.Slot.USDT: 3,
-}
-
-
-def _original_amount(row):
-    """按账户币种输出可直接再次提交的原币精度。"""
-    places = 8 if row.currency == FundAccount.Currency.USDT else 2
-    return format(row.original_amount, f'.{places}f')
-
 
 def _serialize_draft(initialization):
     """Keep editable draft data separate from the frozen completion summary."""
-    accounts = sorted(
-        initialization.draft_accounts.all(),
-        key=lambda row: (_SLOT_ORDER.get(row.slot, 99), row.pk),
-    )
-    inventory = sorted(
-        initialization.draft_inventory.all(),
-        key=lambda row: (row.cigar_id, row.box_size, row.pk),
-    )
+    accounts = initialization.draft_payload.get('accounts')
+    inventory = initialization.draft_payload.get('inventory')
     return {
-        'accounts': [
-            {
-                'slot': row.slot,
-                'name': row.account_name,
-                'currency': row.currency,
-                'original_amount': _original_amount(row),
-                'cny_book_cost': format(row.cny_book_cost, '.2f'),
-            }
-            for row in accounts
-        ],
-        'inventory': [
-            {
-                'cigar_id': row.cigar_id,
-                'box_size': row.box_size,
-                'box_quantity': row.box_quantity,
-                'loose_sticks': row.loose_sticks,
-                'unit_cost_cny': format(row.unit_cost_cny, '.2f'),
-            }
-            for row in inventory
-        ],
+        'accounts': accounts if isinstance(accounts, list) else [],
+        'inventory': inventory if isinstance(inventory, list) else [],
     }
 
 
@@ -62,11 +22,17 @@ def serialize_day1_state(initialization):
             'completion_summary': None,
         }
     completed = initialization.status == initialization.Status.COMPLETED
+    draft_business_date = (
+        initialization.draft_payload.get('business_date')
+        if initialization.draft_payload else None
+    )
     return {
         'status': initialization.status,
         'version': initialization.version,
         'business_date': (
-            initialization.business_date.isoformat()
+            draft_business_date
+            if not completed and isinstance(draft_business_date, str)
+            else initialization.business_date.isoformat()
             if initialization.business_date else None
         ),
         'draft': None if completed else _serialize_draft(initialization),

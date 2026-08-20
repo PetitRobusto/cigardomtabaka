@@ -22,6 +22,8 @@ export default function MonthlyProfitSummary({ profit, profitError, month }: Mon
     ? absoluteAmount(profit.salary_expense_cny)
       + absoluteAmount(profit.rent_expense_cny)
       + absoluteAmount(profit.utilities_expense_cny)
+      + absoluteAmount(profit.professional_expense_cny)
+      + absoluteAmount(profit.interest_expense_cny)
       + absoluteAmount(profit.other_expense_cny)
     : 0;
   const transportNet = profit
@@ -45,7 +47,7 @@ export default function MonthlyProfitSummary({ profit, profitError, month }: Mon
         <div className="grid sm:grid-cols-2 xl:grid-cols-5">
           <Metric label="销售收入" value={formatCny(absoluteAmount(profit.sales_revenue_cny))} note="商品销售收入" />
           <Metric label="销售成本" value={formatCny(absoluteAmount(profit.cost_of_goods_sold_cny))} note="销售出库成本" />
-          <Metric label="经营费用" value={formatCny(operatingExpenses)} note="工资、房租、水电及其他" />
+          <Metric label="经营费用" value={formatCny(operatingExpenses)} note="工资、房租、专业服务、财务费用等" />
           <Metric label="人肉净额" value={formatSignedCny(transportNet)} note="客户支付减实际成本" />
           <Metric label="本月净利润" value={formatSignedCny(profit.net_profit_cny)} note="含库存及对账调整" net />
         </div>

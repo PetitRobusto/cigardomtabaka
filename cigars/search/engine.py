@@ -1,13 +1,29 @@
 """雪茄搜索引擎 — 零 HTTP 依赖，纯算法层"""
-from cigars.search.scoring import score_cigar
+from heapq import nsmallest
+from itertools import islice
+import re
+
+from cigars.search.scoring import compact_search_text, normalize_search_text, score_cigar
 from cigars.search.constants import DEFAULT_RESULT_LIMIT, MIN_SEARCH_SCORE
+
+
+# 中文连续词与字母/数字型号分开；标点只作为分隔符，不污染搜索词。
+SEARCH_TERM_PATTERN = re.compile(r'[\u3400-\u9fff]+|[^\W_]+')
 
 
 def split_search_terms(q):
     """按 CJK/非 CJK 边界拆分查询词"""
-    import re
-    terms = re.findall(r'[\u4e00-\u9fff]+|[^\u4e00-\u9fff\s]+', q)
-    return [t.lower() for t in terms if len(t) >= 1]
+    terms = SEARCH_TERM_PATTERN.findall(normalize_search_text(q))
+    return [term for term in terms if term]
+
+
+def limited_candidates(cigars, limit):
+    """空查询只读取需要展示的候选，不物化整个目录。"""
+    try:
+        candidates = cigars[:limit]
+    except TypeError:
+        candidates = islice(cigars, limit)
+    return list(candidates)
 
 
 class CigarSearchEngine:
@@ -27,36 +43,37 @@ class CigarSearchEngine:
         :param limit: 最大返回条数
         :return: list[Cigar] — 排序后的雪茄列表
         """
-        if not cigars:
+        if limit <= 0:
             return []
-
-        # 确保是列表
-        cigars = list(cigars)
 
         # 无查询词时直接截断返回
         if not query or not query.strip():
-            return cigars[:limit]
+            return limited_candidates(cigars, limit)
 
-        q_lower = query.lower().strip()
-        terms = split_search_terms(query)
+        cigars = list(cigars)
+        if not cigars:
+            return []
+
+        q_lower = normalize_search_text(query).strip()
+        query_compact = compact_search_text(q_lower)
+        terms = split_search_terms(q_lower)
         is_multi_term = len(terms) > 1
 
-        scored = []
-        for cigar in cigars:
-            score = score_cigar(cigar, q_lower, terms, is_multi_term)
+        best_by_product = {}
+        for position, cigar in enumerate(cigars):
+            score = score_cigar(
+                cigar, q_lower, terms, is_multi_term,
+                query_compact=query_compact,
+            )
             if score >= MIN_SEARCH_SCORE:
-                scored.append((cigar, score))
+                key = (cigar.brand, cigar.english_name, cigar.vitola)
+                previous = best_by_product.get(key)
+                if previous is None or score > previous[0]:
+                    best_by_product[key] = (score, position, cigar)
 
-        # 按分数降序排序
-        scored.sort(key=lambda x: -x[1])
-
-        # 去重：保留同 (brand, english_name, vitola) 中最高分的
-        seen = set()
-        deduped = []
-        for cigar, _ in scored:
-            key = (cigar.brand, cigar.english_name, cigar.vitola)
-            if key not in seen:
-                seen.add(key)
-                deduped.append(cigar)
-
-        return deduped[:limit]
+        ranked = nsmallest(
+            limit,
+            best_by_product.values(),
+            key=lambda result: (-result[0], result[1]),
+        )
+        return [cigar for _, _, cigar in ranked]

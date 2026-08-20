@@ -11,14 +11,15 @@ from decimal import Decimal
 from django.db import IntegrityError, OperationalError
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q, Sum
 from django.http import JsonResponse
+from django.utils import timezone
 
 from accounting.models import FundAccount
 from accounting.guards import Day1IncompleteError
 from accounting.services import LedgerError
 
-from .models import IdempotencyRecord, SalesOrder
+from .models import Customer, IdempotencyRecord, SalesOrder
 
 
 from .services import (
@@ -182,6 +183,16 @@ def _create_handler(body, operator, context):
     ))
 
 
+def _iso_date_query(request, name):
+    value = request.GET.get(name, "").strip()
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise ActionInputError(f"{name} 必须是 ISO 日期") from exc
+
+
 def sales_orders(request):
     denied = _denied(request)
     if denied:
@@ -205,6 +216,17 @@ def sales_orders(request):
     ).all()
     fulfillment = request.GET.get("fulfillment_status", "").strip()
     payment = request.GET.get("payment_status", "").strip()
+    try:
+        date_from = _iso_date_query(request, "date_from")
+        date_to = _iso_date_query(request, "date_to")
+    except ActionInputError as exc:
+        return _error(str(exc), 400)
+    if date_from and date_to and date_from > date_to:
+        return _error("date_from 不能晚于 date_to", 400)
+    if date_from:
+        orders = orders.filter(created_at__date__gte=date_from)
+    if date_to:
+        orders = orders.filter(created_at__date__lte=date_to)
     if fulfillment:
         if fulfillment not in SalesOrder.FulfillmentStatus.values:
             return _error("履约状态无效", 400)
@@ -224,6 +246,150 @@ def sales_orders(request):
             else:
                 orders = orders.filter(customer_name__icontains=query)
     return _json({"results": [serialize_sales_order(order) for order in orders[:limit]]})
+
+
+def _customer_payload(customer, include_orders=False):
+    orders = SalesOrder.objects.filter(customer=customer).order_by("-created_at")
+    has_summary = all(hasattr(customer, field) for field in (
+        "order_count", "active_order_count", "total_amount_cny",
+    ))
+    if has_summary:
+        order_count = customer.order_count or 0
+        active_order_count = customer.active_order_count or 0
+        total_amount_cny = customer.total_amount_cny or 0
+    else:
+        active_orders = orders.filter(fulfillment_status__in=(
+            SalesOrder.FulfillmentStatus.CONFIRMED,
+            SalesOrder.FulfillmentStatus.SHIPPED,
+        ))
+        summary = active_orders.aggregate(order_count=Count("id"), total_amount_cny=Sum("amount_due_cny"))
+        order_count = orders.count()
+        active_order_count = summary["order_count"] or 0
+        total_amount_cny = summary["total_amount_cny"] or 0
+    payload = {
+        "id": customer.id,
+        "name": customer.name,
+        "phone": customer.phone,
+        "created_at": customer.created_at.isoformat(),
+        "deleted_at": customer.deleted_at.isoformat() if customer.deleted_at else None,
+        "order_count": order_count,
+        "active_order_count": active_order_count,
+        "total_amount_cny": float(total_amount_cny),
+    }
+    if include_orders:
+        recent_orders = orders.select_related(
+            "customer", "sales_shipment", "sales_receipt", "sales_refund",
+            "sales_return", "sales_transport_cost",
+        ).prefetch_related(
+            "items__cigar", "items__allocations__purchase_batch",
+        )[:20]
+        payload["recent_orders"] = [serialize_sales_order(order) for order in recent_orders]
+    return payload
+
+
+def _customer_values(body):
+    name = body.get("name", "")
+    phone = body.get("phone", "")
+    if not isinstance(name, str) or not name.strip():
+        raise ActionInputError("客户姓名不能为空", details={"name": "不能为空"})
+    if not isinstance(phone, str):
+        raise ActionInputError("客户电话必须是字符串", details={"phone": "必须是字符串"})
+    name = name.strip()
+    phone = phone.strip()
+    if len(name) > 200:
+        raise ActionInputError("客户姓名不能超过 200 个字符", details={"name": "不能超过 200 个字符"})
+    if len(phone) > 50:
+        raise ActionInputError("客户电话不能超过 50 个字符", details={"phone": "不能超过 50 个字符"})
+    return name, phone
+
+
+def sales_customers(request):
+    denied = _denied(request)
+    if denied:
+        return denied
+    method_error = _method(request, {"GET", "POST"})
+    if method_error:
+        return method_error
+    if request.method == "GET":
+        query = request.GET.get("q", "").strip()
+        customers = Customer.objects.filter(deleted_at__isnull=True).annotate(
+            order_count=Count("salesorder", distinct=True),
+            active_order_count=Count(
+                "salesorder",
+                filter=Q(salesorder__fulfillment_status__in=(
+                    SalesOrder.FulfillmentStatus.CONFIRMED,
+                    SalesOrder.FulfillmentStatus.SHIPPED,
+                )),
+                distinct=True,
+            ),
+            total_amount_cny=Sum(
+                "salesorder__amount_due_cny",
+                filter=Q(salesorder__fulfillment_status__in=(
+                    SalesOrder.FulfillmentStatus.CONFIRMED,
+                    SalesOrder.FulfillmentStatus.SHIPPED,
+                )),
+            ),
+        )
+        if query:
+            customers = customers.filter(Q(name__icontains=query) | Q(phone__icontains=query))
+        return _json({"results": [_customer_payload(customer) for customer in customers[:50]]})
+
+    def handler(body, operator, context):
+        name, phone = _customer_values(body)
+        if Customer.objects.filter(name=name).exists():
+            raise ActionConflictError("客户姓名已存在", details={"name": "客户姓名已存在"})
+        try:
+            with transaction.atomic():
+                customer = Customer.objects.create(name=name, phone=phone)
+        except IntegrityError as exc:
+            raise ActionConflictError(
+                "客户姓名已存在", details={"name": "客户姓名已存在"}
+            ) from exc
+        return {"customer": _customer_payload(customer, include_orders=True)}
+
+    return _write(request, "create_sales_customer", handler, 201)
+
+
+def sales_customer_detail(request, customer_id):
+    denied = _denied(request)
+    if denied:
+        return denied
+    method_error = _method(request, {"GET", "PATCH", "DELETE"})
+    if method_error:
+        return method_error
+    try:
+        customer = Customer.objects.get(pk=customer_id)
+    except Customer.DoesNotExist:
+        return _error("客户不存在", 404)
+    if request.method == "GET":
+        if customer.deleted_at:
+            return _error("客户不存在", 404)
+        return _json({"customer": _customer_payload(customer, include_orders=True)})
+
+    def handler(body, operator, context):
+        locked = Customer.objects.select_for_update().get(pk=customer_id)
+        if locked.deleted_at:
+            raise ActionConflictError("客户已删除")
+        if request.method == "DELETE":
+            locked.deleted_at = timezone.now()
+            locked.save(update_fields=["deleted_at"])
+            return {"customer": _customer_payload(locked, include_orders=True)}
+        name, phone = _customer_values(body)
+        if Customer.objects.exclude(pk=locked.pk).filter(name=name).exists():
+            raise ActionConflictError("客户姓名已存在", details={"name": "客户姓名已存在"})
+        locked.name = name
+        locked.phone = phone
+        try:
+            with transaction.atomic():
+                locked.save(update_fields=["name", "phone"])
+        except IntegrityError as exc:
+            raise ActionConflictError(
+                "客户姓名已存在", details={"name": "客户姓名已存在"}
+            ) from exc
+        return {"customer": _customer_payload(locked, include_orders=True)}
+
+    command = "delete_sales_customer" if request.method == "DELETE" else "update_sales_customer"
+    return _write(request, command, handler)
 
 
 def sales_order_detail(request, order_id):

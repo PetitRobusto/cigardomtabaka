@@ -12,6 +12,7 @@ import {
   nextDay1Step,
   validateDay1Draft,
   declaredBoxSizes,
+  day1CigarDisplayName,
   isLatestDay1SearchRequest,
   uniqueDay1InventoryCigarIds,
   day1BackgroundInteractionDisabled,
@@ -61,6 +62,13 @@ describe('Day 1 state rules', () => {
     expect(buildDay1Payload(state).accounts.map(account => account.slot)).toEqual(['owner_cny', 'partner_cny', 'rub', 'usdt']);
     expect(buildDay1Payload(state).accounts[0]).toMatchObject({ original_amount: '100', cny_book_cost: '100' });
     expect(validateDay1Draft({ ...state, inventory: [{ ...state.inventory[0], loose_sticks: -1 }] })).toContain('库存第 1 行数量不能为负数');
+  });
+
+  it('preserves empty draft amounts instead of converting them to zero', () => {
+    const payload = buildDay1Payload(emptyDay1Draft('2026-08-14'));
+
+    expect(payload.accounts[0]).toMatchObject({ original_amount: '', cny_book_cost: '' });
+    expect(payload.accounts[2]).toMatchObject({ original_amount: '', cny_book_cost: '' });
   });
 
   it('plans save-before-confirm against the version returned by save', () => {
@@ -142,6 +150,15 @@ describe('Day 1 state rules', () => {
   it('rejects stale search responses after the query request changes', () => {
     expect(isLatestDay1SearchRequest(1, 2)).toBe(false);
     expect(isLatestDay1SearchRequest(2, 2)).toBe(true);
+  });
+
+  it('prefixes Day 1 search products with their brand without duplicating it', () => {
+    expect(day1CigarDisplayName({
+      name: 'D4', brand: 'Partagás', brand_cn: '帕特加斯',
+    })).toBe('帕特加斯 D4');
+    expect(day1CigarDisplayName({
+      name: '帕特加斯 D4', brand: 'Partagás', brand_cn: '帕特加斯',
+    })).toBe('帕特加斯 D4');
   });
 
   it('deduplicates catalog detail loads for existing inventory rows', () => {

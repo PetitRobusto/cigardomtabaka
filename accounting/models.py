@@ -298,6 +298,13 @@ class FundAccount(models.Model):
 
 
 class Day1Initialization(models.Model):
+    """Day 1 单例流程锁与完成凭证。
+
+    draft_payload 是可随时覆盖、允许不完整的协作输入，不属于业务事实。
+    completion_summary 只在确认成功时冻结，供审计和完成页读取。
+    正式账户、余额、会计分录和库存事实分别由对应领域模型持有。
+    """
+
     class Status(models.TextChoices):
         DRAFT = 'draft', '草稿'
         COMPLETED = 'completed', '已完成'
@@ -309,6 +316,9 @@ class Day1Initialization(models.Model):
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='updated_day1_initializations', verbose_name='最后更新人')
     completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='completed_day1_initializations', verbose_name='完成人')
     completed_at = models.DateTimeField('完成时间', null=True, blank=True)
+    # 草稿故意不使用金额和外键字段约束；全部业务校验推迟到最终确认。
+    draft_payload = models.JSONField('原始草稿', default=dict, blank=True)
+    # 完成摘要是 Day 1 执行凭证，不参与余额或库存数量计算。
     completion_summary = models.JSONField('完成摘要', default=dict)
     updated_at = models.DateTimeField('更新时间', auto_now=True)
 
@@ -327,56 +337,6 @@ class Day1Initialization(models.Model):
 
     def __str__(self):
         return f'期初初始化 v{self.version}'
-
-
-class Day1DraftAccount(models.Model):
-    class Slot(models.TextChoices):
-        OWNER_CNY = 'owner_cny', '老板人民币'
-        PARTNER_CNY = 'partner_cny', '合伙人人民币'
-        RUB = 'rub', '卢布'
-        USDT = 'usdt', 'USDT'
-
-    initialization = models.ForeignKey(Day1Initialization, on_delete=models.CASCADE, related_name='draft_accounts', verbose_name='期初初始化')
-    slot = models.CharField('固定槽位', max_length=20, choices=Slot.choices)
-    account_name = models.CharField('账户名称', max_length=120)
-    currency = models.CharField('币种', max_length=4, choices=FundAccount.Currency.choices)
-    original_amount = models.DecimalField('原币金额', max_digits=20, decimal_places=8)
-    cny_book_cost = models.DecimalField('人民币账面成本', max_digits=20, decimal_places=2)
-
-    class Meta:
-        verbose_name = '期初资金草稿'
-        verbose_name_plural = '期初资金草稿'
-        constraints = [
-            models.UniqueConstraint(fields=['initialization', 'slot'], name='day1_draft_account_init_slot_unique'),
-            models.CheckConstraint(condition=models.Q(slot__in=['owner_cny', 'partner_cny', 'rub', 'usdt']), name='day1_draft_account_slot_valid'),
-            models.CheckConstraint(
-                condition=(
-                    models.Q(slot__in=['owner_cny', 'partner_cny'], currency='CNY')
-                    | models.Q(slot='rub', currency='RUB')
-                    | models.Q(slot='usdt', currency='USDT')
-                ),
-                name='day1_draft_account_slot_currency_match',
-            ),
-            models.CheckConstraint(condition=models.Q(original_amount__gte=0, cny_book_cost__gte=0), name='day1_draft_account_amounts_gte_zero'),
-        ]
-
-
-class Day1DraftInventory(models.Model):
-    initialization = models.ForeignKey(Day1Initialization, on_delete=models.CASCADE, related_name='draft_inventory', verbose_name='期初初始化')
-    cigar = models.ForeignKey('cigars.Cigar', on_delete=models.PROTECT, related_name='day1_draft_inventory', verbose_name='雪茄')
-    box_size = models.IntegerField('包装支数')
-    box_quantity = models.IntegerField('整盒数量')
-    loose_sticks = models.IntegerField('散支数量')
-    unit_cost_cny = models.DecimalField('人民币单支成本', max_digits=12, decimal_places=2)
-
-    class Meta:
-        verbose_name = '期初库存草稿'
-        verbose_name_plural = '期初库存草稿'
-        constraints = [
-            models.UniqueConstraint(fields=['initialization', 'cigar', 'box_size'], name='day1_draft_inventory_init_cigar_box_unique'),
-            models.CheckConstraint(condition=models.Q(box_size__gt=0), name='day1_draft_inventory_box_size_gt_zero'),
-            models.CheckConstraint(condition=models.Q(box_quantity__gte=0, loose_sticks__gte=0, unit_cost_cny__gte=0), name='day1_draft_inventory_values_gte_zero'),
-        ]
 
 
 class LedgerSequence(models.Model):

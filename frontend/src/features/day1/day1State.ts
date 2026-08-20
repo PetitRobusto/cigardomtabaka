@@ -209,6 +209,13 @@ export function isLatestDay1SearchRequest(requestId: number, currentRequestId: n
   return requestId === currentRequestId;
 }
 
+export function day1CigarDisplayName(cigar: { name: string; brand: string; brand_cn?: string }): string {
+  const name = cigar.name.trim();
+  const brand = (cigar.brand_cn || cigar.brand).trim();
+  if (!brand || name.toLocaleLowerCase().startsWith(brand.toLocaleLowerCase())) return name;
+  return `${brand} ${name}`;
+}
+
 export function uniqueDay1InventoryCigarIds(inventory: Pick<Day1InventoryInput, 'cigar_id'>[]): number[] {
   return Array.from(new Set(inventory.map(line => line.cigar_id)));
 }
@@ -224,8 +231,8 @@ export function buildDay1Payload(state: Day1DraftInput): Day1Payload {
       slot,
       name: source.name,
       currency,
-      original_amount: source.original_amount || '0',
-      cny_book_cost: cnyBookCost || '0',
+      original_amount: source.original_amount,
+      cny_book_cost: cnyBookCost,
     };
   });
   return {

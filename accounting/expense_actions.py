@@ -67,6 +67,12 @@ _CATEGORY_RULES = {
     Expense.Category.UTILITIES: (
         {FundAccount.Currency.CNY, FundAccount.Currency.RUB}, LedgerPosting.Category.UTILITIES_EXPENSE,
     ),
+    Expense.Category.PROFESSIONAL: (
+        {FundAccount.Currency.CNY, FundAccount.Currency.RUB}, LedgerPosting.Category.PROFESSIONAL_EXPENSE,
+    ),
+    Expense.Category.INTEREST: (
+        {FundAccount.Currency.CNY, FundAccount.Currency.RUB}, LedgerPosting.Category.INTEREST_EXPENSE,
+    ),
     Expense.Category.OTHER: (
         {FundAccount.Currency.CNY, FundAccount.Currency.RUB}, LedgerPosting.Category.OTHER_EXPENSE,
     ),
@@ -164,7 +170,7 @@ def require_day1_completed():
 @_retry_sqlite_locked
 def record_expense(*, category, amount, fund_account_id, business_date,
                    operator, idempotency_key, note=''):
-    """记录工资或 RUB 经营费用；不是换汇，也不挪用销售人肉费路径。"""
+    """记录经营费用；不是换汇，也不挪用销售人肉费路径。"""
     with transaction.atomic():
         _acquire_sqlite_writer_gate()
         try:

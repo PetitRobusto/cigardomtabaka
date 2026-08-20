@@ -93,6 +93,7 @@ export default function PurchaseAction({
   );
   const [inputs, setInputs] = useState<Record<number, PurchaseInputs>>({});
   const [states, setStates] = useState<Record<number, ActionState>>({});
+  const [reverseVisible, setReverseVisible] = useState<Record<number, boolean>>({});
 
   const inputFor = (id: number): PurchaseInputs => inputs[id] || emptyInputs(businessDate);
   const stateFor = (id: number): ActionState => states[id] || initialActionState();
@@ -198,6 +199,7 @@ export default function PurchaseAction({
             }, 0n);
             const total = purchase.rub_total ?? (calculatedTotal === null ? null : formatCents(calculatedTotal));
             const busy = state.status === 'loading';
+            const reverseOpen = Boolean(reverseVisible[purchase.id]);
             return (
               <article key={purchase.id} className="rounded-xl border border-[#E8E0D6] bg-white p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -220,16 +222,16 @@ export default function PurchaseAction({
                   <span>付款金额：按采购单 RUB 合计</span>
                   {packagingReviewRequired && <span role="status" className="text-[#7A1F2E]">包装待复核：后端 packaging gate 会阻止付款/到货</span>}
                 </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+                {purchase.status === 'received' && !reverseOpen ? <div className="mt-4 flex justify-end border-t border-[#E8E0D6] pt-3"><button data-guide="accounting-purchase-reverse-reveal" type="button" onClick={() => setReverseVisible(previous => ({ ...previous, [purchase.id]: true }))} className="text-xs text-[#8A7E6E] underline decoration-dotted underline-offset-4 hover:text-[#7A1F2E]">显示撤销到货</button></div> : <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
                   <label className="text-sm">业务日期<input data-guide={purchase.status === 'received' ? 'accounting-purchase-reverse-date' : 'accounting-purchase-date'} type="date" value={input.businessDate} onChange={event => updateInput(purchase.id, { businessDate: event.target.value })} className="mt-1 block w-full rounded-lg border border-[#E8E0D6] p-2" /></label>
                   {purchase.status === 'draft' ? (
                     <label className="text-sm">卢布账户<select data-guide="accounting-purchase-account" value={accountId ? String(accountId) : ''} onChange={event => updateInput(purchase.id, { accountId: event.target.value })} className="mt-1 block w-full rounded-lg border border-[#E8E0D6] bg-white p-2"><option value="">选择账户</option>{activeRubAccounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
                   ) : <label className="text-sm">{purchase.status === 'received' ? '撤销原因' : '备注'}<input data-guide={purchase.status === 'received' ? 'accounting-purchase-reverse-reason' : 'accounting-purchase-note'} value={input.note} onChange={event => updateInput(purchase.id, { note: event.target.value })} className="mt-1 block w-full rounded-lg border border-[#E8E0D6] p-2" /></label>}
                   {purchase.status === 'draft' && <label className="text-sm">备注<input data-guide="accounting-purchase-note" value={input.note} onChange={event => updateInput(purchase.id, { note: event.target.value })} className="mt-1 block w-full rounded-lg border border-[#E8E0D6] p-2" /></label>}
                   <div className="flex gap-2 sm:justify-end">
-                    {purchase.status === 'draft' ? <><span data-guide="accounting-purchase-pay"><button type="button" disabled={busy || !accountId || !input.businessDate} onClick={() => pay(purchase)} className="rounded-lg bg-[#7A1F2E] px-3 py-2 text-sm text-white disabled:opacity-50">{busy ? '处理中…' : '付款'}</button></span><button type="button" disabled={busy} onClick={() => cancel(purchase)} className="rounded-lg border border-[#7A1F2E] px-3 py-2 text-sm text-[#7A1F2E] disabled:opacity-50">取消</button></> : purchase.status === 'in_transit' ? <span data-guide="accounting-purchase-receive"><button type="button" disabled={busy || !input.businessDate} onClick={() => receive(purchase)} className="rounded-lg bg-[#7A1F2E] px-3 py-2 text-sm text-white disabled:opacity-50">{busy ? '处理中…' : '整单到货'}</button></span> : purchase.status === 'received' ? <span data-guide="accounting-purchase-reverse-submit"><button type="button" disabled={busy || !input.businessDate || !input.note.trim()} onClick={() => reverseReceive(purchase)} className="rounded-lg border border-[#7A1F2E] px-3 py-2 text-sm text-[#7A1F2E] disabled:opacity-50">{busy ? '处理中…' : '撤销到货'}</button></span> : null}
+                    {purchase.status === 'draft' ? <><span data-guide="accounting-purchase-pay"><button type="button" disabled={busy || !accountId || !input.businessDate} onClick={() => pay(purchase)} className="rounded-lg bg-[#7A1F2E] px-3 py-2 text-sm text-white disabled:opacity-50">{busy ? '处理中…' : '付款'}</button></span><button type="button" disabled={busy} onClick={() => cancel(purchase)} className="rounded-lg border border-[#7A1F2E] px-3 py-2 text-sm text-[#7A1F2E] disabled:opacity-50">取消</button></> : purchase.status === 'in_transit' ? <span data-guide="accounting-purchase-receive"><button type="button" disabled={busy || !input.businessDate} onClick={() => receive(purchase)} className="rounded-lg bg-[#7A1F2E] px-3 py-2 text-sm text-white disabled:opacity-50">{busy ? '处理中…' : '整单到货'}</button></span> : purchase.status === 'received' ? <><button type="button" disabled={busy} onClick={() => setReverseVisible(previous => ({ ...previous, [purchase.id]: false }))} className="rounded-lg border border-[#E8E0D6] px-3 py-2 text-sm text-[#8A7E6E] disabled:opacity-50">收起</button><span data-guide="accounting-purchase-reverse-submit"><button type="button" disabled={busy || !input.businessDate || !input.note.trim()} onClick={() => reverseReceive(purchase)} className="rounded-lg border border-[#7A1F2E] px-3 py-2 text-sm text-[#7A1F2E] disabled:opacity-50">{busy ? '处理中…' : '确认撤销到货'}</button></span></> : null}
                   </div>
-                </div>
+                </div>}
                 {state.status === 'success' && <p role="status" className="mt-3 text-sm text-green-700">已提交</p>}
                 {(state.status === 'error' || state.status === 'conflict') && <p role="alert" className="mt-3 text-sm text-[#7A1F2E]">{state.status === 'conflict' ? '数据已被另一位经营者更新，请刷新后重试。' : state.error?.message}</p>}
               </article>

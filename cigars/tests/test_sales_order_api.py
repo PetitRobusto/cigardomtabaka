@@ -1,9 +1,11 @@
 from datetime import date
 import json
+import unittest.mock
 from decimal import Decimal
 
-from django.db import close_old_connections
+from django.db import IntegrityError, close_old_connections
 from django.test import Client, TestCase, TransactionTestCase
+from django.utils import timezone
 
 from accounting.models import Day1Initialization, FundAccount, LedgerPosting
 from accounting.services import record_opening_balance
@@ -13,6 +15,7 @@ from cigars.models import (
     Brand,
     SalesReceipt, SalesRefund, SalesShipment, SalesTransportCost,
     Cigar,
+    Customer,
     IdempotencyRecord,
     PurchaseBatch,
     PurchaseOrder,
@@ -145,6 +148,24 @@ class SalesOrderApiTest(TestCase):
         batch.refresh_from_db()
         self.assertEqual(batch.remaining, 10)
 
+    def test_create_draft_links_selected_customer_profile(self):
+        customer = Customer.objects.create(name="王先生", phone="13800000000")
+        body = self.body()
+        body["customer_id"] = customer.id
+        body["customer_name"] = customer.name
+
+        response = self.create_order(key="customer-create", body=body)
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()["sales_order"]
+        self.assertEqual(payload["customer_id"], customer.id)
+        self.assertEqual(payload["customer"], {
+            "id": customer.id,
+            "name": customer.name,
+            "phone": customer.phone,
+            "deleted_at": None,
+        })
+
     def test_duplicate_create_key_returns_same_order(self):
         self.create_batch(quantity=10)
         first = self.create_order(key="same-create")
@@ -236,16 +257,22 @@ class SalesOrderApiTest(TestCase):
             {StockAllocation.Status.RELEASED},
         )
 
-    def test_confirm_non_draft_and_cancel_draft_are_bad_requests(self):
+    def test_draft_can_be_cancelled_and_confirm_cannot_repeat(self):
         self.create_batch(quantity=10)
         created = self.create_order(key="invalid-create")
         order_id = created.json()["sales_order"]["id"]
         self.login()
-        cancelled = self.request("post", f"/api/sales/orders/{order_id}/cancel/", {}, "bad-cancel")
-        self.assertEqual(cancelled.status_code, 400)
-        confirmed = self.request("post", f"/api/sales/orders/{order_id}/confirm/", {}, "good-confirm")
+        cancelled = self.request("post", f"/api/sales/orders/{order_id}/cancel/", {}, "draft-cancel")
+        self.assertEqual(cancelled.status_code, 200)
+        self.assertEqual(cancelled.json()["sales_order"]["fulfillment_status"], "cancelled")
+        self.assertEqual(cancelled.json()["sales_order"]["available_actions"], [])
+
+        second = self.create_order(key="confirm-create")
+        second_id = second.json()["sales_order"]["id"]
+        self.login()
+        confirmed = self.request("post", f"/api/sales/orders/{second_id}/confirm/", {}, "good-confirm")
         self.assertEqual(confirmed.status_code, 200)
-        repeated = self.request("post", f"/api/sales/orders/{order_id}/confirm/", {}, "bad-confirm")
+        repeated = self.request("post", f"/api/sales/orders/{second_id}/confirm/", {}, "bad-confirm")
         self.assertEqual(repeated.status_code, 400)
 
     def test_confirm_idempotency_key_is_scoped_to_order(self):
@@ -276,6 +303,139 @@ class SalesOrderApiTest(TestCase):
         detail = self.client.get(f"/api/sales/orders/{first.json()['sales_order']['id']}/")
         self.assertEqual(detail.status_code, 200)
         self.assertIn("fifo_cost", detail.json()["sales_order"])
+
+    def test_list_filters_created_date_inclusively_and_rejects_invalid_range(self):
+        first = self.create_order(key="date-filter-one")
+        second = self.create_order(key="date-filter-two")
+        first_id = first.json()["sales_order"]["id"]
+        second_id = second.json()["sales_order"]["id"]
+        SalesOrder.objects.filter(pk=first_id).update(created_at=timezone.make_aware(timezone.datetime(2026, 8, 9, 23, 59)))
+        SalesOrder.objects.filter(pk=second_id).update(created_at=timezone.make_aware(timezone.datetime(2026, 8, 10, 0, 0)))
+        self.login()
+
+        response = self.client.get("/api/sales/orders/?date_from=2026-08-10&date_to=2026-08-10")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([order["id"] for order in response.json()["results"]], [second_id])
+        invalid = self.client.get("/api/sales/orders/?date_from=2026-08-11&date_to=2026-08-10")
+        malformed = self.client.get("/api/sales/orders/?date_from=not-a-date")
+        self.assertEqual(invalid.status_code, 400)
+        self.assertEqual(malformed.status_code, 400)
+
+    def test_sales_customer_crud_detail_history_and_soft_delete(self):
+        self.login()
+        created = self.request(
+            "post", "/api/sales/customers/",
+            {"name": "销售客户甲", "phone": "+7 900 123-45-67"},
+            "customer-create",
+        )
+        self.assertEqual(created.status_code, 201)
+        customer_id = created.json()["customer"]["id"]
+        order = self.create_order(
+            key="customer-history-order",
+            body={**self.body(), "customer_id": customer_id, "customer_name": "销售客户甲"},
+        )
+        self.assertEqual(order.status_code, 201)
+
+        self.login()
+        listing = self.client.get("/api/sales/customers/?q=123-45")
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(listing.json()["results"][0]["order_count"], 1)
+        detail = self.client.get(f"/api/sales/customers/{customer_id}/")
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json()["customer"]["recent_orders"][0]["id"], order.json()["sales_order"]["id"])
+
+        updated = self.request(
+            "patch", f"/api/sales/customers/{customer_id}/",
+            {"name": "销售客户乙", "phone": "+7 900 765-43-21"},
+            "customer-update",
+        )
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.json()["customer"]["name"], "销售客户乙")
+        deleted = self.request(
+            "delete", f"/api/sales/customers/{customer_id}/", {},
+            "customer-delete",
+        )
+        self.assertEqual(deleted.status_code, 200)
+        self.assertIsNotNone(deleted.json()["customer"]["deleted_at"])
+        self.assertIsNotNone(deleted.json()["customer"]["recent_orders"][0]["customer"]["deleted_at"])
+        self.assertEqual(self.client.get(f"/api/sales/customers/{customer_id}/").status_code, 404)
+        self.assertEqual(self.client.get("/api/sales/customers/?q=销售客户乙").json()["results"], [])
+
+    def test_sales_customer_write_validation_and_permissions(self):
+        self.login()
+        invalid = self.request("post", "/api/sales/customers/", {"name": "", "phone": []}, "customer-invalid")
+        self.assertEqual(invalid.status_code, 400)
+        self.client.logout()
+        anonymous = self.client.get("/api/sales/customers/")
+        self.assertEqual(anonymous.status_code, 403)
+
+    def test_sales_customer_list_has_fixed_query_count_for_customers_without_orders(self):
+        Customer.objects.bulk_create([
+            Customer(name=f"无订单客户{index}", phone="") for index in range(10)
+        ])
+        self.login()
+
+        with self.assertNumQueries(3):
+            response = self.client.get("/api/sales/customers/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()["results"]), 10)
+        self.assertTrue(all(customer["active_order_count"] == 0 for customer in response.json()["results"]))
+        self.assertTrue(all(customer["total_amount_cny"] == 0 for customer in response.json()["results"]))
+
+    def test_deleted_customer_cannot_be_used_for_new_or_updated_order(self):
+        customer = Customer.objects.create(name="已删除客户", phone="13800000000")
+        customer.deleted_at = timezone.now()
+        customer.save(update_fields=["deleted_at"])
+
+        create_body = {**self.body(), "customer_id": customer.id}
+        created_with_deleted = self.create_order("deleted-customer-create", create_body)
+        self.assertEqual(created_with_deleted.status_code, 400)
+        self.assertIn("客户不存在", created_with_deleted.json()["error"])
+        self.assertEqual(SalesOrder.objects.count(), 0)
+
+        active_order = self.create_order("active-order")
+        order_id = active_order.json()["sales_order"]["id"]
+        self.login()
+        updated_with_deleted = self.request(
+            "patch", f"/api/sales/orders/{order_id}/", create_body,
+            "deleted-customer-update",
+        )
+        self.assertEqual(updated_with_deleted.status_code, 400)
+        order = SalesOrder.objects.get(pk=order_id)
+        self.assertIsNone(order.customer_id)
+        self.assertEqual(order.customer_name, "接口客户")
+
+    def test_customer_unique_constraint_conflicts_return_409(self):
+        self.login()
+        original_create = Customer.objects.create
+
+        def conflicting_create(*args, **kwargs):
+            raise IntegrityError("unique customer name")
+
+        with self.settings(DEBUG=False):
+            with unittest.mock.patch.object(Customer.objects, "create", side_effect=conflicting_create):
+                response = self.request(
+                    "post", "/api/sales/customers/",
+                    {"name": "并发重名", "phone": ""}, "customer-race-create",
+                )
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("客户姓名已存在", response.json()["error"])
+
+        first = original_create(name="客户一", phone="")
+        second = original_create(name="客户二", phone="")
+        with unittest.mock.patch.object(Customer, "save", side_effect=IntegrityError("unique customer name")):
+            updated = self.request(
+                "patch", f"/api/sales/customers/{second.id}/",
+                {"name": "并发改名", "phone": ""}, "customer-race-update",
+            )
+        self.assertEqual(updated.status_code, 409)
+        self.assertIn("客户姓名已存在", updated.json()["error"])
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.name, "客户一")
+        self.assertEqual(second.name, "客户二")
 
     def test_list_search_matches_order_number(self):
         created = self.create_order(key="order-number-search")

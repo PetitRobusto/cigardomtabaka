@@ -84,6 +84,8 @@ def _operating_profit_facts(*, start=None, end=None):
         'salary_expense_cny': _sum_category(LedgerPosting.Category.SALARY_EXPENSE, start=start, end=end),
         'rent_expense_cny': _sum_category(LedgerPosting.Category.RENT_EXPENSE, start=start, end=end),
         'utilities_expense_cny': _sum_category(LedgerPosting.Category.UTILITIES_EXPENSE, start=start, end=end),
+        'professional_expense_cny': _sum_category(LedgerPosting.Category.PROFESSIONAL_EXPENSE, start=start, end=end),
+        'interest_expense_cny': _sum_category(LedgerPosting.Category.INTEREST_EXPENSE, start=start, end=end),
         'other_expense_cny': _sum_category(LedgerPosting.Category.OTHER_EXPENSE, start=start, end=end),
     }
     inventory_gain = -_sum_category(LedgerPosting.Category.INVENTORY_ADJUSTMENT_GAIN, start=start, end=end)

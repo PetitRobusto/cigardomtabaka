@@ -14,6 +14,7 @@ from accounting.models import (
 )
 from accounting.services import exchange_to_rub, record_opening_balance
 from accounting.selectors import account_snapshot
+from accounting.selectors import monthly_profit
 from cigars.models import User
 
 
@@ -91,11 +92,13 @@ class ExpenseActionTest(TestCase):
             LedgerPosting.Category.RENT_EXPENSE,
         )
 
-    def test_utilities_and_other_use_rub_accounts(self):
+    def test_operating_categories_use_rub_accounts(self):
         from accounting.expense_actions import record_expense
 
         for category, posting_category in (
             (Expense.Category.UTILITIES, LedgerPosting.Category.UTILITIES_EXPENSE),
+            (Expense.Category.PROFESSIONAL, LedgerPosting.Category.PROFESSIONAL_EXPENSE),
+            (Expense.Category.INTEREST, LedgerPosting.Category.INTEREST_EXPENSE),
             (Expense.Category.OTHER, LedgerPosting.Category.OTHER_EXPENSE),
         ):
             with self.subTest(category=category):
@@ -113,6 +116,9 @@ class ExpenseActionTest(TestCase):
                     ).category,
                     posting_category,
                 )
+        monthly = monthly_profit(month=self.business_date)
+        self.assertEqual(monthly['professional_expense_cny'], Decimal('1.00'))
+        self.assertEqual(monthly['interest_expense_cny'], Decimal('1.00'))
 
     def test_invalid_amounts_have_stable_codes(self):
         from accounting.expense_actions import ExpenseActionError, record_expense

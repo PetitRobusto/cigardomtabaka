@@ -445,6 +445,8 @@ class LedgerPosting(models.Model):
         SALARY_EXPENSE = 'salary_expense', '工资费用'
         RENT_EXPENSE = 'rent_expense', '房租费用'
         UTILITIES_EXPENSE = 'utilities_expense', '水电费用'
+        PROFESSIONAL_EXPENSE = 'professional_expense', '会计（专业服务）'
+        INTEREST_EXPENSE = 'interest_expense', '利息支出（财务费用）'
         OTHER_EXPENSE = 'other_expense', '其他经营费用'
         DIVIDEND_DISTRIBUTION = 'dividend_distribution', '分红分配'
         INVENTORY_ADJUSTMENT_GAIN = 'inventory_adjustment_gain', '库存调整收益'
@@ -600,6 +602,8 @@ class Expense(models.Model):
         SALARY = 'salary', '工资'
         RENT = 'rent', '房租'
         UTILITIES = 'utilities', '水电'
+        PROFESSIONAL = 'professional', '会计（专业服务）'
+        INTEREST = 'interest', '利息支出（财务费用）'
         OTHER = 'other', '其他'
 
     objects = ExpenseQuerySet.as_manager()

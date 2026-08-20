@@ -216,6 +216,10 @@ export function day1CigarDisplayName(cigar: { name: string; brand: string; brand
   return `${brand} ${name}`;
 }
 
+export function day1CigarReleaseLabel(cigar: { is_regular: boolean; release_type_cn?: string }): string {
+  return cigar.is_regular ? '常规款' : cigar.release_type_cn?.trim() || '特别款';
+}
+
 export function uniqueDay1InventoryCigarIds(inventory: Pick<Day1InventoryInput, 'cigar_id'>[]): number[] {
   return Array.from(new Set(inventory.map(line => line.cigar_id)));
 }

@@ -563,8 +563,22 @@ class SearchCigarsTestCase(TestCase):
         result = data['results'][0]
         self.assertEqual(result['name'], '测试雪茄')
         self.assertEqual(result['brand'], 'TestBrand')
+        self.assertTrue(result['is_regular'])
+        self.assertEqual(result['release_type'], '')
+        self.assertEqual(result['release_type_cn'], '')
         # stock_only=0 时不返回 batches
         self.assertEqual(result['batches'], [])
+
+    def test_search_marks_special_releases(self):
+        self.cigar.release_type = 'Limited Edition Series'
+        self.cigar.release_type_cn = '限量版系列'
+        self.cigar.save(update_fields=['release_type', 'release_type_cn'])
+
+        response = self.client.get('/privnote/api/search-cigars/?q=Test')
+        result = response.json()['results'][0]
+
+        self.assertFalse(result['is_regular'])
+        self.assertEqual(result['release_type_cn'], '限量版系列')
 
     def test_search_stock_only(self):
         resp = self.client.get('/privnote/api/search-cigars/?q=Test&stock_only=1')

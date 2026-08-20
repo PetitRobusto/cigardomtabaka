@@ -340,6 +340,9 @@ export interface SearchCigarResult {
   english_name: string;
   brand: string;
   brand_cn: string;
+  release_type: string;
+  release_type_cn: string;
+  is_regular: boolean;
   vitola: string;
   length: number | null;
   ring_gauge: number | null;

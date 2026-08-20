@@ -13,6 +13,7 @@ import {
   validateDay1Draft,
   declaredBoxSizes,
   day1CigarDisplayName,
+  day1CigarReleaseLabel,
   isLatestDay1SearchRequest,
   uniqueDay1InventoryCigarIds,
   day1BackgroundInteractionDisabled,
@@ -159,6 +160,14 @@ describe('Day 1 state rules', () => {
     expect(day1CigarDisplayName({
       name: '帕特加斯 D4', brand: 'Partagás', brand_cn: '帕特加斯',
     })).toBe('帕特加斯 D4');
+  });
+
+  it('labels regular and special releases in Day 1 search results', () => {
+    expect(day1CigarReleaseLabel({ is_regular: true })).toBe('常规款');
+    expect(day1CigarReleaseLabel({
+      is_regular: false, release_type_cn: '限量版系列',
+    })).toBe('限量版系列');
+    expect(day1CigarReleaseLabel({ is_regular: false })).toBe('特别款');
   });
 
   it('deduplicates catalog detail loads for existing inventory rows', () => {

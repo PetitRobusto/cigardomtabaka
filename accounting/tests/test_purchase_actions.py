@@ -71,6 +71,41 @@ class PurchasePaymentTest(TestCase):
             ).count(), 1,
         )
 
+    def test_payment_rejects_incomplete_draft_before_writing_facts(self):
+        incomplete = PurchaseOrder.objects.create(
+            supplier=None,
+            operator=self.operator,
+            draft_business_date=None,
+        )
+        with self.assertRaises(PurchaseActionError) as raised:
+            pay_purchase_order(
+                purchase_order_id=incomplete.pk,
+                rub_account_id=self.rub.pk,
+                business_date=date(2026, 8, 14),
+                operator=self.operator,
+                idempotency_key='reject-incomplete-payment',
+            )
+        self.assertEqual(raised.exception.code, 'supplier_required')
+        self.assertFalse(PurchasePayment.objects.filter(purchase_order=incomplete).exists())
+        self.assertFalse(LedgerTransaction.objects.filter(
+            idempotency_key='reject-incomplete-payment',
+        ).exists())
+
+    def test_payment_rejects_stored_total_that_differs_from_items(self):
+        PurchaseOrder.objects.filter(pk=self.order.pk).update(rub_total=Decimal('299.00'))
+        with self.assertRaises(PurchaseActionError) as raised:
+            pay_purchase_order(
+                purchase_order_id=self.order.pk,
+                rub_account_id=self.rub.pk,
+                business_date=date(2026, 8, 14),
+                operator=self.operator,
+                idempotency_key='reject-total-mismatch',
+            )
+        self.assertEqual(raised.exception.code, 'purchase_total_mismatch')
+        self.assertFalse(LedgerTransaction.objects.filter(
+            idempotency_key='reject-total-mismatch',
+        ).exists())
+
 
     def test_receipt_allocates_canonical_tail_and_creates_batches(self):
         first = self.order.items.get()
@@ -456,6 +491,8 @@ class PurchasePaymentTest(TestCase):
             unit_price_rub_per_box=Decimal('100.00'),
             packaging_status=PurchaseOrderItem.PackagingStatus.UNREPRESENTABLE,
         )
+        self.order.rub_total = Decimal('400.00')
+        self.order.save(update_fields=['rub_total'])
         pay_purchase_order(
             purchase_order_id=self.order.id,
             rub_account_id=self.rub.id,
@@ -497,6 +534,8 @@ class PurchasePaymentTest(TestCase):
             unit_price_rub_per_box=Decimal('100.00'),
             packaging_status=PurchaseOrderItem.PackagingStatus.UNREPRESENTABLE,
         )
+        self.order.rub_total = Decimal('400.00')
+        self.order.save(update_fields=['rub_total'])
         pay_purchase_order(
             purchase_order_id=self.order.id,
             rub_account_id=self.rub.id,

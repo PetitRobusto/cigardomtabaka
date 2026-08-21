@@ -359,13 +359,20 @@ def api_inventory(request):
         }
 
     cigars = Cigar.objects.filter(id__in=stock_data.keys()).order_by('brand', 'english_name')
+    brand_records = {
+        brand.english_name: brand
+        for brand in Brand.objects.filter(english_name__in={c.brand for c in cigars})
+    }
 
     result = []
     for c in cigars:
         sd = stock_data[c.id]
+        brand_record = brand_records.get(c.brand)
         result.append({
             'id': c.id,
             'brand': c.brand,
+            'brand_name': brand_record.name if brand_record and brand_record.name else c.brand,
+            'brand_logo_url': brand_record.logo.url if brand_record and brand_record.logo else None,
             'name': c.name or c.english_name,
             'english_name': c.english_name,
             'release_type_cn': c.release_type_cn,
@@ -377,6 +384,17 @@ def api_inventory(request):
         })
 
     brands_with_stock = sorted(set(c['brand'] for c in result))
+    brand_options = []
+    seen_brands = set()
+    for item in result:
+        if item['brand'] in seen_brands:
+            continue
+        seen_brands.add(item['brand'])
+        brand_options.append({
+            'key': item['brand'],
+            'name': item['brand_name'],
+            'logo_url': item['brand_logo_url'],
+        })
     total_qty = sum(c['total_stock'] for c in result)
     total_cost_sum = sum(c['total_cost'] for c in result)
 
@@ -394,6 +412,7 @@ def api_inventory(request):
     return JsonResponse({
         'cigars': result,
         'brands': brands_with_stock,
+        'brand_options': brand_options,
         'stats': {
             'brand_count': len(brands_with_stock),
             'cigar_count': len(result),

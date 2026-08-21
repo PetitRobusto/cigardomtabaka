@@ -5,8 +5,10 @@ import { fetchInventory, fetchInventoryAudit, reverseInventoryAdjustment, type I
 import { LoadingState } from '../components/shared/LoadingState';
 import { ErrorState } from '../components/shared/ErrorState';
 import { EmptyState } from '../components/shared/EmptyState';
+import InventorySectionNav from '../components/inventory/InventorySectionNav';
 import { usePageMeta } from '../hooks/usePageMeta';
 import type { InventoryItem, InventoryResponse } from '../types';
+import { BRAND_LOGO_LOCAL } from '../utils/priceData';
 
 export default function InventoryWorkbenchPage() {
   const [brandFilter, setBrandFilter] = useState('');
@@ -33,7 +35,7 @@ export default function InventoryWorkbenchPage() {
 
   const data = inventory.data;
   const cigars = data?.cigars || [];
-  const brands = data?.brands || [];
+  const brandOptions = data?.brand_options || data?.brands.map(brand => ({ key: brand, name: brand, logo_url: null })) || [];
 
   // 审计只读取库存事实；审计结果不会自动改动批次或流水。
   const runAudit = async () => {
@@ -78,6 +80,7 @@ export default function InventoryWorkbenchPage() {
 
   return (
     <div data-guide="inventory-summary" className="w-full animate-fade-in">
+      <InventorySectionNav />
       <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Inventory desk</p>
@@ -98,7 +101,7 @@ export default function InventoryWorkbenchPage() {
             <div><h2 className="font-display text-lg font-semibold">现货库存</h2><p className="mt-0.5 text-xs text-muted">成本均价仅用于内部经营核对。</p></div>
             <span className="shrink-0 text-xs text-muted">显示 {cigars.length} 款</span>
           </div>
-          <InventoryFilters brands={brands} brandFilter={brandFilter} search={search} onBrandChange={setBrandFilter} onSearchChange={setSearch} onClear={() => { setBrandFilter(''); setSearch(''); }} />
+          <InventoryFilters brands={brandOptions} brandFilter={brandFilter} search={search} onBrandChange={setBrandFilter} onSearchChange={setSearch} onClear={() => { setBrandFilter(''); setSearch(''); }} />
           {cigars.length === 0
             ? <div className="px-5 py-10"><EmptyState title={brandFilter || search ? '没有匹配的库存记录' : '暂无库存'} /></div>
             : <InventoryList cigars={cigars} />}
@@ -151,7 +154,7 @@ function InventoryFilters({
   onSearchChange,
   onClear,
 }: {
-  brands: string[];
+  brands: Array<{ key: string; name: string; logo_url: string | null }>;
   brandFilter: string;
   search: string;
   onBrandChange: (value: string) => void;
@@ -162,7 +165,7 @@ function InventoryFilters({
     <div data-guide="inventory-filters" className="grid gap-2 border-b border-border bg-[#FFFDFA] p-4 sm:grid-cols-[190px_minmax(220px,1fr)_auto]">
       <select data-guide="inventory-brand-filter" value={brandFilter} onChange={event => onBrandChange(event.target.value)} className="rounded border border-border bg-white px-3 py-2 text-sm outline-none focus:border-gold">
         <option value="">全部品牌</option>
-        {brands.map(brand => <option key={brand} value={brand}>{brand}</option>)}
+        {brands.map(brand => <option key={brand.key} value={brand.key}>{brand.name}</option>)}
       </select>
       <label className="relative">
         <span className="sr-only">搜索库存</span>
@@ -175,42 +178,44 @@ function InventoryFilters({
 }
 
 function InventoryList({ cigars }: { cigars: InventoryItem[] }) {
+  const groups = Array.from(cigars.reduce((grouped, cigar) => {
+    const key = cigar.brand;
+    const current = grouped.get(key) || [];
+    current.push(cigar);
+    grouped.set(key, current);
+    return grouped;
+  }, new Map<string, InventoryItem[]>()).entries());
+
+  const logoFor = (items: InventoryItem[]) => items[0]?.brand_logo_url || BRAND_LOGO_LOCAL[items[0]?.brand || ''] || null;
+  const nameFor = (items: InventoryItem[]) => items[0]?.brand_name || items[0]?.brand || '未分类品牌';
   return (
     <>
       <div data-guide="inventory-table" className="hidden overflow-x-auto lg:block">
         <table className="w-full min-w-[720px] text-sm">
           <thead><tr className="bg-[#F5EFE8] text-xs text-muted"><th className="px-4 py-3 text-left font-medium">品牌与款式</th><th className="w-24 px-4 py-3 text-right font-medium">现货</th><th className="w-28 px-4 py-3 text-right font-medium">成本均价</th><th className="w-28 px-4 py-3 text-right font-medium">总成本</th><th className="w-28 px-4 py-3 text-right font-medium">最近入库</th></tr></thead>
           <tbody className="divide-y divide-border">
-            {cigars.map(cigar => (
-              <tr key={cigar.id} className="transition-colors hover:bg-[#FFFAF6]">
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2 font-medium text-fg"><span>{cigar.name}</span>{cigar.release_type_cn && <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent">{cigar.release_type_cn}</span>}</div>
-                  <p className="mt-0.5 text-xs text-muted">{cigar.brand}</p>
-                </td>
-                <td className="px-4 py-3 text-right font-mono font-semibold text-accent">{wholeNumber(cigar.total_stock)} 支</td>
-                <td className="px-4 py-3 text-right font-mono">¥ {cigar.avg_cost.toFixed(2)}</td>
-                <td className="px-4 py-3 text-right font-mono">¥ {wholeNumber(cigar.total_cost)}</td>
-                <td className="px-4 py-3 text-right text-xs text-muted">{shortDate(cigar.latest_date)}</td>
-              </tr>
-            ))}
+            {groups.map(([brand, items]) => <InventoryBrandGroup key={brand} items={items} logoUrl={logoFor(items)} brandName={nameFor(items)} />)}
           </tbody>
         </table>
         <div className="flex justify-between border-t border-border px-4 py-3 text-[11px] text-muted"><span>按最近入库排序</span><span>金额单位：人民币</span></div>
       </div>
 
       <div className="space-y-2 bg-cream p-3 lg:hidden">
-        {cigars.map(cigar => (
-          <article key={cigar.id} className="flex items-start justify-between gap-3 rounded-md border border-border bg-white p-3">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-fg"><span>{cigar.name}</span>{cigar.release_type_cn && <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] text-accent">{cigar.release_type_cn}</span>}</div>
-              <p className="mt-1 text-xs text-muted">{cigar.brand} · 均价 ¥ {cigar.avg_cost.toFixed(2)}</p>
-            </div>
-            <div className="shrink-0 text-right font-mono"><p className="text-sm font-semibold text-accent">{wholeNumber(cigar.total_stock)} 支</p><p className="mt-1 text-xs text-muted">¥ {wholeNumber(cigar.total_cost)}</p></div>
-          </article>
-        ))}
+        {groups.map(([brand, items]) => <section key={brand} className="overflow-hidden rounded-md border border-border bg-white"><BrandHeading brandName={nameFor(items)} logoUrl={logoFor(items)} count={items.length} /><div className="divide-y divide-border">{items.map(cigar => <article key={cigar.id} className="flex items-start justify-between gap-3 p-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-fg"><span>{cigar.name}</span>{cigar.release_type_cn && <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] text-accent">{cigar.release_type_cn}</span>}</div><p className="mt-1 text-xs text-muted">均价 ¥ {cigar.avg_cost.toFixed(2)}</p></div><div className="shrink-0 text-right font-mono"><p className="text-sm font-semibold text-accent">{wholeNumber(cigar.total_stock)} 支</p><p className="mt-1 text-xs text-muted">¥ {wholeNumber(cigar.total_cost)}</p></div></article>)}</div></section>)}
       </div>
     </>
   );
+}
+
+function BrandHeading({ brandName, logoUrl, count }: { brandName: string; logoUrl: string | null; count: number }) {
+  return <div className="flex items-center gap-3 border-b border-border bg-[#FFFDFA] px-4 py-3"><div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded border border-border bg-white">{logoUrl ? <img src={logoUrl} alt="" className="h-full w-full object-contain p-1" /> : <span className="font-display text-sm font-semibold text-accent">{brandName.slice(0, 1)}</span>}</div><div><h3 className="font-display text-base font-semibold text-fg">{brandName}</h3><p className="text-[11px] text-muted">{count} 款现货</p></div></div>;
+}
+
+function InventoryBrandGroup({ items, logoUrl, brandName }: { items: InventoryItem[]; logoUrl: string | null; brandName: string }) {
+  return <>
+    <tr className="bg-[#FFFDFA]"><td colSpan={5} className="px-4 py-3"><BrandHeading brandName={brandName} logoUrl={logoUrl} count={items.length} /></td></tr>
+    {items.map(cigar => <tr key={cigar.id} className="transition-colors hover:bg-[#FFFAF6]"><td className="px-4 py-3 pl-8"><div className="flex items-center gap-2 font-medium text-fg"><span>{cigar.name}</span>{cigar.release_type_cn && <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent">{cigar.release_type_cn}</span>}</div></td><td className="px-4 py-3 text-right font-mono font-semibold text-accent">{wholeNumber(cigar.total_stock)} 支</td><td className="px-4 py-3 text-right font-mono">¥ {cigar.avg_cost.toFixed(2)}</td><td className="px-4 py-3 text-right font-mono">¥ {wholeNumber(cigar.total_cost)}</td><td className="px-4 py-3 text-right text-xs text-muted">{shortDate(cigar.latest_date)}</td></tr>)}
+  </>;
 }
 
 function InventoryAuditPanel({ audit, busy, error, onRun }: { audit: InventoryAuditResult | null; busy: boolean; error: string; onRun: () => void }) {

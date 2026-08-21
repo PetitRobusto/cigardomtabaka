@@ -11,7 +11,7 @@ import type {
 } from './types';
 import { writeWithIdempotency } from './api/idempotency';
 
-import type { AccountingActionsResponse, PurchaseAction, PurchaseActionCreatePayload, PurchaseActionUpdatePayload, PurchasePayPayload, PurchaseReceivePayload, PurchaseCancelPayload, ExpenseActionPayload, DividendAction, DividendPreview, DividendCreatePayload, DividendUpdatePayload, DividendConfirmPayload, AccountingApiError } from './types';
+import type { AccountingActionsResponse, InventoryPurchaseDirectory, PurchaseAction, PurchaseActionCreatePayload, PurchaseActionUpdatePayload, PurchasePayPayload, PurchaseReceivePayload, PurchaseCancelPayload, PurchaseSupplier, ExpenseActionPayload, DividendAction, DividendPreview, DividendCreatePayload, DividendUpdatePayload, DividendConfirmPayload, AccountingApiError } from './types';
 function getCSRFToken(): string {
   const match = typeof document === 'undefined' ? null : document.cookie.match(/csrftoken=([^;]+)/);
   return match ? match[1] : '';
@@ -210,6 +210,26 @@ export const confirmReconciliation = (id: number): Promise<Reconciliation> =>
 // Accounting action helpers.
 export const fetchAccountingActions = (): Promise<AccountingActionsResponse> =>
   api.get('/accounting/actions/').then(r => r.data);
+
+export const fetchInventoryPurchases = (params?: {
+  q?: string;
+  status?: string;
+  date_from?: string;
+  date_to?: string;
+  limit?: number;
+}): Promise<InventoryPurchaseDirectory> =>
+  api.get('/inventory/purchases/', { params }).then(r => r.data);
+
+export const fetchInventoryPurchase = (id: number): Promise<PurchaseAction> =>
+  api.get(`/inventory/purchases/${id}/`).then(r => r.data.purchase_order);
+
+export const searchPurchaseSuppliers = (q = ''): Promise<PurchaseSupplier[]> =>
+  api.get('/inventory/suppliers/', { params: { q } }).then(r => r.data.results || []);
+
+export const createPurchaseSupplier = (payload: { name: string; phone: string }): Promise<PurchaseSupplier> =>
+  writeWithIdempotency<{ supplier: PurchaseSupplier }>('create-purchase-supplier', payload, config =>
+    api.post('/inventory/suppliers/', payload, config),
+  ).then(r => r.supplier);
 
 export const exchangeToRub = (payload: {
   source_account_id: number;

@@ -282,6 +282,8 @@ export interface CigarDetailResponse {
 export interface InventoryItem {
   id: number;
   brand: string;
+  brand_name: string;
+  brand_logo_url: string | null;
   name: string;
   english_name: string;
   release_type_cn: string | null;
@@ -295,6 +297,7 @@ export interface InventoryItem {
 export interface InventoryResponse {
   cigars: InventoryItem[];
   brands: string[];
+  brand_options: Array<{ key: string; name: string; logo_url: string | null }>;
   stats: {
     brand_count: number;
     cigar_count: number;
@@ -347,6 +350,7 @@ export interface SearchCigarResult {
   length: number | null;
   ring_gauge: number | null;
   thumb_url: string | null;
+  packaging_sizes: number[];
   stock_qty: number;
   box_options: {
     box_size: number;
@@ -789,24 +793,62 @@ export interface PurchaseActionItem {
   id?: number;
   cigar_id: number;
   cigar_name?: string | null;
+  cigar_english_name?: string | null;
+  brand?: string | null;
+  release_type_cn?: string | null;
+  is_regular?: boolean;
   box_size: number | null;
   box_quantity: number | null;
   quantity?: number | null;
   unit_price_rub_per_box: string | null;
   packaging_status?: string;
   review_required?: boolean;
+  batches?: Array<{
+    id: number;
+    quantity: number;
+    original_cost_cny: string;
+    purchased_at: string;
+  }>;
 }
 
 export interface PurchaseAction {
   id: number;
   order_number?: string;
-  supplier_id?: number;
+  supplier_id?: number | null;
+  supplier_name?: string | null;
+  supplier_phone?: string | null;
   status: 'draft' | 'in_transit' | 'received' | 'cancelled' | string;
   version: number;
   business_date?: string | null;
   rub_total?: string;
   paid_cny_cost?: string;
+  paid_at?: string | null;
+  received_at?: string | null;
+  note?: string;
+  created_at?: string;
+  operator_id?: number;
+  draft_complete?: boolean;
   items: PurchaseActionItem[];
+}
+
+export interface PurchaseSupplier {
+  id: number;
+  name: string;
+  phone: string;
+}
+
+export interface InventoryPurchaseDirectory {
+  stats: {
+    total: number;
+    draft: number;
+    in_transit: number;
+    received: number;
+    cancelled: number;
+    in_transit_rub: string;
+    month_received_sticks: number;
+    month_paid_rub: string;
+  };
+  results: PurchaseAction[];
 }
 
 export interface DividendAction {
@@ -849,13 +891,15 @@ export interface ExchangeActionPayload {
 }
 
 export interface PurchaseActionCreatePayload {
-  supplier_id: number;
-  business_date: string;
+  supplier_id: number | null;
+  business_date: string | null;
   items: PurchaseActionItem[];
   note: string;
 }
 
 export interface PurchaseActionUpdatePayload {
+  supplier_id?: number | null;
+  business_date?: string | null;
   expected_version: number;
   items: PurchaseActionItem[];
   note: string;

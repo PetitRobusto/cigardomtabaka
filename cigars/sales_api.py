@@ -5,13 +5,13 @@ import hashlib
 import json
 import re
 import time
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.db import IntegrityError, OperationalError
 
 from django.db import transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Max, Q, Sum
 from django.http import JsonResponse
 from django.utils import timezone
 
@@ -275,6 +275,10 @@ def _customer_payload(customer, include_orders=False):
         "order_count": order_count,
         "active_order_count": active_order_count,
         "total_amount_cny": float(total_amount_cny),
+        "last_order_at": (
+            customer.last_order_at.isoformat()
+            if getattr(customer, "last_order_at", None) else None
+        ),
     }
     if include_orders:
         recent_orders = orders.select_related(
@@ -312,6 +316,33 @@ def sales_customers(request):
         return method_error
     if request.method == "GET":
         query = request.GET.get("q", "").strip()
+        activity = request.GET.get("activity", "all").strip()
+        if activity not in {"all", "with_orders", "without_orders", "recent"}:
+            return _error("客户活跃度筛选无效", 400)
+        try:
+            limit = int(request.GET.get("limit", "50"))
+            if not 1 <= limit <= 100:
+                raise ValueError
+        except (TypeError, ValueError):
+            return _error("limit 必须是 1 到 100 之间的整数", 400)
+        recent_since = timezone.now() - timedelta(days=30)
+        active_statuses = (
+            SalesOrder.FulfillmentStatus.CONFIRMED,
+            SalesOrder.FulfillmentStatus.SHIPPED,
+        )
+        stats = Customer.objects.filter(deleted_at__isnull=True).aggregate(
+            customer_count=Count("id", distinct=True),
+            with_orders_count=Count(
+                "id", filter=Q(salesorder__isnull=False), distinct=True,
+            ),
+            recent_customer_count=Count(
+                "id", filter=Q(salesorder__created_at__gte=recent_since), distinct=True,
+            ),
+            total_amount_cny=Sum(
+                "salesorder__amount_due_cny",
+                filter=Q(salesorder__fulfillment_status__in=active_statuses),
+            ),
+        )
         customers = Customer.objects.filter(deleted_at__isnull=True).annotate(
             order_count=Count("salesorder", distinct=True),
             active_order_count=Count(
@@ -329,10 +360,30 @@ def sales_customers(request):
                     SalesOrder.FulfillmentStatus.SHIPPED,
                 )),
             ),
+            last_order_at=Max("salesorder__created_at"),
+            recent_order_count=Count(
+                "salesorder",
+                filter=Q(salesorder__created_at__gte=recent_since),
+                distinct=True,
+            ),
         )
         if query:
             customers = customers.filter(Q(name__icontains=query) | Q(phone__icontains=query))
-        return _json({"results": [_customer_payload(customer) for customer in customers[:50]]})
+        if activity == "with_orders":
+            customers = customers.filter(order_count__gt=0)
+        elif activity == "without_orders":
+            customers = customers.filter(order_count=0)
+        elif activity == "recent":
+            customers = customers.filter(recent_order_count__gt=0)
+        return _json({
+            "results": [_customer_payload(customer) for customer in customers[:limit]],
+            "stats": {
+                "customer_count": stats["customer_count"] or 0,
+                "with_orders_count": stats["with_orders_count"] or 0,
+                "recent_customer_count": stats["recent_customer_count"] or 0,
+                "total_amount_cny": float(stats["total_amount_cny"] or 0),
+            },
+        })
 
     def handler(body, operator, context):
         name, phone = _customer_values(body)

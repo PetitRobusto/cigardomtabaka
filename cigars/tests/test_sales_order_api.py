@@ -376,13 +376,43 @@ class SalesOrderApiTest(TestCase):
         ])
         self.login()
 
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(4):
             response = self.client.get("/api/sales/customers/")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()["results"]), 10)
         self.assertTrue(all(customer["active_order_count"] == 0 for customer in response.json()["results"]))
         self.assertTrue(all(customer["total_amount_cny"] == 0 for customer in response.json()["results"]))
+        self.assertEqual(response.json()["stats"], {
+            "customer_count": 10,
+            "with_orders_count": 0,
+            "recent_customer_count": 0,
+            "total_amount_cny": 0.0,
+        })
+
+    def test_sales_customer_directory_filters_and_last_order(self):
+        self.login()
+        active = Customer.objects.create(name="近期客户", phone="13800000001")
+        Customer.objects.create(name="无订单客户", phone="13800000002")
+        order = self.create_order(
+            key="customer-directory-order",
+            body={**self.body(), "customer_id": active.id, "customer_name": active.name},
+        )
+        self.assertEqual(order.status_code, 201)
+
+        with_orders = self.client.get("/api/sales/customers/?activity=with_orders&limit=100")
+        without_orders = self.client.get("/api/sales/customers/?activity=without_orders&limit=100")
+        recent = self.client.get("/api/sales/customers/?activity=recent&limit=100")
+
+        self.assertEqual([item["name"] for item in with_orders.json()["results"]], ["近期客户"])
+        self.assertEqual([item["name"] for item in without_orders.json()["results"]], ["无订单客户"])
+        self.assertEqual([item["name"] for item in recent.json()["results"]], ["近期客户"])
+        self.assertIsNotNone(with_orders.json()["results"][0]["last_order_at"])
+        self.assertEqual(with_orders.json()["stats"]["customer_count"], 2)
+        self.assertEqual(with_orders.json()["stats"]["with_orders_count"], 1)
+        self.assertEqual(with_orders.json()["stats"]["recent_customer_count"], 1)
+        invalid = self.client.get("/api/sales/customers/?activity=unknown")
+        self.assertEqual(invalid.status_code, 400)
 
     def test_deleted_customer_cannot_be_used_for_new_or_updated_order(self):
         customer = Customer.objects.create(name="已删除客户", phone="13800000000")

@@ -117,6 +117,20 @@ export function statusLabel(status: string): string {
   }[status] ?? status;
 }
 
+export function statusTagTone(status: string): string {
+  return {
+    draft: 'border-gray-200 bg-gray-100 text-gray-700',
+    confirmed: 'border-indigo-200 bg-indigo-50 text-indigo-700',
+    shipped: 'border-blue-200 bg-blue-50 text-blue-700',
+    cancelled: 'border-red-200 bg-red-50 text-red-700',
+    returned: 'border-purple-200 bg-purple-50 text-purple-700',
+    unpaid: 'border-amber-200 bg-amber-50 text-amber-800',
+    paid: 'border-green-200 bg-green-50 text-green-700',
+    refund_pending: 'border-orange-200 bg-orange-50 text-orange-800',
+    refunded: 'border-teal-200 bg-teal-50 text-teal-700',
+  }[status] ?? 'border-border bg-[#F5EFE8] text-muted';
+}
+
 export function orderDisplayStatus(order: SalesOrderStateInput): string {
   if (order.fulfillment_status === 'cancelled') {
     return `已取消${order.payment_status === 'refund_pending' ? ' · 待退款' : order.payment_status === 'refunded' ? ' · 已退款' : ''}`;

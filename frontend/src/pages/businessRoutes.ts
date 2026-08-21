@@ -26,6 +26,7 @@ export function dashboardRegionStates(queries: Record<string, { isError: boolean
 
 export const BUSINESS_STAFF_PATHS = {
   sales: '/sales',
+  salesCustomers: '/sales/customers',
   accounting: '/accounting',
   day1: '/accounting/day1',
 } as const;

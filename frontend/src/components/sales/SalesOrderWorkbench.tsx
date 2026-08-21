@@ -15,13 +15,13 @@ import {
   actionLabel,
   actionNeedsFundAccount,
   formatCny,
-  orderDisplayStatus,
   receiveAmountMatchesDue,
   statusLabel,
   validatePositiveMoneyInput,
 } from './salesState';
 import { salesFundAccountError, salesOrderActionBusinessDate, selectActiveCnyAccountId } from './SalesOrderCard.logic';
 import { formatShanghaiDateTime } from '../../utils/businessDate';
+import SalesOrderStatusTags from './SalesOrderStatusTags';
 
 type DetailTab = 'overview' | 'items' | 'amounts' | 'facts' | 'timeline';
 
@@ -67,7 +67,7 @@ export default function SalesOrderWorkbench({
           <strong className="mt-1 block truncate text-sm">{order.customer_name || '散客'}</strong>
           <span className="mt-2 flex items-center justify-between gap-2 text-[10px] text-muted">
             <span>{formatShanghaiDateTime(order.created_at).slice(0, 10)}</span>
-            <span className="rounded-full bg-[#F5EFE8] px-2 py-0.5">{orderDisplayStatus(order)}</span>
+            <SalesOrderStatusTags order={order} compact />
           </span>
         </button>)}
         {!orders.length && <div className="px-4 py-14 text-center text-sm text-muted">当前筛选条件下没有订单</div>}
@@ -84,8 +84,7 @@ export default function SalesOrderWorkbench({
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div><h2 className="font-display text-xl font-semibold">{selected.order_number}</h2><p className="mt-1 text-xs text-muted">创建于 {formatShanghaiDateTime(selected.created_at)} · {selected.items.length} 项商品</p></div>
             <div className="flex flex-wrap gap-1.5 text-[11px]">
-              <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">{statusLabel(selected.fulfillment_status)}</span>
-              <span className="rounded-full bg-orange-50 px-2 py-1 text-orange-700">{statusLabel(selected.payment_status)}</span>
+              <SalesOrderStatusTags order={selected} />
             </div>
           </div>
           <OrderActions order={selected} accounts={allAccounts} accountsError={accountsError} onChanged={onChanged} />
@@ -93,7 +92,7 @@ export default function SalesOrderWorkbench({
         <div className="flex overflow-x-auto border-b border-border bg-[#FFFDFA] px-3">
           {([
             ['overview', '概览'],
-            ['items', '商品与 FIFO'],
+            ['items', '商品'],
             ['amounts', '金额构成'],
             ['facts', '单据事实'],
             ['timeline', '时间线'],
@@ -118,7 +117,7 @@ function Overview({ order, onCustomer }: { order: SalesOrder; onCustomer: (id: n
       <div className="rounded border border-border bg-[#FFFDFA] p-4"><strong>{order.customer_name || '散客'}</strong>{order.customer?.deleted_at && <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-muted">已归档客户</span>}<p className="mt-1 text-xs text-muted">{order.customer?.phone || '未填写电话'}</p></div>
     </div>
     <div><h3 className="mb-2 text-xs font-bold uppercase tracking-wide">订单信息</h3><dl className="grid gap-3 rounded border border-border p-4 text-xs sm:grid-cols-2">
-      <Info label="履约状态" value={statusLabel(order.fulfillment_status)} />
+      <Info label="订单状态" value={statusLabel(order.fulfillment_status)} />
       <Info label="付款状态" value={statusLabel(order.payment_status)} />
       <Info label="应收金额" value={formatCny(order.amount_due_cny)} />
       <Info label="订单贡献利润" value={formatCny(order.contribution_profit)} />

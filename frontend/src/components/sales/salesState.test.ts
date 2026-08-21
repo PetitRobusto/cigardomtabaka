@@ -14,6 +14,7 @@ import {
   validateMoneyInput,
   validatePositiveMoneyInput,
   statusLabel,
+  statusTagTone,
   summarizeSalesOrders,
   type SalesOrderSummaryInput,
 } from './salesState';
@@ -54,6 +55,9 @@ describe('summarizeSalesOrders', () => {
   it('为订单状态和动作提供中文工作台标签，并稳健格式化金额', () => {
     expect(statusLabel('refund_pending')).toBe('待退款');
     expect(statusLabel('returned')).toBe('已退货');
+    expect(statusTagTone('unpaid')).toContain('amber');
+    expect(statusTagTone('cancelled')).toContain('red');
+    expect(statusTagTone('paid')).toContain('green');
     expect(actionLabel('transport_cost')).toBe('记录人肉成本');
     expect(actionLabel('return')).toBe('整单退货');
     expect(formatCny('1234.5')).toBe('¥1,234.50');

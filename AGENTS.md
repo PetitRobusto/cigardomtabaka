@@ -78,7 +78,9 @@
 - privnote 前端 → React SPA 路由 `/privnote/` 和 `/p/:token/`，不走 Django 模板
 - ⚠️ **视觉改动先走 OpenDesign**：新的 UI/Layout/样式方向先在 OpenDesign 原型（`.opendesign/` 目录）验证，再应用到项目；纯功能、类型、文案和明确的小修复可直接修改 React 源码
 - 📖 [OpenDesign MCP 使用指南 →](.kilo/opendesign-mcp.md) — MCP 工具、工作流、设计 Token
-- 🎨 **OD 项目**: `CigarDomTabaka` (`570372ce-21b8-4752-a21a-bd254f061568`) ↔ 本 Django 项目
+- 🎨 **OD 项目**: `CigarDomTabaka`（daemon 项目 slug: `cigardomtabaka`）↔ 本 Django 项目；视觉任务必须在这个既有项目内完成，禁止新建旁路项目
+- 🎨 **OD 默认 agent**: `claude`；通过 daemon run/API 传 `agentId: "claude"`，禁止使用 `byok-opencode` 或传 BYOK 参数
+- 🎨 **OD 对话隔离**: 每次新设计在上述既有项目中创建新的 conversation/run；继承项目设计系统和文件，不复用旧 agent 对话上下文
 
 ---
 

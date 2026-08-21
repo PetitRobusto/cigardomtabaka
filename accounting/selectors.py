@@ -219,10 +219,20 @@ def accounting_dashboard(*, as_of):
         as_of=as_of, require_current=False, account_rows=accounts,
     )
     profit = monthly_profit(month=as_of.replace(day=1))
-    cny_funds_total = Decimal('0.00')
-    for row in accounts:
-        if row['currency'] == FundAccount.Currency.CNY:
-            cny_funds_total += row['original_balance']
+    cny_funds_total = sum(
+        (row['original_balance'] for row in accounts if row['currency'] == FundAccount.Currency.CNY),
+        Decimal('0.00'),
+    )
+    fund_accounts_book_cost = (
+        LedgerPosting.objects.filter(
+            account_id__isnull=False,
+            transaction__status=LedgerTransaction.Status.POSTED,
+            transaction__business_date__lte=as_of,
+        ).aggregate(total=Sum('cny_amount'))['total'] or Decimal('0.00')
+    )
+    total_funds_cny = (
+        fund_accounts_book_cost + summary['inventory_remaining_cost_cny']
+    ).quantize(Decimal('0.01'))
 
     # Pending reconciliation records are actionable; latest records provide context.
     reconciliation_rows = AccountReconciliation.objects.select_related(
@@ -243,6 +253,7 @@ def accounting_dashboard(*, as_of):
     ]
     return {
         'stats': {
+            'total_funds_cny': total_funds_cny,
             'cny_funds_total': cny_funds_total.quantize(Decimal('0.01')),
             'inventory_book_cost_cny': summary['inventory_remaining_cost_cny'],
             'accounts_receivable_cny': summary['accounts_receivable_cny'],

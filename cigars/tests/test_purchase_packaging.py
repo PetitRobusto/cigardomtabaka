@@ -54,7 +54,7 @@ class PurchasePackagingModelTest(TestCase):
                 )
 
 
-    def test_database_constraints_reject_null_or_mismatched_canonical_fields(self):
+    def test_database_constraints_keep_canonical_rows_strict_and_allow_partial_drafts(self):
         item = PurchaseOrderItem.objects.create(
             purchase_order=self.order, cigar=self.cigar, quantity=25, box_size=25,
             box_quantity=1, unit_price_rub='100.00', unit_price_cny='8.00',
@@ -63,10 +63,15 @@ class PurchasePackagingModelTest(TestCase):
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 PurchaseOrderItem.objects.filter(pk=item.pk).update(box_quantity=None)
+        PurchaseOrderItem.objects.filter(pk=item.pk).update(
+            packaging_status='review_required', box_quantity=1,
+        )
+        item.refresh_from_db()
+        self.assertEqual(item.packaging_status, 'review_required')
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 PurchaseOrderItem.objects.filter(pk=item.pk).update(
-                    packaging_status='review_required', box_quantity=1,
+                    unit_price_rub_per_box=Decimal('-1.00'),
                 )
         with self.assertRaises(IntegrityError):
             with transaction.atomic():

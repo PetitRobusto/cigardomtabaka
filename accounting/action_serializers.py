@@ -24,25 +24,70 @@ def _purchase_items(order):
 
 
 def serialize_purchase_order(order):
+    items = list(_purchase_items(order))
+    current_batches = [
+        batch
+        for item in items
+        for batch in getattr(item, '_prefetched_objects_cache', {}).get('batches', [])
+        if batch.reversed_at is None
+    ]
+    draft_complete = bool(
+        order.supplier_id
+        and items
+        and order.rub_total > 0
+        and all(
+            item.packaging_status != item.PackagingStatus.REVIEW_REQUIRED
+            and item.box_size
+            and item.box_quantity
+            and item.unit_price_rub_per_box is not None
+            for item in items
+        )
+    )
     return _value({
         'id': order.pk,
         'order_number': order.order_number,
         'supplier_id': order.supplier_id,
+        'supplier_name': getattr(order.supplier, 'name', None),
+        'supplier_phone': getattr(order.supplier, 'phone', None),
         'status': order.status,
         'version': order.version,
         'business_date': order.draft_business_date,
         'rub_total': order.rub_total,
         'paid_cny_cost': order.paid_cny_cost,
+        'paid_at': order.paid_at,
+        'received_at': max(
+            (batch.purchased_at for batch in current_batches), default=None,
+        ),
+        'note': order.note,
+        'created_at': order.created_at,
+        'operator_id': order.operator_id,
+        'draft_complete': draft_complete,
         'items': [
             {
                 'id': item.pk, 'cigar_id': item.cigar_id,
                 'cigar_name': getattr(item.cigar, 'name', None),
+                'cigar_english_name': getattr(item.cigar, 'english_name', None),
+                'brand': getattr(item.cigar, 'brand', None),
+                'release_type_cn': getattr(item.cigar, 'release_type_cn', None),
+                'is_regular': not bool(getattr(item.cigar, 'release_type', None)),
                 'box_size': item.box_size, 'box_quantity': item.box_quantity,
                 'quantity': item.quantity,
                 'unit_price_rub_per_box': item.unit_price_rub_per_box,
                 'packaging_status': item.packaging_status,
+                'batches': [
+                    {
+                        'id': batch.pk,
+                        'quantity': batch.quantity,
+                        'original_cost_cny': batch.original_cost_cny,
+                        'purchased_at': batch.purchased_at,
+                    }
+                    for batch in getattr(
+                        item, '_prefetched_objects_cache', {},
+                    ).get('batches', [])
+                    if batch.reversed_at is None
+                ],
             }
-            for item in _purchase_items(order)
+            for item in items
         ],
     })
 

@@ -82,6 +82,8 @@ _ERROR_STATUS = {
     'ledger_error': 409,
     'supplier_not_found': 404,
     'cigar_not_found': 404,
+    'supplier_required': 409,
+    'purchase_total_mismatch': 409,
 }
 
 
@@ -238,6 +240,12 @@ def _parse_iso_date(value, field_name):
         return date.fromisoformat(value)
     except ValueError:
         raise ApiInputError(f'{field_name}无效')
+
+
+def _parse_optional_iso_date(value, field_name):
+    if value in (None, ''):
+        return None
+    return _parse_iso_date(value, field_name)
 
 
 def _transaction_response(ledger_transaction, status=200):
@@ -699,7 +707,7 @@ def actions(request):
                 PurchaseOrder.Status.IN_TRANSIT,
                 PurchaseOrder.Status.RECEIVED,
             ),
-        ).prefetch_related('items__cigar')[:50]],
+        ).select_related('supplier').prefetch_related('items__cigar')[:50]],
         'dividends': [serialize_dividend(row) for row in Dividend.objects.filter(status=Dividend.Status.DRAFT)[:50]],
     })
 
@@ -717,7 +725,7 @@ def purchase_action(request, purchase_id=None, action=None):
                 raise ApiInputError('请求方法不支持')
             order = create_purchase_order(
                 supplier_id=payload.get('supplier_id'), items=payload.get('items'),
-                business_date=_parse_iso_date(payload.get('business_date'), 'business_date'),
+                business_date=_parse_optional_iso_date(payload.get('business_date'), 'business_date'),
                 operator=request.accounting_operator, idempotency_key=key,
                 expected_version=payload.get('expected_version'), note=_optional_note(payload),
                 exchange_rate=payload.get('exchange_rate'),
@@ -753,9 +761,22 @@ def purchase_action(request, purchase_id=None, action=None):
             )
             return JsonResponse({'purchase_order': serialize_purchase_order(order)})
         if request.method == 'PATCH':
+            update_kwargs = {
+                'purchase_order_id': purchase_id,
+                'items': payload.get('items'),
+                'expected_version': _action_version(request, payload),
+                'idempotency_key': key,
+                'operator': request.accounting_operator,
+                'note': _optional_note(payload),
+            }
+            if 'supplier_id' in payload:
+                update_kwargs['supplier_id'] = payload.get('supplier_id')
+            if 'business_date' in payload:
+                update_kwargs['business_date'] = _parse_optional_iso_date(
+                    payload.get('business_date'), 'business_date',
+                )
             order = update_purchase_order_draft(
-                purchase_order_id=purchase_id, items=payload.get('items'), expected_version=_action_version(request, payload),
-                idempotency_key=key, operator=request.accounting_operator, note=_optional_note(payload),
+                **update_kwargs,
             )
             return JsonResponse({'purchase_order': serialize_purchase_order(order)})
         raise ApiInputError('采购动作无效')

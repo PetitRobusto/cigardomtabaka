@@ -17,6 +17,7 @@ const cigar: SearchCigarResult = {
   length: 124,
   ring_gauge: 50,
   thumb_url: null,
+  packaging_sizes: [25],
   stock_qty: 50,
   box_options: [{ box_size: 25, available_boxes: 2 }],
   available_sticks: 0,

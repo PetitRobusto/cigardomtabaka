@@ -8,6 +8,11 @@ describe('business routes', () => {
     expect(resolveBusinessRoute('/accounting', '')).toBe('/accounting');
   });
 
+  it('keeps inventory stock and purchase orders as separate workspaces', () => {
+    expect(BUSINESS_STAFF_PATHS.inventory).toBe('/inventory');
+    expect(BUSINESS_STAFF_PATHS.inventoryPurchases).toBe('/inventory/purchases');
+  });
+
   it('keeps the legal Day 1 route alongside both business workspaces', () => {
     expect(BUSINESS_ROUTE_PATHS).toStrictEqual(BUSINESS_STAFF_PATHS);
   });

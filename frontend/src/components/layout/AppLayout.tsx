@@ -55,7 +55,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
-    if (path === '/sales' || path === '/accounting') return location.pathname === path;
+    if (path === '/sales') return location.pathname.startsWith(path);
+    if (path === '/accounting') return location.pathname === path;
     return location.pathname.startsWith(path);
   };
 

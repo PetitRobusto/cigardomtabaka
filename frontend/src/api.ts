@@ -4,7 +4,7 @@ import type {
   BrandListResponse, BrandDetailResponse, CigarDetailResponse,
   InventoryResponse, PrivnoteResponse,
   PaymentMethod, SearchCigarResult, InventoryViewData,
-  CustomerResult, SalesCustomer, QuoteProduct, RecentChangesResponse,
+  CustomerResult, SalesCustomer, SalesCustomerDirectory, QuoteProduct, RecentChangesResponse,
   SalesOrder, PaymentOrder, SalesOrderPayload, FundAccount, MonthlyProfitReport,
   AccountingSummary, AccountingDashboard, Reconciliation,
   Day1State,
@@ -82,6 +82,13 @@ export const fetchSalesOrders = (params?: { q?: string; fulfillment_status?: str
 
 export const fetchSalesCustomers = (q = ''): Promise<CustomerResult[]> =>
   api.get('/sales/customers/', { params: { q } }).then(r => r.data.results || []);
+
+export const fetchSalesCustomerDirectory = (params?: {
+  q?: string;
+  activity?: 'all' | 'with_orders' | 'without_orders' | 'recent';
+  limit?: number;
+}): Promise<SalesCustomerDirectory> =>
+  api.get('/sales/customers/', { params }).then(r => r.data);
 
 export const fetchSalesCustomer = (id: number): Promise<SalesCustomer> =>
   api.get(`/sales/customers/${id}/`).then(r => r.data.customer);

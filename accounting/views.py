@@ -339,6 +339,7 @@ def dashboard(request):
             'requires_day1': True,
             'day1_status': status,
             'stats': {
+                'total_funds_cny': None,
                 'cny_funds_total': None,
                 'inventory_book_cost_cny': None,
                 'accounts_receivable_cny': None,

@@ -419,6 +419,17 @@ export interface CustomerResult {
   order_count?: number;
   active_order_count?: number;
   total_amount_cny?: number;
+  last_order_at?: string | null;
+}
+
+export interface SalesCustomerDirectory {
+  results: CustomerResult[];
+  stats: {
+    customer_count: number;
+    with_orders_count: number;
+    recent_customer_count: number;
+    total_amount_cny: number;
+  };
 }
 
 export interface SalesCustomer extends CustomerResult {
@@ -654,6 +665,7 @@ export interface MonthlyProfitReport {
 }
 
 export interface AccountingDashboardStats {
+  total_funds_cny: string | null;
   cny_funds_total: string | null;
   inventory_book_cost_cny: string | null;
   accounts_receivable_cny: string | null;

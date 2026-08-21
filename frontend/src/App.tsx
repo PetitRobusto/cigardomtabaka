@@ -21,6 +21,7 @@ import PriceDashboard from './pages/Dashboard';
 import PriceCigarDetail from './pages/CigarDetail';
 import AlertsPage from './pages/Alerts';
 import SalesPage from './pages/SalesPage';
+import SalesCustomersPage from './pages/SalesCustomersPage';
 import AccountingDashboardPage from './pages/AccountingDashboardPage';
 import Day1SetupPage from './pages/Day1SetupPage';
 import HelpPage from './pages/HelpPage';
@@ -69,6 +70,7 @@ function AnimatedRoutes() {
           {/* Inventory */}
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path={BUSINESS_STAFF_PATHS.sales} element={<StaffGate><LegacySalesRoute /></StaffGate>} />
+          <Route path={BUSINESS_STAFF_PATHS.salesCustomers} element={<StaffGate><SalesCustomersPage /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.accounting} element={<StaffGate><AccountingDashboardPage /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.day1} element={<StaffGate><Day1SetupPage /></StaffGate>} />
           <Route path="/help" element={<StaffHelpRoute />} />

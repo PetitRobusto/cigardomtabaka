@@ -142,7 +142,7 @@ export const MANUAL_CHAPTERS: readonly ManualChapter[] = [
     route: '/accounting',
     tourStepId: 'accounting-reconciliation',
     sections: [
-      guidedSection('accounting-actions-expense', '记录实际人肉成本', '订单履约后，按实际花了多少钱记人肉成本。它和客户付的人肉费是两回事：客户付的是收入，实际花的是成本，两笔金额可以不一样。'),
+      guidedSection('accounting-actions-expense', '记录实际人肉成本', '订单出库后，按实际花了多少钱记人肉成本。它和客户付的人肉费是两回事：客户付的是收入，实际花的是成本，两笔金额可以不一样。'),
       guidedSection('accounting-actions-expense', '记录日常费用', '工资一般从人民币账户出，房租水电一般从卢布账户出——以实际付款的账户为准，填好日期和备注。费用记在费用里，不要混进销售订单。'),
       guidedSection('accounting-reconciliation', '完成对账', '在 /accounting 的对账区逐个账户核对：系统余额和实际余额对不对得上。有差异就查明原因、处理掉，并写清说明。'),
       guidedSection('accounting-profit-month', '查看月利润', '先选月份，再逐项核对：销售收入、客户人肉费收入、销售成本（按批次先进先出计算）、实际人肉成本和日常费用。退款和冲正会算进实际发生的那个月份。'),
@@ -160,7 +160,7 @@ export const MANUAL_CHAPTERS: readonly ManualChapter[] = [
     sections: [
       guidedSection('sales-orders', '创建销售草稿', '打开 /sales，从“新建销售单”开始。完整引导会逐项高亮本节所有字段，但它只演示怎么填，不会替你保存、确认、出库或收款。'),
       guidedSection('sales-customer', '填写客户', '填客户姓名或一个好找的称呼。临时客户可以写“散客”；长期往来的客户，名称要保持一致，以后查单才方便。'),
-      guidedSection('sales-transport-payer', '设置人肉费', '先选客户承担还是公司承担。客户承担时，填向客户收取的人民币金额，这笔钱计入订单应收；公司承担时，客户人肉费固定为 0，实际成本等履约后再记。'),
+      guidedSection('sales-transport-payer', '设置人肉费', '先选客户承担还是公司承担。客户承担时，填向客户收取的人民币金额，这笔钱计入订单应收；公司承担时，客户人肉费固定为 0，实际成本等出库后再记。'),
       guidedSection('sales-item-search', '从库存添加雪茄', '点一下搜索框就能看到当前库存，也可以输入中文名、英文名或品牌来筛选。选好商品后再选整盒或单支；库存不够时，单子保存不了也确认不了。'),
       guidedSection('sales-item-unit', '填写包装、数量和售价', '按整盒卖，数量填盒数，注意核对每盒支数；按单支卖，数量填支数。售价一律填人民币单价，别把卢布采购成本填进来——成本由系统按批次先进先出自动计算。'),
       guidedSection('sales-order-note', '填写备注并保存', '交货约定或报价说明写在备注里。核对商品、数量、售价和应收总额后保存草稿；草稿不会占用库存，也不会产生资金流水。'),

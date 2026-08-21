@@ -212,6 +212,7 @@ class Day1ApiTest(TestCase):
         self.assertTrue(response.json()['requires_day1'])
         self.assertEqual(response.json()['day1_status'], 'not_started')
         self.assertEqual(response.json()['stats'], {
+            'total_funds_cny': None,
             'cny_funds_total': None,
             'inventory_book_cost_cny': None,
             'accounts_receivable_cny': None,
@@ -232,6 +233,7 @@ class Day1ApiTest(TestCase):
         self.assertFalse(data['requires_day1'])
         self.assertEqual(data['day1_status'], 'completed')
         self.assertEqual(data['stats'], {
+            'total_funds_cny': '607.50',
             'cny_funds_total': '100.00',
             'inventory_book_cost_cny': '337.50',
             'accounts_receivable_cny': '0.00',
@@ -241,6 +243,18 @@ class Day1ApiTest(TestCase):
         self.assertEqual(data['monthly_profit']['net_profit_cny'], '0.00')
         self.assertEqual(data['reconciliation']['pending_count'], 0)
         self.assertEqual(data['reconciliation']['latest'], [])
+
+    def test_dashboard_total_funds_keeps_inactive_account_balance(self):
+        self.client.force_login(self.staff)
+        self.assertEqual(self.save_draft().status_code, 200)
+        self.assertEqual(self.confirm().status_code, 200)
+        FundAccount.objects.filter(currency='USDT').update(is_active=False)
+
+        response = self.client.get('/api/accounting/dashboard/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['stats']['total_funds_cny'], '607.50')
+        self.assertEqual(len(response.json()['accounts']), 3)
 
     def test_dashboard_excludes_future_reconciliations(self):
         self.client.force_login(self.staff)

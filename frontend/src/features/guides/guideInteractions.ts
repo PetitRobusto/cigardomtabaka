@@ -13,7 +13,7 @@ export interface ContextTourStep {
 const salesCreateSteps: readonly ContextTourStep[] = [
   { id: 'sales-orders', title: '创建销售单', description: '从这张表单开始。引导只会高亮字段，不会代你保存或确认订单。', target: '[data-guide="sales-orders"]', route: '/sales' },
   { id: 'sales-customer', title: '填写客户', description: '填客户名称；临时散客也可以写“散客”，方便之后查找订单。', target: '[data-guide="sales-order-customer"]', route: '/sales' },
-  { id: 'sales-transport-payer', title: '选择人肉费承担方', description: '客户承担时，人肉费计入应收；公司承担时，客户人肉费自动为 0，实际成本在履约后另记。', target: '[data-guide="sales-order-transport-payer"]', route: '/sales' },
+  { id: 'sales-transport-payer', title: '选择人肉费承担方', description: '客户承担时，人肉费计入应收；公司承担时，客户人肉费自动为 0，实际成本在出库后另记。', target: '[data-guide="sales-order-transport-payer"]', route: '/sales' },
   { id: 'sales-transport-fee', title: '填写客户人肉费', description: '选择客户承担时，填客户实际要付的人肉费，金额不能是负数；选择公司承担时，这里会锁定为 0。', target: '[data-guide="sales-order-transport-fee"]', route: '/sales' },
   { id: 'sales-item-search', title: '搜索库存商品', description: '点击输入框会加载库存列表。输入中文名、英文名或品牌，再从下拉列表点选一款现货。', target: '[data-guide="sales-order-item-search"]', route: '/sales' },
   { id: 'sales-item-unit', title: '选择销售单位', description: '商品加入后选择整盒或单支；整盒销售还要核对每盒支数。请先在上一步选中商品。', target: '[data-guide="sales-order-item-unit"]', route: '/sales', waitForTarget: true },

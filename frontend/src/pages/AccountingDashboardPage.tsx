@@ -49,7 +49,7 @@ export default function AccountingDashboardPage() {
     <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Accounting desk</p><h1 className="mt-1 font-display text-3xl font-semibold tracking-tight sm:text-4xl">账务工作台</h1><p className="mt-2 text-sm text-muted">资金、库存成本、利润和对账的真实快照。</p></div><div className="flex gap-2"><input data-guide="accounting-profit-month" type="month" value={month} onChange={event => setMonth(event.target.value)} className="rounded border border-border bg-white px-3 py-2 text-sm" /><button type="button" onClick={refresh} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
     {dashboard.error && <div className="mb-5 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{apiErrorMessage(dashboard.error, '账务数据加载失败')}</div>}
     {data && <>
-      <section className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat label="人民币资金" value={moneyStat(data.stats.cny_funds_total)} /><Stat label="库存成本" value={moneyStat(data.stats.inventory_book_cost_cny)} /><Stat label="本月利润" value={signedMoneyStat(data.stats.month_net_profit_cny)} tone="text-success" /><Stat label="待收订单" value={moneyStat(data.stats.accounts_receivable_cny)} /></section>
+      <section className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat label="总资金" value={moneyStat(data.stats.total_funds_cny)} note="全部资金账户账面成本 + 商品库存价值" /><Stat label="库存成本" value={moneyStat(data.stats.inventory_book_cost_cny)} /><Stat label="本月利润" value={signedMoneyStat(data.stats.month_net_profit_cny)} tone="text-success" /><Stat label="待收订单" value={moneyStat(data.stats.accounts_receivable_cny)} /></section>
       {!day1Completed ? <Day1Card status={data.day1_status} /> : <>
         <MonthlyProfitSummary
           profit={regionStates.profit === 'ready' ? profit.data : undefined}
@@ -83,7 +83,7 @@ function accountingActionForGuide(guideTourId?: string): AccountingActionKind {
 
 function moneyStat(value: string | null): string { return dashboardStatDisplay(value == null ? null : formatCny(value)); }
 function signedMoneyStat(value: string | null): string { return dashboardStatDisplay(value == null ? null : formatSignedCny(value)); }
-function Stat({ label, value, tone = '' }: { label: string; value: string; tone?: string }) { return <div className="rounded-md border border-border bg-white p-4 shadow-sm"><p className="text-[11px] uppercase tracking-wider text-muted">{label}</p><p className={`mt-2 font-mono text-2xl font-semibold ${tone}`}>{value}</p></div>; }
+function Stat({ label, value, tone = '', note }: { label: string; value: string; tone?: string; note?: string }) { return <div className="rounded-md border border-border bg-white p-4 shadow-sm"><p className="text-[11px] uppercase tracking-wider text-muted">{label}</p><p className={`mt-2 font-mono text-2xl font-semibold ${tone}`}>{value}</p>{note && <p className="mt-1 text-[10px] text-muted">{note}</p>}</div>; }
 function Day1Card({ status }: { status: string }) {
   const action = dashboardDay1Action(status);
   if (!action) return null;

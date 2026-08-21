@@ -4,6 +4,7 @@ import { BUSINESS_ROUTE_PATHS, BUSINESS_STAFF_PATHS, resolveBusinessRoute } from
 describe('business routes', () => {
   it('keeps sales and accounting as separate workspaces', () => {
     expect(resolveBusinessRoute('/sales', '')).toBe('/sales');
+    expect(BUSINESS_STAFF_PATHS.salesCustomers).toBe('/sales/customers');
     expect(resolveBusinessRoute('/accounting', '')).toBe('/accounting');
   });
 

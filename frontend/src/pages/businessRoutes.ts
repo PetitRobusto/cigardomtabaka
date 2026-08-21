@@ -25,6 +25,8 @@ export function dashboardRegionStates(queries: Record<string, { isError: boolean
 }
 
 export const BUSINESS_STAFF_PATHS = {
+  inventory: '/inventory',
+  inventoryPurchases: '/inventory/purchases',
   sales: '/sales',
   salesCustomers: '/sales/customers',
   accounting: '/accounting',

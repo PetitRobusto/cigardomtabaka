@@ -12,7 +12,7 @@ import { transportPayerChange } from '../components/sales/salesState';
 describe('business workspace review boundaries', () => {
   it('resolves the legacy hash and keeps all business entry paths staff-gated', () => {
     expect(resolveBusinessRoute('/sales', '#accounting')).toBe('/accounting');
-    expect(BUSINESS_STAFF_PATHS).toStrictEqual({ sales: '/sales', salesCustomers: '/sales/customers', accounting: '/accounting', day1: '/accounting/day1' });
+    expect(BUSINESS_STAFF_PATHS).toStrictEqual({ inventory: '/inventory', inventoryPurchases: '/inventory/purchases', sales: '/sales', salesCustomers: '/sales/customers', accounting: '/accounting', day1: '/accounting/day1' });
     expect(decideStaffRoute({ isLoading: false, isAuthenticated: true, isStaff: false })).toBe('home');
   });
 

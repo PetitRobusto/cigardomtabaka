@@ -420,6 +420,9 @@ class Supplier(models.Model):
     )
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     deleted_at = models.DateTimeField('删除时间', null=True, blank=True)
+    creation_idempotency_key = models.CharField(
+        '创建幂等键', max_length=128, null=True, blank=True, unique=True,
+    )
 
     class Meta:
         ordering = ['name']
@@ -614,9 +617,12 @@ class PurchaseOrder(models.Model):
         CANCELLED = 'cancelled', '已取消'
 
     supplier = models.ForeignKey(
-        Supplier, on_delete=models.PROTECT, verbose_name='供应商'
+        Supplier, on_delete=models.PROTECT, null=True, blank=True,
+        verbose_name='供应商'
     )
-    rub_total = models.DecimalField('卢布总额', max_digits=12, decimal_places=2)
+    rub_total = models.DecimalField(
+        '卢布总额', max_digits=12, decimal_places=2, default=Decimal('0.00'),
+    )
     # 汇率和人民币总额是旧报价快照；新采购成本来自实际付款事实。
     exchange_rate = models.DecimalField('汇率 (RUB→CNY)', max_digits=10, decimal_places=4, null=True, blank=True)
     cny_total = models.DecimalField('人民币总额', max_digits=12, decimal_places=2, null=True, blank=True)
@@ -779,7 +785,7 @@ class PurchaseOrderItem(models.Model):
     class Meta:
         base_manager_name = 'objects'
         constraints = [
-            models.CheckConstraint(condition=(models.Q(packaging_status='review_required', box_quantity__isnull=True, unit_price_rub_per_box__isnull=True) | models.Q(packaging_status='normalized', box_size__isnull=False, box_size__gt=0, box_quantity__isnull=False, box_quantity__gt=0, unit_price_rub_per_box__isnull=False, unit_price_rub_per_box__gte=0) | models.Q(packaging_status='unrepresentable', box_size__isnull=False, box_size__gt=0, box_quantity__isnull=False, box_quantity__gt=0, unit_price_rub_per_box__isnull=False, unit_price_rub_per_box__gte=0, unit_price_rub__isnull=True, unit_price_cny__isnull=True)), name='purchase_item_packaging_consistent'),
+            models.CheckConstraint(condition=((models.Q(packaging_status='review_required') & (models.Q(box_size__isnull=True) | models.Q(box_size__gte=0)) & (models.Q(box_quantity__isnull=True) | models.Q(box_quantity__gte=0)) & (models.Q(unit_price_rub_per_box__isnull=True) | models.Q(unit_price_rub_per_box__gte=0))) | models.Q(packaging_status='normalized', box_size__isnull=False, box_size__gt=0, box_quantity__isnull=False, box_quantity__gt=0, unit_price_rub_per_box__isnull=False, unit_price_rub_per_box__gte=0) | models.Q(packaging_status='unrepresentable', box_size__isnull=False, box_size__gt=0, box_quantity__isnull=False, box_quantity__gt=0, unit_price_rub_per_box__isnull=False, unit_price_rub_per_box__gte=0, unit_price_rub__isnull=True, unit_price_cny__isnull=True)), name='purchase_item_packaging_consistent'),
             models.CheckConstraint(condition=models.Q(actual_cost_cny__gte=0), name='purchase_item_actual_cost_nonnegative'),
             models.CheckConstraint(condition=(models.Q(packaging_status='review_required') | models.Q(packaging_status__in=['normalized', 'unrepresentable'], quantity=models.F('box_size') * models.F('box_quantity'))), name='purchase_item_quantity_matches_boxes'),
         ]

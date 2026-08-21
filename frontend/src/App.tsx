@@ -10,6 +10,7 @@ import CigarCatalogDetailPage from './pages/CigarCatalogDetailPage';
 
 // Inventory & Auth
 import InventoryPage from './pages/InventoryWorkbenchPage';
+import InventoryPurchasesPage from './pages/InventoryPurchasesPage';
 import LoginPage from './pages/LoginPage';
 
 // Privnote
@@ -68,7 +69,8 @@ function AnimatedRoutes() {
           <Route path="/cigar/:id/:slug?" element={<CigarCatalogDetailPage />} />
 
           {/* Inventory */}
-          <Route path="/inventory" element={<InventoryPage />} />
+          <Route path={BUSINESS_STAFF_PATHS.inventory} element={<InventoryPage />} />
+          <Route path={BUSINESS_STAFF_PATHS.inventoryPurchases} element={<StaffGate><InventoryPurchasesPage /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.sales} element={<StaffGate><LegacySalesRoute /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.salesCustomers} element={<StaffGate><SalesCustomersPage /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.accounting} element={<StaffGate><AccountingDashboardPage /></StaffGate>} />

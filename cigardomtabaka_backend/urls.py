@@ -89,6 +89,9 @@ urlpatterns = [
     path('api/sales/customers/<int:customer_id>/', sales_api.sales_customer_detail, name='sales_customer_detail'),
     path('api/inventory/adjustments/<int:adjustment_id>/reverse/', inventory_api.inventory_adjustment_reverse, name='inventory_adjustment_reverse'),
     path('api/inventory/audit/', inventory_api.inventory_audit, name='inventory_audit'),
+    path('api/inventory/suppliers/', inventory_api.inventory_suppliers, name='inventory_suppliers'),
+    path('api/inventory/purchases/', inventory_api.inventory_purchases, name='inventory_purchases'),
+    path('api/inventory/purchases/<int:purchase_id>/', inventory_api.inventory_purchases, name='inventory_purchase_detail'),
     path('api/accounting/', include('accounting.urls')),
     path('api/prices/', include('price_tracker.urls')),
     # Privnote — JSON API + customer view API (frontend handled by React SPA)

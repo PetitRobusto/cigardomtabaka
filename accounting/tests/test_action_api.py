@@ -90,7 +90,7 @@ class ActionApiContractTest(TestCase):
         self.assertEqual(day1.status_code, 409)
         self.assertEqual(day1.json()['code'], 'day1_incomplete')
 
-    def test_domain_validation_errors_are_bad_requests(self):
+    def test_incomplete_purchase_is_saved_as_draft_without_business_validation(self):
         self.complete_day1()
         _, _, payload = self.purchase_payload()
         payload['items'][0]['box_quantity'] = 0
@@ -100,8 +100,10 @@ class ActionApiContractTest(TestCase):
             key='task7-invalid-packaging',
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()['code'], 'invalid_packaging')
+        self.assertEqual(response.status_code, 201)
+        purchase = response.json()['purchase_order']
+        self.assertFalse(purchase['draft_complete'])
+        self.assertEqual(purchase['items'][0]['packaging_status'], 'review_required')
 
     def test_if_match_mismatch_is_version_conflict(self):
         response = self.request(
@@ -121,6 +123,7 @@ class ActionApiContractTest(TestCase):
             (f'/api/accounting/purchases/{draft.pk}/', {'expected_version': draft.version, 'items': payload['items']}, 'patch', 'guard-update'),
             (f'/api/accounting/purchases/{draft.pk}/pay/', {'business_date': '2026-08-14', 'rub_account_id': 1}, 'post', 'guard-pay'),
             (f'/api/accounting/purchases/{draft.pk}/receive/', {'business_date': '2026-08-14'}, 'post', 'guard-receive'),
+            (f'/api/accounting/purchases/{draft.pk}/reverse-receive/', {'business_date': '2026-08-14', 'note': '撤回测试'}, 'post', 'guard-reverse-receive'),
             (f'/api/accounting/purchases/{draft.pk}/cancel/', {'expected_version': draft.version}, 'post', 'guard-cancel'),
         ):
             response = self.request(method, path, body, key=key)
@@ -297,7 +300,7 @@ class ActionApiContractTest(TestCase):
         for _ in range(3):
             self.draft_purchase()
         orders = list(
-            PurchaseOrder.objects.order_by('id').prefetch_related('items__cigar')
+            PurchaseOrder.objects.order_by('id').select_related('supplier').prefetch_related('items__cigar')
         )
 
         with CaptureQueriesContext(connection) as captured:

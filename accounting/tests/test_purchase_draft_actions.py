@@ -84,6 +84,35 @@ class PurchaseDraftActionTest(TestCase):
             create_purchase_order(**changed)
         self.assertEqual(raised.exception.code, 'idempotency_conflict')
 
+    def test_incomplete_draft_can_be_saved_and_completed_later(self):
+        order = create_purchase_order(
+            supplier_id=None,
+            items=[],
+            business_date=None,
+            operator=self.operator,
+            idempotency_key='incomplete-draft-create',
+            note='先占一个草稿',
+        )
+        self.assertIsNone(order.supplier_id)
+        self.assertIsNone(order.draft_business_date)
+        self.assertEqual(order.rub_total, Decimal('0.00'))
+        self.assertFalse(order.items.exists())
+
+        completed = update_purchase_order_draft(
+            purchase_order_id=order.pk,
+            supplier_id=self.supplier.pk,
+            business_date=date(2026, 8, 14),
+            items=self.canonical_items(),
+            expected_version=1,
+            idempotency_key='incomplete-draft-complete',
+            operator=self.operator,
+        )
+        completed.refresh_from_db()
+        self.assertEqual(completed.supplier_id, self.supplier.pk)
+        self.assertEqual(completed.draft_business_date, date(2026, 8, 14))
+        self.assertEqual(completed.rub_total, Decimal('100.00'))
+        self.assertEqual(completed.items.count(), 1)
+
 
     def test_create_is_blocked_before_day1(self):
         Day1Initialization.objects.all().delete()
@@ -139,28 +168,76 @@ class PurchaseDraftActionTest(TestCase):
         other_cigar = Cigar.objects.create(
             english_name='Task3 Cigar 2', name='Task3 Cigar 2', brand='Task3',
         )
-        with self.assertRaises(PurchaseActionError) as raised:
-            update_purchase_order_draft(
-                purchase_order_id=order.pk,
-                items=[{**items[0], 'cigar_id': other_cigar.pk}],
-                expected_version=2, idempotency_key='task3-update-cigar',
-                operator=self.operator,
-            )
-        self.assertEqual(raised.exception.code, 'cigar_change_forbidden')
+        updated = update_purchase_order_draft(
+            purchase_order_id=order.pk,
+            items=[
+                {**items[0], 'cigar_id': other_cigar.pk},
+                self.canonical_items()[0],
+            ],
+            expected_version=2, idempotency_key='task3-update-cigar',
+            operator=self.operator,
+        )
+        self.assertEqual(
+            list(updated.items.order_by('id').values_list('cigar_id', flat=True)),
+            [other_cigar.pk, self.cigar.pk],
+        )
 
         cancel_purchase_order(
             purchase_order_id=order.pk, operator=self.operator,
-            idempotency_key='task3-cancel-before-update', expected_version=2,
+            idempotency_key='task3-cancel-before-update', expected_version=3,
         )
         with self.assertRaises(PurchaseActionError) as raised:
             update_purchase_order_draft(
-                purchase_order_id=order.pk, items=items, expected_version=3,
+                purchase_order_id=order.pk, items=items, expected_version=4,
                 idempotency_key='task3-update-cancelled', operator=self.operator,
             )
         self.assertEqual(raised.exception.code, 'invalid_state')
         actions = list(PurchaseDraftAction.objects.filter(purchase_order=order).order_by('id').values_list('action_type', flat=True))
-        self.assertEqual(actions, [PurchaseDraftAction.ActionType.CREATE, PurchaseDraftAction.ActionType.UPDATE, PurchaseDraftAction.ActionType.CANCEL])
-        self.assertEqual(PurchaseDraftAction.objects.filter(purchase_order=order).count(), 3)
+        self.assertEqual(actions, [
+            PurchaseDraftAction.ActionType.CREATE,
+            PurchaseDraftAction.ActionType.UPDATE,
+            PurchaseDraftAction.ActionType.UPDATE,
+            PurchaseDraftAction.ActionType.CANCEL,
+        ])
+        self.assertEqual(PurchaseDraftAction.objects.filter(purchase_order=order).count(), 4)
+
+    def test_update_replay_is_stable_after_later_optional_field_changes(self):
+        order = create_purchase_order(**self.create_kwargs())
+        first_items = [{
+            **self.canonical_items()[0],
+            'unit_price_rub_per_box': '120.00',
+        }]
+        first = update_purchase_order_draft(
+            purchase_order_id=order.pk,
+            items=first_items,
+            expected_version=1,
+            idempotency_key='stable-update-before-optional-fields-change',
+            operator=self.operator,
+        )
+        other_supplier = Supplier.objects.create(name='Later Supplier')
+        update_purchase_order_draft(
+            purchase_order_id=order.pk,
+            supplier_id=other_supplier.pk,
+            business_date=date(2026, 8, 15),
+            items=first_items,
+            expected_version=2,
+            idempotency_key='later-optional-fields-change',
+            operator=self.operator,
+        )
+
+        replay = update_purchase_order_draft(
+            purchase_order_id=order.pk,
+            items=first_items,
+            expected_version=1,
+            idempotency_key='stable-update-before-optional-fields-change',
+            operator=self.operator,
+        )
+
+        self.assertEqual(replay.pk, first.pk)
+        replay.refresh_from_db()
+        self.assertEqual(replay.version, 3)
+        self.assertEqual(replay.supplier_id, other_supplier.pk)
+        self.assertEqual(replay.draft_business_date, date(2026, 8, 15))
 
     def test_cancel_clears_payment_fields_replays_and_is_append_only(self):
         order = create_purchase_order(**self.create_kwargs())

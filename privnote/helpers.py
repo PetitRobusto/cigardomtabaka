@@ -108,6 +108,8 @@ def serialize_cigar_minimal(cigar, include_batches=False, stock_only=False):
     """
     from django.db import models
 
+    from cigars.packaging import declared_box_sizes
+
     result = {
         'id': cigar.id,
         'name': cigar.name or cigar.english_name,
@@ -120,6 +122,7 @@ def serialize_cigar_minimal(cigar, include_batches=False, stock_only=False):
         'length': cigar.length,
         'ring_gauge': cigar.ring_gauge,
         'thumb_url': get_thumb_url(cigar),
+        'packaging_sizes': declared_box_sizes(cigar.packagings),
     }
 
     if include_batches:

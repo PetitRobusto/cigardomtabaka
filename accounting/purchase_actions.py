@@ -12,7 +12,6 @@ from django.db import IntegrityError, transaction
 from django.db import models
 from django.db.models import Q
 
-from accounting.business_time import moscow_business_date
 from accounting.mutation_scope import ledger_mutation_scope
 from accounting.services import (
     LedgerError, PostingInput, _acquire_sqlite_writer_gate, _outflow_cny_cost,
@@ -40,6 +39,7 @@ _CUTOVER_DATE = date(2026, 8, 10)
 # stores larger integers, but accepting them here would make writes backend
 # dependent and can overflow the IntegerField columns on other databases.
 _MAX_DB_INTEGER = 2_147_483_647
+_UNSET = object()
 
 
 class PurchaseActionError(Exception):
@@ -75,6 +75,21 @@ def _positive_int(value, field: str, *, max_value=None) -> int:
     return result
 
 
+def _draft_integer(value, field: str) -> int | None:
+    """Parse a storable draft integer without requiring business completeness."""
+    if value in (None, ''):
+        return None
+    if isinstance(value, bool):
+        raise PurchaseActionError('invalid_packaging', {field: '必须是非负整数'})
+    try:
+        result = int(value)
+    except (TypeError, ValueError, OverflowError):
+        raise PurchaseActionError('invalid_packaging', {field: '必须是非负整数'})
+    if result < 0 or result > _MAX_DB_INTEGER or str(value).strip() != str(result):
+        raise PurchaseActionError('invalid_packaging', {field: '必须是非负整数'})
+    return result
+
+
 def _purchase_order_id(value) -> int:
     """Normalize a purchase-order ID before it reaches Django's ORM."""
     try:
@@ -95,7 +110,7 @@ def _purchase_order_business_date(purchase_order_id):
         raise PurchaseActionError(
             'purchase_order_not_found', {'purchase_order_id': purchase_order_id}
         )
-    return snapshot['draft_business_date'] or moscow_business_date()
+    return snapshot['draft_business_date']
 
 
 def _purchase_order_items_payload(purchase_order_id):
@@ -141,6 +156,12 @@ def _date(value) -> date:
     if result < _CUTOVER_DATE:
         raise PurchaseActionError('invalid_business_date', {'business_date': '不能早于账务切换日'})
     return result
+
+
+def _optional_date(value) -> date | None:
+    if value in (None, ''):
+        return None
+    return _date(value)
 
 
 def _money_decimal(value, field: str, *, max_digits=22, nonnegative=False) -> Decimal:
@@ -315,27 +336,75 @@ def normalize_legacy_purchase_item(
     )
 
 
-def _canonical_payload(*, items, operator, business_date, expected_version=None, note='', context=None) -> tuple[list[dict], str]:
-    if not isinstance(items, (list, tuple)) or not items:
-        raise PurchaseActionError('invalid_items', {'items': '至少需要一个采购明细'})
+def _draft_payload(*, items, operator, business_date, expected_version=None,
+                   note='', context=None, fingerprint_business_date=_UNSET) -> tuple[list[dict], str]:
+    """Normalize a draft while deferring completeness checks to payment."""
+    if items is None:
+        items = []
+    if not isinstance(items, (list, tuple)):
+        raise PurchaseActionError('invalid_items', {'items': '必须是数组'})
     normalized = []
     for index, raw in enumerate(items):
         if not isinstance(raw, dict):
             raise PurchaseActionError('invalid_items', {'item_index': index, 'item': '必须是对象'})
         try:
             cigar_id = _positive_int(raw.get('cigar_id'), 'cigar_id')
-            row = canonical_purchase_item(
-                box_size=raw.get('box_size'),
-                box_quantity=raw.get('box_quantity'),
-                unit_price_rub_per_box=raw.get('unit_price_rub_per_box'),
-                legacy_unit_price_rub=raw.get('unit_price_rub'),
-                legacy_unit_price_cny=raw.get('unit_price_cny'),
+            box_size = _draft_integer(raw.get('box_size'), 'box_size')
+            box_quantity = _draft_integer(raw.get('box_quantity'), 'box_quantity')
+            price_value = raw.get('unit_price_rub_per_box')
+            per_box = (
+                None if price_value in (None, '')
+                else _money_decimal(price_value, 'unit_price_rub_per_box', nonnegative=True)
             )
+            legacy_rub = _legacy_snapshot(raw.get('unit_price_rub'), 'unit_price_rub')
+            legacy_cny = _legacy_snapshot(raw.get('unit_price_cny'), 'unit_price_cny')
         except PurchaseActionError as error:
             error.details.setdefault('item_index', index)
             raise
         if not Cigar.objects.filter(pk=cigar_id).exists():
             raise PurchaseActionError('cigar_not_found', {'item_index': index, 'cigar_id': cigar_id})
+        if box_size and box_quantity and per_box is not None:
+            row = canonical_purchase_item(
+                box_size=box_size,
+                box_quantity=box_quantity,
+                unit_price_rub_per_box=per_box,
+                legacy_unit_price_rub=legacy_rub,
+                legacy_unit_price_cny=legacy_cny,
+            )
+        else:
+            sticks = box_size * box_quantity if box_size is not None and box_quantity is not None else 0
+            if sticks > _MAX_DB_INTEGER:
+                raise PurchaseActionError(
+                    'invalid_packaging', {'item_index': index, 'sticks': '超出数据库整数范围'}
+                )
+            try:
+                subtotal = (
+                    Decimal(box_quantity) * per_box
+                    if box_quantity is not None and per_box is not None
+                    else Decimal('0.00')
+                ).quantize(MONEY_PLACES)
+            except (DecimalException, InvalidOperation):
+                raise PurchaseActionError(
+                    'invalid_money_precision',
+                    {'item_index': index, 'rub_subtotal': '金额超出允许范围'},
+                )
+            row = {
+                'sticks': sticks,
+                'rub_subtotal': subtotal,
+                'box_size': box_size,
+                'box_quantity': box_quantity,
+                'unit_price_rub_per_box': per_box,
+                'unit_price_rub': legacy_rub,
+                'unit_price_cny': legacy_cny,
+                'packaging_status': PurchaseOrderItem.PackagingStatus.REVIEW_REQUIRED,
+                'legacy_snapshot_status': (
+                    PurchaseOrderItem.LegacySnapshotStatus.EXPLICIT
+                    if legacy_cny is not None
+                    else PurchaseOrderItem.LegacySnapshotStatus.DERIVED
+                    if legacy_rub is not None
+                    else PurchaseOrderItem.LegacySnapshotStatus.UNREPRESENTABLE
+                ),
+            }
         normalized.append({'cigar_id': cigar_id, **row})
 
     payload = {
@@ -345,7 +414,7 @@ def _canonical_payload(*, items, operator, business_date, expected_version=None,
                 'cigar_id': row['cigar_id'],
                 'box_size': row['box_size'],
                 'box_quantity': row['box_quantity'],
-                'unit_price_rub_per_box': str(row['unit_price_rub_per_box']),
+                'unit_price_rub_per_box': str(row['unit_price_rub_per_box']) if row['unit_price_rub_per_box'] is not None else None,
                 'unit_price_rub': str(row['unit_price_rub']) if row['unit_price_rub'] is not None else None,
                 'unit_price_cny': str(row['unit_price_cny']) if row['unit_price_cny'] is not None else None,
                 'packaging_status': row['packaging_status'],
@@ -353,7 +422,9 @@ def _canonical_payload(*, items, operator, business_date, expected_version=None,
             }
             for row in normalized
         ],
-        'business_date': _date(business_date).isoformat(),
+        'business_date': (
+            business_date.isoformat() if business_date else None
+        ) if fingerprint_business_date is _UNSET else fingerprint_business_date,
         'operator': operator.pk,
         'expected_version': expected_version,
         'note': note or '',
@@ -418,12 +489,13 @@ def _operator_id_for_replay(operator):
 
 def _create_locked(*, supplier_id, items, business_date, operator, idempotency_key, expected_version, note, exchange_rate=None):
     _operator_id_for_replay(operator)
-    business_date = _date(business_date)
+    business_date = _optional_date(business_date)
     exchange_rate = _exchange_rate(exchange_rate)
-    normalized, fingerprint = _canonical_payload(
+    supplier_pk = None if supplier_id in (None, '') else _positive_int(supplier_id, 'supplier_id')
+    normalized, fingerprint = _draft_payload(
         items=items, operator=operator, business_date=business_date,
         expected_version=expected_version, note=note,
-        context={'action_type': 'create', 'supplier_id': _positive_int(supplier_id, 'supplier_id'),
+        context={'action_type': 'create', 'supplier_id': supplier_pk,
                  'exchange_rate': str(exchange_rate) if exchange_rate is not None else None},
     )
     replay = _check_key(action_type=PurchaseDraftAction.ActionType.CREATE, idempotency_key=idempotency_key, fingerprint=fingerprint)
@@ -431,10 +503,12 @@ def _create_locked(*, supplier_id, items, business_date, operator, idempotency_k
         return replay
     _require_day1_completed()
     operator = _validate_operator(operator)
-    try:
-        supplier = Supplier.objects.get(pk=_positive_int(supplier_id, 'supplier_id'), deleted_at__isnull=True)
-    except Supplier.DoesNotExist:
-        raise PurchaseActionError('supplier_not_found', {'supplier_id': supplier_id})
+    supplier = None
+    if supplier_pk is not None:
+        try:
+            supplier = Supplier.objects.get(pk=supplier_pk, deleted_at__isnull=True)
+        except Supplier.DoesNotExist:
+            raise PurchaseActionError('supplier_not_found', {'supplier_id': supplier_id})
 
     kwargs = {
         'supplier': supplier,
@@ -474,9 +548,7 @@ def _create_locked(*, supplier_id, items, business_date, operator, idempotency_k
 @_retry_sqlite_locked
 def create_purchase_order(*, supplier_id, items, business_date=None, operator,
                           idempotency_key, expected_version=None, note='', exchange_rate=None):
-    """创建 canonical 采购草稿；所有明细和 action 在同一事务中写入。"""
-    if business_date is None:
-        raise PurchaseActionError('invalid_business_date', {'business_date': '必须显式提供'})
+    """创建可不完整的采购草稿；付款动作负责完整业务校验。"""
     with transaction.atomic():
         _acquire_sqlite_writer_gate()
         return _create_locked(
@@ -489,7 +561,8 @@ def create_purchase_order(*, supplier_id, items, business_date=None, operator,
 
 @_retry_sqlite_locked
 def update_purchase_order_draft(*, purchase_order_id, items, expected_version,
-                               idempotency_key, operator, note=''):
+                               idempotency_key, operator, note='',
+                               supplier_id=_UNSET, business_date=_UNSET):
     """编辑仍处于草稿状态的采购单，并以版本保护双人同时编辑。"""
     _operator_id_for_replay(operator)
     try:
@@ -497,11 +570,35 @@ def update_purchase_order_draft(*, purchase_order_id, items, expected_version,
     except (TypeError, ValueError):
         raise PurchaseActionError('version_conflict', {'expected_version': expected_version})
     purchase_order_id = _purchase_order_id(purchase_order_id)
-    business_date = _purchase_order_business_date(purchase_order_id)
-    normalized, fingerprint = _canonical_payload(
-        items=items, operator=operator, business_date=business_date,
+    snapshot = PurchaseOrder.objects.filter(pk=purchase_order_id).values(
+        'supplier_id', 'draft_business_date',
+    ).first()
+    if snapshot is None:
+        raise PurchaseActionError(
+            'purchase_order_not_found', {'purchase_order_id': purchase_order_id}
+        )
+    requested_supplier_id = (
+        snapshot['supplier_id'] if supplier_id is _UNSET
+        else None if supplier_id in (None, '')
+        else _positive_int(supplier_id, 'supplier_id')
+    )
+    requested_business_date = (
+        snapshot['draft_business_date'] if business_date is _UNSET
+        else _optional_date(business_date)
+    )
+    normalized, fingerprint = _draft_payload(
+        items=items, operator=operator, business_date=requested_business_date,
         expected_version=expected_version, note=note,
-        context={'action_type': 'update', 'purchase_order_id': purchase_order_id},
+        context={
+            'action_type': 'update', 'purchase_order_id': purchase_order_id,
+            'supplier_id': (
+                '__unchanged__' if supplier_id is _UNSET else requested_supplier_id
+            ),
+        },
+        fingerprint_business_date=(
+            '__unchanged__' if business_date is _UNSET
+            else requested_business_date.isoformat() if requested_business_date else None
+        ),
     )
     with transaction.atomic():
         _acquire_sqlite_writer_gate()
@@ -513,20 +610,6 @@ def update_purchase_order_draft(*, purchase_order_id, items, expected_version,
             order = PurchaseOrder.objects.select_for_update().get(pk=purchase_order_id)
         except PurchaseOrder.DoesNotExist:
             raise PurchaseActionError('purchase_order_not_found', {'purchase_order_id': purchase_order_id})
-        actual_business_date = order.draft_business_date or moscow_business_date()
-        if actual_business_date != business_date:
-            business_date = actual_business_date
-            normalized, fingerprint = _canonical_payload(
-                items=items, operator=operator, business_date=business_date,
-                expected_version=expected_version, note=note,
-                context={'action_type': 'update', 'purchase_order_id': order.pk},
-            )
-            replay = _check_key(
-                action_type=PurchaseDraftAction.ActionType.UPDATE,
-                idempotency_key=idempotency_key, fingerprint=fingerprint,
-            )
-            if replay is not None:
-                return replay
         operator = _validate_operator(operator)
         _require_day1_completed()
         if order.status != PurchaseOrder.Status.DRAFT:
@@ -535,33 +618,42 @@ def update_purchase_order_draft(*, purchase_order_id, items, expected_version,
             raise PurchaseActionError('version_conflict', {
                 'expected_version': expected_version, 'actual_version': order.version,
             })
-        current_items = list(order.items.order_by('id'))
-        if any(item.cigar_id != row['cigar_id'] for item, row in zip(current_items, normalized)):
-            raise PurchaseActionError('cigar_change_forbidden')
-        if len(current_items) != len(normalized):
-            raise PurchaseActionError('invalid_items', {'items': '编辑暂不允许改变明细行数'})
-        for item, row in zip(current_items, normalized):
-            item.cigar_id = row['cigar_id']
-            item.quantity = row['sticks']
-            item.box_size = row['box_size']
-            item.box_quantity = row['box_quantity']
-            item.unit_price_rub_per_box = row['unit_price_rub_per_box']
-            item.unit_price_rub = row['unit_price_rub']
-            item.unit_price_cny = row['unit_price_cny']
-            item.packaging_status = row['packaging_status']
-            item.legacy_snapshot_status = row['legacy_snapshot_status']
-            item.save(update_fields=[
-                'cigar', 'quantity', 'box_size', 'box_quantity',
-                'unit_price_rub_per_box', 'unit_price_rub', 'unit_price_cny',
-                'packaging_status', 'legacy_snapshot_status',
-            ])
+        supplier = None
+        if requested_supplier_id is not None:
+            supplier = Supplier.objects.filter(
+                pk=requested_supplier_id, deleted_at__isnull=True,
+            ).first()
+            if supplier is None:
+                raise PurchaseActionError(
+                    'supplier_not_found', {'supplier_id': requested_supplier_id}
+                )
+        # 草稿明细不是库存或会计事实，可在父单锁定且仍为草稿时整体替换。
+        models.QuerySet.delete(PurchaseOrderItem.objects.filter(purchase_order=order))
+        for row in normalized:
+            PurchaseOrderItem.objects.create(
+                purchase_order=order,
+                cigar_id=row['cigar_id'],
+                quantity=row['sticks'],
+                box_size=row['box_size'],
+                box_quantity=row['box_quantity'],
+                unit_price_rub_per_box=row['unit_price_rub_per_box'],
+                unit_price_rub=row['unit_price_rub'],
+                unit_price_cny=row['unit_price_cny'],
+                packaging_status=row['packaging_status'],
+                legacy_snapshot_status=row['legacy_snapshot_status'],
+            )
+        order.supplier = supplier
+        order.draft_business_date = requested_business_date
         order.rub_total = _aggregate_money(normalized, 'rub_total')
         order.version += 1
         order.note = note or ''
         order.draft_request_fingerprint = fingerprint
         order.exchange_rate = None
         order.cny_total = _legacy_cny_total(normalized)
-        order.save(update_fields=['rub_total', 'version', 'note', 'draft_request_fingerprint', 'exchange_rate', 'cny_total'])
+        order.save(update_fields=[
+            'supplier', 'draft_business_date', 'rub_total', 'version', 'note',
+            'draft_request_fingerprint', 'exchange_rate', 'cny_total',
+        ])
         _write_action(purchase_order=order, action_type=PurchaseDraftAction.ActionType.UPDATE,
                       idempotency_key=idempotency_key, fingerprint=fingerprint,
                       operator=operator, result_version=order.version)
@@ -597,7 +689,7 @@ def cancel_purchase_order(*, purchase_order_id, operator, idempotency_key,
             order = PurchaseOrder.objects.select_for_update().get(pk=purchase_order_id)
         except PurchaseOrder.DoesNotExist:
             raise PurchaseActionError('purchase_order_not_found', {'purchase_order_id': purchase_order_id})
-        actual_business_date = order.draft_business_date or moscow_business_date()
+        actual_business_date = order.draft_business_date
         actual_items_payload = _purchase_order_items_payload(purchase_order_id)
         if actual_business_date != business_date or actual_items_payload != items_payload:
             business_date = actual_business_date
@@ -647,6 +739,10 @@ def _action_key(value):
 
 
 def _canonical_order_rows(order):
+    if order.supplier_id is None:
+        raise PurchaseActionError(
+            'supplier_required', {'supplier_id': '付款前必须选择供应商'}
+        )
     rows = []
     for item in order.items.select_related('cigar').order_by('id'):
         if item.packaging_status == PurchaseOrderItem.PackagingStatus.REVIEW_REQUIRED:
@@ -659,7 +755,9 @@ def _canonical_order_rows(order):
         subtotal = (Decimal(item.box_quantity) * item.unit_price_rub_per_box).quantize(MONEY_PLACES)
         rows.append((item, quantity, subtotal))
     if not rows:
-        raise PurchaseActionError('invalid_items')
+        raise PurchaseActionError(
+            'invalid_items', {'items': '付款前至少需要一个采购明细'}
+        )
     return rows
 
 
@@ -891,15 +989,23 @@ def pay_purchase_order(*, purchase_order_id, rub_account_id, business_date,
             raise PurchaseActionError(
                 'purchase_order_not_found', {'purchase_order_id': order_id}
             )
+        if order.status != PurchaseOrder.Status.DRAFT:
+            raise PurchaseActionError('invalid_state', {'status': order.status})
         account = FundAccount.objects.select_for_update().filter(pk=account_id).first()
         if account is None:
             raise PurchaseActionError('account_not_found')
         rows = _canonical_order_rows(order)
         rub_amount = _canonical_rub_total(rows)
-        if order.status != PurchaseOrder.Status.DRAFT:
-            raise PurchaseActionError('invalid_state', {'status': order.status})
         if rub_amount <= 0:
             raise PurchaseActionError('invalid_amount')
+        if order.rub_total != rub_amount:
+            raise PurchaseActionError(
+                'purchase_total_mismatch',
+                {
+                    'stored_rub_total': str(order.rub_total),
+                    'calculated_rub_total': str(rub_amount),
+                },
+            )
         if account.currency != FundAccount.Currency.RUB:
             raise PurchaseActionError('invalid_account_currency')
         if not account.is_active:
@@ -1127,7 +1233,7 @@ def reverse_received_purchase_order(*, purchase_order_id, business_date, operato
             ).values_list('purchase_batch_id', flat=True)
             return list(PurchaseBatch.objects.filter(pk__in=batch_ids).order_by('id'))
 
-        require_day1_completed()
+        _require_day1_completed()
         operator = _validate_operator(operator)
         if order.status != PurchaseOrder.Status.RECEIVED:
             raise PurchaseActionError('invalid_state', {'status': order.status})

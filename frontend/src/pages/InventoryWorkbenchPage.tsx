@@ -95,10 +95,10 @@ export default function InventoryWorkbenchPage() {
 
       {data?.stats && <InventoryStats data={data} />}
 
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(680px,1fr)_340px]">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <section className="min-w-0 overflow-hidden rounded-md border border-border bg-white shadow-sm">
           <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4">
-            <div><h2 className="font-display text-lg font-semibold">现货库存</h2><p className="mt-0.5 text-xs text-muted">成本均价仅用于内部经营核对。</p></div>
+            <div><h2 className="font-display text-lg font-semibold">现货库存</h2><p className="mt-0.5 text-xs text-muted">按品牌查看当前可用数量与账面成本。</p></div>
             <span className="shrink-0 text-xs text-muted">显示 {cigars.length} 款</span>
           </div>
           <InventoryFilters brands={brandOptions} brandFilter={brandFilter} search={search} onBrandChange={setBrandFilter} onSearchChange={setSearch} onClear={() => { setBrandFilter(''); setSearch(''); }} />
@@ -190,7 +190,7 @@ function InventoryList({ cigars }: { cigars: InventoryItem[] }) {
   const nameFor = (items: InventoryItem[]) => items[0]?.brand_name || items[0]?.brand || '未分类品牌';
   return (
     <>
-      <div data-guide="inventory-table" className="hidden overflow-x-auto lg:block">
+      <div data-guide="inventory-table" className="hidden">
         <table className="w-full min-w-[720px] text-sm">
           <thead><tr className="bg-[#F5EFE8] text-xs text-muted"><th className="px-4 py-3 text-left font-medium">品牌与款式</th><th className="w-24 px-4 py-3 text-right font-medium">现货</th><th className="w-28 px-4 py-3 text-right font-medium">成本均价</th><th className="w-28 px-4 py-3 text-right font-medium">总成本</th><th className="w-28 px-4 py-3 text-right font-medium">最近入库</th></tr></thead>
           <tbody className="divide-y divide-border">
@@ -200,8 +200,8 @@ function InventoryList({ cigars }: { cigars: InventoryItem[] }) {
         <div className="flex justify-between border-t border-border px-4 py-3 text-[11px] text-muted"><span>按最近入库排序</span><span>金额单位：人民币</span></div>
       </div>
 
-      <div className="space-y-2 bg-cream p-3 lg:hidden">
-        {groups.map(([brand, items]) => <section key={brand} className="overflow-hidden rounded-md border border-border bg-white"><BrandHeading brandName={nameFor(items)} logoUrl={logoFor(items)} count={items.length} /><div className="divide-y divide-border">{items.map(cigar => <article key={cigar.id} className="flex items-start justify-between gap-3 p-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-fg"><span>{cigar.name}</span>{cigar.release_type_cn && <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] text-accent">{cigar.release_type_cn}</span>}</div><p className="mt-1 text-xs text-muted">均价 ¥ {cigar.avg_cost.toFixed(2)}</p></div><div className="shrink-0 text-right font-mono"><p className="text-sm font-semibold text-accent">{wholeNumber(cigar.total_stock)} 支</p><p className="mt-1 text-xs text-muted">¥ {wholeNumber(cigar.total_cost)}</p></div></article>)}</div></section>)}
+      <div className="grid gap-3 bg-cream p-3 sm:grid-cols-2">
+        {groups.map(([brand, items]) => <section key={brand} className="overflow-hidden rounded-md border border-border bg-white shadow-sm"><BrandHeading brandName={nameFor(items)} logoUrl={logoFor(items)} count={items.length} /><div className="divide-y divide-border">{items.map(cigar => <article key={cigar.id} className="flex items-start justify-between gap-3 p-4 transition-colors hover:bg-[#FFFAF6]"><div className="min-w-0"><div className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-fg"><span>{cigar.name || cigar.english_name}</span>{cigar.release_type_cn && <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] font-semibold text-accent">{cigar.release_type_cn}</span>}</div>{cigar.english_name && cigar.english_name !== cigar.name && <p className="mt-1 truncate text-[11px] text-muted" title={cigar.english_name}>{cigar.english_name}</p>}<p className="mt-3 text-[11px] text-muted">均价 <strong className="font-mono font-medium text-fg">¥ {cigar.avg_cost.toFixed(2)}</strong><span className="mx-2 text-border">·</span>最近入库 <strong className="font-medium text-fg">{shortDate(cigar.latest_date)}</strong></p></div><div className="shrink-0 text-right font-mono"><p className="text-sm font-semibold text-accent">{wholeNumber(cigar.total_stock)} 支</p><p className="mt-1 text-xs text-muted">¥ {wholeNumber(cigar.total_cost)}</p></div></article>)}</div></section>)}
       </div>
     </>
   );

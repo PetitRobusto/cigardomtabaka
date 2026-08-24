@@ -44,6 +44,8 @@ class InventoryPurchaseApiTest(TestCase):
         self.assertEqual(conflict.status_code, 409)
 
     def test_purchase_directory_includes_complete_details_and_cancelled_orders(self):
+        self.cigar.packagings = '[{"size": 25}, {"size": 10}]'
+        self.cigar.save(update_fields=['packagings'])
         draft = PurchaseOrder.objects.create(
             supplier=self.supplier,
             rub_total=Decimal('120.00'),
@@ -81,7 +83,9 @@ class InventoryPurchaseApiTest(TestCase):
         self.assertEqual(row['note'], '八月采购')
         self.assertTrue(row['draft_complete'])
         self.assertEqual(row['items'][0]['brand'], 'Partagás')
+        self.assertEqual(row['items'][0]['brand_cn'], '帕特加斯')
         self.assertTrue(row['items'][0]['is_regular'])
+        self.assertEqual(row['items'][0]['packaging_sizes'], [10, 25])
 
         all_orders = self.client.get('/api/inventory/purchases/')
         self.assertEqual(

@@ -40,6 +40,7 @@ import type {
   SearchCigarResult,
 } from '../types';
 import { moscowBusinessDate } from '../utils/businessDate';
+import { cigarSearchDisplayName } from '../utils/cigarSearchDisplay';
 import {
   PURCHASE_STATUS_FILTERS,
   buildPurchaseDraftPayload,
@@ -52,6 +53,7 @@ interface DraftItem {
   cigarId: number;
   cigarName: string;
   cigarEnglishName: string;
+  brandCn: string;
   brand: string;
   releaseTypeCn: string;
   isRegular: boolean;
@@ -159,10 +161,11 @@ function purchaseToDraft(purchase: PurchaseAction): DraftForm {
       cigarId: item.cigar_id,
       cigarName: item.cigar_name || item.cigar_english_name || `雪茄 #${item.cigar_id}`,
       cigarEnglishName: item.cigar_english_name || '',
+      brandCn: item.brand_cn || '',
       brand: item.brand || '',
       releaseTypeCn: item.release_type_cn || '',
       isRegular: Boolean(item.is_regular),
-      packagingSizes: [],
+      packagingSizes: item.packaging_sizes?.filter(size => size > 0) || [],
       boxSize: item.box_size == null ? '' : String(item.box_size),
       boxQuantity: item.box_quantity == null ? '' : String(item.box_quantity),
       unitPriceRubPerBox: item.unit_price_rub_per_box == null ? '' : String(item.unit_price_rub_per_box),
@@ -176,6 +179,7 @@ function cigarToDraftItem(cigar: SearchCigarResult): DraftItem {
     cigarId: cigar.id,
     cigarName: cigar.name || cigar.english_name,
     cigarEnglishName: cigar.english_name,
+    brandCn: cigar.brand_cn,
     brand: cigar.brand,
     releaseTypeCn: cigar.release_type_cn,
     isRegular: cigar.is_regular,
@@ -402,7 +406,7 @@ export default function InventoryPurchasesPage() {
       </section>
     </div>}
 
-    {modal && <ModalFrame onClose={() => !saving && setModal(null)}>
+    {modal && <ModalFrame editor={modal.kind === 'editor'} onClose={() => !saving && setModal(null)}>
       {modal.kind === 'editor' && <DraftEditor
         draft={modal.draft}
         busy={saving}
@@ -551,9 +555,9 @@ function DetailInfo({ purchase }: { purchase: PurchaseAction }) {
   return <section className="border-b border-border px-4 py-4 sm:px-5"><h3 className="text-xs font-bold tracking-wide">基本信息</h3><dl className="mt-3 grid gap-x-6 gap-y-3 sm:grid-cols-2">{facts.map(([label, value]) => <div key={label}><dt className="text-[10px] text-muted">{label}</dt><dd className="mt-1 text-sm font-medium">{value}</dd></div>)}</dl></section>;
 }
 
-function DetailItems({ purchase }: { purchase: PurchaseAction }) {
+export function DetailItems({ purchase }: { purchase: PurchaseAction }) {
   const sticks = itemSticks(purchase.items);
-  return <section className="border-b border-border px-4 py-4 sm:px-5"><div className="flex items-center justify-between gap-3"><h3 className="text-xs font-bold tracking-wide">商品明细</h3><span className="font-mono text-[10px] text-muted">{purchase.items.length} 个 SKU · {itemBoxes(purchase.items)} 盒 / {sticks} 支</span></div>{purchase.items.length ? <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[650px] border-collapse text-xs"><thead><tr className="border-b border-border text-left text-[10px] text-muted"><th className="px-2 py-2 font-semibold">商品</th><th className="px-2 py-2 font-semibold">盒规</th><th className="px-2 py-2 font-semibold">盒数</th><th className="px-2 py-2 text-right font-semibold">每盒 RUB</th><th className="px-2 py-2 text-right font-semibold">小计</th></tr></thead><tbody>{purchase.items.map((item, index) => <tr key={item.id || `${item.cigar_id}-${index}`} className="border-b border-[#F3EFE8] last:border-b-0"><td className="px-2 py-2.5"><p className="font-semibold">{item.brand ? `${item.brand} ` : ''}{item.cigar_name || item.cigar_english_name || `雪茄 #${item.cigar_id}`} <ReleasePill item={item} /></p>{item.cigar_english_name && <small className="block pt-0.5 text-[10px] text-muted">{item.cigar_english_name}</small>}{item.batches?.map(batch => <div key={batch.id} className="mt-1 flex justify-between gap-3 border-t border-dashed border-border pt-1 text-[10px] text-muted"><span>FIFO 批次 #{batch.id}</span><span className="font-mono text-fg">{batch.quantity} 支入库</span></div>)}</td><td className="px-2 py-2.5">{item.box_size ? `${item.box_size} 支/盒` : '待补'}</td><td className="px-2 py-2.5">{item.box_quantity == null ? '待补' : `${item.box_quantity} 盒`}</td><td className="px-2 py-2.5 text-right font-mono">{displayRub(item.unit_price_rub_per_box)}</td><td className="px-2 py-2.5 text-right font-mono font-semibold">{displayRub(itemSubtotal(item))}</td></tr>)}</tbody></table></div> : <p className="mt-3 rounded border border-dashed border-border px-3 py-4 text-center text-xs text-muted">草稿还没有商品，可稍后补全。</p>}</section>;
+  return <section className="border-b border-border px-4 py-4 sm:px-5"><div className="flex items-center justify-between gap-3"><h3 className="text-xs font-bold tracking-wide">商品明细</h3><span className="font-mono text-[10px] text-muted">{purchase.items.length} 个 SKU · {itemBoxes(purchase.items)} 盒 / {sticks} 支</span></div>{purchase.items.length ? <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[650px] border-collapse text-xs"><thead><tr className="border-b border-border text-left text-[10px] text-muted"><th className="px-2 py-2 font-semibold">商品</th><th className="px-2 py-2 font-semibold">盒规</th><th className="px-2 py-2 font-semibold">盒数</th><th className="px-2 py-2 text-right font-semibold">每盒 RUB</th><th className="px-2 py-2 text-right font-semibold">小计</th></tr></thead><tbody>{purchase.items.map((item, index) => <tr key={item.id || `${item.cigar_id}-${index}`} className="border-b border-[#F3EFE8] last:border-b-0"><td className="px-2 py-2.5"><p className="font-semibold">{cigarSearchDisplayName({ name: item.cigar_name || item.cigar_english_name || `雪茄 #${item.cigar_id}`, brand: item.brand || '', brand_cn: item.brand_cn || '' })} <ReleasePill item={item} /></p>{item.cigar_english_name && <small className="block pt-0.5 text-[10px] text-muted">{item.cigar_english_name}</small>}{item.batches?.map(batch => <div key={batch.id} className="mt-1 flex justify-between gap-3 border-t border-dashed border-border pt-1 text-[10px] text-muted"><span>FIFO 批次 #{batch.id}</span><span className="font-mono text-fg">{batch.quantity} 支入库</span></div>)}</td><td className="px-2 py-2.5">{item.box_size ? `${item.box_size} 支/盒` : '待补'}</td><td className="px-2 py-2.5">{item.box_quantity == null ? '待补' : `${item.box_quantity} 盒`}</td><td className="px-2 py-2.5 text-right font-mono">{displayRub(item.unit_price_rub_per_box)}</td><td className="px-2 py-2.5 text-right font-mono font-semibold">{displayRub(itemSubtotal(item))}</td></tr>)}</tbody></table></div> : <p className="mt-3 rounded border border-dashed border-border px-3 py-4 text-center text-xs text-muted">草稿还没有商品，可稍后补全。</p>}</section>;
 }
 
 function ReleasePill({ item }: { item: PurchaseActionItem }) {
@@ -577,19 +581,19 @@ function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat('zh-CN', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(date).replace(/\//g, '-');
 }
 
-function ModalFrame({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
-  return <div role="presentation" className="fixed inset-0 z-50 grid place-items-center bg-fg/40 p-3 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div role="dialog" aria-modal="true" className="max-h-[calc(100vh-1.5rem)] w-full overflow-y-auto rounded-lg bg-white shadow-2xl">{children}</div></div>;
+export function ModalFrame({ children, onClose, editor = false }: { children: React.ReactNode; onClose: () => void; editor?: boolean }) {
+  return <div role="presentation" className={'fixed inset-0 z-50 flex justify-center bg-fg/40 backdrop-blur-sm ' + (editor ? 'items-stretch p-0 sm:items-center sm:p-[3dvh]' : 'items-center p-3')} onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div role="dialog" aria-modal="true" className={editor ? 'flex h-dvh max-h-dvh w-full max-w-6xl flex-col overflow-hidden bg-white shadow-2xl sm:h-[94dvh] sm:max-h-[94dvh] sm:rounded-lg' : 'max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-lg bg-white shadow-2xl'}>{children}</div></div>;
 }
 
 function DialogHeader({ title, subtitle, onClose }: { title: string; subtitle: string; onClose: () => void }) {
-  return <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-6"><div><h2 className="font-display text-xl font-semibold">{title}</h2><p className="mt-1 text-xs text-muted">{subtitle}</p></div><button type="button" onClick={onClose} aria-label="关闭" className="grid h-8 w-8 place-items-center rounded border border-border text-muted hover:border-gold hover:text-fg"><X className="h-4 w-4" /></button></header>;
+  return <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6 sm:py-4"><div><h2 className="font-display text-lg font-semibold sm:text-xl">{title}</h2><p className="mt-1 text-[11px] text-muted sm:text-xs">{subtitle}</p></div><button type="button" onClick={onClose} aria-label="关闭" className="grid h-9 w-9 shrink-0 place-items-center rounded border border-border text-muted hover:border-gold hover:text-fg sm:h-8 sm:w-8"><X className="h-4 w-4" /></button></header>;
 }
 
 function ModalError({ error }: { error: string }) {
   return error ? <p role="alert" className="mt-3 rounded border border-[#E3C3C6] bg-[#FAF1F0] px-3 py-2 text-xs leading-5 text-accent">{error}</p> : null;
 }
 
-function DraftEditor({ draft, busy, error, onChange, onClose, onSave }: { draft: DraftForm; busy: boolean; error: string; onChange: (draft: DraftForm) => void; onClose: () => void; onSave: () => void }) {
+export function DraftEditor({ draft, busy, error, onChange, onClose, onSave }: { draft: DraftForm; busy: boolean; error: string; onChange: (draft: DraftForm) => void; onClose: () => void; onSave: () => void }) {
   const patch = (value: Partial<DraftForm>) => onChange({ ...draft, ...value });
   const patchItem = (index: number, value: Partial<DraftItem>) => onChange({ ...draft, items: draft.items.map((item, itemIndex) => itemIndex === index ? { ...item, ...value } : item) });
   const addCigar = (cigar: SearchCigarResult) => {
@@ -598,21 +602,30 @@ function DraftEditor({ draft, busy, error, onChange, onClose, onSave }: { draft:
     return true;
   };
   const isComplete = Boolean(draft.supplier && draft.businessDate && draft.items.length && draft.items.every(item => isWholeNumber(item.boxSize) && isWholeNumber(item.boxQuantity) && isMoney(item.unitPriceRubPerBox)));
-  return <div className="mx-auto max-w-6xl">
+  return <div className="flex min-h-0 w-full flex-1 flex-col">
     <DialogHeader title={draft.id === null ? '新建采购单' : `编辑 ${draft.id ? `采购单 #${draft.id}` : '采购草稿'}`} subtitle="保存后为草稿：供应商、日期、商品、盒数与价格均可稍后补全；付款时才严格校验。" onClose={onClose} />
-    <div className="px-5 py-5 sm:px-6"><div className="grid gap-4 md:grid-cols-2"><SupplierAutocomplete value={draft.supplier} onChange={supplier => patch({ supplier })} disabled={busy} /><label className="text-[11px] font-semibold tracking-wide text-muted">业务日期<input type="date" disabled={busy} value={draft.businessDate} onChange={event => patch({ businessDate: event.target.value })} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm outline-none focus:border-gold disabled:bg-cream" /></label></div><label className="mt-4 block text-[11px] font-semibold tracking-wide text-muted">备注<textarea disabled={busy} value={draft.note} onChange={event => patch({ note: event.target.value })} placeholder="例如：等待供应商确认配额与最终报价" rows={2} className="mt-1.5 w-full resize-y rounded border border-border px-3 py-2 text-sm outline-none focus:border-gold disabled:bg-cream" /></label>
+    <div data-purchase-modal-body="scroll" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5"><div className="grid gap-4 md:grid-cols-2"><SupplierAutocomplete value={draft.supplier} onChange={supplier => patch({ supplier })} disabled={busy} /><label className="text-[11px] font-semibold tracking-wide text-muted">业务日期<input type="date" disabled={busy} value={draft.businessDate} onChange={event => patch({ businessDate: event.target.value })} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm outline-none focus:border-gold disabled:bg-cream" /></label></div><label className="mt-4 block text-[11px] font-semibold tracking-wide text-muted">备注<textarea disabled={busy} value={draft.note} onChange={event => patch({ note: event.target.value })} placeholder="例如：等待供应商确认配额与最终报价" rows={2} className="mt-1.5 w-full resize-y rounded border border-border px-3 py-2 text-sm outline-none focus:border-gold disabled:bg-cream" /></label>
       <div className="mt-5 border-t border-border pt-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-sm font-semibold">商品明细</h3><p className="mt-1 text-[11px] text-muted">从目录搜索添加商品；品牌英文名与常规款标记已同步展示。</p></div><span className="rounded bg-[#F5E8D8] px-2 py-1 font-mono text-xs font-semibold text-gold">RUB 总额 {draftTotal(draft.items)}</span></div>
         <div className="mt-4 max-w-xl"><CigarAutocomplete onSelect={addCigar} stockOnly={false} label="添加商品" placeholder="输入英文品牌、中文名或英文名" disabled={busy} resultDetail={cigar => { const sizes = (cigar as SearchCigarResult & { packaging_sizes?: number[] }).packaging_sizes || []; return sizes.length ? `可用盒规 ${sizes.join(' / ')} 支` : '盒规可稍后补全'; }} /></div>
         {draft.items.length ? <div className="mt-4 divide-y divide-border border-y border-border">{draft.items.map((item, index) => <DraftItemRow key={item.cigarId} item={item} busy={busy} onChange={value => patchItem(index, value)} onRemove={() => patch({ items: draft.items.filter((_, itemIndex) => itemIndex !== index) })} />)}</div> : <p className="mt-4 rounded border border-dashed border-border px-3 py-5 text-center text-xs text-muted">草稿可以先不添加商品；需要付款时再补全即可。</p>}
       </div><ModalError error={error} /></div>
-    <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-[#FFFDF9] px-5 py-4 sm:px-6"><p className="text-[11px] text-muted">{isComplete ? '付款所需字段已完整；付款后供应商、商品、数量和价格将锁定。' : '草稿允许不完整保存，尚未填写的字段不会阻止保存。'}</p><div className="flex gap-2"><button type="button" disabled={busy} onClick={onClose} className="rounded border border-border bg-white px-3 py-2 text-sm font-semibold hover:border-gold disabled:opacity-50">取消</button><button type="button" disabled={busy} onClick={onSave} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-50">{busy ? '保存中…' : '保存草稿'}</button></div></footer>
+    <footer className="flex shrink-0 flex-col items-stretch gap-2 border-t border-border bg-[#FFFDF9] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-6 sm:py-4"><p className="text-[11px] text-muted">{isComplete ? '付款所需字段已完整；付款后供应商、商品、数量和价格将锁定。' : '草稿允许不完整保存，尚未填写的字段不会阻止保存。'}</p><div className="grid grid-cols-[1fr_1.6fr] gap-2 sm:flex"><button type="button" disabled={busy} onClick={onClose} className="min-h-11 rounded border border-border bg-white px-3 py-2 text-sm font-semibold hover:border-gold disabled:opacity-50 sm:min-h-0">取消</button><button type="button" disabled={busy} onClick={onSave} className="min-h-11 rounded bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-50 sm:min-h-0">{busy ? '保存中…' : '保存草稿'}</button></div></footer>
   </div>;
 }
 
 function DraftItemRow({ item, busy, onChange, onRemove }: { item: DraftItem; busy: boolean; onChange: (patch: Partial<DraftItem>) => void; onRemove: () => void }) {
-  const name = `${item.brand ? `${item.brand} ` : ''}${item.cigarName}`;
+  const name = cigarSearchDisplayName({
+    name: item.cigarName || item.cigarEnglishName || `雪茄 #${item.cigarId}`,
+    brand: item.brand,
+    brand_cn: item.brandCn,
+  });
+  const currentBoxSize = Number(item.boxSize);
+  const boxSizeOptions = Array.from(new Set([
+    ...item.packagingSizes.filter(size => Number.isInteger(size) && size > 0),
+    ...(Number.isInteger(currentBoxSize) && currentBoxSize > 0 ? [currentBoxSize] : []),
+  ])).sort((left, right) => left - right);
   const subtotal = isWholeNumber(item.boxQuantity) && isMoney(item.unitPriceRubPerBox) ? displayRub(Number(item.boxQuantity) * Number(item.unitPriceRubPerBox)) : '待补';
-  return <article className="grid gap-3 py-4 md:grid-cols-[minmax(220px,1.7fr)_82px_82px_120px_108px_32px] md:items-end"><div><p className="text-sm font-semibold">{name} <span className={'ml-1 inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-bold ' + (item.isRegular ? 'border border-border bg-white text-muted' : 'bg-[#F5E8D8] text-gold')}>{item.isRegular ? '常规款' : item.releaseTypeCn || '特别款'}</span></p><p className="mt-1 text-[11px] text-muted">{item.cigarEnglishName}{item.packagingSizes.length ? ` · 目录盒规 ${item.packagingSizes.join(' / ')} 支` : ''}</p></div><label className="text-[10px] font-semibold text-muted">盒规<input disabled={busy} value={item.boxSize} onChange={event => onChange({ boxSize: event.target.value })} inputMode="numeric" placeholder="支/盒" className="mt-1 block w-full rounded border border-border px-2 py-2 text-right text-sm outline-none focus:border-gold disabled:bg-cream" /></label><label className="text-[10px] font-semibold text-muted">盒数<input disabled={busy} value={item.boxQuantity} onChange={event => onChange({ boxQuantity: event.target.value })} inputMode="numeric" placeholder="待补" className="mt-1 block w-full rounded border border-border px-2 py-2 text-right text-sm outline-none focus:border-gold disabled:bg-cream" /></label><label className="text-[10px] font-semibold text-muted">每盒 RUB<input disabled={busy} value={item.unitPriceRubPerBox} onChange={event => onChange({ unitPriceRubPerBox: event.target.value })} inputMode="decimal" placeholder="待补" className="mt-1 block w-full rounded border border-border px-2 py-2 text-right text-sm outline-none focus:border-gold disabled:bg-cream" /></label><div className="pb-1 text-right"><p className="text-[10px] font-semibold text-muted">小计</p><strong className="mt-1 block font-mono text-xs">{subtotal}</strong></div><button type="button" disabled={busy} onClick={onRemove} aria-label={`移除 ${name}`} className="mx-auto mb-0.5 grid h-8 w-8 place-items-center rounded text-muted hover:bg-accent-light hover:text-accent disabled:opacity-50"><Trash2 className="h-4 w-4" /></button></article>;
+  return <article className="grid gap-3 py-4 md:grid-cols-[minmax(220px,1.7fr)_82px_82px_120px_108px_32px] md:items-end"><div><p className="text-sm font-semibold">{name} <span className={'ml-1 inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-bold ' + (item.isRegular ? 'border border-border bg-white text-muted' : 'bg-[#F5E8D8] text-gold')}>{item.isRegular ? '常规款' : item.releaseTypeCn || '特别款'}</span></p><p className="mt-1 text-[11px] text-muted">{item.cigarEnglishName}{item.packagingSizes.length ? ` · 目录盒规 ${item.packagingSizes.join(' / ')} 支` : ''}</p></div><label className="text-[10px] font-semibold text-muted">盒规{boxSizeOptions.length ? <select disabled={busy} value={item.boxSize} onChange={event => onChange({ boxSize: event.target.value })} className="mt-1 block w-full rounded border border-border bg-white px-2 py-2 text-right text-sm outline-none focus:border-gold disabled:bg-cream"><option value="">选择</option>{boxSizeOptions.map(size => <option key={size} value={size}>{size} 支/盒</option>)}</select> : <input disabled={busy} value={item.boxSize} onChange={event => onChange({ boxSize: event.target.value })} inputMode="numeric" placeholder="目录未维护" className="mt-1 block w-full rounded border border-border px-2 py-2 text-right text-sm outline-none focus:border-gold disabled:bg-cream" />}</label><label className="text-[10px] font-semibold text-muted">盒数<input disabled={busy} value={item.boxQuantity} onChange={event => onChange({ boxQuantity: event.target.value })} inputMode="numeric" placeholder="待补" className="mt-1 block w-full rounded border border-border px-2 py-2 text-right text-sm outline-none focus:border-gold disabled:bg-cream" /></label><label className="text-[10px] font-semibold text-muted">每盒 RUB<input disabled={busy} value={item.unitPriceRubPerBox} onChange={event => onChange({ unitPriceRubPerBox: event.target.value })} inputMode="decimal" placeholder="待补" className="mt-1 block w-full rounded border border-border px-2 py-2 text-right text-sm outline-none focus:border-gold disabled:bg-cream" /></label><div className="pb-1 text-right"><p className="text-[10px] font-semibold text-muted">小计</p><strong className="mt-1 block font-mono text-xs">{subtotal}</strong></div><button type="button" disabled={busy} onClick={onRemove} aria-label={`移除 ${name}`} className="mx-auto mb-0.5 grid h-8 w-8 place-items-center rounded text-muted hover:bg-accent-light hover:text-accent disabled:opacity-50"><Trash2 className="h-4 w-4" /></button></article>;
 }
 
 function PayDialog({ purchase, accountId, businessDate, accounts, busy, error, onChange, onClose, onConfirm }: { purchase: PurchaseAction; accountId: string; businessDate: string; accounts: FundAccount[]; busy: boolean; error: string; onChange: (patch: { accountId?: string; businessDate?: string }) => void; onClose: () => void; onConfirm: () => void }) {

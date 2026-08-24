@@ -2,6 +2,9 @@
 
 from decimal import Decimal
 
+from cigars.constants import BRAND_CN_MAP
+from cigars.packaging import declared_box_sizes
+
 
 def _value(value):
     if isinstance(value, Decimal):
@@ -68,8 +71,10 @@ def serialize_purchase_order(order):
                 'cigar_name': getattr(item.cigar, 'name', None),
                 'cigar_english_name': getattr(item.cigar, 'english_name', None),
                 'brand': getattr(item.cigar, 'brand', None),
+                'brand_cn': BRAND_CN_MAP.get(getattr(item.cigar, 'brand', ''), ''),
                 'release_type_cn': getattr(item.cigar, 'release_type_cn', None),
                 'is_regular': not bool(getattr(item.cigar, 'release_type', None)),
+                'packaging_sizes': declared_box_sizes(item.cigar.packagings),
                 'box_size': item.box_size, 'box_quantity': item.box_quantity,
                 'quantity': item.quantity,
                 'unit_price_rub_per_box': item.unit_price_rub_per_box,

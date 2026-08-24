@@ -795,8 +795,10 @@ export interface PurchaseActionItem {
   cigar_name?: string | null;
   cigar_english_name?: string | null;
   brand?: string | null;
+  brand_cn?: string | null;
   release_type_cn?: string | null;
   is_regular?: boolean;
+  packaging_sizes?: number[];
   box_size: number | null;
   box_quantity: number | null;
   quantity?: number | null;

@@ -15,6 +15,7 @@ vi.mock('axios', () => ({
 }));
 
 import {
+  API_CLIENT_CONFIG,
   cancelPurchaseOrder,
   confirmReconciliation,
   confirmSalesOrder,
@@ -47,6 +48,15 @@ function response<T>(data: T) {
 
 describe('accounting action API contracts', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it('delegates CSRF to Axios so login token rotation is read per request', () => {
+    expect(API_CLIENT_CONFIG).toMatchObject({
+      xsrfCookieName: 'csrftoken',
+      xsrfHeaderName: 'X-CSRFToken',
+    });
+    expect(API_CLIENT_CONFIG).not.toHaveProperty('headers.X-CSRFToken');
+  });
+
   it('lists actions through an independent accounting actions endpoint', async () => {
     client.get.mockReturnValueOnce(response({ purchases: [], dividends: [] }));
 

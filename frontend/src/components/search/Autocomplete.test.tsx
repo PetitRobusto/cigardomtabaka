@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { SearchCigarResult } from '../../types';
 import CustomerAutocomplete from './CustomerAutocomplete';
 import { CigarAutocompleteResult } from './CigarAutocomplete';
+import { autocompletePlacement } from './autocompleteLayout';
 
 const cigar: SearchCigarResult = {
   id: 7,
@@ -44,5 +45,17 @@ describe('可复用联想搜索', () => {
     const html = renderToStaticMarkup(<CigarAutocompleteResult cigar={{ ...cigar, is_regular: false, release_type_cn: '限量版系列' }} />);
     expect(html).toContain('限量版系列');
     expect(html).not.toContain('常规款');
+  });
+
+  it('目录已有中文品名时不再前置英文品牌', () => {
+    const html = renderToStaticMarkup(<CigarAutocompleteResult cigar={{ ...cigar, name: '帕特加斯 D 4', brand_cn: '' }} />);
+    expect(html).toContain('帕特加斯 D 4');
+    expect(html).not.toContain('Partagás 帕特加斯 D 4');
+  });
+
+  it('下方不足五条且上方空间更大时向上展开', () => {
+    expect(autocompletePlacement(420, 180)).toBe('up');
+    expect(autocompletePlacement(180, 420)).toBe('down');
+    expect(autocompletePlacement(120, 120)).toBe('down');
   });
 });

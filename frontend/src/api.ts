@@ -17,12 +17,15 @@ function getCSRFToken(): string {
   return match ? match[1] : '';
 }
 
-const api = axios.create({
+export const API_CLIENT_CONFIG = {
   baseURL: '/api',
-  headers: {
-    'X-CSRFToken': getCSRFToken(),
-  },
-});
+  // Django login rotates the CSRF token. Axios reads this cookie for every
+  // unsafe request instead of freezing the pre-login token at module load.
+  xsrfCookieName: 'csrftoken',
+  xsrfHeaderName: 'X-CSRFToken',
+};
+
+const api = axios.create(API_CLIENT_CONFIG);
 
 export function apiErrorMessage(error: unknown, fallback = '操作失败，请稍后重试'): string {
   if (axios.isAxiosError(error)) {

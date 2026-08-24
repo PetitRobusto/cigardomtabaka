@@ -1,6 +1,8 @@
 export function cigarSearchDisplayName(cigar: { name: string; brand: string; brand_cn?: string }): string {
   const name = cigar.name.trim();
-  const brand = (cigar.brand_cn || cigar.brand).trim();
+  const chineseBrand = cigar.brand_cn?.trim();
+  if (!chineseBrand && /[\u3400-\u9fff]/u.test(name)) return name;
+  const brand = (chineseBrand || cigar.brand).trim();
   if (!brand || name.toLocaleLowerCase().startsWith(brand.toLocaleLowerCase())) return name;
   return `${brand} ${name}`;
 }

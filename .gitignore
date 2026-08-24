@@ -43,8 +43,10 @@ tools/
 .superpowers/
 .pytest_cache/
 
-# 本地计划/文档
-docs/
+# 本地计划/临时文档；正式 ADR 和业务指南必须可跟踪
+docs/plans/
+docs/reviews/
+docs/superpowers/
 .hermes/
 .worktrees/
 
@@ -67,3 +69,12 @@ image_manifest.json
 *_snapshot.md
 .playwright-mcp/
 static/frontend/
+
+# 本地归档/误放的虚拟环境
+/list/
+/premerge-*.backup/
+
+# 由 frontend/public 生成的唯一 Logo 源；static/ 下旧副本不再提交
+/static/favicon.ico
+/static/favicon.svg
+/static/logo-*.png

@@ -501,7 +501,8 @@ class SalesOrderApiTest(TestCase):
         for index in range(5):
             self.create_order(key=f"query-order-{index}", body=self.body(quantity=2))
         self.login()
-        with self.assertNumQueries(6):
+        # Payment-note state is prefetched in one bounded query for the list.
+        with self.assertNumQueries(7):
             response = self.client.get("/api/sales/orders/?limit=5")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()["results"]), 5)

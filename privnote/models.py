@@ -1,3 +1,5 @@
+import os
+
 from django.db import models
 from django.utils import timezone
 from datetime import timedelta
@@ -85,8 +87,25 @@ class Privnote(models.Model):
         return cls.objects.create(**kwargs)
 
 
+class PaymentMethodQuerySet(models.QuerySet):
+    _immutable_fields = {
+        'method_type', 'label', 'bank_name', 'card_number', 'card_holder',
+        'account', 'qr_image', 'remark', 'fund_account_id', 'sort_order',
+    }
+
+    def update(self, **kwargs):
+        if self._immutable_fields & kwargs.keys():
+            raise ValidationError('收款方式创建后不可编辑，请停用后重新创建')
+        return super().update(**kwargs)
+
+    def delete(self):
+        raise ValidationError('收款方式不能物理删除，请执行停用')
+
+
 class PaymentMethod(models.Model):
     """预配置收款方式 — 全局共用"""
+
+    objects = PaymentMethodQuerySet.as_manager()
 
     class MethodType(models.TextChoices):
         BANK_CARD = 'bank_card', '银行卡'
@@ -100,6 +119,9 @@ class PaymentMethod(models.Model):
     bank_name = models.CharField('银行名', max_length=100, blank=True)
     card_number = models.CharField('卡号', max_length=50, blank=True)
     card_holder = models.CharField('持卡人', max_length=100, blank=True)
+
+    # 微信 / 支付宝可用的文字收款账号
+    account = models.CharField('收款账号', max_length=200, blank=True, default='')
 
     # 二维码
     qr_image = models.ImageField('二维码', upload_to='payment_qr/', blank=True)
@@ -117,15 +139,48 @@ class PaymentMethod(models.Model):
         verbose_name = '收款方式'
         verbose_name_plural = '收款方式'
 
+    IMMUTABLE_FIELDS = {
+        'method_type', 'label', 'bank_name', 'card_number', 'card_holder',
+        'account', 'qr_image', 'remark', 'fund_account_id', 'sort_order',
+    }
+
     def __str__(self):
         return f'{self.get_method_type_display()} · {self.label}'
 
     def clean(self):
         super().clean()
-        # 历史上存在未绑定资金账户的停用收款方式；它们可以保留，
-        # 但任何启用方式都必须能把收款归属到一个有效的人民币账户。
+        self.label = (self.label or '').strip()
+        self.account = (self.account or '').strip()
+        if not self.label:
+            raise ValidationError({'label': '收款方式标签不能为空'})
+        # 历史停用配置允许保留不完整字段；重新启用前必须通过全部校验。
         if not self.is_active:
             return
+
+        if self.method_type == self.MethodType.BANK_CARD:
+            required = {
+                'bank_name': self.bank_name,
+                'card_number': self.card_number,
+                'card_holder': self.card_holder,
+            }
+            missing = [field for field, value in required.items() if not str(value or '').strip()]
+            if missing:
+                raise ValidationError({field: '银行卡收款方式必填' for field in missing})
+        elif self.method_type in (self.MethodType.WECHAT, self.MethodType.ALIPAY):
+            if self.is_active and not self.account and not self.qr_image:
+                raise ValidationError({'account': '微信或支付宝至少填写收款账号或上传二维码'})
+
+        if self.qr_image:
+            suffix = os.path.splitext(self.qr_image.name or '')[1].lower()
+            if suffix not in {'.jpg', '.jpeg', '.png', '.webp'}:
+                raise ValidationError({'qr_image': '二维码只支持 JPG、PNG 或 WebP 图片'})
+            try:
+                if self.qr_image.size > 5 * 1024 * 1024:
+                    raise ValidationError({'qr_image': '二维码图片不能超过 5MB'})
+            except (OSError, ValueError):
+                pass
+
+        # 任何启用方式都必须能把收款归属到一个有效的人民币账户。
         try:
             fund_account = self.fund_account
         except ObjectDoesNotExist:
@@ -137,6 +192,76 @@ class PaymentMethod(models.Model):
         if not fund_account.is_active:
             raise ValidationError({'fund_account': '收款方式绑定的资金账户未启用'})
 
+    def delete(self, *args, **kwargs):
+        raise ValidationError('收款方式不能物理删除，请执行停用')
+
     def save(self, *args, **kwargs):
+        if not self._state.adding:
+            persisted = type(self).objects.filter(pk=self.pk).values(
+                'method_type', 'label', 'bank_name', 'card_number', 'card_holder',
+                'account', 'qr_image', 'remark', 'fund_account_id', 'sort_order',
+            ).first()
+            if persisted:
+                changed = [
+                    field for field in self.IMMUTABLE_FIELDS
+                    if (self.qr_image.name if field == 'qr_image' else getattr(self, field))
+                    != persisted[field]
+                ]
+                if changed:
+                    raise ValidationError({'__all__': '收款方式创建后不可编辑，请停用后重新创建'})
         self.full_clean()
         return super().save(*args, **kwargs)
+
+
+class PaymentMethodAuditQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError('收款方式操作记录不可修改')
+
+    def delete(self):
+        raise ValidationError('收款方式操作记录不可删除')
+
+
+class PaymentMethodAudit(models.Model):
+    """收款方式配置的不可删除操作记录，同时承担写请求幂等凭证。"""
+
+    objects = PaymentMethodAuditQuerySet.as_manager()
+
+    class Action(models.TextChoices):
+        CREATE = 'create', '创建'
+        DEACTIVATE = 'deactivate', '停用'
+        ACTIVATE = 'activate', '启用'
+
+    payment_method = models.ForeignKey(
+        PaymentMethod, on_delete=models.PROTECT, related_name='audit_events',
+        verbose_name='收款方式',
+    )
+    action = models.CharField('动作', max_length=20, choices=Action.choices)
+    operator = models.ForeignKey(
+        'cigars.User', on_delete=models.PROTECT, related_name='payment_method_audits',
+        verbose_name='操作人',
+    )
+    idempotency_key = models.CharField('幂等键', max_length=255, unique=True)
+    request_hash = models.CharField('请求摘要', max_length=64)
+    response_body = models.JSONField('首次响应', default=dict)
+    snapshot = models.JSONField('配置快照', default=dict)
+    agent_name = models.CharField('Agent 名称', max_length=100, blank=True, default='web')
+    agent_run_id = models.CharField('Agent Run ID', max_length=200, blank=True, default='')
+    agent_request_id = models.CharField('Agent Request ID', max_length=200, blank=True, default='')
+    command_name = models.CharField('命令', max_length=100, default='privnote.payment_method')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        verbose_name = '收款方式操作记录'
+        verbose_name_plural = '收款方式操作记录'
+
+    def __str__(self):
+        return f'{self.get_action_display()} · {self.payment_method_id} · {self.created_at}'
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError('收款方式操作记录不可修改')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('收款方式操作记录不可删除')

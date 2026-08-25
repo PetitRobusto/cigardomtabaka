@@ -267,7 +267,7 @@ class SalesAccountingModelTest(TestCase):
         with self.assertRaises(ValidationError):
             PaymentMethod(method_type='wechat', label='错误账户', fund_account=rub_account).full_clean()
 
-        method = PaymentMethod(method_type='wechat', label='人民币账户', fund_account=self.cny_account)
+        method = PaymentMethod(method_type='wechat', label='人民币账户', account='wx-id', fund_account=self.cny_account)
         method.full_clean()
         unsaved_rub_account = FundAccount(
             name='未保存卢布账户',

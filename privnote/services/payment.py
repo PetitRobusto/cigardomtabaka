@@ -101,7 +101,7 @@ def build_payment_data(sales_order, payment_method=None, *, remark=None, images=
             fund_account__currency=FundAccount.Currency.CNY,
         ).first()
     if payment_method is not None:
-        payment_methods.append(serialize_payment_method(payment_method))
+        payment_methods.append(serialize_payment_method(payment_method, include_label=False))
 
     # 备注和图片属于本张 privnote 快照，不写回销售单。
     if remark is None:

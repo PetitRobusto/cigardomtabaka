@@ -7,7 +7,7 @@ from decimal import Decimal
 from datetime import timedelta
 from unittest.mock import patch
 from django.test import TestCase, Client
-from django.test.utils import CaptureQueriesContext
+from django.test.utils import CaptureQueriesContext, override_settings
 from django.db import connection
 from django.utils import timezone
 from django.contrib.auth.hashers import check_password
@@ -135,12 +135,12 @@ class PaymentMethodModelTestCase(TestCase):
         PaymentMethod.objects.create(method_type='wechat', label='inactive-null', is_active=False)
         with self.assertRaises(ValidationError):
             PaymentMethod.objects.create(method_type='wechat', label='active-null')
-        PaymentMethod.objects.create(method_type='wechat', label='cny', fund_account=cny)
+        PaymentMethod.objects.create(method_type='wechat', label='cny', account='wechat-cny', fund_account=cny)
 
     def test_create_wechat(self):
         cny = self._cny('pm-wechat')
         pm = PaymentMethod.objects.create(
-            method_type='wechat', label='微信收款码', fund_account=cny,
+            method_type='wechat', label='微信收款码', account='wechat-test', fund_account=cny,
         )
         self.assertEqual(pm.method_type, 'wechat')
         self.assertTrue(pm.is_active)
@@ -148,7 +148,7 @@ class PaymentMethodModelTestCase(TestCase):
     def test_create_alipay(self):
         cny = self._cny('pm-alipay')
         pm = PaymentMethod.objects.create(
-            method_type='alipay', label='支付宝收款码', fund_account=cny,
+            method_type='alipay', label='支付宝收款码', account='alipay-test', fund_account=cny,
         )
         self.assertEqual(pm.method_type, 'alipay')
 
@@ -156,6 +156,10 @@ class PaymentMethodModelTestCase(TestCase):
         for index, (label, method_type, sort_order) in enumerate((('B', 'bank_card', 2), ('A', 'bank_card', 1), ('C', 'wechat', 3)), 1):
             PaymentMethod.objects.create(
                 method_type=method_type, label=label, sort_order=sort_order,
+                bank_name='TestBank' if method_type == 'bank_card' else '',
+                card_number='1234' if method_type == 'bank_card' else '',
+                card_holder='TEST' if method_type == 'bank_card' else '',
+                account='wechat-test' if method_type == 'wechat' else '',
                 fund_account=self._cny(f'pm-order-{index}'),
             )
         methods = list(PaymentMethod.objects.filter(is_active=True))
@@ -166,6 +170,7 @@ class PaymentMethodModelTestCase(TestCase):
     def test_inactive_filtering(self):
         active = PaymentMethod.objects.create(
             method_type='bank_card', label='Active', is_active=True,
+            bank_name='TestBank', card_number='1234', card_holder='TEST',
             fund_account=self._cny('pm-active'),
         )
         PaymentMethod.objects.create(method_type='wechat', label='Inactive', is_active=False)
@@ -367,6 +372,18 @@ class CreateInventoryTestCase(TestCase):
         self.assertIn('url', data)
         self.assertIn('token', data)
         self.assertIn('/p/', data['url'])
+        self.assertIn(data['token'], data['url'])
+
+    @override_settings(PRIVNOTE_BASE_URL="https://pay.example.com")
+    def test_create_uses_configured_public_base_url(self):
+        resp = self.client.post('/privnote/create/', {
+            'note_type': 'inventory',
+            'duration': 24,
+            'burn': 'on',
+        })
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data['url'].startswith('https://pay.example.com/p/'))
         self.assertIn(data['token'], data['url'])
 
     def test_create_inventory_with_password(self):
@@ -737,9 +754,9 @@ class PaymentMethodsAPITestCase(TestCase):
         )
 
     def test_list_active_only(self):
-        PaymentMethod.objects.create(method_type='bank_card', label='A', is_active=True, fund_account=self.account)
+        PaymentMethod.objects.create(method_type='bank_card', label='A', bank_name='A', card_number='1', card_holder='A', is_active=True, fund_account=self.account)
         PaymentMethod.objects.create(method_type='wechat', label='B', is_active=False)
-        PaymentMethod.objects.create(method_type='alipay', label='C', is_active=True, fund_account=self.account)
+        PaymentMethod.objects.create(method_type='alipay', label='C', account='alipay-c', is_active=True, fund_account=self.account)
 
         resp = self.client.get('/privnote/api/payment-methods/')
         self.assertEqual(resp.status_code, 200)
@@ -914,6 +931,23 @@ class ViewPrivnoteTestCase(TestCase):
         self.assertEqual(methods[0]['bank_name'], 'ViewBank')
         self.assertEqual(methods[0]['card_number'], '11112222')
 
+    def test_view_payment_uses_snapshot_after_method_is_deactivated_and_redacts_management_fields(self):
+        method = PaymentMethod.objects.create(
+            method_type='wechat', label='内部微信', account='wx-customer-id',
+            fund_account=self.account,
+        )
+        token = self._create_privnote('payment', payment_method_id=str(method.id))
+        method.is_active = False
+        method.save(update_fields=['is_active'])
+
+        resp = self.client.get(f'/api/privnote/{token}/')
+        self.assertEqual(resp.status_code, 200)
+        payment_method = resp.json()['data']['payment_methods'][0]
+        self.assertEqual(payment_method['account'], 'wx-customer-id')
+        self.assertNotIn('label', payment_method)
+        self.assertNotIn('fund_account_id', payment_method)
+        self.assertNotIn('fund_account_name', payment_method)
+
     def test_view_payment_with_manual_payment(self):
         """旧手动收款字段不影响既有销售单的预设收款方式"""
         token = self._create_privnote('payment', payment_manual=json.dumps({
@@ -942,7 +976,8 @@ class RealTimeRenderingTestCase(TestCase):
             name='Realtime CNY', currency='CNY', creation_idempotency_key='realtime-cny',
         )
         payment_method = PaymentMethod.objects.create(
-            method_type='bank_card', label='Realtime Bank', fund_account=account,
+            method_type='bank_card', label='Realtime Bank', bank_name='Realtime Bank',
+            card_number='1234', card_holder='TEST', fund_account=account,
         )
         order = SalesOrder.objects.create(
             operator=self.staff, customer_name='Realtime Customer',

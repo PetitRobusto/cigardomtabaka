@@ -141,6 +141,8 @@ class SalesOrderApiTest(TestCase):
         self.assertEqual(response.status_code, 201)
         payload = response.json()["sales_order"]
         self.assertEqual(payload["fulfillment_status"], "draft")
+        self.assertEqual(payload["items"][0]["cigar_brand"], "API Brand")
+        self.assertEqual(payload["items"][0]["cigar_brand_cn"], "")
         self.assertFalse(payload["locked"])
         self.assertEqual(SalesOrder.objects.count(), 1)
         self.assertEqual(StockAllocation.objects.count(), 0)
@@ -163,6 +165,7 @@ class SalesOrderApiTest(TestCase):
             "id": customer.id,
             "name": customer.name,
             "phone": customer.phone,
+            "remark": "",
             "deleted_at": None,
         })
 
@@ -326,10 +329,11 @@ class SalesOrderApiTest(TestCase):
         self.login()
         created = self.request(
             "post", "/api/sales/customers/",
-            {"name": "销售客户甲", "phone": "+7 900 123-45-67"},
+            {"name": "销售客户甲", "phone": "+7 900 123-45-67", "remark": "偏好木盒"},
             "customer-create",
         )
         self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.json()["customer"]["remark"], "偏好木盒")
         customer_id = created.json()["customer"]["id"]
         order = self.create_order(
             key="customer-history-order",
@@ -347,11 +351,12 @@ class SalesOrderApiTest(TestCase):
 
         updated = self.request(
             "patch", f"/api/sales/customers/{customer_id}/",
-            {"name": "销售客户乙", "phone": "+7 900 765-43-21"},
+            {"name": "销售客户乙", "phone": "+7 900 765-43-21", "remark": "改为周末交付"},
             "customer-update",
         )
         self.assertEqual(updated.status_code, 200)
         self.assertEqual(updated.json()["customer"]["name"], "销售客户乙")
+        self.assertEqual(updated.json()["customer"]["remark"], "改为周末交付")
         deleted = self.request(
             "delete", f"/api/sales/customers/{customer_id}/", {},
             "customer-delete",

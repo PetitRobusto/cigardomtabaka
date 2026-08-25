@@ -304,6 +304,7 @@ class Day1ApiTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['stats']['accounts_receivable_cny'], '50.00')
+        self.assertEqual(response.json()['stats']['total_funds_cny'], '657.50')
         self.assertEqual(response.json()['stats']['month_net_profit_cny'], '50.00')
 
     def test_dashboard_does_not_query_snapshots_per_account(self):

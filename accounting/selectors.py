@@ -231,7 +231,9 @@ def accounting_dashboard(*, as_of):
         ).aggregate(total=Sum('cny_amount'))['total'] or Decimal('0.00')
     )
     total_funds_cny = (
-        fund_accounts_book_cost + summary['inventory_remaining_cost_cny']
+        fund_accounts_book_cost
+        + summary['inventory_remaining_cost_cny']
+        + summary['accounts_receivable_cny']
     ).quantize(Decimal('0.01'))
 
     # Pending reconciliation records are actionable; latest records provide context.

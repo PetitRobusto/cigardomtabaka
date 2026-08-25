@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Copy, Check,
   Search, Plus,
-  X, Upload, ImageIcon, ClipboardList, Wallet, Send
+  X, Upload, ImageIcon, ClipboardList, Wallet, Send, Package
 } from 'lucide-react';
 import {
   fetchPaymentMethods, createPrivnote, fetchQuoteProducts, fetchEligiblePaymentOrders,
@@ -25,8 +25,9 @@ const DURATIONS = [
 ];
 
 const TABS = [
+  { key: 'inventory' as const, label: '库存展示', icon: Package },
   { key: 'quote' as const, label: '报价单', icon: ClipboardList },
-  { key: 'payment' as const, label: '收款', icon: Wallet },
+  { key: 'payment' as const, label: '收款单', icon: Wallet },
   { key: 'message' as const, label: '消息', icon: Send },
 ];
 
@@ -145,6 +146,7 @@ export default function PrivnotePage() {
   const [duration, setDuration] = useState('24');
   const [password, setPassword] = useState('');
   const [burn, setBurn] = useState(true);
+  const [maxViews, setMaxViews] = useState('0');
 
   // Result
   const [result, setResult] = useState<{ url: string; token: string } | null>(null);
@@ -250,6 +252,7 @@ export default function PrivnotePage() {
     form.append('duration', duration);
     form.append('password', password);
     form.append('burn', burn ? 'on' : 'off');
+    form.append('max_views', burn ? '1' : maxViews);
 
     if (activeTab === 'payment') {
       form.append('sales_order_id', selectedPaymentOrderId);
@@ -286,6 +289,7 @@ export default function PrivnotePage() {
     setResult(null);
     setError('');
     setPassword('');
+    setMaxViews('0');
     setSelectedPaymentOrderId('');
     setPaymentMethodId('');
     setMessageText('');
@@ -304,6 +308,7 @@ export default function PrivnotePage() {
   };
 
   const canSubmit = () => {
+    if (activeTab === 'inventory') return true;
     if (activeTab === 'payment') return canSubmitPayment(selectedPaymentOrder, paymentMethodId);
     if (activeTab === 'message') return !!messageText.trim() || attachments.length > 0 || messageImages.images.length > 0;
     if (activeTab === 'quote') {
@@ -314,11 +319,12 @@ export default function PrivnotePage() {
   };
 
   const actionHint = () => {
+    if (activeTab === 'inventory') return '将生成当前可售库存展示链接';
     if (activeTab === 'quote') {
       if (quoteMode === 'full') return '将生成包含全部 72 款雪茄的完整报价单';
       return visibleSelectedIds.length > 0 ? `已选 ${visibleSelectedIds.length} 项商品` : '请勾选要包含在报价单中的雪茄';
     }
-    if (activeTab === 'payment') return selectedPaymentOrder ? '已选择销售单，可生成收款链接' : '选择待收款销售单和收款方式';
+    if (activeTab === 'payment') return selectedPaymentOrder ? '已选择销售单，可创建收款单' : '选择待收款销售单和收款方式，创建付款链接';
     return '输入消息内容并上传附件';
   };
 
@@ -353,6 +359,7 @@ export default function PrivnotePage() {
         <form onSubmit={handleCreate} className="space-y-5">
           {/* Note Config */}
           <div className="bg-white border border-border rounded-sm p-5 flex items-center gap-8 flex-wrap">
+            <div className="w-full text-xs font-bold uppercase tracking-wider text-muted">链接设置</div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-muted uppercase tracking-wider">有效期</span>
               <select
@@ -370,12 +377,22 @@ export default function PrivnotePage() {
               <span className="text-xs text-muted uppercase tracking-wider">密码</span>
               <input
                 data-guide="privnote-password"
-                type="text"
+                type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="可选"
+                placeholder="可选，客户查看时输入"
                 className="px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white focus:outline-none focus:border-accent min-w-[160px]"
               />
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted uppercase tracking-wider">最大查看次数</span>
+              <select value={maxViews} onChange={e => setMaxViews(e.target.value)} disabled={burn} className="px-3 py-2 border border-border rounded-sm text-sm text-fg bg-white disabled:bg-accent-light disabled:text-muted">
+                <option value="0">不限次数</option>
+                <option value="1">1 次</option>
+                <option value="3">3 次</option>
+                <option value="5">5 次</option>
+                <option value="10">10 次</option>
+              </select>
             </div>
             <div className="flex items-center gap-3 ml-auto">
               <label className="flex items-center gap-3 cursor-pointer">
@@ -418,6 +435,14 @@ export default function PrivnotePage() {
 
           {/* Tab Content */}
           <div>
+            {/* ── INVENTORY TAB ── */}
+            {activeTab === 'inventory' && (
+              <div className="bg-white border border-border rounded-sm p-6">
+                <h2 className="text-base font-semibold text-fg">库存展示</h2>
+                <p className="mt-2 text-sm leading-relaxed text-muted">生成当前库存快照，客户只能查看展示内容，不会创建订单、预留库存或改变库存数量。</p>
+              </div>
+            )}
+
             {/* ── QUOTE TAB ── */}
             {activeTab === 'quote' && (
               <div className="space-y-4">

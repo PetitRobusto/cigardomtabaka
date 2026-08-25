@@ -387,6 +387,17 @@ class CreateInventoryTestCase(TestCase):
             'burn': 'off',
         })
         self.assertEqual(resp.status_code, 200)
+        self.assertEqual(Privnote.objects.get(token=resp.json()['token']).max_views, 0)
+
+    def test_create_inventory_can_limit_views_without_burn(self):
+        resp = self.client.post('/privnote/create/', {
+            'note_type': 'inventory',
+            'duration': 24,
+            'burn': 'off',
+            'max_views': '3',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(Privnote.objects.get(token=resp.json()['token']).max_views, 3)
 
 
 class CreatePaymentTestCase(TestCase):
@@ -1260,6 +1271,59 @@ class PaymentSalesOrderBoundaryTestCase(TestCase):
         self.assertEqual(note.data_json['payment_method_id'], self.pm.id)
         self.assertEqual(note.data_json['remark'], '请备注销售单号')
         self.assertEqual(note.data_json['images'][0]['url'], '/media/proof.jpg')
+
+    def test_only_one_active_payment_note_per_order(self):
+        order = self._order()
+        first = self.client.post('/privnote/create/', {
+            'note_type': 'payment',
+            'sales_order_id': order.id,
+            'payment_method_id': self.pm.id,
+        })
+        second = self.client.post('/privnote/create/', {
+            'note_type': 'payment',
+            'sales_order_id': order.id,
+            'payment_method_id': self.pm.id,
+        })
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 409)
+        self.assertEqual(second.json()['payment_note']['token'], first.json()['token'])
+        detail = self.client.get(f'/api/sales/orders/{order.id}/')
+        self.assertEqual(detail.status_code, 200)
+        notes = detail.json()['sales_order']['payment_notes']
+        self.assertEqual(len(notes), 1)
+        self.assertTrue(notes[0]['is_active'])
+        self.assertEqual(notes[0]['token'], first.json()['token'])
+
+    def test_expired_payment_note_can_be_recreated_before_payment(self):
+        order = self._order()
+        first = self.client.post('/privnote/create/', {
+            'note_type': 'payment',
+            'sales_order_id': order.id,
+            'payment_method_id': self.pm.id,
+        })
+        note = Privnote.objects.get(token=first.json()['token'])
+        note.expires_at = timezone.now() - timedelta(minutes=1)
+        note.save(update_fields=['expires_at'])
+        second = self.client.post('/privnote/create/', {
+            'note_type': 'payment',
+            'sales_order_id': order.id,
+            'payment_method_id': self.pm.id,
+        })
+        self.assertEqual(second.status_code, 200)
+        self.assertNotEqual(second.json()['token'], first.json()['token'])
+
+    def test_payment_note_closes_after_order_is_paid(self):
+        order = self._order()
+        response = self.client.post('/privnote/create/', {
+            'note_type': 'payment',
+            'sales_order_id': order.id,
+            'payment_method_id': self.pm.id,
+        })
+        order.payment_status = SalesOrder.PaymentStatus.PAID
+        order.save(update_fields=['payment_status'])
+        view = self.client.get(f"/api/privnote/{response.json()['token']}/")
+        self.assertEqual(view.status_code, 410)
+        self.assertEqual(view.json()['reason'], 'closed')
 
     def test_new_payment_note_ignores_legacy_extra_fees_and_does_not_snapshot_them(self):
         order = self._order()

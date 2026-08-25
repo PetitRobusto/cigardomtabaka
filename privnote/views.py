@@ -66,6 +66,13 @@ def create(request):
     duration_hours = int(request.POST.get('duration', 24))
     password = request.POST.get('password', '').strip()
     burn = request.POST.get('burn', 'on') == 'on'
+    try:
+        requested_max_views = int(request.POST.get('max_views', '1' if burn else '0'))
+    except (TypeError, ValueError):
+        return JsonResponse({'error': '最大查看次数必须是整数'}, status=400)
+    if requested_max_views < 0 or requested_max_views > 9999:
+        return JsonResponse({'error': '最大查看次数必须在 0 到 9999 之间'}, status=400)
+    max_views = 1 if burn else requested_max_views
 
     is_debug = settings.DEBUG
     debug_tag = ' [测试数据]' if is_debug else ''
@@ -104,6 +111,23 @@ def create(request):
             or order.payment_status != SalesOrder.PaymentStatus.UNPAID
         ):
             return JsonResponse({'error': '只有已确认或已出库且未收款的销售单才能创建收款单'}, status=400)
+
+        active_note = next((
+            note for note in Privnote.objects.select_for_update().filter(
+                sales_order=order, note_type=Privnote.NoteType.PAYMENT,
+            ).order_by('-created_at', '-id')
+            if note.is_accessible
+        ), None)
+        if active_note is not None:
+            return JsonResponse({
+                'error': '该订单已有有效收款单，请先使用当前链接或等待它过期',
+                'payment_note': {
+                    'id': active_note.id,
+                    'token': active_note.token,
+                    'url': request.build_absolute_uri(f'/p/{active_note.token}/'),
+                    'expires_at': active_note.expires_at.isoformat(),
+                },
+            }, status=409)
 
         payment_method = PaymentMethod.objects.filter(
             pk=payment_method_id,
@@ -191,8 +215,9 @@ def create(request):
         title=title,
         data_json=data,
         sales_order=sales_order,
+        created_by=operator,
         burn_after_read=burn,
-        max_views=1 if burn else 999,
+        max_views=max_views,
         expires_at=timezone.now() + timedelta(hours=duration_hours),
     )
     if password:
@@ -433,6 +458,21 @@ def api_privnote(request, token):
 
     if note.is_destroyed:
         return JsonResponse({'error': 'destroyed', 'reason': 'viewed', 'title': note.title}, status=410)
+
+    if note.note_type == 'payment' and note.sales_order:
+        order = note.sales_order
+        if (
+            order.payment_status != SalesOrder.PaymentStatus.UNPAID
+            or order.fulfillment_status not in (
+                SalesOrder.FulfillmentStatus.CONFIRMED,
+                SalesOrder.FulfillmentStatus.SHIPPED,
+            )
+        ):
+            return JsonResponse({
+                'error': 'closed',
+                'reason': 'closed',
+                'title': note.title,
+            }, status=410)
 
     if note.has_password and request.method == 'GET':
         return JsonResponse({

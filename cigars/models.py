@@ -437,6 +437,7 @@ class Customer(models.Model):
     """客户 — 独立档案，可选关联 User 实现登录"""
     name = models.CharField('姓名', max_length=200, unique=True)
     phone = models.CharField('电话', max_length=50, blank=True)
+    remark = models.TextField('备注', blank=True)
     user = models.OneToOneField(
         User, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='customer_profile',

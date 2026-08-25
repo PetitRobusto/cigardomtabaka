@@ -114,6 +114,7 @@ export function statusLabel(status: string): string {
     refund_pending: '待退款',
     refunded: '已退款',
     returned: '已退货',
+    completed: '已完成',
   }[status] ?? status;
 }
 
@@ -131,7 +132,8 @@ export function statusTagTone(status: string): string {
   }[status] ?? 'border-border bg-[#F5EFE8] text-muted';
 }
 
-export function orderDisplayStatus(order: SalesOrderStateInput): string {
+export function orderDisplayStatus(order: SalesOrderStateInput & { status?: string }): string {
+  if (order.status === 'completed') return '已完成';
   if (order.fulfillment_status === 'cancelled') {
     return `已取消${order.payment_status === 'refund_pending' ? ' · 待退款' : order.payment_status === 'refunded' ? ' · 已退款' : ''}`;
   }

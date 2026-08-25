@@ -96,12 +96,12 @@ export const fetchSalesCustomerDirectory = (params?: {
 export const fetchSalesCustomer = (id: number): Promise<SalesCustomer> =>
   api.get(`/sales/customers/${id}/`).then(r => r.data.customer);
 
-export const createSalesCustomer = (payload: { name: string; phone: string }): Promise<SalesCustomer> =>
+export const createSalesCustomer = (payload: { name: string; phone: string; remark: string }): Promise<SalesCustomer> =>
   writeWithIdempotency<{ customer: SalesCustomer }>('create-sales-customer', payload, config =>
     api.post('/sales/customers/', payload, config),
   ).then(r => r.customer);
 
-export const updateSalesCustomer = (id: number, payload: { name: string; phone: string }): Promise<SalesCustomer> =>
+export const updateSalesCustomer = (id: number, payload: { name: string; phone: string; remark: string }): Promise<SalesCustomer> =>
   writeWithIdempotency<{ customer: SalesCustomer }>(`update-sales-customer-${id}`, payload, config =>
     api.patch(`/sales/customers/${id}/`, payload, config),
   ).then(r => r.customer);

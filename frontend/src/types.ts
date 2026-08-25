@@ -418,6 +418,7 @@ export interface CustomerResult {
   id: number;
   name: string;
   phone: string;
+  remark?: string;
   created_at?: string;
   deleted_at?: string | null;
   order_count?: number;
@@ -577,6 +578,8 @@ export interface PaymentOrder {
 export interface SalesOrderItem {
   id: number;
   cigar_id: number;
+  cigar_brand?: string;
+  cigar_brand_cn?: string;
   cigar_name: string;
   quantity: number;
   sale_unit: 'stick' | 'box' | string;
@@ -600,7 +603,7 @@ export interface SalesOrder {
   payment_status: 'unpaid' | 'paid' | 'refund_pending' | 'refunded' | string;
   customer_id: number | null;
   customer_name: string;
-  customer?: { id: number; name: string; phone: string; deleted_at: string | null } | null;
+  customer?: { id: number; name: string; phone: string; remark?: string; deleted_at: string | null } | null;
   goods_amount_cny: number;
   customer_transport_fee_cny: number;
   transport_payer: 'customer' | 'company';
@@ -617,6 +620,18 @@ export interface SalesOrder {
   cancelled_at: string | null;
   note: string;
   items: SalesOrderItem[];
+  payment_notes?: {
+    id: number;
+    token: string;
+    url: string;
+    created_at: string;
+    expires_at: string;
+    view_count: number;
+    burn_after_read: boolean;
+    is_expired: boolean;
+    is_destroyed: boolean;
+    is_active: boolean;
+  }[];
   sales_shipment: { id: number; business_date: string; fifo_cost_cny: number } | null;
   sales_receipt: { id: number; amount_cny: number; business_date: string; fund_account_id: number } | null;
   sales_refund: { id: number; amount_cny: number; business_date: string; fund_account_id: number } | null;

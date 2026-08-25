@@ -22,8 +22,15 @@ body {
 <body>
 <div id="root"></div>
 {% if debug %}
-  <script type="module" src="http://localhost:5173/@vite/client"></script>
-  <script type="module" src="http://localhost:5173/src/main.tsx"></script>
+  <script type="module">
+    import RefreshRuntime from 'http://192.168.0.97:5173/static/frontend/@react-refresh';
+    RefreshRuntime.injectIntoGlobalHook(window);
+    window.$RefreshReg$ = () => {};
+    window.$RefreshSig$ = () => (type) => type;
+    window.__vite_plugin_react_preamble_installed__ = true;
+  </script>
+  <script type="module" src="http://192.168.0.97:5173/static/frontend/@vite/client"></script>
+  <script type="module" src="http://192.168.0.97:5173/static/frontend/src/main.tsx"></script>
 {% else %}
   {% vite_asset 'index.html' %}
 {% endif %}

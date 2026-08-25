@@ -96,12 +96,14 @@ export default function PrivnoteViewPage() {
             <AlertTriangle className="w-8 h-8 text-accent" />
           </div>
           <h1 className="text-xl font-display font-semibold text-fg mb-3">
-            {reason === 'viewed' ? '内容已销毁' : '链接已过期'}
+            {reason === 'viewed' ? '内容已销毁' : reason === 'closed' ? '收款单已关闭' : '链接已过期'}
           </h1>
           <p className="text-sm text-muted leading-relaxed">
             {reason === 'viewed'
               ? '该内容已被查看并自动销毁。'
-              : '该链接已超过有效期限。'}
+              : reason === 'closed'
+                ? '该订单已经完成收款或无法继续履约，此收款单已关闭。'
+                : '该链接已超过有效期限。'}
           </p>
         </div>
       </div>

@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import { CircleDollarSign, PackageCheck, RotateCcw, Truck, X } from 'lucide-react';
-import type { FundAccount, SalesOrder } from '../../types';
+import type { FundAccount, PaymentMethod, SalesOrder } from '../../types';
 import {
   apiErrorMessage,
   cancelSalesOrder,
+  createPrivnote,
+  fetchPaymentMethods,
   confirmSalesOrder,
   receiveSalesOrder,
   recordSalesTransportCost,
@@ -22,8 +24,6 @@ import {
 import { salesFundAccountError, salesOrderActionBusinessDate, selectActiveCnyAccountId } from './SalesOrderCard.logic';
 import { formatShanghaiDateTime } from '../../utils/businessDate';
 import SalesOrderStatusTags from './SalesOrderStatusTags';
-
-type DetailTab = 'overview' | 'items' | 'amounts' | 'facts' | 'timeline';
 
 interface Props {
   orders: SalesOrder[];
@@ -45,7 +45,6 @@ export default function SalesOrderWorkbench({
   onCustomer,
 }: Props) {
   const selected = orders.find(order => order.id === selectedId) || null;
-  const [tab, setTab] = useState<DetailTab>('overview');
 
   return <div className={`grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)] ${selected ? 'sales-workbench-selected' : ''}`}>
     <section className={(selected ? 'hidden lg:block ' : '') + 'overflow-hidden rounded-md border border-border bg-white shadow-sm'}>
@@ -57,7 +56,7 @@ export default function SalesOrderWorkbench({
         {orders.map(order => <button
           key={order.id}
           type="button"
-          onClick={() => { onSelect(order.id); setTab('overview'); }}
+          onClick={() => { onSelect(order.id); }}
           className={`block w-full border-b border-border px-4 py-3 text-left last:border-0 hover:bg-[#FFFCF9] ${selected?.id === order.id ? 'border-l-[3px] border-l-accent bg-[#FFFCF4]' : ''}`}
         >
           <span className="flex items-baseline justify-between gap-2">
@@ -89,25 +88,21 @@ export default function SalesOrderWorkbench({
           </div>
           <OrderActions order={selected} accounts={allAccounts} accountsError={accountsError} onChanged={onChanged} />
         </div>
-        <div className="flex overflow-x-auto border-b border-border bg-[#FFFDFA] px-3">
-          {([
-            ['overview', '概览'],
-            ['items', '商品'],
-            ['amounts', '金额构成'],
-            ['facts', '单据事实'],
-            ['timeline', '时间线'],
-          ] as [DetailTab, string][]).map(([value, label]) => <button key={value} type="button" onClick={() => setTab(value)} className={`whitespace-nowrap border-b-2 px-3 py-2.5 text-xs font-semibold ${tab === value ? 'border-accent text-accent' : 'border-transparent text-muted hover:text-fg'}`}>{label}</button>)}
-        </div>
-        <div className="max-h-[calc(100vh-24rem)] min-h-[360px] overflow-y-auto p-4 sm:p-5">
-          {tab === 'overview' && <Overview order={selected} onCustomer={onCustomer} />}
-          {tab === 'items' && <Items order={selected} />}
-          {tab === 'amounts' && <Amounts order={selected} />}
-          {tab === 'facts' && <Facts order={selected} />}
-          {tab === 'timeline' && <Timeline order={selected} />}
+        <div className="max-h-[calc(100vh-24rem)] min-h-[360px] space-y-6 overflow-y-auto p-4 sm:p-5">
+          <DetailSection title="概览"><Overview order={selected} onCustomer={onCustomer} /></DetailSection>
+          <DetailSection title="商品明细"><Items order={selected} /></DetailSection>
+          <DetailSection title="金额与利润"><Amounts order={selected} /></DetailSection>
+          <DetailSection title="收款单（付款链接）"><ReceiptPanel order={selected} onChanged={onChanged} /></DetailSection>
+          <DetailSection title="业务事实"><Facts order={selected} /></DetailSection>
+          <DetailSection title="时间线"><Timeline order={selected} /></DetailSection>
         </div>
       </>}
     </section>
   </div>;
+}
+
+function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return <section><div className="mb-2 flex items-center justify-between border-b border-border pb-2"><h3 className="font-display text-base font-semibold">{title}</h3><span className="font-mono text-[10px] uppercase tracking-wide text-muted">Order detail</span></div>{children}</section>;
 }
 
 function Overview({ order, onCustomer }: { order: SalesOrder; onCustomer: (id: number) => void }) {
@@ -128,9 +123,62 @@ function Overview({ order, onCustomer }: { order: SalesOrder; onCustomer: (id: n
 }
 
 function Items({ order }: { order: SalesOrder }) {
-  return <div className="overflow-x-auto rounded border border-border"><table className="w-full min-w-[620px] text-xs"><thead className="bg-[#F5EFE8] text-muted"><tr><th className="px-3 py-2 text-left">商品</th><th className="px-3 py-2 text-right">数量</th><th className="px-3 py-2 text-right">单价</th><th className="px-3 py-2 text-left">FIFO 批次</th><th className="px-3 py-2 text-right">成本</th></tr></thead><tbody>{order.items.map(item => <tr key={item.id} className="border-t border-border"><td className="px-3 py-3 font-semibold">{item.cigar_name}</td><td className="px-3 py-3 text-right">{item.sale_unit === 'box' ? item.sale_quantity : item.quantity} {item.sale_unit === 'box' ? '盒' : '支'}</td><td className="px-3 py-3 text-right font-mono">{formatCny(item.unit_price)}</td><td className="px-3 py-3 text-muted">{item.allocations.map(allocation => `#${allocation.batch_id} × ${allocation.quantity}`).join('，') || '确认订单后分配'}</td><td className="px-3 py-3 text-right font-mono">{formatCny(item.cost)}</td></tr>)}</tbody></table></div>;
+  return <div className="overflow-x-auto rounded border border-border"><table className="w-full min-w-[680px] text-xs"><thead className="bg-[#F5EFE8] text-muted"><tr><th className="px-3 py-2 text-left">品牌 / 商品</th><th className="px-3 py-2 text-right">数量</th><th className="px-3 py-2 text-right">单价</th><th className="px-3 py-2 text-left">FIFO 批次</th><th className="px-3 py-2 text-right">成本</th></tr></thead><tbody>{order.items.map(item => <tr key={item.id} className="border-t border-border"><td className="px-3 py-3"><span className="block text-[10px] font-bold uppercase tracking-wide text-muted">{item.cigar_brand_cn || item.cigar_brand || '未标注品牌'}</span><strong className="mt-0.5 block">{item.cigar_name}</strong></td><td className="px-3 py-3 text-right">{item.sale_unit === 'box' ? item.sale_quantity : item.quantity} {item.sale_unit === 'box' ? '盒' : '支'}</td><td className="px-3 py-3 text-right font-mono">{formatCny(item.unit_price)}</td><td className="px-3 py-3 text-muted">{item.allocations.map(allocation => `#${allocation.batch_id} × ${allocation.quantity}`).join('，') || '确认订单后分配'}</td><td className="px-3 py-3 text-right font-mono">{formatCny(item.cost)}</td></tr>)}</tbody></table></div>;
 }
 
+function ReceiptPanel({ order, onChanged }: { order: SalesOrder; onChanged: () => void }) {
+  const receipt = order.sales_receipt;
+  const activeNote = (order.payment_notes || []).find(note => note.is_active);
+  const canCreateLink = !receipt && !activeNote && order.payment_status === 'unpaid'
+    && ['confirmed', 'shipped'].includes(order.fulfillment_status);
+  const [open, setOpen] = useState(false);
+  const [methods, setMethods] = useState<PaymentMethod[]>([]);
+  const [methodId, setMethodId] = useState('');
+  const [remark, setRemark] = useState('');
+  const [url, setUrl] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const startCreate = async () => {
+    setError('');
+    setUrl('');
+    setOpen(true);
+    if (methods.length) return;
+    try {
+      const loaded = await fetchPaymentMethods();
+      setMethods(loaded);
+      setMethodId(String(loaded[0]?.id || ''));
+    } catch (requestError) {
+      setError(apiErrorMessage(requestError, '收款方式加载失败'));
+    }
+  };
+  const createLink = async () => {
+    if (!methodId) { setError('请选择收款方式'); return; }
+    setBusy(true);
+    setError('');
+    try {
+      const form = new FormData();
+      form.append('note_type', 'payment');
+      form.append('sales_order_id', String(order.id));
+      form.append('payment_method_id', methodId);
+      if (remark.trim()) form.append('remark', remark.trim());
+      const result = await createPrivnote(form);
+      setUrl(result.url);
+      onChanged();
+    } catch (requestError) {
+      setError(apiErrorMessage(requestError, '收款单创建失败'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (receipt) return <div className="grid gap-3 rounded border border-green-200 bg-green-50/40 p-4 text-sm sm:grid-cols-4"><div><span className="block text-xs text-muted">收款记录编号</span><strong className="mt-1 block font-mono">RC-{String(receipt.id).padStart(6, '0')}</strong></div><div><span className="block text-xs text-muted">已收金额</span><strong className="mt-1 block font-mono text-green-800">{formatCny(receipt.amount_cny)}</strong></div><div><span className="block text-xs text-muted">业务日期</span><strong className="mt-1 block">{receipt.business_date}</strong></div><div><span className="block text-xs text-muted">资金账户</span><strong className="mt-1 block">#{receipt.fund_account_id}</strong></div></div>;
+  return <div className="rounded border border-border bg-[#FFFDFA] p-4 text-sm">
+    {activeNote && <div className="mb-4 rounded border border-blue-200 bg-blue-50/50 p-3"><strong className="block text-blue-900">已有有效收款单</strong><span className="mt-1 block text-xs text-blue-800">该订单同时只允许一个有效收款单，请先使用或等待当前链接过期。</span><div className="mt-2 break-all font-mono text-xs text-fg">{activeNote.url}</div><div className="mt-2 text-xs text-muted">创建于 {formatShanghaiDateTime(activeNote.created_at)} · 查看 {activeNote.view_count} 次 · 到期 {formatShanghaiDateTime(activeNote.expires_at)}</div><button type="button" onClick={() => navigator.clipboard?.writeText(activeNote.url)} className="mt-2 rounded border border-blue-300 px-2 py-1 text-xs text-blue-800">复制收款单</button></div>}
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><strong className="block text-fg">客户尚未付款</strong><span className="mt-1 block text-xs text-muted">创建收款单发给客户；客户点击查看并付款后，再在订单顶部登记收款记录。</span></div>{canCreateLink && <button type="button" onClick={startCreate} className="rounded bg-accent px-3 py-2 text-xs font-semibold text-white hover:bg-accent-hover">创建收款单</button>}</div>
+    {!canCreateLink && !activeNote && <p className="mt-3 text-xs text-muted">订单确认后才可以创建收款单。</p>}
+    {open && canCreateLink && <div className="mt-4 space-y-3 border-t border-border pt-4"><label className="block text-xs font-medium text-muted">收款方式<select value={methodId} onChange={event => setMethodId(event.target.value)} className="mt-1.5 w-full rounded border border-border bg-white px-3 py-2 text-sm"><option value="">请选择 CNY 收款方式</option>{methods.map(method => <option key={method.id} value={method.id}>{method.label}{method.remark ? ` · ${method.remark}` : ''}</option>)}</select></label><label className="block text-xs font-medium text-muted">给客户的备注<textarea value={remark} onChange={event => setRemark(event.target.value)} rows={2} placeholder="例如：转账请备注订单号" className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm" /></label><div className="flex flex-wrap gap-2"><button type="button" onClick={createLink} disabled={busy || !methodId} className="rounded bg-accent px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? '创建中…' : '确认创建收款单'}</button><button type="button" onClick={() => setOpen(false)} className="rounded border border-border px-3 py-2 text-xs">取消</button></div>{error && <p className="text-xs text-red-700">{error}</p>}{url && <div className="rounded border border-green-200 bg-green-50 p-3"><span className="text-xs font-semibold text-green-800">收款单已生成，可发送给客户</span><div className="mt-2 break-all font-mono text-xs text-fg">{url}</div><button type="button" onClick={() => navigator.clipboard?.writeText(url)} className="mt-2 rounded border border-green-300 px-2 py-1 text-xs text-green-800">复制收款单</button></div>}</div>}
+  </div>;
+}
 function Amounts({ order }: { order: SalesOrder }) {
   return <div className="space-y-3 rounded border border-border p-4 text-sm">
     <Money label="商品金额" value={order.goods_amount_cny} />
@@ -144,7 +192,6 @@ function Amounts({ order }: { order: SalesOrder }) {
 
 function Facts({ order }: { order: SalesOrder }) {
   const facts = [
-    order.sales_receipt && { type: 'SalesReceipt · 收款', id: order.sales_receipt.id, amount: order.sales_receipt.amount_cny, date: order.sales_receipt.business_date },
     order.sales_shipment && { type: 'SalesShipment · 出库', id: order.sales_shipment.id, amount: order.sales_shipment.fifo_cost_cny, date: order.sales_shipment.business_date },
     order.sales_refund && { type: 'SalesRefund · 退款', id: order.sales_refund.id, amount: order.sales_refund.amount_cny, date: order.sales_refund.business_date },
     order.sales_return && { type: 'SalesReturn · 退货', id: order.sales_return.id, amount: order.sales_return.amount_cny, date: order.sales_return.business_date },
@@ -158,7 +205,7 @@ function Timeline({ order }: { order: SalesOrder }) {
   const events = [
     order.created_at && { label: '销售单创建', date: order.created_at },
     order.confirmed_at && { label: '订单确认并预留库存', date: order.confirmed_at },
-    order.sales_receipt && { label: '生成 SalesReceipt 收款事实', date: order.sales_receipt.business_date },
+    order.sales_receipt && { label: '登记收款记录（SalesReceipt）', date: order.sales_receipt.business_date },
     order.sales_shipment && { label: '生成 SalesShipment 出库事实', date: order.sales_shipment.business_date },
     order.sales_transport_cost && { label: '登记 SalesTransportCost', date: order.sales_transport_cost.business_date },
     order.sales_return && { label: '生成 SalesReturn 退货事实', date: order.sales_return.business_date },
@@ -227,6 +274,7 @@ function OrderActions({ order, accounts: allAccounts, accountsError, onChanged }
       <div className="w-full max-w-md rounded-md border border-border bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h3 className="font-display text-lg font-semibold">{actionLabel(action)}</h3><p className="mt-0.5 text-xs text-muted">{order.order_number}</p></div><button type="button" aria-label="关闭订单动作" onClick={() => setAction('')}><X className="h-4 w-4" /></button></div>
         <div className="space-y-3 p-5">
+          {action === 'confirm' && <ConfirmSummary order={order} />}
           {['ship', 'receive', 'refund', 'return', 'transport_cost'].includes(action) && <label className="block text-xs font-medium text-muted">业务日期<input type="date" value={date} onChange={event => setDate(event.target.value)} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm" /></label>}
           {action === 'return' && <label className="block text-xs font-medium text-muted">退货原因<input value={reason} onChange={event => setReason(event.target.value)} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm" /></label>}
           {(action === 'receive' || action === 'transport_cost') && <>
@@ -240,6 +288,14 @@ function OrderActions({ order, accounts: allAccounts, accountsError, onChanged }
         <div className="flex justify-end gap-2 border-t border-border px-5 py-4"><button type="button" onClick={() => setAction('')} className="rounded border border-border px-4 py-2 text-sm">取消</button><button type="button" onClick={run} disabled={busy || (needsBusinessDate && !date) || !receiveMatchesDue || (actionNeedsFundAccount(action) && !accounts.length) || (action === 'transport_cost' && !validatePositiveMoneyInput(amount))} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? '处理中…' : '确认执行'}</button></div>
       </div>
     </div>}
+  </div>;
+}
+
+function ConfirmSummary({ order }: { order: SalesOrder }) {
+  return <div className="space-y-3 rounded border border-blue-200 bg-blue-50/50 p-3 text-xs">
+    <p className="font-semibold text-blue-900">确认后会预留现货库存，订单进入待履约状态。</p>
+    <div className="grid gap-2 sm:grid-cols-2"><div><span className="text-muted">客户</span><strong className="ml-2">{order.customer_name || '散客'}</strong></div><div><span className="text-muted">应收</span><strong className="ml-2 font-mono">{formatCny(order.amount_due_cny)}</strong></div></div>
+    <ul className="space-y-1 border-t border-blue-200 pt-2 text-muted">{order.items.map(item => <li key={item.id} className="flex justify-between gap-3"><span>{item.cigar_name}</span><span className="font-mono">{item.sale_unit === 'box' ? `${item.sale_quantity ?? 0} 盒` : `${item.quantity} 支`}</span></li>)}</ul>
   </div>;
 }
 

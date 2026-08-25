@@ -55,6 +55,7 @@ describe('summarizeSalesOrders', () => {
   it('为订单状态和动作提供中文工作台标签，并稳健格式化金额', () => {
     expect(statusLabel('refund_pending')).toBe('待退款');
     expect(statusLabel('returned')).toBe('已退货');
+    expect(statusLabel('completed')).toBe('已完成');
     expect(statusTagTone('unpaid')).toContain('amber');
     expect(statusTagTone('cancelled')).toContain('red');
     expect(statusTagTone('paid')).toContain('green');
@@ -70,7 +71,7 @@ describe('summarizeSalesOrders', () => {
 
   it('根据履约与付款双状态决定展示状态和可用动作', () => {
     expect(orderDisplayStatus({ fulfillment_status: 'confirmed', payment_status: 'unpaid' })).toBe('待收款');
-    expect(orderDisplayStatus({ fulfillment_status: 'shipped', payment_status: 'paid' })).toBe('已出库 · 已收款');
+    expect(orderDisplayStatus({ status: 'completed', fulfillment_status: 'shipped', payment_status: 'paid' })).toBe('已完成');
     expect(orderDisplayStatus({ fulfillment_status: 'cancelled', payment_status: 'refund_pending' })).toBe('已取消 · 待退款');
     expect(orderDisplayStatus({ fulfillment_status: 'returned', payment_status: 'refund_pending' })).toBe('已退货 · 待退款');
     expect(availableActions({ fulfillment_status: 'draft', payment_status: 'unpaid' })).toEqual(['confirm', 'cancel']);

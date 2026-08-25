@@ -161,7 +161,7 @@ def _get_order(order_id):
         return SalesOrder.objects.select_related(
             "customer", "sales_shipment", "sales_receipt", "sales_refund",
             "sales_return", "sales_transport_cost",
-        ).get(id=order_id)
+        ).prefetch_related("privnote_set").get(id=order_id)
     except (SalesOrder.DoesNotExist, ValueError, TypeError):
         return None
 
@@ -212,7 +212,7 @@ def sales_orders(request):
         "customer", "sales_shipment", "sales_receipt", "sales_refund",
         "sales_return", "sales_transport_cost",
     ).prefetch_related(
-        "items__cigar", "items__allocations__purchase_batch"
+        "items__cigar", "items__allocations__purchase_batch", "privnote_set"
     ).all()
     fulfillment = request.GET.get("fulfillment_status", "").strip()
     payment = request.GET.get("payment_status", "").strip()
@@ -270,6 +270,7 @@ def _customer_payload(customer, include_orders=False):
         "id": customer.id,
         "name": customer.name,
         "phone": customer.phone,
+        "remark": customer.remark,
         "created_at": customer.created_at.isoformat(),
         "deleted_at": customer.deleted_at.isoformat() if customer.deleted_at else None,
         "order_count": order_count,
@@ -285,7 +286,7 @@ def _customer_payload(customer, include_orders=False):
             "customer", "sales_shipment", "sales_receipt", "sales_refund",
             "sales_return", "sales_transport_cost",
         ).prefetch_related(
-            "items__cigar", "items__allocations__purchase_batch",
+            "items__cigar", "items__allocations__purchase_batch", "privnote_set",
         )[:20]
         payload["recent_orders"] = [serialize_sales_order(order) for order in recent_orders]
     return payload
@@ -294,17 +295,22 @@ def _customer_payload(customer, include_orders=False):
 def _customer_values(body):
     name = body.get("name", "")
     phone = body.get("phone", "")
+    remark = body.get("remark", "")
     if not isinstance(name, str) or not name.strip():
         raise ActionInputError("客户姓名不能为空", details={"name": "不能为空"})
     if not isinstance(phone, str):
         raise ActionInputError("客户电话必须是字符串", details={"phone": "必须是字符串"})
+    if not isinstance(remark, str):
+        raise ActionInputError("客户备注必须是字符串", details={"remark": "必须是字符串"})
     name = name.strip()
     phone = phone.strip()
     if len(name) > 200:
         raise ActionInputError("客户姓名不能超过 200 个字符", details={"name": "不能超过 200 个字符"})
     if len(phone) > 50:
         raise ActionInputError("客户电话不能超过 50 个字符", details={"phone": "不能超过 50 个字符"})
-    return name, phone
+    if len(remark) > 2000:
+        raise ActionInputError("客户备注不能超过 2000 个字符", details={"remark": "不能超过 2000 个字符"})
+    return name, phone, remark
 
 
 def sales_customers(request):
@@ -386,12 +392,12 @@ def sales_customers(request):
         })
 
     def handler(body, operator, context):
-        name, phone = _customer_values(body)
+        name, phone, remark = _customer_values(body)
         if Customer.objects.filter(name=name).exists():
             raise ActionConflictError("客户姓名已存在", details={"name": "客户姓名已存在"})
         try:
             with transaction.atomic():
-                customer = Customer.objects.create(name=name, phone=phone)
+                customer = Customer.objects.create(name=name, phone=phone, remark=remark)
         except IntegrityError as exc:
             raise ActionConflictError(
                 "客户姓名已存在", details={"name": "客户姓名已存在"}
@@ -425,14 +431,15 @@ def sales_customer_detail(request, customer_id):
             locked.deleted_at = timezone.now()
             locked.save(update_fields=["deleted_at"])
             return {"customer": _customer_payload(locked, include_orders=True)}
-        name, phone = _customer_values(body)
+        name, phone, remark = _customer_values(body)
         if Customer.objects.exclude(pk=locked.pk).filter(name=name).exists():
             raise ActionConflictError("客户姓名已存在", details={"name": "客户姓名已存在"})
         locked.name = name
         locked.phone = phone
+        locked.remark = remark
         try:
             with transaction.atomic():
-                locked.save(update_fields=["name", "phone"])
+                locked.save(update_fields=["name", "phone", "remark"])
         except IntegrityError as exc:
             raise ActionConflictError(
                 "客户姓名已存在", details={"name": "客户姓名已存在"}

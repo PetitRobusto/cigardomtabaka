@@ -72,6 +72,7 @@ function AnimatedRoutes() {
           <Route path={BUSINESS_STAFF_PATHS.inventory} element={<InventoryPage />} />
           <Route path={BUSINESS_STAFF_PATHS.inventoryPurchases} element={<StaffGate><InventoryPurchasesPage /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.sales} element={<StaffGate><LegacySalesRoute /></StaffGate>} />
+          <Route path={BUSINESS_STAFF_PATHS.salesReceipts} element={<StaffGate><Navigate to={BUSINESS_STAFF_PATHS.sales} replace /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.salesCustomers} element={<StaffGate><SalesCustomersPage /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.accounting} element={<StaffGate><AccountingDashboardPage /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.day1} element={<StaffGate><Day1SetupPage /></StaffGate>} />

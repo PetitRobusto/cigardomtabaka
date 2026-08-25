@@ -18,6 +18,7 @@ export default defineConfig({
     },
   },
   server: {
+    cors: { origin: 'http://192.168.0.97:8000' },
     proxy: {
       '/api': 'http://127.0.0.1:8000',
       '/media': 'http://127.0.0.1:8000',

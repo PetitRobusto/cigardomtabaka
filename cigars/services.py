@@ -26,6 +26,7 @@ from accounting.services import (
 
 from .audit import AgentContext
 from . import inventory as inventory_module
+from .constants import BRAND_CN_MAP
 from .models import (
     AdjustmentRecord,
     Cigar,
@@ -143,6 +144,38 @@ def _sales_event_metadata(order, business_date=None):
     return metadata
 
 
+def _serialize_payment_notes(order):
+    # Privnote is kept as history; only one accessible payment note may be active
+    # for an unpaid order.  Use the prefetched relation when the API provides it.
+    from privnote.models import Privnote
+
+    if hasattr(order, '_prefetched_objects_cache') and 'privnote_set' in order._prefetched_objects_cache:
+        notes = order._prefetched_objects_cache['privnote_set']
+    else:
+        notes = Privnote.objects.filter(
+            sales_order=order, note_type=Privnote.NoteType.PAYMENT,
+        ).order_by('-created_at', '-id')
+    can_pay = (
+        order.payment_status == SalesOrder.PaymentStatus.UNPAID
+        and order.fulfillment_status in (
+            SalesOrder.FulfillmentStatus.CONFIRMED,
+            SalesOrder.FulfillmentStatus.SHIPPED,
+        )
+    )
+    return [{
+        'id': note.id,
+        'token': note.token,
+        'url': f'/p/{note.token}/',
+        'created_at': note.created_at.isoformat(),
+        'expires_at': note.expires_at.isoformat(),
+        'view_count': note.view_count,
+        'burn_after_read': note.burn_after_read,
+        'is_expired': note.is_expired,
+        'is_destroyed': note.is_destroyed,
+        'is_active': can_pay and note.is_accessible,
+    } for note in notes]
+
+
 def serialize_sales_order(order):
     items = []
     if hasattr(order, '_prefetched_objects_cache') and 'items' in order._prefetched_objects_cache:
@@ -172,6 +205,8 @@ def serialize_sales_order(order):
         items.append({
             'id': item.id,
             'cigar_id': item.cigar_id,
+            'cigar_brand': item.cigar.brand,
+            'cigar_brand_cn': BRAND_CN_MAP.get(item.cigar.brand, ''),
             'cigar_name': item.cigar.name or item.cigar.english_name,
             'quantity': item.quantity,
             'sale_unit': item.sale_unit,
@@ -198,6 +233,7 @@ def serialize_sales_order(order):
             'id': order.customer_id,
             'name': order.customer.name,
             'phone': order.customer.phone,
+            'remark': order.customer.remark,
             'deleted_at': order.customer.deleted_at.isoformat() if order.customer.deleted_at else None,
         } if getattr(order, 'customer', None) is not None else None),
         'goods_amount_cny': _decimal_to_json(order.goods_amount_cny),
@@ -216,6 +252,7 @@ def serialize_sales_order(order):
         'cancelled_at': order.cancelled_at.isoformat() if order.cancelled_at else None,
         'note': order.note,
         'items': items,
+        'payment_notes': _serialize_payment_notes(order),
         'sales_shipment': ({
             'id': order.sales_shipment.id,
             'business_date': order.sales_shipment.business_date.isoformat(),

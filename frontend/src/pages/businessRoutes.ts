@@ -28,6 +28,7 @@ export const BUSINESS_STAFF_PATHS = {
   inventory: '/inventory',
   inventoryPurchases: '/inventory/purchases',
   sales: '/sales',
+  salesReceipts: '/sales/receipts',
   salesCustomers: '/sales/customers',
   accounting: '/accounting',
   day1: '/accounting/day1',

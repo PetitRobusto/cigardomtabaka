@@ -36,7 +36,7 @@ def admin_login_redirect(request):
 
 def spa_index(request):
     """Catch-all SPA entry point"""
-    return render(request, 'spa_index.html')
+    return render(request, 'spa_index.html', {'debug': settings.DEBUG})
 
 
 urlpatterns = [

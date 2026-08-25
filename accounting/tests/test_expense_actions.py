@@ -120,6 +120,41 @@ class ExpenseActionTest(TestCase):
         self.assertEqual(monthly['professional_expense_cny'], Decimal('1.00'))
         self.assertEqual(monthly['interest_expense_cny'], Decimal('1.00'))
 
+    def test_subcategory_is_recorded_and_keeps_existing_accounting_category(self):
+        from accounting.expense_actions import record_expense
+
+        expense = record_expense(
+            category=Expense.Category.OTHER,
+            subcategory=Expense.Subcategory.TRANSPORT_TAXI,
+            amount='25.00',
+            fund_account_id=self.cny.pk,
+            business_date=self.business_date,
+            operator=self.operator,
+            idempotency_key='expense-taxi-subcategory-1',
+        )
+
+        self.assertEqual(expense.subcategory, Expense.Subcategory.TRANSPORT_TAXI)
+        self.assertEqual(
+            expense.ledger_transaction.postings.get(account__isnull=True).category,
+            LedgerPosting.Category.OTHER_EXPENSE,
+        )
+
+    def test_subcategory_must_match_its_parent_accounting_category(self):
+        from accounting.expense_actions import ExpenseActionError, record_expense
+
+        with self.assertRaises(ExpenseActionError) as raised:
+            record_expense(
+                category=Expense.Category.SALARY,
+                subcategory=Expense.Subcategory.TRANSPORT_TAXI,
+                amount='25.00',
+                fund_account_id=self.cny.pk,
+                business_date=self.business_date,
+                operator=self.operator,
+                idempotency_key='expense-subcategory-mismatch-1',
+            )
+
+        self.assertEqual(raised.exception.code, 'category_subcategory_mismatch')
+
     def test_invalid_amounts_have_stable_codes(self):
         from accounting.expense_actions import ExpenseActionError, record_expense
 

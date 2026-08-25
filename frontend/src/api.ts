@@ -11,7 +11,7 @@ import type {
 } from './types';
 import { writeWithIdempotency } from './api/idempotency';
 
-import type { AccountingActionsResponse, InventoryPurchaseDirectory, PurchaseAction, PurchaseActionCreatePayload, PurchaseActionUpdatePayload, PurchasePayPayload, PurchaseReceivePayload, PurchaseCancelPayload, PurchaseSupplier, ExpenseActionPayload, DividendAction, DividendPreview, DividendCreatePayload, DividendUpdatePayload, DividendConfirmPayload, AccountingApiError } from './types';
+import type { AccountingActionsResponse, InventoryPurchaseDirectory, PurchaseAction, PurchaseActionCreatePayload, PurchaseActionUpdatePayload, PurchasePayPayload, PurchaseReceivePayload, PurchaseCancelPayload, PurchaseSupplier, ExpenseActionPayload, AccountingExpensesResponse, DividendAction, DividendPreview, DividendCreatePayload, DividendUpdatePayload, DividendConfirmPayload, AccountingApiError } from './types';
 function getCSRFToken(): string {
   const match = typeof document === 'undefined' ? null : document.cookie.match(/csrftoken=([^;]+)/);
   return match ? match[1] : '';
@@ -213,6 +213,8 @@ export const confirmReconciliation = (id: number): Promise<Reconciliation> =>
 // Accounting action helpers.
 export const fetchAccountingActions = (): Promise<AccountingActionsResponse> =>
   api.get('/accounting/actions/').then(r => r.data);
+export const fetchAccountingExpenses = (month?: string): Promise<AccountingExpensesResponse> =>
+  api.get('/accounting/expenses/', { params: { month, limit: 100 } }).then(r => r.data);
 
 export const fetchInventoryPurchases = (params?: {
   q?: string;

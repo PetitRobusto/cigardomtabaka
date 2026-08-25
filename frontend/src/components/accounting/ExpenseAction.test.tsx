@@ -17,8 +17,9 @@ describe('经营费用动作卡 SSR 契约', () => {
     } satisfies ComponentProps<typeof ExpenseAction>;
     const html = renderToStaticMarkup(<ExpenseAction {...props} />);
     expect(html).toContain('工资');
-    expect(html).toContain('会计（专业服务）');
-    expect(html).toContain('利息支出（财务费用）');
+    expect(html).toContain('专业服务');
+    expect(html).toContain('财务费用');
+    expect(html).toContain('费用明细');
     expect(html).toContain('支付币种');
     expect(html).toContain('人民币（CNY）');
   });

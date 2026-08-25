@@ -899,6 +899,28 @@ export interface AccountingActionsResponse {
   dividends: DividendAction[];
 }
 
+export interface AccountingExpense {
+  id: number;
+  category: string;
+  category_label: string;
+  subcategory: string;
+  subcategory_label: string;
+  fund_account_id: number;
+  fund_account_name: string;
+  currency: string;
+  original_amount: string;
+  amount_cny: string;
+  business_date: string;
+  operator_id: number;
+  status: string;
+  note: string;
+}
+
+export interface AccountingExpensesResponse {
+  expenses: AccountingExpense[];
+}
+
+
 export interface ExchangeActionPayload {
   source_account_id: number;
   rub_account_id: number;
@@ -922,8 +944,21 @@ export interface PurchaseActionUpdatePayload {
   note: string;
 }
 
+export type ExpenseSubcategory =
+  | 'personnel_salary' | 'personnel_bonus' | 'personnel_benefits' | 'personnel_recruiting'
+  | 'rent' | 'property' | 'venue_service'
+  | 'electricity' | 'water' | 'gas_heating' | 'other_energy'
+  | 'transport_taxi' | 'transport_public' | 'transport_travel' | 'transport_delivery' | 'transport_parking' | 'transport_fuel'
+  | 'office_supplies' | 'office_printing' | 'office_phone' | 'office_internet' | 'office_software' | 'office_postage'
+  | 'facility_equipment' | 'facility_tools' | 'facility_repair' | 'facility_cleaning'
+  | 'marketing_advertising' | 'marketing_platform' | 'marketing_creative' | 'marketing_gift' | 'marketing_promotion'
+  | 'professional_accounting' | 'professional_legal' | 'professional_consulting' | 'professional_design' | 'professional_translation'
+  | 'financial_interest' | 'financial_bank_fee' | 'financial_payment_fee' | 'financial_account_fee'
+  | 'tax' | 'registration' | 'license' | 'notary' | 'other';
+
 export interface ExpenseActionPayload {
   category: 'salary' | 'rent' | 'utilities' | 'professional' | 'interest' | 'other';
+  subcategory?: ExpenseSubcategory;
   amount: string;
   fund_account_id: number;
   business_date: string;

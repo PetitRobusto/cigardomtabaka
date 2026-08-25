@@ -241,6 +241,25 @@ class ActionApiContractTest(TestCase):
         self.assertEqual(Expense.objects.count(), expense_count)
         self.assertEqual(LedgerTransaction.objects.count(), ledger_count)
 
+    def test_expense_subcategory_round_trips_through_api(self):
+        self.complete_day1()
+        cny = FundAccount.objects.create(name='明细人民币账户', currency='CNY', creation_idempotency_key='action-subcategory-cny')
+        record_opening_balance(cny, Decimal('100.00'), Decimal('100.00'), LedgerPosting.Category.OPENING_CAPITAL, date(2026, 8, 10), self.operator, 'action-subcategory-opening')
+        response = self.request('post', '/api/accounting/expenses/', {
+            'category': 'other', 'subcategory': 'transport_taxi', 'amount': '25.00',
+            'fund_account_id': cny.pk, 'business_date': '2026-08-14',
+        }, key='action-subcategory-taxi')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['expense']['subcategory'], 'transport_taxi')
+
+        listing = self.client.get('/api/accounting/expenses/?month=2026-08')
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(listing.json()['expenses'][0]['category_label'], '交通 / 物流')
+        self.assertEqual(listing.json()['expenses'][0]['subcategory_label'], '交通 / 物流 · 打车')
+        self.assertEqual(listing.json()['expenses'][0]['fund_account_name'], '明细人民币账户')
+        invalid_month = self.client.get('/api/accounting/expenses/?month=2026-8')
+        self.assertEqual(invalid_month.status_code, 400)
+
     def exchange_payload(self):
         self.complete_day1()
         cny = FundAccount.objects.create(

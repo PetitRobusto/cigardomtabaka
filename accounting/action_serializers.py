@@ -98,9 +98,19 @@ def serialize_purchase_order(order):
 
 
 def serialize_expense(expense):
+    category_labels = dict(expense.Category.choices)
+    subcategory_labels = dict(expense.Subcategory.choices)
+    account = getattr(expense, 'fund_account', None)
+    subcategory_label = subcategory_labels.get(expense.subcategory, expense.subcategory)
+    category_label = subcategory_label.split(' · ', 1)[0] if ' · ' in subcategory_label else category_labels.get(expense.category, expense.category)
     return _value({
         'id': expense.pk, 'category': expense.category,
+        'category_label': category_label,
+        'subcategory': expense.subcategory,
+        'subcategory_label': subcategory_label,
         'fund_account_id': expense.fund_account_id,
+        'fund_account_name': getattr(account, 'name', ''),
+        'currency': getattr(account, 'currency', ''),
         'original_amount': expense.original_amount,
         'amount_cny': expense.amount_cny,
         'business_date': expense.business_date,

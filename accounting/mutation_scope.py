@@ -54,7 +54,7 @@ REASON_ALLOWED_FIELDS = {
         }),
     },
     "expense_post": {
-        "accounting.Expense": frozenset({"id", "status", "category", "fund_account", "original_amount", "amount_cny", "business_date", "operator", "ledger_transaction", "idempotency_key", "note"}),
+        "accounting.Expense": frozenset({"id", "status", "category", "subcategory", "fund_account", "original_amount", "amount_cny", "business_date", "operator", "ledger_transaction", "idempotency_key", "note"}),
     },
     "dividend_confirm": {
         "accounting.Dividend": frozenset({"id", "status", "ledger_transaction", "confirmed_by", "version", "confirm_idempotency_key", "confirm_request_fingerprint"}),

@@ -29,7 +29,7 @@ from accounting.purchase_actions import (
 )
 from accounting.models import (
     AccountReconciliation, Dividend, FundAccount, LedgerPosting,
-    LedgerTransaction,
+    LedgerTransaction, Expense,
 )
 from accounting.selectors import (
     accounting_dashboard, accounting_summary, monthly_profit,
@@ -788,12 +788,33 @@ def purchase_action(request, purchase_id=None, action=None):
 
 @staff_json_required
 def expense_action(request):
+    if request.method == 'GET':
+        try:
+            raw_limit = request.GET.get('limit', '100')
+            try:
+                limit = int(raw_limit)
+            except (TypeError, ValueError):
+                raise ApiInputError('limit 必须是整数')
+            if not 1 <= limit <= 500:
+                raise ApiInputError('limit 必须在1到500之间')
+            records = Expense.objects.select_related('fund_account').order_by('-business_date', '-id')
+            month = request.GET.get('month')
+            if month:
+                try:
+                    month_start = date.fromisoformat(f'{month}-01')
+                except ValueError as error:
+                    raise ApiInputError('month 必须是 YYYY-MM') from error
+                next_month = date(month_start.year + (month_start.month == 12), 1 if month_start.month == 12 else month_start.month + 1, 1)
+                records = records.filter(business_date__gte=month_start, business_date__lt=next_month)
+            return JsonResponse({'expenses': [serialize_expense(row) for row in records[:limit]]})
+        except (ApiInputError, ValueError) as error:
+            return error_response(error)
     if request.method != 'POST':
         return JsonResponse({'error': '请求方法不支持', 'code': 'method_not_allowed', 'details': {}}, status=405)
     try:
         payload = _json_object(request)
         expense = record_expense(
-            category=payload.get('category'), amount=payload.get('amount'), fund_account_id=payload.get('fund_account_id'),
+            category=payload.get('category'), subcategory=payload.get('subcategory', ''), amount=payload.get('amount'), fund_account_id=payload.get('fund_account_id'),
             business_date=_parse_iso_date(payload.get('business_date'), 'business_date'), operator=request.accounting_operator,
             idempotency_key=_idempotency_key(request), note=_optional_note(payload),
         )

@@ -84,10 +84,10 @@ export default function AccountingActionCenter({
   };
 
   const actionButtons = [
-    { id: 'exchange' as const, label: '换汇', Icon: ArrowLeftRight, count: 0 },
-    { id: 'purchase' as const, label: '采购', Icon: PackageCheck, count: actionPurchases.length },
     { id: 'expense' as const, label: '记录费用', Icon: ReceiptText, count: 0 },
+    { id: 'exchange' as const, label: '换汇', Icon: ArrowLeftRight, count: 0 },
     { id: 'dividend' as const, label: '分红', Icon: HandCoins, count: actionDividends.length },
+    { id: 'purchase' as const, label: '采购', Icon: PackageCheck, count: actionPurchases.length },
   ];
 
   const actionPanel = {

@@ -606,9 +606,58 @@ class Expense(models.Model):
         INTEREST = 'interest', '利息支出（财务费用）'
         OTHER = 'other', '其他'
 
+    class Subcategory(models.TextChoices):
+        PERSONNEL_SALARY = 'personnel_salary', '人员费用 · 工资'
+        PERSONNEL_BONUS = 'personnel_bonus', '人员费用 · 奖金 / 补贴'
+        PERSONNEL_BENEFITS = 'personnel_benefits', '人员费用 · 员工福利'
+        PERSONNEL_RECRUITING = 'personnel_recruiting', '人员费用 · 招聘 / 培训'
+        RENT = 'rent', '房租与物业 · 房租'
+        PROPERTY = 'property', '房租与物业 · 物业管理费'
+        VENUE_SERVICE = 'venue_service', '房租与物业 · 场地服务费'
+        ELECTRICITY = 'electricity', '水电与能源 · 电费'
+        WATER = 'water', '水电与能源 · 水费'
+        GAS_HEATING = 'gas_heating', '水电与能源 · 燃气 / 供暖'
+        OTHER_ENERGY = 'other_energy', '水电与能源 · 其他能源'
+        TRANSPORT_TAXI = 'transport_taxi', '交通 / 物流 · 打车'
+        TRANSPORT_PUBLIC = 'transport_public', '交通 / 物流 · 公共交通'
+        TRANSPORT_TRAVEL = 'transport_travel', '交通 / 物流 · 火车 / 飞机'
+        TRANSPORT_DELIVERY = 'transport_delivery', '交通 / 物流 · 快递 / 配送'
+        TRANSPORT_PARKING = 'transport_parking', '交通 / 物流 · 停车费 / 过路费'
+        TRANSPORT_FUEL = 'transport_fuel', '交通 / 物流 · 燃油'
+        OFFICE_SUPPLIES = 'office_supplies', '办公 / 通讯 · 办公用品'
+        OFFICE_PRINTING = 'office_printing', '办公 / 通讯 · 打印 / 复印'
+        OFFICE_PHONE = 'office_phone', '办公 / 通讯 · 电话费'
+        OFFICE_INTERNET = 'office_internet', '办公 / 通讯 · 网络费'
+        OFFICE_SOFTWARE = 'office_software', '办公 / 通讯 · 软件 / 订阅'
+        OFFICE_POSTAGE = 'office_postage', '办公 / 通讯 · 邮寄费'
+        FACILITY_EQUIPMENT = 'facility_equipment', '场地 / 设备 · 设备购买'
+        FACILITY_TOOLS = 'facility_tools', '场地 / 设备 · 小型工具'
+        FACILITY_REPAIR = 'facility_repair', '场地 / 设备 · 维修 / 保养'
+        FACILITY_CLEANING = 'facility_cleaning', '场地 / 设备 · 清洁'
+        MARKETING_ADVERTISING = 'marketing_advertising', '销售与营销 · 广告费'
+        MARKETING_PLATFORM = 'marketing_platform', '销售与营销 · 平台服务费'
+        MARKETING_CREATIVE = 'marketing_creative', '销售与营销 · 拍摄 / 设计'
+        MARKETING_GIFT = 'marketing_gift', '销售与营销 · 客户礼品'
+        MARKETING_PROMOTION = 'marketing_promotion', '销售与营销 · 促销活动'
+        PROFESSIONAL_ACCOUNTING = 'professional_accounting', '专业服务 · 会计服务'
+        PROFESSIONAL_LEGAL = 'professional_legal', '专业服务 · 法律服务'
+        PROFESSIONAL_CONSULTING = 'professional_consulting', '专业服务 · 咨询服务'
+        PROFESSIONAL_DESIGN = 'professional_design', '专业服务 · 设计服务'
+        PROFESSIONAL_TRANSLATION = 'professional_translation', '专业服务 · 翻译服务'
+        FINANCIAL_INTEREST = 'financial_interest', '财务费用 · 借款利息'
+        FINANCIAL_BANK_FEE = 'financial_bank_fee', '财务费用 · 银行手续费'
+        FINANCIAL_PAYMENT_FEE = 'financial_payment_fee', '财务费用 · 支付手续费'
+        FINANCIAL_ACCOUNT_FEE = 'financial_account_fee', '财务费用 · 账户管理费'
+        TAX = 'tax', '税费与政府费用 · 税费'
+        REGISTRATION = 'registration', '税费与政府费用 · 注册费'
+        LICENSE = 'license', '税费与政府费用 · 许可证费'
+        NOTARY = 'notary', '税费与政府费用 · 公证 / 认证费'
+        OTHER = 'other', '其他经营费用 · 其他'
+
     objects = ExpenseQuerySet.as_manager()
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.POSTED)
     category = models.CharField(max_length=20, choices=Category.choices)
+    subcategory = models.CharField(max_length=32, choices=Subcategory.choices, blank=True, default='')
     fund_account = models.ForeignKey(FundAccount, on_delete=models.PROTECT)
     original_amount = models.DecimalField(max_digits=22, decimal_places=8)
     amount_cny = models.DecimalField(max_digits=22, decimal_places=2)

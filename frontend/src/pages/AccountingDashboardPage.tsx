@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
-import { apiErrorMessage, fetchAccountingAccounts, fetchAccountingActions, fetchAccountingDashboard, fetchAccountingSummary, fetchMonthlyProfit, fetchReconciliations } from '../api';
+import { apiErrorMessage, fetchAccountingAccounts, fetchAccountingActions, fetchAccountingDashboard, fetchAccountingExpenses, fetchAccountingSummary, fetchMonthlyProfit, fetchReconciliations } from '../api';
 import { usePageMeta } from '../hooks/usePageMeta';
 import AccountingPanel from '../components/sales/AccountingPanel';
 import AccountingActionCenter, { type AccountingActionKind } from '../components/accounting/AccountingActionCenter';
+import ExpenseDetails from '../components/accounting/ExpenseDetails';
 import MonthlyProfitSummary from '../components/accounting/MonthlyProfitSummary';
 import { formatCny, formatSignedCny } from '../components/sales/salesState';
 import { dashboardDay1Action, dashboardRegionStates, dashboardStatDisplay } from './businessRoutes';
@@ -28,6 +29,7 @@ export default function AccountingDashboardPage() {
   const reconciliations = useQuery({ queryKey: ['reconciliations'], queryFn: fetchReconciliations, enabled: Boolean(dashboard.data && !dashboard.data.requires_day1) });
   // 动作列表单独查询，局部失败时不清空 dashboard 的统计快照。
   const actions = useQuery({ queryKey: ['accounting-actions'], queryFn: fetchAccountingActions, enabled: day1Completed });
+  const expenses = useQuery({ queryKey: ['accounting-expenses', month], queryFn: () => fetchAccountingExpenses(month), enabled: day1Completed });
   // 一次刷新账务快照及其关联操作数据，避免页面各区域时间点不一致。
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['accounting-dashboard'] });
@@ -37,6 +39,7 @@ export default function AccountingDashboardPage() {
     queryClient.invalidateQueries({ queryKey: ['reconciliations'] });
 
     queryClient.invalidateQueries({ queryKey: ['accounting-actions'] });
+    queryClient.invalidateQueries({ queryKey: ['accounting-expenses'] });
   };
   const data = dashboard.data;
   const regionStates = dashboardRegionStates({
@@ -70,7 +73,9 @@ export default function AccountingDashboardPage() {
       month={month} onChanged={refresh} showStats={false} showProfit={false}
       reconciliationOpen={reconciliationOpen}
             onReconciliationOpenChange={setReconciliationOpen} />
-        </div></>}</>}
+        </div>
+        <ExpenseDetails month={month} expenses={expenses.data?.expenses} loading={expenses.isLoading} error={expenses.isError ? apiErrorMessage(expenses.error, '费用明细加载失败') : undefined} />
+        </>}</>}
   </div>;
 }
 

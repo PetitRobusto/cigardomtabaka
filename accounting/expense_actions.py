@@ -57,6 +57,55 @@ def _normalise_business_date(value):
     return value
 
 
+_SUBCATEGORY_CATEGORY = {
+    Expense.Subcategory.PERSONNEL_SALARY: Expense.Category.SALARY,
+    Expense.Subcategory.PERSONNEL_BONUS: Expense.Category.SALARY,
+    Expense.Subcategory.PERSONNEL_BENEFITS: Expense.Category.SALARY,
+    Expense.Subcategory.PERSONNEL_RECRUITING: Expense.Category.SALARY,
+    Expense.Subcategory.RENT: Expense.Category.RENT,
+    Expense.Subcategory.PROPERTY: Expense.Category.RENT,
+    Expense.Subcategory.VENUE_SERVICE: Expense.Category.RENT,
+    Expense.Subcategory.ELECTRICITY: Expense.Category.UTILITIES,
+    Expense.Subcategory.WATER: Expense.Category.UTILITIES,
+    Expense.Subcategory.GAS_HEATING: Expense.Category.UTILITIES,
+    Expense.Subcategory.OTHER_ENERGY: Expense.Category.UTILITIES,
+    Expense.Subcategory.TRANSPORT_TAXI: Expense.Category.OTHER,
+    Expense.Subcategory.TRANSPORT_PUBLIC: Expense.Category.OTHER,
+    Expense.Subcategory.TRANSPORT_TRAVEL: Expense.Category.OTHER,
+    Expense.Subcategory.TRANSPORT_DELIVERY: Expense.Category.OTHER,
+    Expense.Subcategory.TRANSPORT_PARKING: Expense.Category.OTHER,
+    Expense.Subcategory.TRANSPORT_FUEL: Expense.Category.OTHER,
+    Expense.Subcategory.OFFICE_SUPPLIES: Expense.Category.OTHER,
+    Expense.Subcategory.OFFICE_PRINTING: Expense.Category.OTHER,
+    Expense.Subcategory.OFFICE_PHONE: Expense.Category.OTHER,
+    Expense.Subcategory.OFFICE_INTERNET: Expense.Category.OTHER,
+    Expense.Subcategory.OFFICE_SOFTWARE: Expense.Category.OTHER,
+    Expense.Subcategory.OFFICE_POSTAGE: Expense.Category.OTHER,
+    Expense.Subcategory.FACILITY_EQUIPMENT: Expense.Category.OTHER,
+    Expense.Subcategory.FACILITY_TOOLS: Expense.Category.OTHER,
+    Expense.Subcategory.FACILITY_REPAIR: Expense.Category.OTHER,
+    Expense.Subcategory.FACILITY_CLEANING: Expense.Category.OTHER,
+    Expense.Subcategory.MARKETING_ADVERTISING: Expense.Category.OTHER,
+    Expense.Subcategory.MARKETING_PLATFORM: Expense.Category.OTHER,
+    Expense.Subcategory.MARKETING_CREATIVE: Expense.Category.OTHER,
+    Expense.Subcategory.MARKETING_GIFT: Expense.Category.OTHER,
+    Expense.Subcategory.MARKETING_PROMOTION: Expense.Category.OTHER,
+    Expense.Subcategory.PROFESSIONAL_ACCOUNTING: Expense.Category.PROFESSIONAL,
+    Expense.Subcategory.PROFESSIONAL_LEGAL: Expense.Category.PROFESSIONAL,
+    Expense.Subcategory.PROFESSIONAL_CONSULTING: Expense.Category.PROFESSIONAL,
+    Expense.Subcategory.PROFESSIONAL_DESIGN: Expense.Category.PROFESSIONAL,
+    Expense.Subcategory.PROFESSIONAL_TRANSLATION: Expense.Category.PROFESSIONAL,
+    Expense.Subcategory.FINANCIAL_INTEREST: Expense.Category.INTEREST,
+    Expense.Subcategory.FINANCIAL_BANK_FEE: Expense.Category.INTEREST,
+    Expense.Subcategory.FINANCIAL_PAYMENT_FEE: Expense.Category.INTEREST,
+    Expense.Subcategory.FINANCIAL_ACCOUNT_FEE: Expense.Category.INTEREST,
+    Expense.Subcategory.TAX: Expense.Category.OTHER,
+    Expense.Subcategory.REGISTRATION: Expense.Category.OTHER,
+    Expense.Subcategory.LICENSE: Expense.Category.OTHER,
+    Expense.Subcategory.NOTARY: Expense.Category.OTHER,
+    Expense.Subcategory.OTHER: Expense.Category.OTHER,
+}
+
 _CATEGORY_RULES = {
     Expense.Category.SALARY: (
         {FundAccount.Currency.CNY, FundAccount.Currency.RUB}, LedgerPosting.Category.SALARY_EXPENSE,
@@ -96,13 +145,14 @@ def _normalise_amount(value):
     return amount
 
 
-def _replay(*, key, category, amount, account_id, business_date, operator_id, note):
+def _replay(*, key, category, subcategory, amount, account_id, business_date, operator_id, note):
     existing = Expense.objects.select_for_update().filter(
         idempotency_key=key,
     ).first()
     if existing is not None:
         if (
             existing.category != category
+            or existing.subcategory != subcategory
             or existing.original_amount != amount
             or existing.fund_account_id != account_id
             or existing.business_date != business_date
@@ -160,6 +210,16 @@ def _validate_replay_fact(expense, *, key):
         raise ExpenseActionError('idempotency_conflict')
 
 
+def _normalise_subcategory(value, category):
+    if value in (None, ''):
+        return ''
+    if not isinstance(value, str) or value not in _SUBCATEGORY_CATEGORY:
+        raise ExpenseActionError('invalid_subcategory')
+    if _SUBCATEGORY_CATEGORY[value] != category:
+        raise ExpenseActionError('category_subcategory_mismatch')
+    return value
+
+
 def require_day1_completed():
     try:
         require_day1()
@@ -169,7 +229,7 @@ def require_day1_completed():
 
 @_retry_sqlite_locked
 def record_expense(*, category, amount, fund_account_id, business_date,
-                   operator, idempotency_key, note=''):
+                   operator, idempotency_key, note='', subcategory=''):
     """记录经营费用；不是换汇，也不挪用销售人肉费路径。"""
     with transaction.atomic():
         _acquire_sqlite_writer_gate()
@@ -178,12 +238,14 @@ def record_expense(*, category, amount, fund_account_id, business_date,
         except KeyError:
             raise ExpenseActionError('invalid_category')
         key = _normalise_key(idempotency_key)
+        subcategory = _normalise_subcategory(subcategory, category)
         account_id = _normalise_account_id(fund_account_id)
         business_date = _normalise_business_date(business_date)
         amount = _normalise_amount(amount)
         replay = _replay(
             key=key,
             category=category,
+            subcategory=subcategory,
             amount=amount,
             account_id=account_id,
             business_date=business_date,
@@ -241,6 +303,7 @@ def record_expense(*, category, amount, fund_account_id, business_date,
         )
         expense = Expense(
             category=category,
+            subcategory=subcategory,
             fund_account=account,
             original_amount=amount,
             amount_cny=cny_cost,

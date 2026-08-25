@@ -14,6 +14,12 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django...tion')
 
 DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('true', '1', 'yes')
 
+# 客户收款链接对外访问地址；环境变量优先，未配置时按开发/生产环境取默认值。
+_configured_privnote_base_url = os.getenv('PRIVNOTE_BASE_URL', '').strip().rstrip('/')
+PRIVNOTE_BASE_URL = _configured_privnote_base_url or (
+    'http://192.168.0.97:8000' if DEBUG else 'https://cigardomtabaka.com'
+)
+
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [

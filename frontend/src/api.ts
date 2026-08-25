@@ -9,7 +9,7 @@ import type {
   AccountingSummary, AccountingDashboard, Reconciliation,
   Day1State,
 } from './types';
-import { writeWithIdempotency } from './api/idempotency';
+import { writeWithIdempotency, acquireIdempotencyKey, releaseIdempotencyKey } from './api/idempotency';
 
 import type { AccountingActionsResponse, InventoryPurchaseDirectory, PurchaseAction, PurchaseActionCreatePayload, PurchaseActionUpdatePayload, PurchasePayPayload, PurchaseReceivePayload, PurchaseCancelPayload, PurchaseSupplier, ExpenseActionPayload, AccountingExpensesResponse, DividendAction, DividendPreview, DividendCreatePayload, DividendUpdatePayload, DividendConfirmPayload, AccountingApiError } from './types';
 function getCSRFToken(): string {
@@ -412,6 +412,27 @@ export const searchCigars = (q: string, stockOnly = false): Promise<SearchCigarR
   })
     .then(r => { if (!r.ok) throw new Error('雪茄搜索失败'); return r.json(); })
     .then(d => Array.isArray(d?.results) ? d.results : []);
+
+export const fetchManagedPaymentMethods = (): Promise<PaymentMethod[]> =>
+  fetch('/privnote/api/payment-methods/?include_inactive=1', { credentials: 'same-origin', headers: { 'X-CSRFToken': getCSRFToken() } })
+    .then(async response => { const data = await response.json(); if (!response.ok) throw new Error(privnoteErrorMessage(data) || '收款方式加载失败'); return Array.isArray(data?.methods) ? data.methods : []; });
+
+async function paymentMethodWrite(path: string, method: 'POST', scope: string, payload: unknown, body?: BodyInit): Promise<PaymentMethod> {
+  const key = acquireIdempotencyKey(scope, payload);
+  const response = await fetch(path, { method, body, credentials: 'same-origin', headers: { 'X-CSRFToken': getCSRFToken(), 'Idempotency-Key': key } });
+  const data = await response.json().catch(() => ({}));
+  if (response.ok) { releaseIdempotencyKey(scope, payload); return data.payment_method as PaymentMethod; }
+  if (response.status < 500) releaseIdempotencyKey(scope, payload);
+  throw new Error(privnoteErrorMessage(data) || '收款方式操作失败');
+}
+
+export const createPaymentMethod = (form: FormData): Promise<PaymentMethod> => {
+  const payload = Object.fromEntries(Array.from(form.entries()).filter(([key]) => key !== 'qr_image').map(([key, value]) => [key, String(value)]));
+  return paymentMethodWrite('/privnote/api/payment-methods/', 'POST', 'create-payment-method', payload, form);
+};
+
+export const setPaymentMethodActive = (id: number, active: boolean): Promise<PaymentMethod> =>
+  paymentMethodWrite('/privnote/api/payment-methods/' + id + '/' + (active ? 'activate' : 'deactivate') + '/', 'POST', (active ? 'activate' : 'deactivate') + '-payment-method-' + id, { id, active }, new URLSearchParams());
 
 export const fetchPaymentMethods = (): Promise<PaymentMethod[]> =>
   fetch('/privnote/api/payment-methods/', {

@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
 import json
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
@@ -162,10 +163,11 @@ def _serialize_payment_notes(order):
             SalesOrder.FulfillmentStatus.SHIPPED,
         )
     )
+    base_url = getattr(settings, 'PRIVNOTE_BASE_URL', '').strip().rstrip('/')
     return [{
         'id': note.id,
         'token': note.token,
-        'url': f'/p/{note.token}/',
+        'url': f'{base_url}/p/{note.token}/' if base_url else f'/p/{note.token}/',
         'created_at': note.created_at.isoformat(),
         'expires_at': note.expires_at.isoformat(),
         'view_count': note.view_count,
@@ -292,9 +294,10 @@ def _sales_order_available_actions(order):
     if order.fulfillment_status == SalesOrder.FulfillmentStatus.DRAFT:
         actions.extend(['confirm', 'cancel'])
     if order.fulfillment_status == SalesOrder.FulfillmentStatus.CONFIRMED:
-        actions.extend(['ship', 'cancel'])
+        actions.append('ship')
         if order.payment_status == SalesOrder.PaymentStatus.UNPAID:
             actions.append('receive')
+        actions.append('cancel')
     if order.fulfillment_status == SalesOrder.FulfillmentStatus.SHIPPED:
         actions.append('return')
         if order.payment_status == SalesOrder.PaymentStatus.UNPAID:

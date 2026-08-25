@@ -328,13 +328,18 @@ export interface PrivnoteResponse {
 export interface PaymentMethod {
   id: number;
   method_type: 'bank_card' | 'wechat' | 'alipay';
-  label: string;
+  label?: string;
   bank_name?: string;
   card_number?: string;
   card_holder?: string;
+  account?: string;
   qr_url?: string | null;
   remark?: string;
   fund_account_id?: number;
+  fund_account_name?: string | null;
+  is_active?: boolean;
+  sort_order?: number;
+  created_at?: string | null;
 }
 
 export interface SearchCigarResult {

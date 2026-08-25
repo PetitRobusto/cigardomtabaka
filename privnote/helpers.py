@@ -81,20 +81,24 @@ def split_search_terms(q):
 
 # ── PaymentMethod 序列化 ──
 
-def serialize_payment_method(pm, *, include_fund_account=False):
+def serialize_payment_method(pm, *, include_fund_account=False, include_management=False, include_label=True):
     """将 PaymentMethod 序列化；资金账户 ID 仅供 staff 配置接口使用。"""
     data = {
         'id': pm.id,
         'method_type': pm.method_type,
-        'label': pm.label,
         'bank_name': pm.bank_name,
         'card_number': pm.card_number,
         'card_holder': pm.card_holder,
+        'account': pm.account,
         'qr_url': pm.qr_image.url if pm.qr_image else None,
         'remark': pm.remark,
     }
+    if include_label:
+        data['label'] = pm.label
     if include_fund_account:
         data['fund_account_id'] = pm.fund_account_id
+    if include_management:
+        data.update({'is_active': pm.is_active, 'sort_order': pm.sort_order, 'created_at': pm.created_at.isoformat() if pm.created_at else None, 'fund_account_name': pm.fund_account.name if pm.fund_account_id and getattr(pm, 'fund_account', None) else None})
     return data
 
 

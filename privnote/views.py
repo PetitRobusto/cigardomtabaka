@@ -32,6 +32,7 @@ from .services import (
     build_quote_data,
 )
 from .services.payment import PaymentValidationError
+from .services.payment_methods import PaymentMethodActionError, create_payment_method, set_payment_method_active
 
 
 # ── 常量 ──
@@ -40,6 +41,10 @@ NOTE_TYPE_BACKWARD_COMPAT = {
     'catalog': 'inventory',
     'sales': 'payment',
 }
+
+def _privnote_public_url(request, token):
+    base_url = getattr(settings, 'PRIVNOTE_BASE_URL', '').strip().rstrip('/')
+    return f'{base_url}/p/{token}/' if base_url else request.build_absolute_uri(f'/p/{token}/')
 
 
 def _request_operator(request):
@@ -124,7 +129,7 @@ def create(request):
                 'payment_note': {
                     'id': active_note.id,
                     'token': active_note.token,
-                    'url': request.build_absolute_uri(f'/p/{active_note.token}/'),
+                    'url': _privnote_public_url(request, active_note.token),
                     'expires_at': active_note.expires_at.isoformat(),
                 },
             }, status=409)
@@ -148,6 +153,7 @@ def create(request):
         # 也不进入新收款单快照；金额只来自销售单正式应收字段。
         data = {
             'payment_method_id': payment_method.id,
+            'payment_method_snapshot': serialize_payment_method(payment_method),
             'remark': remark,
             'images': images,
         }
@@ -224,7 +230,7 @@ def create(request):
         note.set_password(password)
     note.save()
 
-    url = request.build_absolute_uri(f'/p/{note.token}/')
+    url = _privnote_public_url(request, note.token)
     return JsonResponse({
         'url': url,
         'token': note.token,
@@ -329,14 +335,38 @@ def list_quote_products(request):
 
 @staff_required
 def list_payment_methods(request):
-    """GET /privnote/api/payment-methods/"""
-    methods = PaymentMethod.objects.filter(
-        is_active=True,
-        fund_account__is_active=True,
-        fund_account__currency=FundAccount.Currency.CNY,
-    ).select_related('fund_account').order_by('sort_order')
-    data = [serialize_payment_method(m, include_fund_account=True) for m in methods]
-    return JsonResponse({'methods': data})
+    """列出全部收款方式，或创建一个立即启用的不可变配置。"""
+    if request.method == 'GET':
+        methods = PaymentMethod.objects.select_related('fund_account')
+        management = request.GET.get('include_inactive') == '1'
+        if management:
+            methods = methods.order_by('-is_active', 'sort_order', '-created_at')
+        else:
+            methods = methods.filter(
+                is_active=True, fund_account__is_active=True,
+                fund_account__currency=FundAccount.Currency.CNY,
+            ).order_by('sort_order', '-created_at')
+        data = [serialize_payment_method(m, include_fund_account=True, include_management=management) for m in methods]
+        return JsonResponse({'methods': data})
+    if request.method != 'POST':
+        return JsonResponse({'error': '不支持的请求方法'}, status=405)
+    try:
+        payload = {key: request.POST.get(key, '') for key in ('method_type', 'label', 'bank_name', 'card_number', 'card_holder', 'account', 'remark', 'sort_order', 'fund_account_id')}
+        result = create_payment_method(request=request, payload=payload, uploaded_file=request.FILES.get('qr_image'))
+        return JsonResponse(result, status=201)
+    except PaymentMethodActionError as exc:
+        return JsonResponse({'error': str(exc), 'details': exc.details}, status=exc.status)
+
+
+@staff_required
+def payment_method_action(request, method_id, action):
+    if request.method != 'POST' or action not in ('activate', 'deactivate'):
+        return JsonResponse({'error': '不支持的请求方法或操作'}, status=405)
+    try:
+        result = set_payment_method_active(request=request, method_id=method_id, active=action == 'activate')
+        return JsonResponse(result)
+    except PaymentMethodActionError as exc:
+        return JsonResponse({'error': str(exc), 'details': exc.details}, status=exc.status)
 
 
 @staff_required
@@ -497,7 +527,8 @@ def api_privnote(request, token):
                 legacy_methods = cfg.get('payment_methods') if isinstance(cfg, dict) else None
                 if isinstance(legacy_methods, list):
                     data['payment_methods'] = [
-                        method for method in legacy_methods
+                        {key: value for key, value in method.items() if key not in ('label', 'fund_account_id', 'fund_account_name', 'is_active', 'sort_order', 'created_at')}
+                        for method in legacy_methods
                         if isinstance(method, dict) and 'fund_account_id' not in method
                     ]
                 elif note.sales_order.payment_manual:
@@ -505,7 +536,6 @@ def api_privnote(request, token):
                     if any(manual.get(key) for key in ('bank_name', 'card_number', 'card_holder')):
                         data['payment_methods'] = [{
                             'method_type': 'bank_card',
-                            'label': '手动填写',
                             'bank_name': manual.get('bank_name', ''),
                             'card_number': manual.get('card_number', ''),
                             'card_holder': manual.get('card_holder', ''),
@@ -519,12 +549,11 @@ def api_privnote(request, token):
                     if not data.get('images'):
                         data['images'] = manual.get('images') if isinstance(manual.get('images'), list) else []
             else:
-                payment_method = PaymentMethod.objects.filter(
-                    pk=cfg.get('payment_method_id'),
-                    is_active=True,
-                    fund_account__is_active=True,
-                    fund_account__currency=FundAccount.Currency.CNY,
-                ).select_related('fund_account').first()
+                snapshot = cfg.get('payment_method_snapshot')
+                payment_method = None
+                if not isinstance(snapshot, dict):
+                    # 兼容上线前只保存 payment_method_id 的旧链接；停用不应让旧链接失去收款信息。
+                    payment_method = PaymentMethod.objects.filter(pk=cfg.get('payment_method_id')).first()
                 data = build_payment_data(
                     note.sales_order,
                     payment_method=payment_method,
@@ -534,6 +563,11 @@ def api_privnote(request, token):
                     # 历史 note 若有快照则继续按快照兼容展示。
                     extra_fees=cfg.get('extra_fees'),
                 )
+                if isinstance(snapshot, dict):
+                    data['payment_methods'] = [{
+                        key: value for key, value in snapshot.items()
+                        if key not in ('label', 'fund_account_id', 'fund_account_name', 'is_active', 'sort_order', 'created_at')
+                    }]
         elif note.note_type == 'quote':
             cfg = note.data_json or {}
             data = build_quote_data(

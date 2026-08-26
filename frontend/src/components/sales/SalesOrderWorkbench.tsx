@@ -30,6 +30,8 @@ import {
 import {
   salesFundAccountError,
   salesOrderActionBusinessDate,
+  salesOrderFinancialView,
+  salesOrderItemCostView,
   selectActiveCnyAccountId,
 } from "./SalesOrderCard.logic";
 import { formatShanghaiDateTime } from "../../utils/businessDate";
@@ -159,7 +161,7 @@ export default function SalesOrderWorkbench({
               <p className="text-2xl">→</p>
               <p className="mt-2 font-semibold text-fg">请选择一笔订单</p>
               <p className="mt-1">
-                查看订单、客户、FIFO、业务事实与当前可用动作。
+                查看订单、客户、商品成本、业务事实与当前可用动作。
               </p>
             </div>
           </div>
@@ -249,6 +251,7 @@ function Overview({
   order: SalesOrder;
   onCustomer: (id: number) => void;
 }) {
+  const financial = salesOrderFinancialView(order);
   return (
     <div className="space-y-5">
       <div>
@@ -290,8 +293,8 @@ function Overview({
           <Info label="付款状态" value={statusLabel(order.payment_status)} />
           <Info label="应收金额" value={formatCny(order.amount_due_cny)} />
           <Info
-            label="订单贡献利润"
-            value={formatCny(order.contribution_profit)}
+            label={financial.profitLabel}
+            value={financial.contributionProfit === null ? "—" : formatCny(financial.contributionProfit)}
           />
           <Info label="备注" value={order.note || "—"} />
           <Info
@@ -313,12 +316,15 @@ function Items({ order }: { order: SalesOrder }) {
             <th className="px-3 py-2 text-left">品牌 / 商品</th>
             <th className="px-3 py-2 text-right">数量</th>
             <th className="px-3 py-2 text-right">单价</th>
-            <th className="px-3 py-2 text-left">FIFO 批次</th>
+            <th className="px-3 py-2 text-left">库存批次</th>
             <th className="px-3 py-2 text-right">成本</th>
           </tr>
         </thead>
         <tbody>
           {order.items.map((item) => (
+            (() => {
+              const cost = salesOrderItemCostView(order, item);
+              return (
             <tr key={item.id} className="border-t border-border">
               <td className="px-3 py-3">
                 <span className="block text-[10px] font-bold uppercase tracking-wide text-muted">
@@ -336,15 +342,21 @@ function Items({ order }: { order: SalesOrder }) {
               <td className="px-3 py-3 text-muted">
                 {item.allocations
                   .map(
-                    (allocation) =>
-                      `#${allocation.batch_id} × ${allocation.quantity}`,
+                    (allocation) => {
+                      const status = allocation.status === "reserved" ? "预留" : allocation.status === "fulfilled" ? "已出库" : allocation.status === "returned" ? "已退回" : "已释放";
+                      const amount = allocation.cost_cny != null && allocation.status !== "released" ? ` · ${formatCny(allocation.cost_cny)}` : "";
+                      return `#${allocation.batch_id} × ${allocation.quantity}（${status}${amount}）`;
+                    },
                   )
                   .join("，") || "确认订单后分配"}
               </td>
               <td className="px-3 py-3 text-right font-mono">
-                {formatCny(item.cost)}
+                <span className="block">{cost.totalCost === null ? "—" : formatCny(cost.totalCost)}</span>
+                <span className="block text-[10px] text-muted">{cost.label}{cost.unitCost === null ? "" : ` · ${formatCny(cost.unitCost)}/支`}</span>
               </td>
             </tr>
+              );
+            })()
           ))}
         </tbody>
       </table>
@@ -620,21 +632,29 @@ function ReceiptPanel({
   );
 }
 function Amounts({ order }: { order: SalesOrder }) {
+  const financial = salesOrderFinancialView(order);
+  const transportRecorded = Boolean(order.sales_transport_cost);
+  const transportLabel = transportRecorded
+    ? "实际人肉成本"
+    : order.fulfillment_status === "shipped"
+      ? "实际人肉成本（待记录）"
+      : "实际人肉成本（履约后记录）";
   return (
     <div className="space-y-3 rounded border border-border p-4 text-sm">
       <Money label="商品金额" value={order.goods_amount_cny} />
       <Money label="客户承担人肉费" value={order.customer_transport_fee_cny} />
       <Money label="应收合计" value={order.amount_due_cny} strong />
       <div className="border-t border-border pt-3">
-        <Money label="FIFO 成本" value={order.fifo_cost} />
+        <Money label={financial.costLabel} value={financial.totalCost} />
       </div>
-      <Money label="实际人肉成本" value={order.actual_transport_cost_cny} />
+      <Money label={transportLabel} value={transportRecorded ? order.actual_transport_cost_cny : null} />
       <Money
-        label="订单贡献利润"
-        value={order.contribution_profit}
+        label={financial.profitLabel}
+        value={financial.contributionProfit}
         strong
-        tone={Number(order.contribution_profit) >= 0 ? "green" : "red"}
+        tone={financial.contributionProfit === null ? undefined : financial.contributionProfit >= 0 ? "green" : "red"}
       />
+      <p className="border-t border-border pt-3 text-xs leading-relaxed text-muted">{financial.note}</p>
     </div>
   );
 }
@@ -1051,7 +1071,7 @@ function Money({
   tone,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   strong?: boolean;
   tone?: "green" | "red";
 }) {
@@ -1063,7 +1083,7 @@ function Money({
       <span
         className={`font-mono ${tone === "green" ? "text-success" : tone === "red" ? "text-red-700" : ""}`}
       >
-        {formatCny(value)}
+        {value === null ? "—" : formatCny(value)}
       </span>
     </div>
   );

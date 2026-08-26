@@ -7,7 +7,8 @@ import SalesOrderForm from '../components/sales/SalesOrderForm';
 import SalesOrderWorkbench from '../components/sales/SalesOrderWorkbench';
 import SalesCustomerModal from '../components/sales/SalesCustomerModal';
 import SalesSectionNav from '../components/sales/SalesSectionNav';
-import { activeSalesAmount, activeSalesProfit, formatCny, summarizeSalesOrders } from '../components/sales/salesState';
+import { activeSalesAmount, formatCny, summarizeSalesOrders } from '../components/sales/salesState';
+import { salesOrderFinancialView } from '../components/sales/SalesOrderCard.logic';
 import { shanghaiBusinessDate, shiftIsoDate } from '../utils/businessDate';
 
 type QuickDate = 'all' | 'today' | 'week' | 'month' | 'custom';
@@ -44,7 +45,7 @@ export default function SalesPage() {
   const orders = useMemo(() => ordersQuery.data || [], [ordersQuery.data]);
   const summary = summarizeSalesOrders(orders);
   const totalDue = activeSalesAmount(orders);
-  const totalProfit = activeSalesProfit(orders);
+  const totalProfit = orders.reduce((total, order) => total + (salesOrderFinancialView(order).contributionProfit ?? 0), 0);
 
   const visibleSelectedId = selectedId && orders.some(order => order.id === selectedId) ? selectedId : null;
 
@@ -85,9 +86,9 @@ export default function SalesPage() {
 
   return <div className="w-full animate-fade-in">
     <SalesSectionNav />
-    <header className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Master-detail bench</p><h1 className="mt-1 font-display text-3xl font-semibold sm:text-4xl">销售订单工作台</h1><p className="mt-2 text-sm text-muted">订单、客户、FIFO 与收付款事实在同一主从工作台中推进。</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => setCustomerModal({ mode: 'create', id: null })} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><UserPlus className="h-4 w-4" />新建客户</button><button type="button" onClick={() => { setCreateOpen(true); setFormError(''); }} className="inline-flex items-center gap-1 rounded bg-accent px-3 py-2 text-sm font-semibold text-white hover:bg-accent-hover"><Plus className="h-4 w-4" />新建销售单</button><button type="button" onClick={invalidateSales} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
+    <header className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Master-detail bench</p><h1 className="mt-1 font-display text-3xl font-semibold sm:text-4xl">销售订单工作台</h1><p className="mt-2 text-sm text-muted">订单、客户、商品成本与收付款事实在同一主从工作台中推进。</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => setCustomerModal({ mode: 'create', id: null })} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><UserPlus className="h-4 w-4" />新建客户</button><button type="button" onClick={() => { setCreateOpen(true); setFormError(''); }} className="inline-flex items-center gap-1 rounded bg-accent px-3 py-2 text-sm font-semibold text-white hover:bg-accent-hover"><Plus className="h-4 w-4" />新建销售单</button><button type="button" onClick={invalidateSales} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
 
-    <section className="mb-4 grid grid-cols-2 overflow-hidden rounded-md border border-border bg-white shadow-sm lg:grid-cols-4"><SummaryCell label="订单数" value={String(orders.length)} hint="当前筛选范围" /><SummaryCell label="应收合计" value={formatCny(totalDue)} hint="商品与客户承担费用" /><SummaryCell label="待收金额" value={formatCny(summary.unpaid.amount)} hint={String(summary.unpaid.count) + ' 笔未核销'} /><SummaryCell label="预计贡献利润" value={formatCny(totalProfit)} hint="FIFO 成本口径" /></section>
+    <section className="mb-4 grid grid-cols-2 overflow-hidden rounded-md border border-border bg-white shadow-sm lg:grid-cols-4"><SummaryCell label="订单数" value={String(orders.length)} hint="当前筛选范围" /><SummaryCell label="应收合计" value={formatCny(totalDue)} hint="商品与客户承担费用" /><SummaryCell label="待收金额" value={formatCny(summary.unpaid.amount)} hint={String(summary.unpaid.count) + ' 笔未核销'} /><SummaryCell label="预计贡献利润" value={formatCny(totalProfit)} hint="按商品成本估算" /></section>
 
     <section className="mb-4 rounded-md border border-border bg-white p-3 shadow-sm">
       <div className="flex flex-wrap items-end gap-2">

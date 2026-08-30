@@ -99,6 +99,7 @@ _SUBCATEGORY_CATEGORY = {
     Expense.Subcategory.FINANCIAL_BANK_FEE: Expense.Category.INTEREST,
     Expense.Subcategory.FINANCIAL_PAYMENT_FEE: Expense.Category.INTEREST,
     Expense.Subcategory.FINANCIAL_ACCOUNT_FEE: Expense.Category.INTEREST,
+    Expense.Subcategory.TRANSPORT_HUMAN: Expense.Category.TRANSPORT,
     Expense.Subcategory.TAX: Expense.Category.OTHER,
     Expense.Subcategory.REGISTRATION: Expense.Category.OTHER,
     Expense.Subcategory.LICENSE: Expense.Category.OTHER,
@@ -121,6 +122,9 @@ _CATEGORY_RULES = {
     ),
     Expense.Category.INTEREST: (
         {FundAccount.Currency.CNY, FundAccount.Currency.RUB}, LedgerPosting.Category.INTEREST_EXPENSE,
+    ),
+    Expense.Category.TRANSPORT: (
+        {FundAccount.Currency.CNY, FundAccount.Currency.RUB}, LedgerPosting.Category.TRANSPORT_SETTLEMENT_EXPENSE,
     ),
     Expense.Category.OTHER: (
         {FundAccount.Currency.CNY, FundAccount.Currency.RUB}, LedgerPosting.Category.OTHER_EXPENSE,

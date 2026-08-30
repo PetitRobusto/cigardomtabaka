@@ -466,6 +466,29 @@ class ExpenseActionTest(TestCase):
                     ),
                 )
 
+    def test_transport_human_expense_posts_separate_transport_settlement(self):
+        from accounting.expense_actions import record_expense
+
+        expense = record_expense(
+            category=Expense.Category.TRANSPORT,
+            subcategory=Expense.Subcategory.TRANSPORT_HUMAN,
+            amount='120.00',
+            fund_account_id=self.cny.pk,
+            business_date=self.business_date,
+            operator=self.operator,
+            idempotency_key='expense-transport-human-1',
+        )
+
+        self.assertEqual(expense.subcategory, Expense.Subcategory.TRANSPORT_HUMAN)
+        self.assertEqual(
+            expense.ledger_transaction.postings.get(account__isnull=True).category,
+            LedgerPosting.Category.TRANSPORT_SETTLEMENT_EXPENSE,
+        )
+        self.assertEqual(
+            monthly_profit(month=self.business_date)['transport_settlement_expense_cny'],
+            Decimal('120.00'),
+        )
+
     def test_rub_historical_backfill_requires_replay(self):
         from accounting.expense_actions import ExpenseActionError, record_expense
 

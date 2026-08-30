@@ -441,6 +441,7 @@ class LedgerPosting(models.Model):
         CUSTOMER_TRANSPORT_REVENUE = 'customer_transport_revenue', '客户人肉费收入'
         COST_OF_GOODS_SOLD = 'cost_of_goods_sold', '销售成本'
         TRANSPORT_EXPENSE = 'transport_expense', '人肉费用'
+        TRANSPORT_SETTLEMENT_EXPENSE = 'transport_settlement_expense', '运输结算费用'
         PURCHASE_IN_TRANSIT = 'purchase_in_transit', '在途采购'
         SALARY_EXPENSE = 'salary_expense', '工资费用'
         RENT_EXPENSE = 'rent_expense', '房租费用'
@@ -604,6 +605,7 @@ class Expense(models.Model):
         UTILITIES = 'utilities', '水电'
         PROFESSIONAL = 'professional', '会计（专业服务）'
         INTEREST = 'interest', '利息支出（财务费用）'
+        TRANSPORT = 'transport', '运输'
         OTHER = 'other', '其他'
 
     class Subcategory(models.TextChoices):
@@ -624,6 +626,7 @@ class Expense(models.Model):
         TRANSPORT_DELIVERY = 'transport_delivery', '交通 / 物流 · 快递 / 配送'
         TRANSPORT_PARKING = 'transport_parking', '交通 / 物流 · 停车费 / 过路费'
         TRANSPORT_FUEL = 'transport_fuel', '交通 / 物流 · 燃油'
+        TRANSPORT_HUMAN = 'transport_human', '交通 / 物流 · 人肉费（雪茄运输）'
         OFFICE_SUPPLIES = 'office_supplies', '办公 / 通讯 · 办公用品'
         OFFICE_PRINTING = 'office_printing', '办公 / 通讯 · 打印 / 复印'
         OFFICE_PHONE = 'office_phone', '办公 / 通讯 · 电话费'

@@ -4,7 +4,7 @@ import type { AccountingApiError, ExpenseActionPayload, ExpenseSubcategory, Fund
 import type { ActionState } from '../../features/accounting/actionState';
 import { moscowBusinessDate } from '../../utils/businessDate';
 
-export type ExpenseCategory = 'salary' | 'rent' | 'utilities' | 'professional' | 'interest' | 'other' | 'salary_expense';
+export type ExpenseCategory = 'salary' | 'rent' | 'utilities' | 'professional' | 'interest' | 'transport' | 'other' | 'salary_expense';
 export type ExpenseGroup = 'personnel' | 'rent' | 'utilities' | 'transport' | 'office' | 'facility' | 'marketing' | 'professional' | 'financial' | 'tax' | 'other';
 export interface ExpenseActionValue {
   amount: string;
@@ -29,6 +29,7 @@ const EXPENSE_GROUP_OPTIONS: ExpenseGroupOption[] = [
     { value: 'electricity', label: '电费' }, { value: 'water', label: '水费' }, { value: 'gas_heating', label: '燃气 / 供暖' }, { value: 'other_energy', label: '其他能源' },
   ] },
   { value: 'transport', category: 'other', label: '交通 / 物流', options: [
+    { value: 'transport_human', label: '人肉费（雪茄运输）' },
     { value: 'transport_taxi', label: '打车' }, { value: 'transport_public', label: '公共交通' }, { value: 'transport_travel', label: '火车 / 飞机' },
     { value: 'transport_delivery', label: '快递 / 配送' }, { value: 'transport_parking', label: '停车费 / 过路费' }, { value: 'transport_fuel', label: '燃油' },
   ] },
@@ -71,7 +72,8 @@ interface ExpenseActionProps {
 const today = () => moscowBusinessDate();
 const normaliseCategory = (category?: ExpenseCategory): Exclude<ExpenseCategory, 'salary_expense'> => category === 'salary_expense' ? 'salary' : (category || 'salary');
 const groupFor = (category: Exclude<ExpenseCategory, 'salary_expense'>, subcategory?: ExpenseSubcategory): ExpenseGroupOption =>
-  EXPENSE_GROUP_OPTIONS.find(group => group.category === category && (!subcategory || group.options.some(option => option.value === subcategory)))
+  EXPENSE_GROUP_OPTIONS.find(group => group.value === 'transport' && (category === 'transport' || subcategory === 'transport_human'))
+  || EXPENSE_GROUP_OPTIONS.find(group => group.category === category && (!subcategory || group.options.some(option => option.value === subcategory)))
   || EXPENSE_GROUP_OPTIONS.find(group => group.category === category)
   || EXPENSE_GROUP_OPTIONS[0];
 
@@ -100,11 +102,12 @@ export default function ExpenseAction({ accounts, businessDate = today(), catego
   const updateGroup = (nextGroup: ExpenseGroup) => {
     const option = EXPENSE_GROUP_OPTIONS.find(group => group.value === nextGroup) || EXPENSE_GROUP_OPTIONS[0];
     const nextSubcategory = option.options[0].value;
-    setLocalGroup(nextGroup); setLocalCategory(option.category); setLocalSubcategory(nextSubcategory);
-    onChange?.({ category: option.category, subcategory: nextSubcategory, fund_account_id: '' });
+    const nextCategory = nextSubcategory === 'transport_human' ? 'transport' : option.category;
+    setLocalGroup(nextGroup); setLocalCategory(nextCategory); setLocalSubcategory(nextSubcategory);
+    onChange?.({ category: nextCategory, subcategory: nextSubcategory, fund_account_id: '' });
     if (!value) setLocalValue(currentValue => ({ ...currentValue, subcategory: nextSubcategory, fund_account_id: '' }));
   };
-  const updateSubcategory = (next: ExpenseSubcategory) => { setLocalSubcategory(next); onChange?.({ subcategory: next }); if (!value) setLocalValue(currentValue => ({ ...currentValue, subcategory: next })); };
+  const updateSubcategory = (next: ExpenseSubcategory) => { const nextCategory = next === 'transport_human' ? 'transport' : currentGroup.category; setLocalSubcategory(next); setLocalCategory(nextCategory); onChange?.({ category: nextCategory, subcategory: next }); if (!value) setLocalValue(currentValue => ({ ...currentValue, subcategory: next })); };
   const updateCurrency = (next: 'CNY' | 'RUB') => { setLocalCurrency(next); onChange?.({ fund_account_id: '' }); if (!value) setLocalValue(currentValue => ({ ...currentValue, fund_account_id: '' })); };
   const setActionState = (next: ActionState) => { if (!state) setLocalState(next); };
 

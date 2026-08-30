@@ -27,7 +27,7 @@ export default function MonthlyProfitSummary({ profit, profitError, month }: Mon
       + absoluteAmount(profit.other_expense_cny)
     : 0;
   const transportNet = profit
-    ? absoluteAmount(profit.customer_transport_revenue_cny) - absoluteAmount(profit.transport_expense_cny)
+    ? absoluteAmount(profit.customer_transport_revenue_cny) - absoluteAmount(profit.transport_expense_cny) - absoluteAmount(profit.transport_settlement_expense_cny)
     : 0;
 
   return (

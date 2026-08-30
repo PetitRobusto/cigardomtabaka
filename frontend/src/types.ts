@@ -674,6 +674,7 @@ export interface MonthlyProfitReport {
   customer_transport_revenue_cny: string;
   cost_of_goods_sold_cny: string;
   transport_expense_cny: string;
+  transport_settlement_expense_cny?: string;
   salary_expense_cny: string;
   rent_expense_cny: string;
   utilities_expense_cny: string;
@@ -953,7 +954,7 @@ export type ExpenseSubcategory =
   | 'personnel_salary' | 'personnel_bonus' | 'personnel_benefits' | 'personnel_recruiting'
   | 'rent' | 'property' | 'venue_service'
   | 'electricity' | 'water' | 'gas_heating' | 'other_energy'
-  | 'transport_taxi' | 'transport_public' | 'transport_travel' | 'transport_delivery' | 'transport_parking' | 'transport_fuel'
+  | 'transport_taxi' | 'transport_public' | 'transport_travel' | 'transport_delivery' | 'transport_parking' | 'transport_fuel' | 'transport_human'
   | 'office_supplies' | 'office_printing' | 'office_phone' | 'office_internet' | 'office_software' | 'office_postage'
   | 'facility_equipment' | 'facility_tools' | 'facility_repair' | 'facility_cleaning'
   | 'marketing_advertising' | 'marketing_platform' | 'marketing_creative' | 'marketing_gift' | 'marketing_promotion'
@@ -962,7 +963,7 @@ export type ExpenseSubcategory =
   | 'tax' | 'registration' | 'license' | 'notary' | 'other';
 
 export interface ExpenseActionPayload {
-  category: 'salary' | 'rent' | 'utilities' | 'professional' | 'interest' | 'other';
+  category: 'salary' | 'rent' | 'utilities' | 'professional' | 'interest' | 'transport' | 'other';
   subcategory?: ExpenseSubcategory;
   amount: string;
   fund_account_id: number;

@@ -80,6 +80,11 @@ def _operating_profit_facts(*, start=None, end=None):
         start=start, end=end,
         transaction_type=LedgerTransaction.TransactionType.SALES_TRANSPORT_COST,
     )
+    transport_settlement_expense = _sum_category(
+        LedgerPosting.Category.TRANSPORT_SETTLEMENT_EXPENSE,
+        start=start, end=end,
+        transaction_type=LedgerTransaction.TransactionType.EXPENSE,
+    )
     expenses = {
         'salary_expense_cny': _sum_category(LedgerPosting.Category.SALARY_EXPENSE, start=start, end=end),
         'rent_expense_cny': _sum_category(LedgerPosting.Category.RENT_EXPENSE, start=start, end=end),
@@ -95,6 +100,7 @@ def _operating_profit_facts(*, start=None, end=None):
     net_profit = (
         -revenue - transport_revenue - cost - transport_expense
         - sum(expenses.values(), Decimal('0.00'))
+        - transport_settlement_expense
         + inventory_gain - inventory_loss
         + reconciliation_gain - reconciliation_loss
     ).quantize(Decimal('0.01'))
@@ -103,6 +109,7 @@ def _operating_profit_facts(*, start=None, end=None):
         'customer_transport_revenue_cny': transport_revenue,
         'cost_of_goods_sold_cny': cost,
         'transport_expense_cny': transport_expense,
+        'transport_settlement_expense_cny': transport_settlement_expense,
         **expenses,
         'inventory_adjustment_gain_cny': inventory_gain,
         'inventory_adjustment_loss_cny': inventory_loss,

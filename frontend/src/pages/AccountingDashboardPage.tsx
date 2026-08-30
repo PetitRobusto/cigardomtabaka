@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
-import { apiErrorMessage, fetchAccountingAccounts, fetchAccountingActions, fetchAccountingDashboard, fetchAccountingExpenses, fetchAccountingSummary, fetchMonthlyProfit, fetchReconciliations } from '../api';
+import { apiErrorMessage, fetchAccountingAccounts, fetchAccountingActions, fetchAccountingDashboard, fetchAccountingExpenses, fetchAccountingSummary, fetchMonthlyProfit, fetchReconciliations, reverseExpense } from '../api';
 import { usePageMeta } from '../hooks/usePageMeta';
 import AccountingPanel from '../components/sales/AccountingPanel';
 import AccountingActionCenter, { type AccountingActionKind } from '../components/accounting/AccountingActionCenter';
@@ -74,7 +74,7 @@ export default function AccountingDashboardPage() {
       reconciliationOpen={reconciliationOpen}
             onReconciliationOpenChange={setReconciliationOpen} />
         </div>
-        <ExpenseDetails month={month} expenses={expenses.data?.expenses} loading={expenses.isLoading} error={expenses.isError ? apiErrorMessage(expenses.error, '费用明细加载失败') : undefined} />
+        <ExpenseDetails month={month} expenses={expenses.data?.expenses} loading={expenses.isLoading} error={expenses.isError ? apiErrorMessage(expenses.error, '费用明细加载失败') : undefined} onReverse={async (expense, reason) => { await reverseExpense(expense.id, { business_date: moscowBusinessDate(), note: reason }); refresh(); }} />
         </>}</>}
   </div>;
 }

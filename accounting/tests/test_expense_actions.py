@@ -489,6 +489,75 @@ class ExpenseActionTest(TestCase):
             Decimal('120.00'),
         )
 
+    def test_expense_reversal_posts_opposite_fact_and_is_idempotent(self):
+        from accounting.expense_actions import reverse_expense, record_expense
+
+        expense = record_expense(
+            category=Expense.Category.SALARY,
+            amount='10.00',
+            fund_account_id=self.cny.pk,
+            business_date=self.business_date,
+            operator=self.operator,
+            idempotency_key='expense-reversal-original',
+        )
+        reversal = reverse_expense(
+            expense_id=expense.pk,
+            business_date=date(2026, 8, 15),
+            operator=self.operator,
+            idempotency_key='expense-reversal-action',
+            reason='重复录入',
+        )
+        expense.refresh_from_db()
+        original = expense.ledger_transaction
+        self.assertIsNotNone(original.reversed_by_id)
+        self.assertEqual(reversal.pk, expense.pk)
+        reversal_tx = LedgerTransaction.objects.get(pk=original.reversed_by_id)
+        self.assertEqual(reversal_tx.status, LedgerTransaction.Status.POSTED)
+        self.assertEqual(
+            list(reversal_tx.postings.order_by('id').values_list('amount', 'cny_amount')),
+            [(Decimal('10.00'), Decimal('10.00')), (Decimal('-10.00'), Decimal('-10.00'))],
+        )
+        reverse_expense(
+            expense_id=expense.pk,
+            business_date=date(2026, 8, 15),
+            operator=self.operator,
+            idempotency_key='expense-reversal-action',
+            reason='重复录入',
+        )
+        self.assertEqual(
+            LedgerTransaction.objects.filter(source_type='ledger_reversal').count(), 1,
+        )
+
+    def test_expense_reversal_rejects_second_reversal_and_missing_reason(self):
+        from accounting.expense_actions import ExpenseActionError, reverse_expense, record_expense
+
+        expense = record_expense(
+            category=Expense.Category.SALARY,
+            amount='10.00',
+            fund_account_id=self.cny.pk,
+            business_date=self.business_date,
+            operator=self.operator,
+            idempotency_key='expense-reversal-guard-original',
+        )
+        with self.assertRaises(ExpenseActionError) as missing:
+            reverse_expense(
+                expense_id=expense.pk, business_date=self.business_date,
+                operator=self.operator, idempotency_key='expense-reversal-no-reason',
+            )
+        self.assertEqual(missing.exception.code, 'reason_required')
+        reverse_expense(
+            expense_id=expense.pk, business_date=self.business_date,
+            operator=self.operator, idempotency_key='expense-reversal-guard-action',
+            reason='录入错误',
+        )
+        with self.assertRaises(ExpenseActionError) as duplicate:
+            reverse_expense(
+                expense_id=expense.pk, business_date=self.business_date,
+                operator=self.operator, idempotency_key='expense-reversal-other-action',
+                reason='再次撤回',
+            )
+        self.assertEqual(duplicate.exception.code, 'already_reversed')
+
     def test_rub_historical_backfill_requires_replay(self):
         from accounting.expense_actions import ExpenseActionError, record_expense
 

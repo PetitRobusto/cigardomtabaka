@@ -21,7 +21,7 @@ from accounting.dividend_actions import (
     DividendActionError, confirm_dividend, create_dividend_draft,
     preview_dividend, update_dividend_draft,
 )
-from accounting.expense_actions import ExpenseActionError, record_expense
+from accounting.expense_actions import ExpenseActionError, record_expense, reverse_expense
 from accounting.purchase_actions import (
     PurchaseActionError, cancel_purchase_order, create_purchase_order,
     pay_purchase_order, receive_paid_purchase_order,
@@ -76,6 +76,9 @@ _ERROR_STATUS = {
     'warning_required': 409,
     'account_inactive': 409,
     'historical_replay_required': 409,
+    'reason_required': 400,
+    'already_reversed': 409,
+    'expense_not_found': 404,
     'missing_payment': 409,
     'already_received': 409,
     'receipt_already_used': 409,
@@ -787,8 +790,8 @@ def purchase_action(request, purchase_id=None, action=None):
 
 
 @staff_json_required
-def expense_action(request):
-    if request.method == 'GET':
+def expense_action(request, expense_id=None, action=None):
+    if request.method == 'GET' and expense_id is None:
         try:
             raw_limit = request.GET.get('limit', '100')
             try:
@@ -797,7 +800,7 @@ def expense_action(request):
                 raise ApiInputError('limit 必须是整数')
             if not 1 <= limit <= 500:
                 raise ApiInputError('limit 必须在1到500之间')
-            records = Expense.objects.select_related('fund_account').order_by('-business_date', '-id')
+            records = Expense.objects.select_related('fund_account', 'ledger_transaction', 'ledger_transaction__reversed_by').order_by('-business_date', '-id')
             month = request.GET.get('month')
             if month:
                 try:
@@ -809,6 +812,24 @@ def expense_action(request):
             return JsonResponse({'expenses': [serialize_expense(row) for row in records[:limit]]})
         except (ApiInputError, ValueError) as error:
             return error_response(error)
+    if expense_id is not None:
+        if action != 'reverse' or request.method != 'POST':
+            return JsonResponse({'error': '请求方法不支持', 'code': 'method_not_allowed', 'details': {}}, status=405)
+        try:
+            payload = _json_object(request)
+            expense = reverse_expense(
+                expense_id=expense_id,
+                business_date=_parse_iso_date(payload.get('business_date'), 'business_date'),
+                operator=request.accounting_operator,
+                idempotency_key=_idempotency_key(request),
+                reason=_optional_note(payload),
+            )
+            expense = Expense.objects.select_related('fund_account', 'ledger_transaction', 'ledger_transaction__reversed_by').get(pk=expense.pk)
+            return JsonResponse({'expense': serialize_expense(expense)})
+        except OperationalError:
+            return _busy_response()
+        except (ApiInputError, ExpenseActionError, LedgerError, ValueError, TypeError) as error:
+            return _action_failure(error)
     if request.method != 'POST':
         return JsonResponse({'error': '请求方法不支持', 'code': 'method_not_allowed', 'details': {}}, status=405)
     try:

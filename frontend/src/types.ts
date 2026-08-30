@@ -920,6 +920,9 @@ export interface AccountingExpense {
   operator_id: number;
   status: string;
   note: string;
+  reversed: boolean;
+  reversal_transaction_id: number | null;
+  reversal_business_date: string | null;
 }
 
 export interface AccountingExpensesResponse {
@@ -967,6 +970,11 @@ export interface ExpenseActionPayload {
   subcategory?: ExpenseSubcategory;
   amount: string;
   fund_account_id: number;
+  business_date: string;
+  note: string;
+}
+
+export interface ExpenseReversalPayload {
   business_date: string;
   note: string;
 }

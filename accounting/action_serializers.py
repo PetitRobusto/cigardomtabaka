@@ -103,6 +103,8 @@ def serialize_expense(expense):
     account = getattr(expense, 'fund_account', None)
     subcategory_label = subcategory_labels.get(expense.subcategory, expense.subcategory)
     category_label = subcategory_label.split(' · ', 1)[0] if ' · ' in subcategory_label else category_labels.get(expense.category, expense.category)
+    ledger = getattr(expense, 'ledger_transaction', None)
+    reversal = getattr(ledger, 'reversed_by', None) if ledger is not None else None
     return _value({
         'id': expense.pk, 'category': expense.category,
         'category_label': category_label,
@@ -116,6 +118,9 @@ def serialize_expense(expense):
         'business_date': expense.business_date,
         'operator_id': expense.operator_id, 'status': expense.status,
         'idempotency_key': expense.idempotency_key, 'note': expense.note,
+        'reversed': reversal is not None,
+        'reversal_transaction_id': reversal.pk if reversal is not None else None,
+        'reversal_business_date': reversal.business_date if reversal is not None else None,
     })
 
 

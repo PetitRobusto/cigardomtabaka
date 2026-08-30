@@ -32,6 +32,7 @@ urlpatterns = [
     path('purchases/<int:purchase_id>/reverse-receive/', views.purchase_action, {'action': 'reverse-receive'}, name='purchase_action_reverse_receive'),
     path('purchases/<int:purchase_id>/cancel/', views.purchase_action, {'action': 'cancel'}, name='purchase_action_cancel'),
     path('expenses/', views.expense_action, name='expense_action'),
+    path('expenses/<int:expense_id>/reverse/', views.expense_action, {'action': 'reverse'}, name='expense_action_reverse'),
     path('dividends/', views.dividend_action, name='dividend_action_collection'),
     path('dividends/<int:dividend_id>/', views.dividend_action, name='dividend_action_detail'),
     path('dividends/<int:dividend_id>/preview/', views.dividend_action, {'action': 'preview'}, name='dividend_action_preview'),

@@ -474,6 +474,7 @@ def _retry_sqlite_locked(operation):
 
 
 _REVERSIBLE_TRANSACTION_TYPES = frozenset({
+    LedgerTransaction.TransactionType.EXPENSE,
     LedgerTransaction.TransactionType.PURCHASE_RECEIPT,
     LedgerTransaction.TransactionType.SALES_SHIPMENT,
     LedgerTransaction.TransactionType.INVENTORY_ADJUSTMENT,

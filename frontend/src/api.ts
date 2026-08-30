@@ -216,6 +216,11 @@ export const fetchAccountingActions = (): Promise<AccountingActionsResponse> =>
 export const fetchAccountingExpenses = (month?: string): Promise<AccountingExpensesResponse> =>
   api.get('/accounting/expenses/', { params: { month, limit: 100 } }).then(r => r.data);
 
+export const reverseExpense = (id: number, payload: { business_date: string; note: string }): Promise<unknown> =>
+  writeWithIdempotency<{ expense: unknown }>(`reverse-expense-${id}`, payload, config =>
+    api.post(`/accounting/expenses/${id}/reverse/`, payload, config),
+  ).then(r => r.expense);
+
 export const fetchInventoryPurchases = (params?: {
   q?: string;
   status?: string;

@@ -8,7 +8,7 @@ describe('费用明细列表', () => {
       id: 1, category: 'other', category_label: '其他', subcategory: 'transport_taxi',
       subcategory_label: '交通 / 物流 · 打车', fund_account_id: 2, fund_account_name: '人民币账户',
       currency: 'CNY', original_amount: '25.00', amount_cny: '25.00', business_date: '2026-08-25',
-      operator_id: 1, status: 'posted', note: '去仓库取货',
+      operator_id: 1, status: 'posted', note: '去仓库取货', reversed: false, reversal_transaction_id: null, reversal_business_date: null,
     }]} />);
     expect(html).toContain('费用明细');
     expect(html).toContain('交通 / 物流 · 打车');

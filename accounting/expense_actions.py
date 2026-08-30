@@ -20,6 +20,7 @@ from accounting.services import (
     PostingInput,
     _require_operator,
     _retry_sqlite_locked,
+    reverse_ledger_transaction,
     _strict_external_decimal,
 )
 
@@ -222,6 +223,54 @@ def _normalise_subcategory(value, category):
     if _SUBCATEGORY_CATEGORY[value] != category:
         raise ExpenseActionError('category_subcategory_mismatch')
     return value
+
+
+def reverse_expense(*, expense_id, business_date, operator, idempotency_key, reason=''):
+    """冲正一笔已入账经营费用，保留原始费用事实。"""
+    if type(business_date) is not date:
+        raise ExpenseActionError('invalid_business_date')
+    key = _normalise_key(idempotency_key)
+    reason = str(reason or '').strip()
+    if not reason:
+        raise ExpenseActionError('reason_required')
+    with transaction.atomic():
+        _acquire_sqlite_writer_gate()
+        expense = Expense.objects.select_for_update().select_related('ledger_transaction').filter(pk=expense_id).first()
+        if expense is None:
+            raise ExpenseActionError('expense_not_found')
+        existing_reversal = LedgerTransaction.objects.filter(idempotency_key=key).first()
+        if existing_reversal is not None:
+            if expense.ledger_transaction.reversed_by_id != existing_reversal.pk:
+                raise ExpenseActionError('idempotency_conflict')
+            reverse_ledger_transaction(
+                original_transaction=expense.ledger_transaction,
+                business_date=business_date, operator=operator,
+                idempotency_key=key, reason=reason,
+            )
+            return expense
+        require_day1_completed()
+        try:
+            persisted_operator = _require_operator(operator)
+        except LedgerError as error:
+            raise ExpenseActionError('invalid_operator') from error
+        original = expense.ledger_transaction
+        if (
+            expense.status != Expense.Status.POSTED
+            or original.status != LedgerTransaction.Status.POSTED
+        ):
+            raise ExpenseActionError('idempotency_conflict')
+        if original.reversed_by_id is not None:
+            raise ExpenseActionError('already_reversed')
+        if business_date < expense.business_date:
+            raise ExpenseActionError('invalid_business_date')
+        try:
+            reverse_ledger_transaction(
+                original_transaction=original, business_date=business_date,
+                operator=persisted_operator, idempotency_key=key, reason=reason,
+            )
+        except LedgerError as error:
+            raise ExpenseActionError(getattr(error, 'code', None) or 'ledger_error', {'message': str(error)}) from error
+        return expense
 
 
 def require_day1_completed():

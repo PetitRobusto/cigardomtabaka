@@ -260,6 +260,83 @@ class ActionApiContractTest(TestCase):
         invalid_month = self.client.get('/api/accounting/expenses/?month=2026-8')
         self.assertEqual(invalid_month.status_code, 400)
 
+    def test_expense_reversal_http_flow_and_replay(self):
+        self.complete_day1()
+        cny = FundAccount.objects.create(
+            name='费用冲正人民币', currency=FundAccount.Currency.CNY,
+            creation_idempotency_key='action-expense-reversal-cny',
+        )
+        record_opening_balance(
+            cny, Decimal('100.00'), Decimal('100.00'),
+            LedgerPosting.Category.OPENING_CAPITAL, date(2026, 8, 10),
+            self.operator, 'action-expense-reversal-opening',
+        )
+        created = self.request('post', '/api/accounting/expenses/', {
+            'category': 'salary', 'amount': '10.00',
+            'fund_account_id': cny.pk, 'business_date': '2026-08-14',
+        }, key='action-expense-reversal-original')
+        self.assertEqual(created.status_code, 201)
+        expense_id = created.json()['expense']['id']
+        body = {'business_date': '2026-08-15', 'note': '重复录入'}
+        reversed_response = self.request(
+            'post', f'/api/accounting/expenses/{expense_id}/reverse/',
+            body, key='action-expense-reversal',
+        )
+        replayed = self.request(
+            'post', f'/api/accounting/expenses/{expense_id}/reverse/',
+            body, key='action-expense-reversal',
+        )
+        self.assertEqual(reversed_response.status_code, 200)
+        self.assertEqual(replayed.status_code, 200)
+        self.assertEqual(replayed.json(), reversed_response.json())
+        payload = reversed_response.json()['expense']
+        self.assertTrue(payload['reversed'])
+        self.assertIsNotNone(payload['reversal_transaction_id'])
+        self.assertEqual(payload['reversal_business_date'], '2026-08-15')
+
+    def test_expense_reversal_http_errors_are_stable(self):
+        self.complete_day1()
+        cny = FundAccount.objects.create(
+            name='费用冲正错误人民币', currency=FundAccount.Currency.CNY,
+            creation_idempotency_key='action-expense-reversal-error-cny',
+        )
+        record_opening_balance(
+            cny, Decimal('100.00'), Decimal('100.00'),
+            LedgerPosting.Category.OPENING_CAPITAL, date(2026, 8, 10),
+            self.operator, 'action-expense-reversal-error-opening',
+        )
+        created = self.request('post', '/api/accounting/expenses/', {
+            'category': 'salary', 'amount': '10.00',
+            'fund_account_id': cny.pk, 'business_date': '2026-08-14',
+        }, key='action-expense-reversal-error-original')
+        expense_id = created.json()['expense']['id']
+        missing_reason = self.request(
+            'post', f'/api/accounting/expenses/{expense_id}/reverse/',
+            {'business_date': '2026-08-15'}, key='action-expense-reversal-missing-reason',
+        )
+        self.assertEqual(missing_reason.status_code, 400)
+        self.assertEqual(missing_reason.json()['code'], 'reason_required')
+        reversed_response = self.request(
+            'post', f'/api/accounting/expenses/{expense_id}/reverse/',
+            {'business_date': '2026-08-15', 'note': '录入错误'},
+            key='action-expense-reversal-error-action',
+        )
+        self.assertEqual(reversed_response.status_code, 200)
+        duplicate = self.request(
+            'post', f'/api/accounting/expenses/{expense_id}/reverse/',
+            {'business_date': '2026-08-15', 'note': '再次撤回'},
+            key='action-expense-reversal-error-action-2',
+        )
+        self.assertEqual(duplicate.status_code, 409)
+        self.assertEqual(duplicate.json()['code'], 'already_reversed')
+        missing = self.request(
+            'post', '/api/accounting/expenses/999999/reverse/',
+            {'business_date': '2026-08-15', 'note': '不存在'},
+            key='action-expense-reversal-missing',
+        )
+        self.assertEqual(missing.status_code, 404)
+        self.assertEqual(missing.json()['code'], 'expense_not_found')
+
     def exchange_payload(self):
         self.complete_day1()
         cny = FundAccount.objects.create(

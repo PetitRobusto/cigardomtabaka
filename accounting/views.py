@@ -563,6 +563,11 @@ def transactions(request):
         account_id = request.GET.get('account_id')
         if account_id is not None:
             records = records.filter(postings__account_id=_required_id({'account_id': account_id}, 'account_id'))
+        transaction_type = request.GET.get('transaction_type')
+        if transaction_type is not None:
+            if transaction_type not in LedgerTransaction.TransactionType.values:
+                raise ApiInputError('transaction_type无效')
+            records = records.filter(transaction_type=transaction_type)
         date_from = request.GET.get('business_date_from')
         date_to = request.GET.get('business_date_to')
         if date_from is not None:

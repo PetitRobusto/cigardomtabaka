@@ -930,6 +930,30 @@ export interface AccountingExpensesResponse {
 }
 
 
+export interface AccountingTransactionPosting {
+  account_id: number | null;
+  category: string;
+  currency: string;
+  amount: string;
+  cny_amount: string;
+}
+
+export interface AccountingTransaction {
+  id: number;
+  transaction_type: string;
+  status: string;
+  business_date: string;
+  effective_sequence: number | null;
+  description: string;
+  operator_id: number;
+  postings: AccountingTransactionPosting[];
+}
+
+export interface AccountingTransactionsResponse {
+  transactions: AccountingTransaction[];
+}
+
+
 export interface ExchangeActionPayload {
   source_account_id: number;
   rub_account_id: number;

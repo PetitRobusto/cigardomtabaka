@@ -11,7 +11,7 @@ import type {
 } from './types';
 import { writeWithIdempotency, acquireIdempotencyKey, releaseIdempotencyKey } from './api/idempotency';
 
-import type { AccountingActionsResponse, InventoryPurchaseDirectory, PurchaseAction, PurchaseActionCreatePayload, PurchaseActionUpdatePayload, PurchasePayPayload, PurchaseReceivePayload, PurchaseCancelPayload, PurchaseSupplier, ExpenseActionPayload, AccountingExpensesResponse, DividendAction, DividendPreview, DividendCreatePayload, DividendUpdatePayload, DividendConfirmPayload, AccountingApiError } from './types';
+import type { AccountingActionsResponse, InventoryPurchaseDirectory, PurchaseAction, PurchaseActionCreatePayload, PurchaseActionUpdatePayload, PurchasePayPayload, PurchaseReceivePayload, PurchaseCancelPayload, PurchaseSupplier, ExpenseActionPayload, AccountingExpensesResponse, AccountingTransaction, AccountingTransactionsResponse, DividendAction, DividendPreview, DividendCreatePayload, DividendUpdatePayload, DividendConfirmPayload, AccountingApiError } from './types';
 function getCSRFToken(): string {
   const match = typeof document === 'undefined' ? null : document.cookie.match(/csrftoken=([^;]+)/);
   return match ? match[1] : '';
@@ -215,6 +215,18 @@ export const fetchAccountingActions = (): Promise<AccountingActionsResponse> =>
   api.get('/accounting/actions/').then(r => r.data);
 export const fetchAccountingExpenses = (month?: string): Promise<AccountingExpensesResponse> =>
   api.get('/accounting/expenses/', { params: { month, limit: 100 } }).then(r => r.data);
+
+export const fetchAccountingExchangeTransactions = (month?: string): Promise<AccountingTransaction[]> => {
+  const year = month ? Number(month.slice(0, 4)) : NaN;
+  const monthNumber = month ? Number(month.slice(5, 7)) : NaN;
+  const dateFrom = month ? `${month}-01` : undefined;
+  const dateTo = month && Number.isFinite(year) && Number.isFinite(monthNumber)
+    ? new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10)
+    : undefined;
+  return api.get<AccountingTransactionsResponse>('/accounting/transactions/', {
+    params: { transaction_type: 'exchange', business_date_from: dateFrom, business_date_to: dateTo, limit: 100 },
+  }).then(response => response.data.transactions || []);
+};
 
 export const reverseExpense = (id: number, payload: { business_date: string; note: string }): Promise<unknown> =>
   writeWithIdempotency<{ expense: unknown }>(`reverse-expense-${id}`, payload, config =>

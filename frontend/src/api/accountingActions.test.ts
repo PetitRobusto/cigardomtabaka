@@ -26,6 +26,7 @@ import {
   createSalesOrder,
   exchangeToRub,
   fetchAccountingActions,
+  fetchAccountingExchangeTransactions,
   parseAccountingApiError,
   payPurchaseOrder,
   previewDividend,
@@ -62,6 +63,21 @@ describe('accounting action API contracts', () => {
 
     await expect(fetchAccountingActions()).resolves.toEqual({ purchases: [], dividends: [] });
     expect(client.get).toHaveBeenCalledWith('/accounting/actions/');
+  });
+
+
+  it('loads exchange transactions for the selected month', async () => {
+    client.get.mockReturnValueOnce(response({ transactions: [{ id: 1, transaction_type: 'exchange' }] }));
+
+    await expect(fetchAccountingExchangeTransactions('2026-08')).resolves.toEqual([{ id: 1, transaction_type: 'exchange' }]);
+    expect(client.get).toHaveBeenCalledWith('/accounting/transactions/', {
+      params: {
+        transaction_type: 'exchange',
+        business_date_from: '2026-08-01',
+        business_date_to: '2026-08-31',
+        limit: 100,
+      },
+    });
   });
 
 

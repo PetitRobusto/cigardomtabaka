@@ -820,10 +820,13 @@ export interface PurchaseActionItem {
   release_type_cn?: string | null;
   is_regular?: boolean;
   packaging_sizes?: number[];
+  purchase_unit?: 'box' | 'stick' | string;
   box_size: number | null;
   box_quantity: number | null;
   quantity?: number | null;
+  quantity_sticks?: number | null;
   unit_price_rub_per_box: string | null;
+  unit_price_rub_per_stick?: string | null;
   packaging_status?: string;
   review_required?: boolean;
   batches?: Array<{

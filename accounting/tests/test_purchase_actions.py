@@ -54,6 +54,38 @@ class PurchasePaymentTest(TestCase):
             packaging_status=PurchaseOrderItem.PackagingStatus.UNREPRESENTABLE,
         )
 
+    def test_stick_purchase_receipt_creates_loose_stick_batch(self):
+        order = PurchaseOrder.objects.create(
+            supplier=self.order.supplier, rub_total=Decimal('50.00'), operator=self.operator,
+            draft_business_date=date(2026, 8, 14),
+        )
+        PurchaseOrderItem.objects.create(
+            purchase_order=order, cigar=self.cigar, quantity=5,
+            purchase_unit=PurchaseOrderItem.PurchaseUnit.STICK,
+            unit_price_rub_per_stick=Decimal('10.00'),
+            packaging_status=PurchaseOrderItem.PackagingStatus.NORMALIZED,
+        )
+        pay_purchase_order(
+            purchase_order_id=order.id, rub_account_id=self.rub.id,
+            business_date=date(2026, 8, 14), operator=self.operator,
+            idempotency_key='stick-payment-1',
+        )
+        batches = receive_paid_purchase_order(
+            purchase_order_id=order.id, business_date=date(2026, 8, 14),
+            operator=self.operator, idempotency_key='stick-receipt-1', note='按支到货',
+        )
+        batch = batches[0]
+        self.assertIsNone(batch.box_size)
+        self.assertEqual(batch.original_box_quantity, 0)
+        self.assertEqual(batch.original_stick_quantity, 5)
+        self.assertEqual(batch.physical_stick_quantity, 5)
+        self.assertEqual(batch.available_stick_quantity, 5)
+        replay = receive_paid_purchase_order(
+            purchase_order_id=order.id, business_date=date(2026, 8, 14),
+            operator=self.operator, idempotency_key='stick-receipt-1', note='按支到货',
+        )
+        self.assertEqual([row.pk for row in replay], [batch.pk])
+
     def test_payment_uses_canonical_rub_total_and_moving_average(self):
         payment = pay_purchase_order(
             purchase_order_id=self.order.id, rub_account_id=self.rub.id,

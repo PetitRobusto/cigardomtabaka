@@ -437,7 +437,9 @@ def create_purchase_order_command(request):
         for index, raw_item in enumerate(body.get('items') or []):
             if not isinstance(raw_item, dict):
                 raise PurchaseActionError('packaging_review_required', {'item_index': index})
-            if 'box_quantity' in raw_item or 'unit_price_rub_per_box' in raw_item:
+            if raw_item.get('purchase_unit') == 'stick':
+                canonical_items.append(dict(raw_item) | {'cigar_id': raw_item.get('cigar_id')})
+            elif 'box_quantity' in raw_item or 'unit_price_rub_per_box' in raw_item:
                 canonical_items.append(canonical_purchase_item(
                     box_size=raw_item.get('box_size'),
                     box_quantity=raw_item.get('box_quantity'),

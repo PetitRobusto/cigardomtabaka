@@ -63,17 +63,12 @@ function formatCents(value: bigint): string {
 }
 
 function itemTotal(item: PurchaseOrderAction['items'][number]): string {
-  const price = decimalCents(item.unit_price_rub_per_box);
-  const boxQuantity = item.box_quantity;
-  // 待复核的包装数量不能参与采购总额推算。
-  if (
-    price === null
-    || boxQuantity === null
-    || boxQuantity === undefined
-    || !Number.isInteger(boxQuantity)
-    || boxQuantity < 0
-  ) return "—";
-  return formatCents(price * BigInt(boxQuantity));
+  const stickMode = item.purchase_unit === 'stick';
+  const price = decimalCents(stickMode ? item.unit_price_rub_per_stick : item.unit_price_rub_per_box);
+  const quantity = stickMode ? (item.quantity_sticks ?? item.quantity) : item.box_quantity;
+  // 待复核的数量不能参与采购总额推算。
+  if (price === null || quantity === null || quantity === undefined || !Number.isInteger(quantity) || quantity < 0) return "—";
+  return formatCents(price * BigInt(quantity));
 }
 
 /** 采购卡只允许一次付款、一次整单到货；表单输入与动作状态彼此隔离。 */
@@ -187,11 +182,12 @@ export default function PurchaseAction({
             const input = inputFor(purchase.id);
             const state = stateFor(purchase.id);
             const boxes = purchase.items.reduce<number | null>((sum, item) => {
+              if (item.purchase_unit === 'stick') return sum;
               if (sum === null || item.box_quantity === null || item.box_quantity === undefined || item.packaging_status === 'review_required' || item.review_required) return null;
               return sum + item.box_quantity;
             }, 0);
             const boxesLabel = boxes === null ? '待复核' : `${boxes} 盒`;
-            const packagingReviewRequired = purchase.items.some(item => item.box_quantity === null || item.box_quantity === undefined || item.packaging_status === 'review_required' || item.review_required);
+            const packagingReviewRequired = purchase.items.some(item => item.packaging_status === 'review_required' || item.review_required || (item.purchase_unit === 'stick' ? item.quantity_sticks == null && item.quantity == null : item.box_quantity == null));
             const accountId = selectActiveAccountId(rubAccounts, input.accountId);
             const calculatedTotal = purchase.items.reduce<bigint | null>((sum, item) => {
               const row = decimalCents(itemTotal(item));
@@ -213,7 +209,7 @@ export default function PurchaseAction({
                   {purchase.items.map((item, index) => (
                     <div key={item.id || `${purchase.id}-${index}`} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                       <span>{item.cigar_name || `雪茄 #${item.cigar_id}`}</span>
-                      <span className="text-[#8A7E6E]">{item.box_quantity === null || item.box_quantity === undefined || item.packaging_status === 'review_required' || item.review_required ? '待复核' : `${item.box_quantity} 盒`} × {money(item.unit_price_rub_per_box, 'RUB')}（每盒 {item.box_size} 支）</span>
+                      <span className="text-[#8A7E6E]">{item.packaging_status === 'review_required' || item.review_required ? '待复核' : item.purchase_unit === 'stick' ? `${item.quantity_sticks ?? item.quantity ?? '待补'} 支 × ${money(item.unit_price_rub_per_stick, 'RUB')}（按支，到货入散支库存）` : item.box_quantity == null ? '待复核' : `${item.box_quantity} 盒 × ${money(item.unit_price_rub_per_box, 'RUB')}（每盒 ${item.box_size} 支）`}</span>
                     </div>
                   ))}
                 </div>

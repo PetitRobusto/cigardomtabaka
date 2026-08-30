@@ -75,6 +75,14 @@ def _positive_int(value, field: str, *, max_value=None) -> int:
     return result
 
 
+def _normalise_purchase_unit(value) -> str:
+    if value in (None, ''):
+        return PurchaseOrderItem.PurchaseUnit.BOX
+    if not isinstance(value, str) or value not in PurchaseOrderItem.PurchaseUnit.values:
+        raise PurchaseActionError('invalid_purchase_unit', {'purchase_unit': value})
+    return value
+
+
 def _draft_integer(value, field: str) -> int | None:
     """Parse a storable draft integer without requiring business completeness."""
     if value in (None, ''):
@@ -113,17 +121,28 @@ def _purchase_order_business_date(purchase_order_id):
     return snapshot['draft_business_date']
 
 
+def _purchase_item_payload(item):
+    payload = {
+        'cigar_id': item.cigar_id, 'box_size': item.box_size,
+        'box_quantity': item.box_quantity,
+        'unit_price_rub_per_box': str(item.unit_price_rub_per_box) if item.unit_price_rub_per_box is not None else None,
+        'unit_price_rub': str(item.unit_price_rub) if item.unit_price_rub is not None else None,
+        'unit_price_cny': str(item.unit_price_cny) if item.unit_price_cny is not None else None,
+        'packaging_status': item.packaging_status,
+        'legacy_snapshot_status': item.legacy_snapshot_status,
+    }
+    if item.purchase_unit == PurchaseOrderItem.PurchaseUnit.STICK:
+        payload.update({
+            'purchase_unit': item.purchase_unit,
+            'quantity_sticks': item.quantity,
+            'unit_price_rub_per_stick': str(item.unit_price_rub_per_stick) if item.unit_price_rub_per_stick is not None else None,
+        })
+    return payload
+
+
 def _purchase_order_items_payload(purchase_order_id):
     return [
-        {
-            'cigar_id': item.cigar_id, 'box_size': item.box_size,
-            'box_quantity': item.box_quantity,
-            'unit_price_rub_per_box': str(item.unit_price_rub_per_box),
-            'unit_price_rub': str(item.unit_price_rub) if item.unit_price_rub is not None else None,
-            'unit_price_cny': str(item.unit_price_cny) if item.unit_price_cny is not None else None,
-            'packaging_status': item.packaging_status,
-            'legacy_snapshot_status': item.legacy_snapshot_status,
-        }
+        _purchase_item_payload(item)
         for item in PurchaseOrderItem.objects.filter(
             purchase_order_id=purchase_order_id,
         ).order_by('id')
@@ -282,11 +301,13 @@ def canonical_purchase_item(
         raise PurchaseActionError('invalid_money_precision', {'rub_subtotal': '金额超出允许范围'})
 
     return {
-        'sticks': sticks,
         'rub_subtotal': rub_subtotal,
+        'purchase_unit': PurchaseOrderItem.PurchaseUnit.BOX,
+        'sticks': sticks,
         'box_size': box_size,
         'box_quantity': box_quantity,
         'unit_price_rub_per_box': per_box.quantize(MONEY_PLACES),
+        'unit_price_rub_per_stick': None,
         'unit_price_rub': legacy_rub,
         'unit_price_cny': legacy_cny,
         'packaging_status': status,
@@ -336,6 +357,26 @@ def normalize_legacy_purchase_item(
     )
 
 
+def _draft_fingerprint_item(row):
+    payload = {
+        'cigar_id': row['cigar_id'],
+        'box_size': row['box_size'],
+        'box_quantity': row['box_quantity'],
+        'unit_price_rub_per_box': str(row['unit_price_rub_per_box']) if row['unit_price_rub_per_box'] is not None else None,
+        'unit_price_rub': str(row['unit_price_rub']) if row['unit_price_rub'] is not None else None,
+        'unit_price_cny': str(row['unit_price_cny']) if row['unit_price_cny'] is not None else None,
+        'packaging_status': row['packaging_status'],
+        'legacy_snapshot_status': row['legacy_snapshot_status'],
+    }
+    if row['purchase_unit'] == PurchaseOrderItem.PurchaseUnit.STICK:
+        payload.update({
+            'purchase_unit': row['purchase_unit'],
+            'quantity_sticks': row['sticks'],
+            'unit_price_rub_per_stick': str(row['unit_price_rub_per_stick']) if row['unit_price_rub_per_stick'] is not None else None,
+        })
+    return payload
+
+
 def _draft_payload(*, items, operator, business_date, expected_version=None,
                    note='', context=None, fingerprint_business_date=_UNSET) -> tuple[list[dict], str]:
     """Normalize a draft while deferring completeness checks to payment."""
@@ -349,6 +390,7 @@ def _draft_payload(*, items, operator, business_date, expected_version=None,
             raise PurchaseActionError('invalid_items', {'item_index': index, 'item': '必须是对象'})
         try:
             cigar_id = _positive_int(raw.get('cigar_id'), 'cigar_id')
+            purchase_unit = _normalise_purchase_unit(raw.get('purchase_unit'))
             box_size = _draft_integer(raw.get('box_size'), 'box_size')
             box_quantity = _draft_integer(raw.get('box_quantity'), 'box_quantity')
             price_value = raw.get('unit_price_rub_per_box')
@@ -356,6 +398,15 @@ def _draft_payload(*, items, operator, business_date, expected_version=None,
                 None if price_value in (None, '')
                 else _money_decimal(price_value, 'unit_price_rub_per_box', nonnegative=True)
             )
+            quantity_sticks = _draft_integer(
+                raw.get('quantity_sticks', raw.get('quantity')),
+                'quantity_sticks',
+            ) if purchase_unit == PurchaseOrderItem.PurchaseUnit.STICK else None
+            stick_price_value = raw.get('unit_price_rub_per_stick')
+            per_stick = (
+                None if stick_price_value in (None, '')
+                else _money_decimal(stick_price_value, 'unit_price_rub_per_stick', nonnegative=True)
+            ) if purchase_unit == PurchaseOrderItem.PurchaseUnit.STICK else None
             legacy_rub = _legacy_snapshot(raw.get('unit_price_rub'), 'unit_price_rub')
             legacy_cny = _legacy_snapshot(raw.get('unit_price_cny'), 'unit_price_cny')
         except PurchaseActionError as error:
@@ -363,7 +414,41 @@ def _draft_payload(*, items, operator, business_date, expected_version=None,
             raise
         if not Cigar.objects.filter(pk=cigar_id).exists():
             raise PurchaseActionError('cigar_not_found', {'item_index': index, 'cigar_id': cigar_id})
-        if box_size and box_quantity and per_box is not None:
+        if purchase_unit == PurchaseOrderItem.PurchaseUnit.STICK:
+            sticks = quantity_sticks or 0
+            if sticks > _MAX_DB_INTEGER:
+                raise PurchaseActionError(
+                    'invalid_packaging', {'item_index': index, 'sticks': '超出数据库整数范围'}
+                )
+            try:
+                subtotal = (
+                    Decimal(sticks) * per_stick
+                    if quantity_sticks is not None and per_stick is not None
+                    else Decimal('0.00')
+                ).quantize(MONEY_PLACES)
+            except (DecimalException, InvalidOperation):
+                raise PurchaseActionError(
+                    'invalid_money_precision',
+                    {'item_index': index, 'rub_subtotal': '金额超出允许范围'},
+                )
+            row = {
+                'purchase_unit': purchase_unit,
+                'sticks': sticks,
+                'rub_subtotal': subtotal,
+                'box_size': None,
+                'box_quantity': None,
+                'unit_price_rub_per_box': None,
+                'unit_price_rub_per_stick': per_stick,
+                'unit_price_rub': None,
+                'unit_price_cny': None,
+                'packaging_status': (
+                    PurchaseOrderItem.PackagingStatus.NORMALIZED
+                    if quantity_sticks and per_stick is not None
+                    else PurchaseOrderItem.PackagingStatus.REVIEW_REQUIRED
+                ),
+                'legacy_snapshot_status': PurchaseOrderItem.LegacySnapshotStatus.UNREPRESENTABLE,
+            }
+        elif box_size and box_quantity and per_box is not None:
             row = canonical_purchase_item(
                 box_size=box_size,
                 box_quantity=box_quantity,
@@ -389,11 +474,13 @@ def _draft_payload(*, items, operator, business_date, expected_version=None,
                     {'item_index': index, 'rub_subtotal': '金额超出允许范围'},
                 )
             row = {
+                'purchase_unit': purchase_unit,
                 'sticks': sticks,
                 'rub_subtotal': subtotal,
                 'box_size': box_size,
                 'box_quantity': box_quantity,
                 'unit_price_rub_per_box': per_box,
+                'unit_price_rub_per_stick': None,
                 'unit_price_rub': legacy_rub,
                 'unit_price_cny': legacy_cny,
                 'packaging_status': PurchaseOrderItem.PackagingStatus.REVIEW_REQUIRED,
@@ -409,19 +496,7 @@ def _draft_payload(*, items, operator, business_date, expected_version=None,
 
     payload = {
         'context': context or {},
-        'items': [
-            {
-                'cigar_id': row['cigar_id'],
-                'box_size': row['box_size'],
-                'box_quantity': row['box_quantity'],
-                'unit_price_rub_per_box': str(row['unit_price_rub_per_box']) if row['unit_price_rub_per_box'] is not None else None,
-                'unit_price_rub': str(row['unit_price_rub']) if row['unit_price_rub'] is not None else None,
-                'unit_price_cny': str(row['unit_price_cny']) if row['unit_price_cny'] is not None else None,
-                'packaging_status': row['packaging_status'],
-                'legacy_snapshot_status': row['legacy_snapshot_status'],
-            }
-            for row in normalized
-        ],
+        'items': [_draft_fingerprint_item(row) for row in normalized],
         'business_date': (
             business_date.isoformat() if business_date else None
         ) if fingerprint_business_date is _UNSET else fingerprint_business_date,
@@ -532,6 +607,8 @@ def _create_locked(*, supplier_id, items, business_date, operator, idempotency_k
             box_size=row['box_size'],
             box_quantity=row['box_quantity'],
             unit_price_rub_per_box=row['unit_price_rub_per_box'],
+            purchase_unit=row['purchase_unit'],
+            unit_price_rub_per_stick=row['unit_price_rub_per_stick'],
             unit_price_rub=row['unit_price_rub'],
             unit_price_cny=row['unit_price_cny'],
             packaging_status=row['packaging_status'],
@@ -637,6 +714,8 @@ def update_purchase_order_draft(*, purchase_order_id, items, expected_version,
                 box_size=row['box_size'],
                 box_quantity=row['box_quantity'],
                 unit_price_rub_per_box=row['unit_price_rub_per_box'],
+                purchase_unit=row['purchase_unit'],
+                unit_price_rub_per_stick=row['unit_price_rub_per_stick'],
                 unit_price_rub=row['unit_price_rub'],
                 unit_price_cny=row['unit_price_cny'],
                 packaging_status=row['packaging_status'],
@@ -747,12 +826,24 @@ def _canonical_order_rows(order):
     for item in order.items.select_related('cigar').order_by('id'):
         if item.packaging_status == PurchaseOrderItem.PackagingStatus.REVIEW_REQUIRED:
             raise PurchaseActionError('packaging_review_required', {'item_id': item.pk})
-        if not item.box_size or not item.box_quantity or item.unit_price_rub_per_box is None:
-            raise PurchaseActionError('packaging_review_required', {'item_id': item.pk})
-        quantity = item.box_size * item.box_quantity
-        if item.quantity != quantity:
-            raise PurchaseActionError('packaging_review_required', {'item_id': item.pk})
-        subtotal = (Decimal(item.box_quantity) * item.unit_price_rub_per_box).quantize(MONEY_PLACES)
+        if item.purchase_unit == PurchaseOrderItem.PurchaseUnit.STICK:
+            if (
+                item.quantity <= 0
+                or item.box_size is not None
+                or item.box_quantity is not None
+                or item.unit_price_rub_per_box is not None
+                or item.unit_price_rub_per_stick is None
+            ):
+                raise PurchaseActionError('packaging_review_required', {'item_id': item.pk})
+            quantity = item.quantity
+            subtotal = (Decimal(quantity) * item.unit_price_rub_per_stick).quantize(MONEY_PLACES)
+        else:
+            if not item.box_size or not item.box_quantity or item.unit_price_rub_per_box is None:
+                raise PurchaseActionError('packaging_review_required', {'item_id': item.pk})
+            quantity = item.box_size * item.box_quantity
+            if item.quantity != quantity:
+                raise PurchaseActionError('packaging_review_required', {'item_id': item.pk})
+            subtotal = (Decimal(item.box_quantity) * item.unit_price_rub_per_box).quantize(MONEY_PLACES)
         rows.append((item, quantity, subtotal))
     if not rows:
         raise PurchaseActionError(
@@ -902,14 +993,24 @@ def _receipt_replay_facts(*, order, transaction_obj, key, business_date, operato
             return False
         batch = matching[0]
         unit_cost = (actual / quantity).quantize(MONEY_PLACES, rounding=ROUND_HALF_UP)
+        packaging_valid = (
+            batch.box_size is None
+            and batch.original_box_quantity == 0
+            and batch.original_stick_quantity == quantity
+            and batch.physical_box_quantity == 0
+            and batch.available_box_quantity == 0
+        ) if item.purchase_unit == PurchaseOrderItem.PurchaseUnit.STICK else (
+            batch.box_size == item.box_size
+            and batch.original_box_quantity == item.box_quantity
+            and batch.original_stick_quantity == 0
+        )
         common_valid = (
             batch.cigar_id == item.cigar_id
             and batch.quantity == quantity
             and batch.original_cost_cny == actual
             and batch.sold_cost_cny == Decimal('0.00')
             and batch.unit_cost_cny == unit_cost
-            and batch.box_size == item.box_size
-            and batch.original_box_quantity == item.box_quantity
+            and packaging_valid
             and len(movements_by_batch.get(batch.pk, [])) == 1
         )
         if transaction_obj.reversed_by_id is None:

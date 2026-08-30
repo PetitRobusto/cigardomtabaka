@@ -758,6 +758,10 @@ class PurchaseOrderItem(models.Model):
         REVIEW_REQUIRED = 'review_required', '需人工复核'
         UNREPRESENTABLE = 'unrepresentable', '兼容快照不可表示'
 
+    class PurchaseUnit(models.TextChoices):
+        BOX = 'box', '按盒'
+        STICK = 'stick', '按支'
+
     class LegacySnapshotStatus(models.TextChoices):
         EXPLICIT = 'explicit', '显式报价'
         DERIVED = 'derived', '可逆派生'
@@ -770,6 +774,10 @@ class PurchaseOrderItem(models.Model):
     cigar = models.ForeignKey(
         Cigar, on_delete=models.PROTECT, verbose_name='雪茄'
     )
+    purchase_unit = models.CharField(
+        '采购单位', max_length=8, choices=PurchaseUnit.choices,
+        default=PurchaseUnit.BOX,
+    )
     quantity = models.IntegerField('数量')
     box_size = models.IntegerField('包装支数', null=True, blank=True,
         help_text='如25=木盒25支, 15=铝管15支, 从Cigar.packagings可查盒型')
@@ -778,6 +786,7 @@ class PurchaseOrderItem(models.Model):
     unit_price_cny = models.DecimalField('人民币单价', max_digits=12, decimal_places=2, null=True, blank=True)
     box_quantity = models.PositiveIntegerField('采购盒数', null=True, blank=True)
     unit_price_rub_per_box = models.DecimalField('每盒卢布价格', max_digits=22, decimal_places=2, null=True, blank=True)
+    unit_price_rub_per_stick = models.DecimalField('每支卢布价格', max_digits=22, decimal_places=2, null=True, blank=True)
     packaging_status = models.CharField('包装规范状态', max_length=20, choices=PackagingStatus.choices, default=PackagingStatus.REVIEW_REQUIRED)
     actual_cost_cny = models.DecimalField('实际人民币成本', max_digits=22, decimal_places=2, default=Decimal('0.00'))
     legacy_snapshot_status = models.CharField('旧报价快照状态', max_length=24, choices=LegacySnapshotStatus.choices, default=LegacySnapshotStatus.UNREPRESENTABLE)
@@ -786,9 +795,101 @@ class PurchaseOrderItem(models.Model):
     class Meta:
         base_manager_name = 'objects'
         constraints = [
-            models.CheckConstraint(condition=((models.Q(packaging_status='review_required') & (models.Q(box_size__isnull=True) | models.Q(box_size__gte=0)) & (models.Q(box_quantity__isnull=True) | models.Q(box_quantity__gte=0)) & (models.Q(unit_price_rub_per_box__isnull=True) | models.Q(unit_price_rub_per_box__gte=0))) | models.Q(packaging_status='normalized', box_size__isnull=False, box_size__gt=0, box_quantity__isnull=False, box_quantity__gt=0, unit_price_rub_per_box__isnull=False, unit_price_rub_per_box__gte=0) | models.Q(packaging_status='unrepresentable', box_size__isnull=False, box_size__gt=0, box_quantity__isnull=False, box_quantity__gt=0, unit_price_rub_per_box__isnull=False, unit_price_rub_per_box__gte=0, unit_price_rub__isnull=True, unit_price_cny__isnull=True)), name='purchase_item_packaging_consistent'),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        purchase_unit='stick',
+                        packaging_status='review_required',
+                        box_size__isnull=True,
+                        box_quantity__isnull=True,
+                        unit_price_rub_per_box__isnull=True,
+                        quantity__gte=0,
+                    ) & (
+                        models.Q(unit_price_rub_per_stick__isnull=True)
+                        | models.Q(unit_price_rub_per_stick__gte=0)
+                    )
+                    | models.Q(
+                        purchase_unit='stick',
+                        packaging_status='normalized',
+                        quantity__gt=0,
+                        box_size__isnull=True,
+                        box_quantity__isnull=True,
+                        unit_price_rub_per_box__isnull=True,
+                        unit_price_rub_per_stick__isnull=False,
+                        unit_price_rub_per_stick__gte=0,
+                        unit_price_rub__isnull=True,
+                        unit_price_cny__isnull=True,
+                    )
+                    | (
+                        models.Q(purchase_unit='box', packaging_status='review_required')
+                        & (models.Q(box_size__isnull=True) | models.Q(box_size__gte=0))
+                        & (models.Q(box_quantity__isnull=True) | models.Q(box_quantity__gte=0))
+                        & (
+                            models.Q(unit_price_rub_per_box__isnull=True)
+                            | models.Q(unit_price_rub_per_box__gte=0)
+                        )
+                    )
+                    | models.Q(
+                        purchase_unit='box',
+                        packaging_status='normalized',
+                        box_size__isnull=False,
+                        box_size__gt=0,
+                        box_quantity__isnull=False,
+                        box_quantity__gt=0,
+                        unit_price_rub_per_box__isnull=False,
+                        unit_price_rub_per_box__gte=0,
+                    )
+                    | models.Q(
+                        purchase_unit='box',
+                        packaging_status='unrepresentable',
+                        box_size__isnull=False,
+                        box_size__gt=0,
+                        box_quantity__isnull=False,
+                        box_quantity__gt=0,
+                        unit_price_rub_per_box__isnull=False,
+                        unit_price_rub_per_box__gte=0,
+                        unit_price_rub__isnull=True,
+                        unit_price_cny__isnull=True,
+                    )
+                ),
+                name='purchase_item_packaging_consistent',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(unit_price_rub_per_stick__isnull=True)
+                    | models.Q(unit_price_rub_per_stick__gte=0)
+                ),
+                name='purchase_item_stick_price_nonnegative',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(purchase_unit='box', unit_price_rub_per_stick__isnull=True)
+                    | models.Q(
+                        purchase_unit='stick',
+                        box_size__isnull=True,
+                        box_quantity__isnull=True,
+                        unit_price_rub_per_box__isnull=True,
+                    )
+                ),
+                name='purchase_item_unit_shape_consistent',
+            ),
             models.CheckConstraint(condition=models.Q(actual_cost_cny__gte=0), name='purchase_item_actual_cost_nonnegative'),
-            models.CheckConstraint(condition=(models.Q(packaging_status='review_required') | models.Q(packaging_status__in=['normalized', 'unrepresentable'], quantity=models.F('box_size') * models.F('box_quantity'))), name='purchase_item_quantity_matches_boxes'),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(packaging_status='review_required')
+                    | models.Q(
+                        purchase_unit='stick',
+                        packaging_status='normalized',
+                        quantity__gt=0,
+                    )
+                    | models.Q(
+                        purchase_unit='box',
+                        packaging_status__in=['normalized', 'unrepresentable'],
+                        quantity=models.F('box_size') * models.F('box_quantity'),
+                    )
+                ),
+                name='purchase_item_quantity_matches_boxes',
+            ),
         ]
         verbose_name = '进货明细'
         verbose_name_plural = '进货明细'
@@ -865,6 +966,17 @@ class PurchaseOrderItem(models.Model):
 
     def clean(self):
         super().clean()
+        if self.purchase_unit == self.PurchaseUnit.STICK:
+            if self.packaging_status == self.PackagingStatus.NORMALIZED:
+                if (
+                    self.quantity <= 0
+                    or self.box_size is not None
+                    or self.box_quantity is not None
+                    or self.unit_price_rub_per_box is not None
+                    or self.unit_price_rub_per_stick is None
+                ):
+                    raise ValidationError('按支采购必须使用支数和每支价格')
+            return
         if self.packaging_status in {self.PackagingStatus.NORMALIZED, self.PackagingStatus.UNREPRESENTABLE}:
             if self.box_size is None or self.box_quantity is None or self.quantity != self.box_size * self.box_quantity:
                 raise ValidationError('canonical 采购数量必须等于盒规乘盒数')

@@ -51,6 +51,37 @@ class PurchaseDraftActionTest(TestCase):
         self.assertEqual(normalized['sticks'], 25)
         self.assertEqual(normalized['rub_subtotal'], Decimal('100.00'))
 
+    def test_stick_purchase_uses_stick_formula_and_is_idempotent(self):
+        items = [{
+            'cigar_id': self.cigar.id,
+            'purchase_unit': 'stick',
+            'quantity_sticks': 7,
+            'unit_price_rub_per_stick': '12.50',
+            'box_size': None,
+            'box_quantity': None,
+            'unit_price_rub_per_box': None,
+        }]
+        kwargs = {**self.create_kwargs(), 'items': items, 'idempotency_key': 'stick-create-1'}
+        order = create_purchase_order(**kwargs)
+        replay = create_purchase_order(**kwargs)
+        self.assertEqual(order.pk, replay.pk)
+        item = order.items.get()
+        self.assertEqual(item.purchase_unit, PurchaseOrderItem.PurchaseUnit.STICK)
+        self.assertEqual(item.quantity, 7)
+        self.assertIsNone(item.box_size)
+        self.assertEqual(item.unit_price_rub_per_stick, Decimal('12.50'))
+        self.assertEqual(order.rub_total, Decimal('87.50'))
+
+    def test_box_and_stick_items_can_be_mixed(self):
+        items = [
+            self.canonical_items()[0],
+            {'cigar_id': self.cigar.id, 'purchase_unit': 'stick',
+             'quantity_sticks': 3, 'unit_price_rub_per_stick': '10.00'},
+        ]
+        order = create_purchase_order(**{**self.create_kwargs(), 'items': items, 'idempotency_key': 'mixed-create-1'})
+        self.assertEqual(order.rub_total, Decimal('130.00'))
+        self.assertEqual(list(order.items.values_list('purchase_unit', flat=True)), ['box', 'stick'])
+
     def test_legacy_item_requires_lossless_box_conversion(self):
         normalized = normalize_legacy_purchase_item(
             box_size=25,

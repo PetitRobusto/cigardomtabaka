@@ -200,7 +200,9 @@ def receive_stock(*, purchase_order_item, quantity, total_cost_cny, unit_cost_cn
         quantity=quantity, total_cost_cny=total_cost_cny,
         unit_cost_cny=unit_cost_cny,
     )
-    boxes = purchase_order_item.box_quantity
+    is_stick_purchase = getattr(purchase_order_item, 'purchase_unit', 'box') == 'stick'
+    boxes = 0 if is_stick_purchase else purchase_order_item.box_quantity
+    box_size = None if is_stick_purchase else purchase_order_item.box_size
     with inventory_mutation_scope(
         action="receive", operator=operator,
         _capability=_INVENTORY_WRITE_CAPABILITY,
@@ -216,13 +218,13 @@ def receive_stock(*, purchase_order_item, quantity, total_cost_cny, unit_cost_cn
             remaining_cost_cny=total_cost_cny,
             sold_cost_cny=Decimal("0.00"),
             unit_cost_cny=unit_cost_cny,
-            box_size=purchase_order_item.box_size,
+            box_size=box_size,
             original_box_quantity=boxes,
-            original_stick_quantity=0,
+            original_stick_quantity=quantity if is_stick_purchase else 0,
             physical_box_quantity=boxes,
             available_box_quantity=boxes,
-            physical_stick_quantity=0,
-            available_stick_quantity=0,
+            physical_stick_quantity=quantity if is_stick_purchase else 0,
+            available_stick_quantity=quantity if is_stick_purchase else 0,
         )
         _record_movement(
             movement_type=StockMovement.MovementType.RECEIVE,

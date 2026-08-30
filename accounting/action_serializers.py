@@ -40,9 +40,21 @@ def serialize_purchase_order(order):
         and order.rub_total > 0
         and all(
             item.packaging_status != item.PackagingStatus.REVIEW_REQUIRED
-            and item.box_size
-            and item.box_quantity
-            and item.unit_price_rub_per_box is not None
+            and (
+                (
+                    item.purchase_unit == item.PurchaseUnit.STICK
+                    and item.quantity > 0
+                    and item.box_size is None
+                    and item.box_quantity is None
+                    and item.unit_price_rub_per_stick is not None
+                )
+                or (
+                    item.purchase_unit == item.PurchaseUnit.BOX
+                    and item.box_size
+                    and item.box_quantity
+                    and item.unit_price_rub_per_box is not None
+                )
+            )
             for item in items
         )
     )
@@ -75,9 +87,11 @@ def serialize_purchase_order(order):
                 'release_type_cn': getattr(item.cigar, 'release_type_cn', None),
                 'is_regular': not bool(getattr(item.cigar, 'release_type', None)),
                 'packaging_sizes': declared_box_sizes(item.cigar.packagings),
+                'purchase_unit': item.purchase_unit,
                 'box_size': item.box_size, 'box_quantity': item.box_quantity,
                 'quantity': item.quantity,
                 'unit_price_rub_per_box': item.unit_price_rub_per_box,
+                'unit_price_rub_per_stick': item.unit_price_rub_per_stick,
                 'packaging_status': item.packaging_status,
                 'batches': [
                     {

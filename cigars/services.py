@@ -342,11 +342,16 @@ def serialize_purchase_order(order):
             'cigar_name': item.cigar.name or item.cigar.english_name,
             'quantity': item.quantity,
             'sticks': item.quantity,
+            'purchase_unit': item.purchase_unit,
             'box_size': item.box_size,
             'box_quantity': item.box_quantity,
+            'quantity_sticks': item.quantity if item.purchase_unit == 'stick' else None,
             'unit_price_rub_per_box': _decimal_to_json(item.unit_price_rub_per_box),
+            'unit_price_rub_per_stick': _decimal_to_json(item.unit_price_rub_per_stick),
             'rub_subtotal': _decimal_to_json(
-                (Decimal(item.box_quantity) * item.unit_price_rub_per_box)
+                (Decimal(item.quantity) * item.unit_price_rub_per_stick)
+                if item.purchase_unit == 'stick' and item.unit_price_rub_per_stick is not None
+                else (Decimal(item.box_quantity) * item.unit_price_rub_per_box)
                 if item.box_quantity is not None and item.unit_price_rub_per_box is not None else None
             ),
             'packaging_status': item.packaging_status,
@@ -709,7 +714,9 @@ def create_purchase_order(*, supplier_id, items, business_date=None, operator,
     for index, raw in enumerate(items or []):
         if not isinstance(raw, dict):
             raise PurchaseActionError('invalid_items', {'item_index': index})
-        if 'box_quantity' in raw or 'unit_price_rub_per_box' in raw:
+        if raw.get('purchase_unit') == 'stick':
+            normalized_items.append(dict(raw))
+        elif 'box_quantity' in raw or 'unit_price_rub_per_box' in raw:
             normalized_items.append(raw)
         else:
             legacy_input = True

@@ -39,7 +39,8 @@ jobs:
 
             echo "=== git pull ==="
             git config --global --add safe.directory /opt/cigardomtabaka 2>/dev/null || true
-            git fetch origin main
+            # 生产机直连 GitHub 时，强制 HTTP/1.1，避免 Git protocol v2/HTTP2 返回伪 401。
+            git -c http.version=HTTP/1.1 fetch origin main
             # 只部署本次 CI 验证的提交；过期 workflow 不得覆盖 production。
             CURRENT_MAIN_SHA=$(git rev-parse origin/main)
             if [ "$CURRENT_MAIN_SHA" != "$DEPLOY_SHA" ]; then

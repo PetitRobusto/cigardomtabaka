@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.test import TestCase
 
 from accounting.models import Day1Initialization, FundAccount, LedgerPosting, LedgerTransaction
-from accounting.selectors import accounting_summary
+from accounting.selectors import accounting_dashboard, accounting_summary
 from accounting.services import LedgerError, PostingInput, post_transaction, record_opening_balance
 from cigars.models import Brand, Cigar, PurchaseBatch, PurchaseOrder, PurchaseOrderItem, SalesOrder, Supplier, User
 from cigars.tests.inventory_fixtures import create_purchase_batch, force_inventory_update
@@ -287,3 +287,24 @@ class Task9BackendFixesTest(TestCase):
         self.assertEqual(confirmed.customer_transport_fee_cny, Decimal('30.00'))
         self.assertEqual(confirmed.transport_payer, SalesOrder.TransportPayer.CUSTOMER)
         self.assertEqual(confirmed.amount_due_cny, Decimal('50.00'))
+
+    def test_sales_draft_and_confirmation_do_not_change_total_assets(self):
+        self.complete_day1()
+        self.batch(quantity=1)
+        before = accounting_dashboard(as_of=self.business_date)
+
+        order = create_sales_order_draft(
+            items=[{'cigar_id': self.cigar.id, 'quantity': 1, 'unit_price': '20.00'}],
+            operator=self.operator,
+            agent_context=self.context('create_sales_order_draft', 'task9-assets-draft'),
+        )
+        after_draft = accounting_dashboard(as_of=self.business_date)
+        confirm_sales_order(
+            sales_order_id=order.id, operator=self.operator,
+            agent_context=self.context('confirm_sales_order', 'task9-assets-confirm'),
+        )
+        after_confirmation = accounting_dashboard(as_of=self.business_date)
+
+        self.assertEqual(before['stats']['total_funds_cny'], Decimal('10.00'))
+        self.assertEqual(after_draft['stats']['total_funds_cny'], before['stats']['total_funds_cny'])
+        self.assertEqual(after_confirmation['stats']['total_funds_cny'], before['stats']['total_funds_cny'])

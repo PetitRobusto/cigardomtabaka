@@ -201,7 +201,15 @@ def accounting_summary(*, as_of, require_current=True, account_rows=None):
         }
         for row in account_rows
     ]
-    inventory = sum((v for v in PurchaseBatch.objects.filter(remaining__gt=0).values_list('remaining_cost_cny', flat=True)), Decimal('0.00')).quantize(Decimal('0.01'))
+    inventory = sum(
+        (
+            value
+            for value in PurchaseBatch.objects.filter(
+                physical_remaining__gt=0,
+            ).values_list('remaining_cost_cny', flat=True)
+        ),
+        Decimal('0.00'),
+    ).quantize(Decimal('0.01'))
     # 在途归属以已入账付款的显式业务日为准，不能用服务器 paid_at 推导。
     from accounting.models import PurchasePayment
     in_transit_orders = PurchaseOrder.objects.filter(
@@ -240,6 +248,7 @@ def accounting_dashboard(*, as_of):
     total_funds_cny = (
         fund_accounts_book_cost
         + summary['inventory_remaining_cost_cny']
+        + summary['purchase_in_transit_cny']
         + summary['accounts_receivable_cny']
     ).quantize(Decimal('0.01'))
 
@@ -265,6 +274,7 @@ def accounting_dashboard(*, as_of):
             'total_funds_cny': total_funds_cny,
             'cny_funds_total': cny_funds_total.quantize(Decimal('0.01')),
             'inventory_book_cost_cny': summary['inventory_remaining_cost_cny'],
+            'purchase_in_transit_cny': summary['purchase_in_transit_cny'],
             'accounts_receivable_cny': summary['accounts_receivable_cny'],
             'month_net_profit_cny': profit['net_profit_cny'],
         },

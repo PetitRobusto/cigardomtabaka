@@ -11,7 +11,7 @@ import ExchangeDetails from '../components/accounting/ExchangeDetails';
 import MonthlyProfitSummary from '../components/accounting/MonthlyProfitSummary';
 import { formatCny, formatSignedCny } from '../components/sales/salesState';
 import { dashboardDay1Action, dashboardRegionStates, dashboardStatDisplay } from './businessRoutes';
-import { moscowBusinessDate, moscowBusinessMonth } from '../utils/businessDate';
+import { moscowBusinessDate, moscowBusinessMonth, recentMoscowBusinessMonths } from '../utils/businessDate';
 
 export default function AccountingDashboardPage() {
   const { setMeta } = usePageMeta();
@@ -19,6 +19,7 @@ export default function AccountingDashboardPage() {
   const location = useLocation();
   const [month, setMonth] = useState(moscowBusinessMonth());
   const [reconciliationOpen, setReconciliationOpen] = useState(false);
+  const monthOptions = recentMoscowBusinessMonths();
   const guideTourId = (location.state as { guideTourId?: string } | null)?.guideTourId;
   const initialAction = accountingActionForGuide(guideTourId);
   useEffect(() => { setMeta({ title: '账务工作台', breadcrumbs: [{ label: '首页', to: '/' }, { label: '账务工作台' }] }); }, [setMeta]);
@@ -45,6 +46,9 @@ export default function AccountingDashboardPage() {
     queryClient.invalidateQueries({ queryKey: ['accounting-exchange-transactions'] });
   };
   const data = dashboard.data;
+  const selectedMonthProfit = profit.data?.net_profit_cny
+    ?? (month === moscowBusinessMonth() ? data?.stats.month_net_profit_cny : null)
+    ?? null;
   const regionStates = dashboardRegionStates({
     accounts: { isError: accounts.isError, hasData: Boolean(accounts.data) },
     summary: { isError: summary.isError, hasData: Boolean(summary.data) },
@@ -52,10 +56,10 @@ export default function AccountingDashboardPage() {
     reconciliation: { isError: reconciliations.isError, hasData: Boolean(reconciliations.data) },
   });
   return <div className="w-full animate-fade-in">
-    <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Accounting desk</p><h1 className="mt-1 font-display text-3xl font-semibold tracking-tight sm:text-4xl">账务工作台</h1><p className="mt-2 text-sm text-muted">资金、库存成本、利润和对账的真实快照。</p></div><div className="flex gap-2"><input data-guide="accounting-profit-month" type="month" value={month} onChange={event => setMonth(event.target.value)} className="rounded border border-border bg-white px-3 py-2 text-sm" /><button type="button" onClick={refresh} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
+    <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Accounting desk</p><h1 className="mt-1 font-display text-3xl font-semibold tracking-tight sm:text-4xl">账务工作台</h1><p className="mt-2 text-sm text-muted">资金、库存成本、利润和对账的真实快照。</p></div><div className="flex gap-2"><label className="text-xs font-semibold text-muted"><span className="sr-only">报表月份</span><select data-guide="accounting-profit-month" aria-label="报表月份" value={month} onChange={event => setMonth(event.target.value)} className="rounded border border-border bg-white px-3 py-2 text-sm font-normal text-fg hover:border-gold">{monthOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button type="button" onClick={refresh} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
     {dashboard.error && <div className="mb-5 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{apiErrorMessage(dashboard.error, '账务数据加载失败')}</div>}
     {data && <>
-      <section className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat label="总资产" value={moneyStat(data.stats.total_funds_cny)} note="资金账户账面成本 + 库存成本 + 应收款" /><Stat label="库存成本" value={moneyStat(data.stats.inventory_book_cost_cny)} /><Stat label="本月利润" value={signedMoneyStat(data.stats.month_net_profit_cny)} tone="text-success" /><Stat label="待收订单" value={moneyStat(data.stats.accounts_receivable_cny)} /></section>
+      <section className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat label="总资产" value={moneyStat(data.stats.total_funds_cny)} note="资金账户账面成本 + 库存成本 + 在途采购 + 应收款" /><Stat label="库存成本" value={moneyStat(data.stats.inventory_book_cost_cny)} /><Stat label="所选月利润" value={signedMoneyStat(selectedMonthProfit)} tone="text-success" /><Stat label="待收订单" value={moneyStat(data.stats.accounts_receivable_cny)} /></section>
       {!day1Completed ? <Day1Card status={data.day1_status} /> : <>
         <MonthlyProfitSummary
           profit={regionStates.profit === 'ready' ? profit.data : undefined}

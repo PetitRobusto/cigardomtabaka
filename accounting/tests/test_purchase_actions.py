@@ -6,6 +6,7 @@ from django.db import connection, models
 from django.test import TestCase
 
 from accounting.models import Day1Initialization, FundAccount, LedgerPosting, LedgerTransaction, PurchasePayment
+from accounting.selectors import accounting_dashboard
 from accounting.purchase_actions import (
     PurchaseActionError,
     pay_purchase_order,
@@ -102,6 +103,20 @@ class PurchasePaymentTest(TestCase):
                 transaction_type=LedgerTransaction.TransactionType.PURCHASE_PAYMENT,
             ).count(), 1,
         )
+
+    def test_payment_moves_assets_to_in_transit_without_changing_total(self):
+        before = accounting_dashboard(as_of=date(2026, 8, 14))
+
+        pay_purchase_order(
+            purchase_order_id=self.order.id, rub_account_id=self.rub.id,
+            business_date=date(2026, 8, 14), operator=self.operator,
+            idempotency_key="purchase-payment-assets",
+        )
+
+        after = accounting_dashboard(as_of=date(2026, 8, 14))
+        self.assertEqual(before['stats']['total_funds_cny'], Decimal('120.00'))
+        self.assertEqual(after['stats']['purchase_in_transit_cny'], Decimal('36.00'))
+        self.assertEqual(after['stats']['total_funds_cny'], before['stats']['total_funds_cny'])
 
     def test_payment_rejects_incomplete_draft_before_writing_facts(self):
         incomplete = PurchaseOrder.objects.create(

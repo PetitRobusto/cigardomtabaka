@@ -215,6 +215,7 @@ class Day1ApiTest(TestCase):
             'total_funds_cny': None,
             'cny_funds_total': None,
             'inventory_book_cost_cny': None,
+            'purchase_in_transit_cny': None,
             'accounts_receivable_cny': None,
             'month_net_profit_cny': None,
         })
@@ -236,6 +237,7 @@ class Day1ApiTest(TestCase):
             'total_funds_cny': '607.50',
             'cny_funds_total': '100.00',
             'inventory_book_cost_cny': '337.50',
+            'purchase_in_transit_cny': '0.00',
             'accounts_receivable_cny': '0.00',
             'month_net_profit_cny': '0.00',
         })

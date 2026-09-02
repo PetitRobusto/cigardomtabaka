@@ -693,6 +693,7 @@ export interface AccountingDashboardStats {
   total_funds_cny: string | null;
   cny_funds_total: string | null;
   inventory_book_cost_cny: string | null;
+  purchase_in_transit_cny: string | null;
   accounts_receivable_cny: string | null;
   month_net_profit_cny: string | null;
 }

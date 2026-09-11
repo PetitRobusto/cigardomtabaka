@@ -264,6 +264,11 @@ export const exchangeToRub = (payload: {
     api.post('/accounting/exchanges/', payload, config),
   ).then(r => r.transaction);
 
+export const reverseExchange = (id: number, payload: { business_date: string; note: string }): Promise<AccountingTransaction> =>
+  writeWithIdempotency<{ transaction: AccountingTransaction }>(`reverse-exchange-${id}`, payload, config =>
+    api.post(`/accounting/exchanges/${id}/reverse/`, payload, config),
+  ).then(r => r.transaction);
+
 export const createPurchaseOrder = (payload: PurchaseActionCreatePayload): Promise<PurchaseAction> =>
   writeWithIdempotency<{ purchase_order: PurchaseAction }>('create-purchase-order', payload, config =>
     api.post('/accounting/purchases/', payload, config),

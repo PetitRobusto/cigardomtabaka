@@ -1,9 +1,11 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import type { AccountingApiError, ExchangeActionPayload, FundAccount } from '../../types';
 import { exchangeToRub, parseAccountingApiError } from '../../api';
 import type { ActionState } from '../../features/accounting/actionState';
 import { moscowBusinessDate } from '../../utils/businessDate';
 import { selectActiveAccountId } from './ExchangeAction.logic';
+import { formatDecimalAmount, formatDecimalRatio } from '../../utils/decimalDisplay';
+import { useDialogFocus } from '../../hooks/useDialogFocus';
 
 export interface ExchangeActionValue {
   source_account_id?: number | '';
@@ -39,6 +41,8 @@ export default function ExchangeAction({ accounts, businessDate, value, state, o
   const current = value ? { ...localValue, ...value } : localValue;
   const actionState = state || localState;
   const [fallbackError, setFallbackError] = useState('');
+  const [confirmation, setConfirmation] = useState<ExchangeActionPayload | null>(null);
+  const requestInFlight = useRef(false);
   const sources = accounts.filter(account => account.is_active && (account.currency === 'CNY' || account.currency === 'USDT'));
   const rubAccounts = accounts.filter(account => account.is_active && account.currency === 'RUB');
   const sourceId = selectActiveAccountId(sources, current.source_account_id);
@@ -68,15 +72,26 @@ export default function ExchangeAction({ accounts, businessDate, value, state, o
       setFallbackError('请选择账户并填写换出、换入金额和业务日期');
       return;
     }
+    setActionState({ status: 'idle', input: { ...current }, error: undefined });
+    setConfirmation({ ...payload });
+  };
+
+  const confirmExchange = async () => {
+    if (!confirmation || busy || requestInFlight.current) return;
+    const pending = confirmation;
+    requestInFlight.current = true;
     setActionState({ status: 'loading', input: { ...current }, error: undefined });
     try {
-      const result = submit ? await submit(payload) : onSubmit ? await onSubmit(payload) : await exchangeToRub(payload);
+      const result = submit ? await submit(confirmation) : onSubmit ? await onSubmit(confirmation) : await exchangeToRub(confirmation);
       setActionState({ status: 'success', input: { ...current }, result, error: undefined });
+      setConfirmation(currentConfirmation => currentConfirmation === pending ? null : currentConfirmation);
     } catch (requestError) {
       const parsed = parseAccountingApiError(requestError);
       const nextStatus = isConflict(parsed) ? 'conflict' : 'error';
       // 失败不清空 current，经营者可直接修正后重试。
       setActionState({ status: nextStatus, input: { ...current }, error: { code: parsed.code, message: parsed.message, details: parsed.details } });
+    } finally {
+      requestInFlight.current = false;
     }
   };
 
@@ -88,7 +103,7 @@ export default function ExchangeAction({ accounts, businessDate, value, state, o
         <div><h2 className="font-display text-lg font-semibold">记录换汇</h2><p className="mt-0.5 text-xs text-muted">人民币或 USDT 换入卢布，按实际到账数量记账。</p></div>
         <span className="text-[11px] uppercase tracking-wider text-accent">Exchange</span>
       </div>
-      <form onSubmit={submitForm} className="space-y-3 p-5">
+      <form onSubmit={submitForm} inert={confirmation !== null} className="space-y-3 p-5">
         {errorMessage && <p role="alert" className={`rounded border px-3 py-2 text-sm ${actionState.status === 'conflict' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-700'}`}>{errorMessage}</p>}
         {actionState.status === 'success' && <p className="rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">换汇已记录</p>}
         <div className="grid gap-3 sm:grid-cols-2">
@@ -100,6 +115,46 @@ export default function ExchangeAction({ accounts, businessDate, value, state, o
         <label className="block text-xs font-medium text-muted">业务日期<input data-guide="accounting-exchange-date" required type="date" value={current.business_date} onChange={event => update({ business_date: event.target.value })} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm" /></label>
         <div data-guide="accounting-exchange-submit" className="flex items-center justify-between border-t border-border pt-3"><span className="text-xs text-muted">仅支持 CNY / USDT → RUB</span><button type="submit" disabled={busy || !sourceId || !rubId} className="rounded bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{busy ? '记录中…' : '记录换汇'}</button></div>
       </form>
+      {confirmation && <ExchangeConfirmationModal
+        payload={confirmation}
+        sourceLabel={accountName(accounts, confirmation.source_account_id)}
+        rubLabel={accountName(accounts, confirmation.rub_account_id)}
+        sourceCurrency={accounts.find(account => account.id === confirmation.source_account_id)?.currency || ''}
+        busy={busy}
+        error={actionState.error?.message}
+        onCancel={() => { if (!busy) setConfirmation(null); }}
+        onConfirm={confirmExchange}
+      />}
     </section>
   );
+}
+
+function accountName(accounts: FundAccount[], accountId: number): string {
+  const account = accounts.find(item => item.id === accountId);
+  return account ? `${account.name} · ${account.currency}` : `账户 #${accountId}`;
+}
+
+export function ExchangeConfirmationModal({ payload, sourceLabel, rubLabel, sourceCurrency, busy, error, onCancel, onConfirm }: {
+  payload: ExchangeActionPayload;
+  sourceLabel: string;
+  rubLabel: string;
+  sourceCurrency: string;
+  busy: boolean;
+  error?: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const dialogRef = useDialogFocus(onCancel, busy);
+  const rate = formatDecimalRatio(payload.rub_amount, payload.source_amount);
+  return <div role="presentation" className="fixed inset-0 z-50 grid place-items-center bg-fg/50 p-3 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onCancel(); }}>
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="exchange-confirmation-title" aria-describedby="exchange-confirmation-risk" className="w-full max-w-lg overflow-hidden rounded-lg bg-white shadow-2xl outline-none">
+      <div className="border-b border-border px-5 py-4"><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Financial confirmation</p><h2 id="exchange-confirmation-title" className="mt-1 font-display text-xl font-semibold">确认换汇</h2><p className="mt-1 text-xs text-muted">请按实际账户流水逐项核对；确认后会写入正式会计事实。</p></div>
+      <div className="space-y-4 px-5 py-5">
+        <div className="rounded border border-gold/30 bg-[#FFFDF7] p-4"><dl className="space-y-2 text-sm"><div className="flex justify-between gap-4"><dt className="text-muted">转出账户</dt><dd className="text-right font-semibold">{sourceLabel}</dd></div><div className="flex justify-between gap-4"><dt className="text-muted">实际转出</dt><dd className="font-mono font-semibold">{formatDecimalAmount(payload.source_amount, sourceCurrency)} {sourceCurrency}</dd></div><div className="flex justify-between gap-4"><dt className="text-muted">转入账户</dt><dd className="text-right font-semibold">{rubLabel}</dd></div><div className="flex justify-between gap-4"><dt className="text-muted">实际转入</dt><dd className="font-mono font-semibold">{formatDecimalAmount(payload.rub_amount, 'RUB')} RUB</dd></div><div className="flex justify-between gap-4 border-t border-border pt-2"><dt className="text-muted">实际汇率</dt><dd className="font-mono font-semibold">{rate == null ? '—' : `${rate} RUB / 原币`}</dd></div><div className="flex justify-between gap-4"><dt className="text-muted">业务日期</dt><dd className="font-mono font-semibold">{payload.business_date}</dd></div></dl></div>
+        <p id="exchange-confirmation-risk" className="rounded border border-[#E3C3C6] bg-[#FAF1F0] px-3 py-3 text-xs leading-5 text-accent">换汇会同时改变两边账户的原币余额和人民币账面成本。若账户随后发生其他资金动作，系统将禁止直接回撤，以保护移动平均成本。</p>
+        {error && <p role="alert" className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      </div>
+      <footer className="flex justify-end gap-2 border-t border-border bg-[#FFFDF9] px-5 py-4"><button type="button" disabled={busy} onClick={onCancel} className="rounded border border-border bg-white px-3 py-2 text-sm font-semibold hover:border-gold disabled:opacity-50">返回修改</button><button type="button" disabled={busy} onClick={onConfirm} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-50">{busy ? '入账中…' : '确认换汇并入账'}</button></footer>
+    </div>
+  </div>;
 }

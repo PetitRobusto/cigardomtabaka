@@ -77,6 +77,7 @@ class ActionApiContractTest(TestCase):
         self.assertEqual(self.client.patch('/api/accounting/dividends/').status_code, 405)
         self.assertEqual(self.client.get('/api/accounting/dividends/1/preview/').status_code, 405)
         self.assertEqual(self.client.get('/api/accounting/dividends/1/confirm/').status_code, 405)
+        self.assertEqual(self.client.get('/api/accounting/exchanges/1/reverse/').status_code, 405)
 
     def test_invalid_action_input_is_bad_request_and_day1_is_conflict(self):
         invalid = self.request('post', '/api/accounting/expenses/', {'category': 'salary'}, key='task7-invalid')
@@ -133,6 +134,13 @@ class ActionApiContractTest(TestCase):
             'category': 'salary', 'amount': '1.00', 'fund_account_id': 1, 'business_date': '2026-08-14',
         }, key='guard-expense')
         self.assertEqual(expense.json()['code'], 'day1_incomplete')
+        exchange_reversal = self.request(
+            'post', '/api/accounting/exchanges/1/reverse/',
+            {'business_date': '2026-08-14', 'note': '修正录入'},
+            key='guard-exchange-reversal',
+        )
+        self.assertEqual(exchange_reversal.status_code, 409)
+        self.assertEqual(exchange_reversal.json()['code'], 'day1_incomplete')
         dividend = self.request('post', '/api/accounting/dividends/', {
             'total_cny': '1.00', 'business_date': '2026-08-14',
         }, key='guard-dividend')
@@ -391,6 +399,81 @@ class ActionApiContractTest(TestCase):
                 self.client.raise_request_exception = True
         self.assertEqual(busy.status_code, 503)
         self.assertEqual(busy.json()['code'], 'busy')
+
+    def test_exchange_reversal_http_flow_and_replay(self):
+        base = self.exchange_payload()
+        cny = FundAccount.objects.get(pk=base['source_account_id'])
+        record_opening_balance(
+            cny, '100.00', '100.00', LedgerPosting.Category.OPENING_CAPITAL,
+            date(2026, 8, 10), self.operator, 'exchange-reversal-api-opening',
+        )
+        created = self.request(
+            'post', '/api/accounting/exchanges/', base,
+            key='exchange-reversal-api-original',
+        )
+        exchange_id = created.json()['transaction']['id']
+        body = {'business_date': '2026-08-15', 'note': '操作员录错金额'}
+
+        reversed_response = self.request(
+            'post', f'/api/accounting/exchanges/{exchange_id}/reverse/', body,
+            key='exchange-reversal-api-action',
+        )
+        replay = self.request(
+            'post', f'/api/accounting/exchanges/{exchange_id}/reverse/', body,
+            key='exchange-reversal-api-action',
+        )
+
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(reversed_response.status_code, 200)
+        self.assertEqual(replay.status_code, 200)
+        self.assertEqual(replay.json(), reversed_response.json())
+        original = LedgerTransaction.objects.get(pk=exchange_id)
+        self.assertEqual(original.reversed_by_id, reversed_response.json()['transaction']['id'])
+
+        changed_replay = self.request(
+            'post', f'/api/accounting/exchanges/{exchange_id}/reverse/',
+            {**body, 'note': '换了一个原因'}, key='exchange-reversal-api-action',
+        )
+        another_action = self.request(
+            'post', f'/api/accounting/exchanges/{exchange_id}/reverse/', body,
+            key='exchange-reversal-api-another-action',
+        )
+        self.assertEqual(changed_replay.status_code, 409)
+        self.assertEqual(changed_replay.json()['code'], 'idempotency_conflict')
+        self.assertEqual(another_action.status_code, 409)
+        self.assertEqual(another_action.json()['code'], 'already_reversed')
+
+    def test_exchange_reversal_requires_reason_and_exchange_transaction(self):
+        base = self.exchange_payload()
+        missing_reason = self.request(
+            'post', '/api/accounting/exchanges/999999/reverse/',
+            {'business_date': '2026-08-15'}, key='exchange-reversal-missing-reason',
+        )
+        self.assertEqual(missing_reason.status_code, 400)
+        self.assertEqual(missing_reason.json()['code'], 'reason_required')
+
+        opening = record_opening_balance(
+            FundAccount.objects.get(pk=base['source_account_id']),
+            '100.00', '100.00', LedgerPosting.Category.OPENING_CAPITAL,
+            date(2026, 8, 10), self.operator, 'exchange-reversal-api-wrong-type-opening',
+        )
+        wrong_type = self.request(
+            'post', f'/api/accounting/exchanges/{opening.pk}/reverse/',
+            {'business_date': '2026-08-15', 'note': '目标不是换汇'},
+            key='exchange-reversal-api-wrong-type',
+        )
+        self.assertEqual(wrong_type.status_code, 404)
+        self.assertEqual(wrong_type.json()['code'], 'exchange_not_found')
+
+    def test_exchange_reversal_requires_staff_authentication(self):
+        self.client.logout()
+        response = self.request(
+            'post', '/api/accounting/exchanges/1/reverse/',
+            {'business_date': '2026-08-15', 'note': '无权限操作'},
+            key='exchange-reversal-forbidden',
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()['code'], 'forbidden')
 
     def test_purchase_serializer_reuses_prefetched_items(self):
         for _ in range(3):

@@ -2,7 +2,7 @@ import type { ComponentProps } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { FundAccount } from '../../types';
-import ExchangeAction from './ExchangeAction';
+import ExchangeAction, { ExchangeConfirmationModal } from './ExchangeAction';
 import { selectActiveAccountId as selectExchangeAccountId } from './ExchangeAction.logic';
 
 describe('换汇动作卡 SSR 契约', () => {
@@ -66,5 +66,27 @@ describe('换汇动作默认业务日期', () => {
     const html = renderToStaticMarkup(<ExchangeAction accounts={[]} />);
     expect(html).toContain('value="2026-08-14"');
     vi.useRealTimers();
+  });
+});
+
+describe('换汇二次确认', () => {
+  it('在 modal 中逐项展示不可变提交快照和实际汇率', () => {
+    const html = renderToStaticMarkup(<ExchangeConfirmationModal
+      payload={{ source_account_id: 1, rub_account_id: 3, source_amount: '100.00', rub_amount: '1200.00', business_date: '2026-08-16' }}
+      sourceLabel="人民币账户 · CNY"
+      rubLabel="卢布银行卡 · RUB"
+      sourceCurrency="CNY"
+      busy={false}
+      onCancel={() => undefined}
+      onConfirm={() => undefined}
+    />);
+
+    expect(html).toContain('确认换汇');
+    expect(html).toContain('人民币账户 · CNY');
+    expect(html).toContain('卢布银行卡 · RUB');
+    expect(html).toContain('100.00 CNY');
+    expect(html).toContain('1,200.00 RUB');
+    expect(html).toContain('12.0000 RUB / 原币');
+    expect(html).toContain('确认换汇并入账');
   });
 });

@@ -950,6 +950,10 @@ export interface AccountingTransaction {
   effective_sequence: number | null;
   description: string;
   operator_id: number;
+  source_type?: string;
+  source_id?: string;
+  reversed_by_id?: number | null;
+  reversal_business_date?: string | null;
   postings: AccountingTransactionPosting[];
 }
 

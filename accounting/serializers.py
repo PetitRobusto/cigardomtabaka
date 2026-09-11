@@ -24,6 +24,7 @@ def serialize_snapshot(account):
 
 def serialize_transaction(ledger_transaction):
     postings = list(ledger_transaction.postings.all())
+    reversal = getattr(ledger_transaction, 'reversed_by', None)
     return {
         'id': ledger_transaction.pk,
         'transaction_type': ledger_transaction.transaction_type,
@@ -32,6 +33,10 @@ def serialize_transaction(ledger_transaction):
         'effective_sequence': ledger_transaction.effective_sequence,
         'description': ledger_transaction.description,
         'operator_id': ledger_transaction.operator_id,
+        'source_type': ledger_transaction.source_type,
+        'source_id': ledger_transaction.source_id,
+        'reversed_by_id': ledger_transaction.reversed_by_id,
+        'reversal_business_date': reversal.business_date.isoformat() if reversal is not None else None,
         'postings': [
             {
                 'account_id': posting.account_id,

@@ -43,6 +43,7 @@ from accounting.services import (
     _transfer_same_currency_with_result,
     confirm_reconciliation,
     create_reconciliation,
+    reverse_exchange,
 )
 from cigars.models import PurchaseOrder, User
 
@@ -79,6 +80,10 @@ _ERROR_STATUS = {
     'reason_required': 400,
     'already_reversed': 409,
     'expense_not_found': 404,
+    'exchange_not_found': 404,
+    'exchange_has_later_activity': 409,
+    'exchange_reconciled_period': 409,
+    'invalid_exchange_structure': 409,
     'missing_payment': 409,
     'already_received': 409,
     'receipt_already_used': 409,
@@ -484,7 +489,27 @@ def opening_balances(request):
 
 
 @staff_json_required
-def exchanges(request):
+def exchanges(request, exchange_id=None, action=None):
+    if action == 'reverse':
+        if request.method != 'POST':
+            return _json_error('请求方法不支持', status=405, code='method_not_allowed')
+        try:
+            payload = _json_object(request)
+            reason = _optional_note(payload).strip()
+            if not reason:
+                raise ApiInputError('回撤原因不能为空', code='reason_required')
+            reversal = reverse_exchange(
+                exchange_id=exchange_id,
+                business_date=_required_business_date(payload),
+                operator=request.accounting_operator,
+                idempotency_key=_idempotency_key(request),
+                reason=reason,
+            )
+            return _transaction_response(reversal)
+        except OperationalError:
+            return _busy_response()
+        except (ApiInputError, LedgerError, InvalidOperation, ValueError, Day1IncompleteError) as error:
+            return error_response(error)
     if request.method != 'POST':
         return _json_error('请求方法不支持', status=405, code='method_not_allowed')
     try:
@@ -558,7 +583,7 @@ def transactions(request):
             raise ApiInputError('limit 必须是整数')
         if not 1 <= limit <= 500:
             raise ApiInputError('limit 必须在1到500之间')
-        records = LedgerTransaction.objects.select_related('operator').prefetch_related(
+        records = LedgerTransaction.objects.select_related('operator', 'reversed_by').prefetch_related(
             Prefetch('postings', queryset=LedgerPosting.objects.select_related('account').order_by('id')),
         )
         account_id = request.GET.get('account_id')

@@ -31,6 +31,7 @@ import {
   payPurchaseOrder,
   previewDividend,
   receivePurchaseOrder,
+  reverseExchange,
   reverseReceivedPurchaseOrder,
   reverseInventoryAdjustment,
   fetchInventoryAudit,
@@ -128,6 +129,19 @@ describe('accounting action API contracts', () => {
         rub_amount: '1200.00',
         business_date: businessDate,
       },
+      expect.objectContaining({ headers: { 'Idempotency-Key': expect.any(String) } }),
+    );
+  });
+
+  it('reverses one exchange through its narrow action endpoint', async () => {
+    client.post.mockReturnValueOnce(response({ transaction: { id: 31, source_type: 'ledger_reversal' } }));
+    const payload = { business_date: businessDate, note: '换汇金额录错' };
+
+    await expect(reverseExchange(17, payload)).resolves.toMatchObject({ id: 31 });
+
+    expect(client.post).toHaveBeenCalledWith(
+      '/accounting/exchanges/17/reverse/',
+      payload,
       expect.objectContaining({ headers: { 'Idempotency-Key': expect.any(String) } }),
     );
   });

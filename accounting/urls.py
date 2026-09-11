@@ -13,6 +13,7 @@ urlpatterns = [
     path('accounts/', views.accounts, name='accounts'),
     path('opening-balances/', views.opening_balances, name='opening_balances'),
     path('exchanges/', views.exchanges, name='exchanges'),
+    path('exchanges/<int:exchange_id>/reverse/', views.exchanges, {'action': 'reverse'}, name='exchange_reverse'),
     path('transfers/', views.transfers, name='transfers'),
     path('overview/', views.overview, name='overview'),
     path('transactions/', views.transactions, name='transactions'),

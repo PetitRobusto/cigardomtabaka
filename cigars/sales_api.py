@@ -12,7 +12,7 @@ from django.db import IntegrityError, OperationalError
 
 from django.db import transaction
 from django.db.models import Count, Max, Q, Sum
-from django.http import JsonResponse
+from django.http import FileResponse, Http404, JsonResponse
 from django.utils import timezone
 
 from accounting.models import FundAccount
@@ -45,6 +45,11 @@ class ActionInputError(OrderServiceError):
 from .sales_accounting import (
     ship_sales_order, receive_sales_order_payment, refund_sales_order_payment,
     record_sales_transport_cost, return_sales_order,
+)
+from privnote.models import PaymentAttachment, PaymentSubmission
+from privnote.services.payment_submissions import (
+    PaymentSubmissionError, accept_payment_submission, mark_submission_needs_more,
+    serialize_submission,
 )
 
 
@@ -141,6 +146,8 @@ def _write(request, command, handler, success_status=200):
             return _error(str(exc), 409, getattr(exc, "details", None))
         except Day1IncompleteError as exc:
             return _error(str(exc), 409, getattr(exc, "details", None), exc.code)
+        except PaymentSubmissionError as exc:
+            return _error(str(exc), exc.status)
         except (OrderServiceError, LedgerError) as exc:
             return _error(str(exc), 400, getattr(exc, "details", None))
         except OperationalError as exc:
@@ -161,7 +168,7 @@ def _get_order(order_id):
         return SalesOrder.objects.select_related(
             "customer", "sales_shipment", "sales_receipt", "sales_refund",
             "sales_return", "sales_transport_cost",
-        ).prefetch_related("privnote_set").get(id=order_id)
+        ).prefetch_related("privnote_set", "payment_submissions").get(id=order_id)
     except (SalesOrder.DoesNotExist, ValueError, TypeError):
         return None
 
@@ -212,7 +219,7 @@ def sales_orders(request):
         "customer", "sales_shipment", "sales_receipt", "sales_refund",
         "sales_return", "sales_transport_cost",
     ).prefetch_related(
-        "items__cigar", "items__allocations__purchase_batch", "privnote_set"
+        "items__cigar", "items__allocations__purchase_batch", "privnote_set", "payment_submissions"
     ).all()
     fulfillment = request.GET.get("fulfillment_status", "").strip()
     payment = request.GET.get("payment_status", "").strip()
@@ -580,8 +587,78 @@ def sales_order_receive(request, order_id):
     return _action(request, order_id, "receive_sales_order_payment", lambda body, operator, context: receive_sales_order_payment(
         order_id=order_id, amount_cny=body.get("amount_cny"),
         fund_account=_account(body, operator), business_date=_business_date(body),
-        operator=operator, idempotency_key=context.idempotency_key,
+        operator=operator, idempotency_key=context.idempotency_key, agent_context=context,
     ).sales_order)
+
+
+def sales_order_payment_submissions(request, order_id):
+    denied = _denied(request)
+    if denied:
+        return denied
+    method_error = _method(request, {"GET"})
+    if method_error:
+        return method_error
+    if _get_order(order_id) is None:
+        return _error("销售单不存在", 404)
+    submissions = PaymentSubmission.objects.filter(sales_order_id=order_id).select_related(
+        "fund_account", "sales_receipt", "reviewed_by",
+    ).prefetch_related("attachments").order_by("-submitted_at", "-id")
+    return _json({"payment_submissions": [serialize_submission(item, include_attachments=True) for item in submissions]})
+
+
+def sales_order_payment_submission_accept(request, order_id, submission_id):
+    denied = _denied(request)
+    if denied:
+        return denied
+    method_error = _method(request, {"POST"})
+    if method_error:
+        return method_error
+    if _get_order(order_id) is None:
+        return _error("销售单不存在", 404)
+
+    def handler(body, operator, context):
+        return {"payment_submission": serialize_submission(accept_payment_submission(
+            submission_id=submission_id, sales_order_id=order_id, operator=operator,
+            business_date=_business_date(body), idempotency_key=context.idempotency_key,
+            agent_context=context,
+        ), include_attachments=True)}
+    return _write(request, "accept_payment_submission", handler)
+
+
+def sales_order_payment_submission_needs_more(request, order_id, submission_id):
+    denied = _denied(request)
+    if denied:
+        return denied
+    method_error = _method(request, {"POST"})
+    if method_error:
+        return method_error
+    if _get_order(order_id) is None:
+        return _error("销售单不存在", 404)
+
+    def handler(body, operator, context):
+        return {"payment_submission": serialize_submission(mark_submission_needs_more(
+            submission_id=submission_id, sales_order_id=order_id, operator=operator,
+            note=str(body.get("review_note") or ""),
+        ), include_attachments=True)}
+    return _write(request, "payment_submission_needs_more", handler)
+
+
+def sales_order_payment_attachment(request, order_id, submission_id, attachment_id):
+    denied = _denied(request)
+    if denied:
+        return denied
+    method_error = _method(request, {"GET"})
+    if method_error:
+        return method_error
+    attachment = PaymentAttachment.objects.select_related("submission").filter(
+        pk=attachment_id, submission_id=submission_id, submission__sales_order_id=order_id,
+    ).first()
+    if attachment is None or not attachment.file.storage.exists(attachment.file.name):
+        raise Http404
+    response = FileResponse(attachment.file.storage.open(attachment.file.name, "rb"), content_type=attachment.content_type)
+    response['Cache-Control'] = 'private, no-store'
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 def sales_order_refund(request, order_id):

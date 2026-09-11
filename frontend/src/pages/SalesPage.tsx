@@ -22,6 +22,7 @@ export default function SalesPage() {
   const [quickDate, setQuickDate] = useState<QuickDate>('all');
   const [fulfillment, setFulfillment] = useState('');
   const [payment, setPayment] = useState('');
+  const [reviewOnly, setReviewOnly] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [formError, setFormError] = useState('');
   const [creating, setCreating] = useState(false);
@@ -43,11 +44,13 @@ export default function SalesPage() {
   });
   const accountsQuery = useQuery({ queryKey: ['accounting-accounts'], queryFn: fetchAccountingAccounts });
   const orders = useMemo(() => ordersQuery.data || [], [ordersQuery.data]);
-  const summary = summarizeSalesOrders(orders);
-  const totalDue = activeSalesAmount(orders);
-  const totalProfit = orders.reduce((total, order) => total + (salesOrderFinancialView(order).contributionProfit ?? 0), 0);
+  const reviewCount = orders.filter(order => order.payment_review?.status === 'pending').length;
+  const visibleOrders = reviewOnly ? orders.filter(order => order.payment_review?.status === 'pending') : orders;
+  const summary = summarizeSalesOrders(visibleOrders);
+  const totalDue = activeSalesAmount(visibleOrders);
+  const totalProfit = visibleOrders.reduce((total, order) => total + (salesOrderFinancialView(order).contributionProfit ?? 0), 0);
 
-  const visibleSelectedId = selectedId && orders.some(order => order.id === selectedId) ? selectedId : null;
+  const visibleSelectedId = selectedId && visibleOrders.some(order => order.id === selectedId) ? selectedId : null;
 
   const invalidateSales = () => {
     queryClient.invalidateQueries({ queryKey: ['sales-orders'] });
@@ -98,13 +101,14 @@ export default function SalesPage() {
         <div className="flex flex-wrap gap-1">{([['all', '全部'], ['today', '今天'], ['week', '近 7 天'], ['month', '本月']] as [QuickDate, string][]).map(([value, label]) => <button key={value} type="button" onClick={() => selectQuickDate(value)} className={'rounded-full border px-3 py-1.5 text-xs font-semibold ' + (quickDate === value ? 'border-fg bg-fg text-white' : 'border-border hover:border-gold')}>{label}</button>)}</div>
         <label className="text-[11px] font-semibold text-muted">订单<select value={fulfillment} onChange={event => setFulfillment(event.target.value)} className="mt-1 block rounded border border-border bg-white px-2 py-1.5 text-xs text-fg"><option value="">全部订单</option><option value="draft">草稿</option><option value="confirmed">已确认</option><option value="shipped">已出库</option><option value="cancelled">已取消</option><option value="returned">已退货</option></select></label>
         <label className="text-[11px] font-semibold text-muted">付款<select value={payment} onChange={event => setPayment(event.target.value)} className="mt-1 block rounded border border-border bg-white px-2 py-1.5 text-xs text-fg"><option value="">全部付款</option><option value="unpaid">未收款</option><option value="paid">已收款</option><option value="refund_pending">待退款</option><option value="refunded">已退款</option></select></label>
+        <button type="button" onClick={() => setReviewOnly(value => !value)} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${reviewOnly ? 'border-accent bg-accent text-white' : reviewCount ? 'border-orange-200 bg-orange-50 text-orange-800' : 'border-border text-muted'}`}>待核实 <span className="font-mono">{reviewCount}</span></button>
         <div className="relative min-w-48 flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="搜索订单号或客户" className="w-full rounded border border-border py-2 pl-9 pr-3 text-sm outline-none focus:border-gold" /></div>
       </div>
     </section>
 
     {ordersQuery.error && <p className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{apiErrorMessage(ordersQuery.error, '订单加载失败')}</p>}
     {accountsQuery.error && <p className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">资金账户加载失败，收款和人肉成本动作暂不可用。</p>}
-    {ordersQuery.isLoading ? <p className="rounded border border-border bg-white px-5 py-16 text-center text-sm text-muted">加载订单工作台…</p> : <SalesOrderWorkbench orders={orders} selectedId={visibleSelectedId} accounts={accountsQuery.data || []} accountsError={accountsQuery.error ? apiErrorMessage(accountsQuery.error) : ''} onSelect={setSelectedId} onChanged={invalidateSales} onCustomer={id => setCustomerModal({ mode: 'detail', id })} />}
+    {ordersQuery.isLoading ? <p className="rounded border border-border bg-white px-5 py-16 text-center text-sm text-muted">加载订单工作台…</p> : <SalesOrderWorkbench orders={visibleOrders} selectedId={visibleSelectedId} accounts={accountsQuery.data || []} accountsError={accountsQuery.error ? apiErrorMessage(accountsQuery.error) : ''} onSelect={setSelectedId} onChanged={invalidateSales} onCustomer={id => setCustomerModal({ mode: 'detail', id })} />}
 
     {createOpen && <div role="dialog" aria-modal="true" aria-label="新建销售单" className="fixed inset-0 z-50 grid place-items-center bg-fg/30 p-3" onMouseDown={event => { if (event.target === event.currentTarget) setCreateOpen(false); }}><div className="relative max-h-[calc(100vh-1.5rem)] w-full max-w-4xl overflow-y-auto"><button type="button" aria-label="关闭新建销售单" onClick={() => setCreateOpen(false)} className="absolute right-5 top-5 z-10 text-muted"><X className="h-4 w-4" /></button><SalesOrderForm onSubmit={create} busy={creating} error={formError} /></div></div>}
     {customerModal && <SalesCustomerModal customerId={customerModal.id} mode={customerModal.mode} onClose={() => setCustomerModal(null)} onCreated={() => setCustomerModal(null)} />}

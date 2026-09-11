@@ -104,6 +104,18 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Payment QR snapshots and customer payment evidence are deliberately outside
+# MEDIA_ROOT.  They are served only by token-aware privnote views.
+PRIVATE_PAYMENT_MEDIA_ROOT = Path(
+    os.getenv('PRIVATE_PAYMENT_MEDIA_ROOT', str(BASE_DIR / 'private_payment_media'))
+)
+
+# The public proof endpoint accepts at most five 5 MiB files.  Reject an
+# oversized multipart body before Django parses it or spools files to disk;
+# deploy-time reverse-proxy limits must be kept at or below this value too.
+PAYMENT_SUBMISSION_MAX_REQUEST_BYTES = 26 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = PAYMENT_SUBMISSION_MAX_REQUEST_BYTES
+
 # DRF
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [

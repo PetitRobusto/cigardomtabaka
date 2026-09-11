@@ -684,7 +684,7 @@ def receive_sales_order_payment_command(request):
             order_id=body.get('sales_order_id'), amount_cny=body.get('amount_cny'),
             fund_account=_fund_account_from_body(body),
             business_date=_required_business_date(body), operator=operator,
-            idempotency_key=context.idempotency_key,
+            idempotency_key=context.idempotency_key, agent_context=context,
         )
         return _sales_order_response(receipt.sales_order)
 

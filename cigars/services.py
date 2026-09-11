@@ -178,6 +178,30 @@ def _serialize_payment_notes(order):
     } for note in notes]
 
 
+def _serialize_payment_review(order):
+    """Small staff-only summary; image locations stay behind the review API."""
+    from privnote.models import PaymentSubmission
+
+    if hasattr(order, '_prefetched_objects_cache') and 'payment_submissions' in order._prefetched_objects_cache:
+        submissions = order._prefetched_objects_cache['payment_submissions']
+        current = next((item for item in submissions if item.status in (
+            PaymentSubmission.Status.PENDING, PaymentSubmission.Status.NEEDS_MORE,
+        )), None)
+    else:
+        current = PaymentSubmission.objects.filter(
+            sales_order=order,
+            status__in=(PaymentSubmission.Status.PENDING, PaymentSubmission.Status.NEEDS_MORE),
+        ).order_by('-submitted_at', '-id').first()
+    if current is None:
+        return None
+    return {
+        'id': current.id,
+        'status': current.status,
+        'submitted_at': current.submitted_at.isoformat(),
+        'review_note': current.review_note if current.status == PaymentSubmission.Status.NEEDS_MORE else '',
+    }
+
+
 def serialize_sales_order(order):
     items = []
     if hasattr(order, '_prefetched_objects_cache') and 'items' in order._prefetched_objects_cache:
@@ -255,6 +279,7 @@ def serialize_sales_order(order):
         'note': order.note,
         'items': items,
         'payment_notes': _serialize_payment_notes(order),
+        'payment_review': _serialize_payment_review(order),
         'sales_shipment': ({
             'id': order.sales_shipment.id,
             'business_date': order.sales_shipment.business_date.isoformat(),
@@ -642,7 +667,16 @@ def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None
         if note:
             order.note = note
         order.save()
-        _record_order_event(order, operator=operator, context=context, note=note, metadata=_sales_event_metadata(order, business_date))
+        from privnote.services.payment_submissions import close_open_submissions
+        closed_submission_ids = close_open_submissions(order=order, reason='order_cancelled')
+        metadata = _sales_event_metadata(order, business_date)
+        if closed_submission_ids:
+            metadata.update({
+                'payment_submission_ids_closed': closed_submission_ids,
+                'payment_submission_close_reason': 'order_cancelled',
+                'idempotency_key': context.idempotency_key,
+            })
+        _record_order_event(order, operator=operator, context=context, note=note, metadata=metadata)
         return order
     require_day1_completed()
     if order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED:
@@ -669,7 +703,16 @@ def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None
     if note:
         order.note = note
     order.save()
-    _record_order_event(order, operator=operator, context=context, note=note, metadata=_sales_event_metadata(order, business_date))
+    from privnote.services.payment_submissions import close_open_submissions
+    closed_submission_ids = close_open_submissions(order=order, reason='order_cancelled')
+    metadata = _sales_event_metadata(order, business_date)
+    if closed_submission_ids:
+        metadata.update({
+            'payment_submission_ids_closed': closed_submission_ids,
+            'payment_submission_close_reason': 'order_cancelled',
+            'idempotency_key': context.idempotency_key,
+        })
+    _record_order_event(order, operator=operator, context=context, note=note, metadata=metadata)
     return order
 
 

@@ -5,11 +5,11 @@ import type {
   InventoryResponse, PrivnoteResponse,
   PaymentMethod, SearchCigarResult, InventoryViewData,
   CustomerResult, SalesCustomer, SalesCustomerDirectory, QuoteProduct, RecentChangesResponse,
-  SalesOrder, PaymentOrder, SalesOrderPayload, FundAccount, MonthlyProfitReport,
+  SalesOrder, PaymentOrder, SalesOrderPayload, FundAccount, MonthlyProfitReport, PaymentSubmission,
   AccountingSummary, AccountingDashboard, Reconciliation,
   Day1State,
 } from './types';
-import { writeWithIdempotency, acquireIdempotencyKey, releaseIdempotencyKey } from './api/idempotency';
+import { writeWithIdempotency, acquireIdempotencyKey, isRetryableWriteError, releaseIdempotencyKey } from './api/idempotency';
 
 import type { AccountingActionsResponse, InventoryPurchaseDirectory, PurchaseAction, PurchaseActionCreatePayload, PurchaseActionUpdatePayload, PurchasePayPayload, PurchaseReceivePayload, PurchaseCancelPayload, PurchaseSupplier, ExpenseActionPayload, AccountingExpensesResponse, AccountingTransaction, AccountingTransactionsResponse, DividendAction, DividendPreview, DividendCreatePayload, DividendUpdatePayload, DividendConfirmPayload, AccountingApiError } from './types';
 function getCSRFToken(): string {
@@ -406,24 +406,77 @@ export const verifyPrivnotePassword = (token: string, password: string): Promise
   api.post(`/privnote/${token}/`, { password }).then(r => r.data);
 
 export const createPrivnote = async (data: FormData): Promise<CreatePrivnoteResponse> => {
-  const response = await fetch('/privnote/create/', {
-    method: 'POST',
-    body: data,
-    credentials: 'same-origin',
-    headers: { 'X-CSRFToken': getCSRFToken() },
-  });
-  let body: unknown;
+  const payload = Object.fromEntries(Array.from(data.entries()).map(([key, value]) => [
+    key,
+    value instanceof File ? { name: value.name, size: value.size, modified: value.lastModified } : String(value),
+  ]));
+  // Server-side creation idempotency is implemented only for the payment
+  // workflow. Do not promise retry safety for legacy note types yet.
+  const paymentRequest = data.get('note_type') === 'payment';
+  const key = paymentRequest ? acquireIdempotencyKey('create-privnote', payload) : '';
   try {
-    body = await response.json();
-  } catch {
-    if (!response.ok) throw new Error('私密链接创建失败，请稍后重试');
-    throw new Error('服务器返回格式错误');
+    const response = await fetch('/privnote/create/', {
+      method: 'POST', body: data, credentials: 'same-origin',
+      headers: {
+        'X-CSRFToken': getCSRFToken(),
+        ...(key ? { 'Idempotency-Key': key } : {}),
+      },
+    });
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      if (!response.ok) throw new Error('私密链接创建失败，请稍后重试');
+      throw new Error('服务器返回格式错误');
+    }
+    if (!response.ok) {
+      const existing = body && typeof body === 'object' && 'payment_note' in body
+        ? body.payment_note : null;
+      // A concurrent click (or a fresh request after a lost response) can
+      // discover the same still-valid link.  It is a successful outcome for
+      // the order UI, not an error requiring the user to rebuild the form.
+      if (response.status === 409 && isCreatePrivnoteResponse(existing)) {
+        if (paymentRequest) releaseIdempotencyKey('create-privnote', payload);
+        return existing;
+      }
+      throw new Error(privnoteErrorMessage(body) || '私密链接创建失败');
+    }
+    if (!isCreatePrivnoteResponse(body)) throw new Error('服务器返回格式错误');
+    if (paymentRequest) releaseIdempotencyKey('create-privnote', payload);
+    return body;
+  } catch (error) {
+    if (paymentRequest && !isRetryableWriteError(error)) releaseIdempotencyKey('create-privnote', payload);
+    throw error;
   }
-  if (!response.ok) throw new Error(privnoteErrorMessage(body) || '私密链接创建失败');
-  // 页面只消费通过运行时校验的完整创建结果。
-  if (!isCreatePrivnoteResponse(body)) throw new Error('服务器返回格式错误');
-  return body;
 };
+
+export const submitPaymentEvidence = async (token: string, files: File[], idempotencyKey: string): Promise<PaymentSubmission> => {
+  const form = new FormData();
+  files.forEach(file => form.append('files', file));
+  const response = await fetch(`/api/privnote/${token}/payment-submissions/`, {
+    method: 'POST', body: form, credentials: 'same-origin',
+    headers: { 'Idempotency-Key': idempotencyKey },
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body?.payment_submission) throw new Error(privnoteErrorMessage(body) || '付款凭证提交失败');
+  return body.payment_submission as PaymentSubmission;
+};
+
+export const fetchPaymentSubmissions = (orderId: number): Promise<PaymentSubmission[]> =>
+  api.get(`/sales/orders/${orderId}/payment-submissions/`).then(response => response.data.payment_submissions as PaymentSubmission[]);
+
+export const acceptPaymentSubmission = (orderId: number, submissionId: number, businessDate: string): Promise<PaymentSubmission> =>
+  writeWithIdempotency<{ payment_submission: PaymentSubmission }>('accept-payment-submission-' + submissionId, { orderId, submissionId, businessDate }, config =>
+    api.post(`/sales/orders/${orderId}/payment-submissions/${submissionId}/accept/`, { business_date: businessDate }, config),
+  ).then(response => response.payment_submission as PaymentSubmission);
+
+export const requestMorePaymentEvidence = (orderId: number, submissionId: number, reviewNote: string): Promise<PaymentSubmission> =>
+  writeWithIdempotency<{ payment_submission: PaymentSubmission }>('payment-submission-needs-more-' + submissionId, { orderId, submissionId, reviewNote }, config =>
+    api.post(`/sales/orders/${orderId}/payment-submissions/${submissionId}/needs-more/`, { review_note: reviewNote }, config),
+  ).then(response => response.payment_submission as PaymentSubmission);
+
+export const paymentSubmissionAttachmentUrl = (orderId: number, submissionId: number, attachmentId: number): string =>
+  `/api/sales/orders/${orderId}/payment-submissions/${submissionId}/attachments/${attachmentId}/`;
 
 // ── Privnote upgrade APIs (NOT under /api/ prefix) ──
 

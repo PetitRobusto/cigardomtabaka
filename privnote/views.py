@@ -1,23 +1,27 @@
 """privnote HTTP 入口 — 纯 request/response 层，零业务逻辑"""
 import json
+import mimetypes
 import os
 import uuid
+import hashlib
 from datetime import datetime, timedelta
 
 from django.conf import settings
-from django.db import transaction
+from django.core.exceptions import RequestDataTooBig
+from django.db import IntegrityError, OperationalError, transaction
 from django.db.models import Prefetch, Q, prefetch_related_objects
-from django.http import JsonResponse, HttpResponseForbidden
+from django.http import FileResponse, Http404, JsonResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 
-from cigars.models import Brand, Cigar, CigarPrice, Customer, PurchaseBatch, SalesOrder, User
+from cigars.models import Brand, Cigar, CigarPrice, Customer, IdempotencyRecord, PurchaseBatch, SalesOrder, User
 from accounting.models import FundAccount
+from accounting.services import _acquire_sqlite_writer_gate, _retry_sqlite_locked
 from cigars.search import CigarSearchEngine
 from cigars.constants import BRAND_CN_MAP
-from .models import PaymentMethod, Privnote
+from .models import PaymentAttachment, PaymentMethod, PaymentSubmission, Privnote
 from .decorators import staff_required
 from .helpers import (
     decimal_to_number,
@@ -33,6 +37,11 @@ from .services import (
 )
 from .services.payment import PaymentValidationError
 from .services.payment_methods import PaymentMethodActionError, create_payment_method, set_payment_method_active
+from .services.payment_requests import PaymentRequestError, create_payment_request
+from .services.payment_submissions import (
+    PaymentSubmissionError, serialize_submission, submit_payment_evidence,
+)
+from .storage import private_payment_storage
 
 
 # ── 常量 ──
@@ -59,6 +68,113 @@ def _request_operator(request):
     return None
 
 
+def _payment_v2(note):
+    config = note.data_json if isinstance(note.data_json, dict) else {}
+    return config.get('schema_version') == 2 and isinstance(config.get('payment'), dict)
+
+
+def _password_authorized(request, note):
+    return not note.has_password or request.session.get(f'privnote-password:{note.token}') == note.password_hash
+
+
+def _payment_public_data(note):
+    """Render a v2 payment snapshot without leaking internal account data."""
+    config = note.data_json['payment']
+    display = config.get('display') if isinstance(config.get('display'), dict) else {}
+    method = {
+        key: display.get(key, '')
+        for key in ('method_type', 'bank_name', 'card_number', 'card_holder', 'account', 'remark')
+    }
+    qr_name = config.get('qr_private_name')
+    officially_paid = note.sales_order.payment_status == SalesOrder.PaymentStatus.PAID
+    method['qr_url'] = f'/api/privnote/{note.token}/payment-images/qr/' if qr_name and not officially_paid else None
+    data = build_payment_data(note.sales_order, remark=config.get('remark', ''), images=[])
+    data['payment_methods'] = [method]
+    latest = PaymentSubmission.objects.filter(privnote=note).order_by('-submitted_at', '-id').first()
+    data['payment_flow'] = {
+        # A direct formal receipt is as authoritative as accepting an uploaded
+        # proof: keep the customer on a safe terminal confirmation page.
+        'status': 'accepted' if officially_paid else (latest.status if latest else 'active'),
+        'review_note': latest.review_note if latest and latest.status == PaymentSubmission.Status.NEEDS_MORE else '',
+        'submitted_at': latest.submitted_at.isoformat() if latest else None,
+    }
+    return data
+
+
+def _creation_request_hash(request):
+    payload = {key: request.POST.get(key, '') for key in sorted(request.POST.keys())}
+    qr = request.FILES.get('temporary_qr_image')
+    if qr:
+        digest = hashlib.sha256()
+        for chunk in qr.chunks():
+            digest.update(chunk)
+        qr.seek(0)
+        payload['temporary_qr_image'] = {'name': qr.name, 'size': qr.size, 'sha256': digest.hexdigest()}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode('utf-8')).hexdigest()
+
+
+@_retry_sqlite_locked
+def _create_payment_note(request, operator):
+    """Multipart payment-request creation with the standard idempotency record."""
+    key = request.headers.get('Idempotency-Key', '').strip()
+    legacy_key = not key
+    if legacy_key:
+        key = f'legacy-payment-request:{uuid.uuid4().hex}'
+    request_hash = _creation_request_hash(request)
+    with transaction.atomic():
+        _acquire_sqlite_writer_gate()
+        record = IdempotencyRecord.objects.select_for_update().filter(key=key).first()
+        if record:
+            if record.command_name != 'create_payment_request' or record.request_hash != request_hash or record.operator_id != operator.id:
+                return JsonResponse({'error': 'Idempotency-Key 已用于不同请求'}, status=409)
+            if record.status_code:
+                return JsonResponse(record.response_body, status=record.status_code)
+            return JsonResponse({'error': '请求正在处理中，请稍后重试'}, status=409)
+        if not legacy_key:
+            record = IdempotencyRecord.objects.create(
+                key=key, command_name='create_payment_request', request_hash=request_hash,
+                request_body={'sales_order_id': request.POST.get('sales_order_id', '')},
+                response_body={}, status_code=0, operator=operator, agent_name='web',
+            )
+        try:
+            note = create_payment_request(
+                sales_order_id=request.POST.get('sales_order_id'),
+                duration_hours=request.POST.get('duration', 24),
+                password=request.POST.get('password', '').strip(),
+                source=request.POST.get('payment_source', 'saved'),
+                payment_method_id=request.POST.get('payment_method_id'),
+                fund_account_id=request.POST.get('fund_account_id'),
+                method_type=request.POST.get('temporary_method_type', ''),
+                bank_name=request.POST.get('temporary_bank_name', ''),
+                card_number=request.POST.get('temporary_card_number', ''),
+                card_holder=request.POST.get('temporary_card_holder', ''),
+                account=request.POST.get('temporary_account', ''),
+                qr_file=request.FILES.get('temporary_qr_image'),
+                remark=request.POST.get('remark', ''),
+                legacy_images=safe_json_loads(request.POST.get('images', '[]'), []),
+                operator=operator,
+            )
+        except PaymentRequestError as exc:
+            if not legacy_key:
+                transaction.set_rollback(True)
+            if exc.existing_note:
+                return JsonResponse({
+                    'error': str(exc), 'payment_note': {
+                        'id': exc.existing_note.id, 'token': exc.existing_note.token,
+                        'url': _privnote_public_url(request, exc.existing_note.token),
+                        'expires_at': exc.existing_note.expires_at.isoformat(),
+                    },
+                }, status=exc.status)
+            return JsonResponse({'error': str(exc)}, status=exc.status)
+        response = {
+            'url': _privnote_public_url(request, note.token), 'token': note.token,
+            'has_password': note.has_password, 'sales_order_id': note.sales_order_id,
+        }
+        if not legacy_key:
+            IdempotencyRecord.objects.filter(pk=record.pk).update(response_body=response, status_code=200)
+        return JsonResponse(response)
+
+
 # ═══════════════ CREATE ═══════════════
 
 @csrf_exempt
@@ -83,6 +199,12 @@ def create(request):
     debug_tag = ' [测试数据]' if is_debug else ''
     sales_order = None
     operator = _request_operator(request)
+
+    if note_type == 'payment':
+        try:
+            return _create_payment_note(request, operator)
+        except OperationalError:
+            return JsonResponse({'error': '请求正在处理中，请稍后重试'}, status=409)
 
     # ── INVENTORY ──
     if note_type == 'inventory':
@@ -482,6 +604,7 @@ def api_privnote(request, token):
                 pwd = request.POST.get('password', '')
             if not note.verify_password(pwd):
                 return JsonResponse({'error': '密码错误', 'requires_password': True}, status=401)
+            request.session[f'privnote-password:{note.token}'] = note.password_hash
 
     if note.is_expired:
         return JsonResponse({'error': 'expired', 'reason': 'expired', 'title': note.title}, status=410)
@@ -492,10 +615,13 @@ def api_privnote(request, token):
     if note.note_type == 'payment' and note.sales_order:
         order = note.sales_order
         if (
-            order.payment_status != SalesOrder.PaymentStatus.UNPAID
-            or order.fulfillment_status not in (
+            order.fulfillment_status not in (
                 SalesOrder.FulfillmentStatus.CONFIRMED,
                 SalesOrder.FulfillmentStatus.SHIPPED,
+            )
+            or (
+                order.payment_status != SalesOrder.PaymentStatus.UNPAID
+                and not _payment_v2(note)
             )
         ):
             return JsonResponse({
@@ -504,7 +630,7 @@ def api_privnote(request, token):
                 'title': note.title,
             }, status=410)
 
-    if note.has_password and request.method == 'GET':
+    if note.has_password and not _password_authorized(request, note):
         return JsonResponse({
             'title': note.title,
             'has_password': True,
@@ -515,9 +641,11 @@ def api_privnote(request, token):
     try:
         if note.note_type == 'payment' and note.sales_order:
             cfg = note.data_json or {}
+            if _payment_v2(note):
+                data = _payment_public_data(note)
             # 新格式由 payment_method_id 标识；旧格式保存的是完整 payment
             # 快照，不能把历史手动收款信息误当作新请求数据。
-            if 'payment_method_id' not in cfg:
+            elif 'payment_method_id' not in cfg:
                 data = build_payment_data(
                     note.sales_order,
                     remark=cfg.get('remark') if isinstance(cfg, dict) else None,
@@ -598,6 +726,81 @@ def api_privnote(request, token):
         'created_at': note.created_at.isoformat(),
         'expires_at': note.expires_at.isoformat(),
     })
+
+
+@csrf_exempt
+def payment_submission(request, token):
+    """Anonymous multipart submission, authorised by the payment-link token."""
+    if request.method != 'POST':
+        return JsonResponse({'error': '仅支持 POST'}, status=405)
+    note = get_object_or_404(Privnote.objects.select_related('sales_order'), token=token)
+    if note.note_type != Privnote.NoteType.PAYMENT or not _payment_v2(note):
+        return JsonResponse({'error': '此链接不支持付款凭证'}, status=409)
+    if note.has_password and not _password_authorized(request, note):
+        return JsonResponse({'error': '需要先验证访问密码', 'requires_password': True}, status=401)
+    if note.is_expired:
+        return JsonResponse({'error': 'expired', 'reason': 'expired'}, status=410)
+    raw_content_length = request.META.get('CONTENT_LENGTH')
+    try:
+        content_length = int(raw_content_length) if raw_content_length else 0
+    except (TypeError, ValueError):
+        return JsonResponse({'error': '请求大小无效'}, status=400)
+    if content_length > settings.PAYMENT_SUBMISSION_MAX_REQUEST_BYTES:
+        return JsonResponse({'error': '付款凭证总大小不能超过 25MB'}, status=413)
+    try:
+        result, replayed = submit_payment_evidence(
+            note=note,
+            files=request.FILES.getlist('files'),
+            idempotency_key=request.headers.get('Idempotency-Key', ''),
+        )
+    except RequestDataTooBig:
+        return JsonResponse({'error': '付款凭证总大小不能超过 25MB'}, status=413)
+    except PaymentSubmissionError as exc:
+        return JsonResponse({'error': str(exc)}, status=exc.status)
+    except OperationalError:
+        return JsonResponse({'error': '付款凭证正在处理中，请使用相同幂等键重试'}, status=409)
+    return JsonResponse({'payment_submission': serialize_submission(result)}, status=200 if replayed else 201)
+
+
+@require_GET
+def payment_image(request, token, image_id):
+    """Serve a private QR snapshot or submitted proof after link authorisation."""
+    note = get_object_or_404(
+        Privnote.objects.select_related('sales_order'), token=token, note_type=Privnote.NoteType.PAYMENT,
+    )
+    if note.is_expired:
+        raise Http404
+    if note.has_password and not _password_authorized(request, note):
+        return JsonResponse({'error': '需要先验证访问密码', 'requires_password': True}, status=401)
+    storage_name = ''
+    content_type = 'application/octet-stream'
+    order = note.sales_order
+    if order and (
+        order.payment_status != SalesOrder.PaymentStatus.UNPAID
+        or order.fulfillment_status not in (
+            SalesOrder.FulfillmentStatus.CONFIRMED,
+            SalesOrder.FulfillmentStatus.SHIPPED,
+        )
+    ):
+        # Links may show the safe terminal confirmation page after a formal
+        # receipt, but previously exposed QR/proof URLs must stop working.
+        raise Http404
+    if image_id == 'qr' and _payment_v2(note):
+        storage_name = str(note.data_json.get('payment', {}).get('qr_private_name') or '')
+        content_type = mimetypes.guess_type(storage_name)[0] or content_type
+    elif image_id.isdigit():
+        attachment = PaymentAttachment.objects.select_related('submission').filter(
+            pk=int(image_id), submission__privnote=note,
+        ).first()
+        if attachment:
+            storage_name = attachment.file.name
+            content_type = attachment.content_type
+    if not storage_name or not private_payment_storage.exists(storage_name):
+        raise Http404
+    response = FileResponse(private_payment_storage.open(storage_name, 'rb'), content_type=content_type)
+    response['Cache-Control'] = 'private, no-store'
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 # Compatibility alias

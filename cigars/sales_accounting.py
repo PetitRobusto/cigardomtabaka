@@ -233,7 +233,8 @@ def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note
 @_retry_sqlite_locked
 @transaction.atomic
 def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
-                                business_date, operator, idempotency_key):
+                                business_date, operator, idempotency_key,
+                                payment_submission_id=None, agent_context=None):
     """记录销售单的一次整单人民币收款，支持出库后收款或出库前预收。"""
     _acquire_sqlite_writer_gate()
     if type(business_date) is not date:
@@ -338,6 +339,32 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
     order.payment_status = SalesOrder.PaymentStatus.PAID
     order.status = "paid" if order.fulfillment_status == SalesOrder.FulfillmentStatus.CONFIRMED else "completed"
     order.save(update_fields=["payment_status", "status"])
+    # Direct receipt and payment-evidence approval share this one accounting
+    # command.  Close only other unresolved declarations; the reviewer marks
+    # its own locked declaration accepted immediately after this returns.
+    from privnote.services.payment_submissions import close_open_submissions
+    close_reason = 'paid_elsewhere' if payment_submission_id is None else 'accepted_other_submission'
+    closed_submission_ids = close_open_submissions(
+        order=order,
+        reason=close_reason,
+        except_submission_id=payment_submission_id,
+    )
+    if closed_submission_ids:
+        # The receipt remains the formal accounting fact. This event records
+        # exactly which customer declarations it closed, under the same actor,
+        # business date, Agent context and idempotency key.
+        from .services import _record_order_event, _sales_event_metadata
+
+        context = agent_context or AgentContext(
+            command_name='receive_sales_order_payment', idempotency_key=idempotency_key,
+        )
+        metadata = _sales_event_metadata(order, business_date)
+        metadata.update({
+            'payment_submission_ids_closed': closed_submission_ids,
+            'payment_submission_close_reason': close_reason,
+            'idempotency_key': idempotency_key,
+        })
+        _record_order_event(order, operator=operator, context=context, metadata=metadata)
     return receipt
 
 

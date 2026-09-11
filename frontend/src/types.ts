@@ -410,6 +410,24 @@ export interface PaymentData {
   customer_name: string;
   remark: string;
   images?: RemarkImage[];
+  payment_flow?: {
+    status: 'active' | 'pending' | 'needs_more' | 'accepted' | 'closed';
+    review_note: string;
+    submitted_at: string | null;
+  };
+}
+
+export interface PaymentSubmission {
+  id: number;
+  status: 'pending' | 'needs_more' | 'accepted' | 'closed';
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  review_note: string;
+  closed_reason: string;
+  amount_cny: number;
+  fund_account_id: number;
+  sales_receipt_id: number | null;
+  attachments?: { id: number; name: string; content_type: string; size: number }[];
 }
 
 export interface MessageData {
@@ -637,6 +655,12 @@ export interface SalesOrder {
     is_destroyed: boolean;
     is_active: boolean;
   }[];
+  payment_review?: {
+    id: number;
+    status: 'pending' | 'needs_more';
+    submitted_at: string;
+    review_note: string;
+  } | null;
   sales_shipment: { id: number; business_date: string; fifo_cost_cny: number } | null;
   sales_receipt: { id: number; amount_cny: number; business_date: string; fund_account_id: number } | null;
   sales_refund: { id: number; amount_cny: number; business_date: string; fund_account_id: number } | null;

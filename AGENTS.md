@@ -6,7 +6,7 @@
 
 - 阅读用户当前需求；用户决定本次任务的目标与范围。
 - 阅读本文件。涉及业务语义时阅读 [`CONTEXT.md`](CONTEXT.md)，涉及架构决定时查阅 [`docs/adr/`](docs/adr/)。
-- Privnote 任务必须加载 `django-privnote` 技能：`~/.hermes/skills/software-development/django-privnote/SKILL.md`。
+<!-- - Privnote 任务必须加载 `django-privnote` 技能：`~/.hermes/skills/software-development/django-privnote/SKILL.md`。 -->
 - 先检查工作区和影响范围；保留用户已有改动，不擅自覆盖、回滚或 `git stash`。
 
 ## 风险门禁
@@ -24,6 +24,7 @@
 - 30 分钟内且不引入领域模型的任务无需正式计划；新增模型、会计规则、跨子系统或不可逆数据时先写 spec/plan。
 - 不强制 TDD，但必须补高价值行为测试和已发生 Bug 的回归测试。
 - 连续两次修复无效时转为系统化根因诊断。Subagent 只用于可独立并行的调查、实现或审查。
+- Subagent 统一使用 `gpt-5.6-luna`，推理强度设为 `high`；不使用 Sol 或 Astra。委派时显式指定模型和推理强度。
 
 ## 安全边界
 
@@ -52,6 +53,7 @@
 - 产品页面全部使用 `frontend/` React SPA，不新增 Django 产品模板页面。
 - `/privnote/` 和 `/p/:token/` 走 React；后端只提供 JSON API。修改全局导航时同时检查桌面导航和移动底部导航。
 - 新 UI、布局、配色或整体视觉方向先在既有 OpenDesign 项目 `CigarDomTabaka`（slug `cigardomtabaka`）预览，默认 agent 为 `claude`，每次设计使用独立 conversation/run；详见 [`.kilo/opendesign-mcp.md`](.kilo/opendesign-mcp.md)。纯功能、类型、文案和明确小修复可直接改 React。
+- OpenDesign 只能通过当前会话已注册并暴露的 MCP 工具调用，不得直接请求 OpenDesign daemon HTTP API。若 MCP 未注册或未暴露，说明阻塞原因并请用户启用；不得用 `curl`、`fetch` 或其他 HTTP 调用绕过。
 
 ### Privnote
 

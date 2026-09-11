@@ -14,7 +14,7 @@ import {
   MessageCircle,
   FileText,
 } from "lucide-react";
-import { fetchPrivnote, verifyPrivnotePassword } from "../api";
+import { fetchPrivnote, submitPaymentEvidence, verifyPrivnotePassword } from "../api";
 import { LoadingState } from "../components/shared/LoadingState";
 import { usePageMeta } from "../hooks/usePageMeta";
 import type {
@@ -73,7 +73,7 @@ export default function PrivnoteViewPage() {
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const { setMeta } = usePageMeta();
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["privnote", token],
     queryFn: () => fetchPrivnote(token!),
     enabled: !!token,
@@ -238,7 +238,7 @@ export default function PrivnoteViewPage() {
 
         {/* PAYMENT VIEW */}
         {mode === "payment" && noteData && (
-          <PaymentView data={noteData as PaymentData} onZoom={setZoomedImage} />
+          <PaymentView data={noteData as PaymentData} token={token!} onZoom={setZoomedImage} onSubmitted={() => { setVerifiedData(null); void refetch(); }} />
         )}
 
         {/* MESSAGE VIEW */}
@@ -368,22 +368,47 @@ function InventoryView({ data }: { data: InventoryViewData }) {
 
 function PaymentView({
   data,
+  token,
   onZoom,
+  onSubmitted,
 }: {
   data: PaymentData;
+  token: string;
   onZoom: (url: string) => void;
+  onSubmitted: () => void;
 }) {
   const [zoomedQr, setZoomedQr] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  // Keep the same key for a retry of this exact upload.  A network failure can
+  // happen after the server has persisted the evidence, so generating a new
+  // key per click would risk duplicate submissions.
+  const [submissionKey, setSubmissionKey] = useState("");
+  const flow = data.payment_flow?.status || "active";
+  const canSubmit = flow === "active" || flow === "needs_more";
+  const submitEvidence = async () => {
+    if (!files.length) { setSubmitError("请先选择至少一张付款凭证"); return; }
+    setSubmitting(true); setSubmitError("");
+    const idempotencyKey = submissionKey || `payment-evidence-${token}-${crypto.randomUUID()}`;
+    if (!submissionKey) setSubmissionKey(idempotencyKey);
+    try {
+      await submitPaymentEvidence(token, files, idempotencyKey);
+      setFiles([]); setSubmissionKey(""); onSubmitted();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "付款凭证提交失败");
+    } finally { setSubmitting(false); }
+  };
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-white px-4 py-3 shadow-sm">
         <div>
           <p className="font-display text-lg font-semibold text-fg">收款信息</p>
-          <p className="mt-0.5 text-xs text-muted">请按下方信息完成转账</p>
+          <p className="mt-0.5 text-xs text-muted">{flow === "accepted" ? "商家已核实到账" : flow === "pending" ? "付款凭证已提交，等待核实" : flow === "needs_more" ? "请按说明补充付款凭证" : "请按下方信息完成转账"}</p>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-800">
-          <span className="h-1.5 w-1.5 rounded-full bg-orange-600" />待付款
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${flow === "accepted" ? "bg-green-50 text-green-800" : flow === "pending" ? "bg-orange-50 text-orange-800" : "bg-blue-50 text-blue-800"}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${flow === "accepted" ? "bg-green-600" : flow === "pending" ? "bg-orange-600" : "bg-blue-600"}`} />{flow === "accepted" ? "已收款" : flow === "pending" ? "等待核实" : flow === "needs_more" ? "需补充" : "待付款"}
         </span>
       </div>
       {data.customer_name && (
@@ -392,6 +417,10 @@ function PaymentView({
           客户：{data.customer_name}
         </div>
       )}
+
+      {flow === "accepted" && <div className="rounded border border-green-200 bg-green-50 p-5 text-sm text-green-900"><strong className="block text-base">付款已确认，感谢</strong><p className="mt-1 text-xs leading-relaxed text-green-800">商家已核实到账，订单将按原定方式履约。本页收款方式与凭证上传已关闭。</p></div>}
+      {flow === "pending" && <div className="rounded border border-orange-200 bg-orange-50 p-5 text-sm text-orange-900"><strong className="block text-base">付款凭证已提交，等待核实</strong><p className="mt-1 text-xs leading-relaxed text-orange-800">提交不代表款项已到账，请勿重复转账。商家核实后本页会更新。</p></div>}
+      {flow === "needs_more" && <div className="rounded border border-red-200 bg-red-50 p-5 text-sm text-red-900"><strong className="block text-base">需要补充付款凭证</strong><p className="mt-1 text-xs leading-relaxed text-red-800">{data.payment_flow?.review_note || "请补充清晰的付款凭证。"}</p></div>}
 
       {/* Order items */}
       <div className="bg-white border border-border rounded-sm overflow-hidden">
@@ -541,7 +570,7 @@ function PaymentView({
         </div>
       )}
 
-      <div className="rounded-lg border border-border bg-white p-4 shadow-sm">
+      {canSubmit && <div className="rounded-lg border border-border bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <p className="font-display text-base font-semibold text-fg">付款步骤</p>
           <span className="text-[11px] font-mono text-muted">3 STEPS</span>
@@ -559,10 +588,10 @@ function PaymentView({
             </div>
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* Payment methods */}
-      {data.payment_methods.length > 0 && (
+      {canSubmit && data.payment_methods.length > 0 && (
         <div className="bg-white border border-border rounded-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border">
             <span className="text-xs text-muted uppercase tracking-wider font-medium">
@@ -624,6 +653,8 @@ function PaymentView({
         </div>
       )}
 
+      {canSubmit && <div className="rounded border border-border bg-white p-5"><div className="mb-3 flex items-center justify-between"><p className="font-display text-base font-semibold">付款凭证</p><span className="text-xs text-muted">1–5 张图片</span></div><label className="block rounded border border-dashed border-border bg-[#FFFDFA] p-4 text-center text-sm text-muted hover:border-gold">上传转账截图或银行回单<input type="file" accept="image/jpeg,image/png,image/webp" multiple className="mt-2 block w-full text-xs" onChange={event => { setFiles(Array.from(event.target.files || []).slice(0, 5)); setSubmissionKey(""); }} /></label>{files.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{files.map((file, index) => <div key={`${file.name}-${index}`} className="rounded border border-border bg-[#FFFDFA] px-2 py-1 text-xs text-muted">{file.name}<button type="button" onClick={() => { setFiles(current => current.filter((_, currentIndex) => currentIndex !== index)); setSubmissionKey(""); }} className="ml-2 text-accent">移除</button></div>)}</div>}{submitError && <p className="mt-3 text-xs text-red-700">{submitError}</p>}<button type="button" onClick={submitEvidence} disabled={submitting || !files.length} className="mt-4 w-full rounded bg-accent px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{submitting ? "提交中…" : flow === "needs_more" ? "重新提交凭证" : "提交凭证，等待核实"}</button></div>}
+
       {/* QR zoom overlay */}
       {zoomedQr && (
         <div
@@ -638,9 +669,7 @@ function PaymentView({
         </div>
       )}
 
-      <div className="text-center py-6 text-muted text-xs">
-        此私密链接已设置阅后即焚，关闭页面后将无法再次查看
-      </div>
+      <div className="text-center py-6 text-muted text-xs">收款信息仅在链接有效期内展示；付款凭证提交不代表已到账。</div>
     </div>
   );
 }

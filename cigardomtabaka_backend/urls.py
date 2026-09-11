@@ -13,6 +13,8 @@ from cigars.auth_views import api_login, api_logout, api_me
 from cigars.guide_views import guide_status, guide_complete, guide_replay
 from privnote.views import (
     api_privnote, create as privnote_create,
+    payment_submission as privnote_payment_submission,
+    payment_image as privnote_payment_image,
     search_cigars as privnote_search_cigars,
     list_payment_methods as privnote_payment_methods,
     payment_method_action as privnote_payment_method_action,
@@ -83,6 +85,10 @@ urlpatterns = [
     path('api/sales/orders/<int:order_id>/cancel/', sales_api.sales_order_cancel, name='sales_order_cancel'),
     path('api/sales/orders/<int:order_id>/ship/', sales_api.sales_order_ship, name='sales_order_ship'),
     path('api/sales/orders/<int:order_id>/receive/', sales_api.sales_order_receive, name='sales_order_receive'),
+    path('api/sales/orders/<int:order_id>/payment-submissions/', sales_api.sales_order_payment_submissions, name='sales_order_payment_submissions'),
+    path('api/sales/orders/<int:order_id>/payment-submissions/<int:submission_id>/accept/', sales_api.sales_order_payment_submission_accept, name='sales_order_payment_submission_accept'),
+    path('api/sales/orders/<int:order_id>/payment-submissions/<int:submission_id>/needs-more/', sales_api.sales_order_payment_submission_needs_more, name='sales_order_payment_submission_needs_more'),
+    path('api/sales/orders/<int:order_id>/payment-submissions/<int:submission_id>/attachments/<int:attachment_id>/', sales_api.sales_order_payment_attachment, name='sales_order_payment_attachment'),
     path('api/sales/orders/<int:order_id>/refund/', sales_api.sales_order_refund, name='sales_order_refund'),
     path('api/sales/orders/<int:order_id>/return/', sales_api.sales_order_return, name='sales_order_return'),
     path('api/sales/orders/<int:order_id>/transport-cost/', sales_api.sales_order_transport_cost, name='sales_order_transport_cost'),
@@ -97,6 +103,8 @@ urlpatterns = [
     path('api/prices/', include('price_tracker.urls')),
     # Privnote — JSON API + customer view API (frontend handled by React SPA)
     path('api/privnote/<str:token>/', api_privnote, name='api_privnote'),
+    path('api/privnote/<str:token>/payment-submissions/', privnote_payment_submission, name='privnote_payment_submission'),
+    path('api/privnote/<str:token>/payment-images/<str:image_id>/', privnote_payment_image, name='privnote_payment_image'),
     path('privnote/create/', privnote_create, name='privnote_create'),
     path('privnote/api/search-cigars/', privnote_search_cigars, name='privnote_search_cigars'),
     path('privnote/api/payment-methods/', privnote_payment_methods, name='privnote_payment_methods'),

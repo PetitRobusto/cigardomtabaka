@@ -1347,7 +1347,7 @@ class PaymentSalesOrderBoundaryTestCase(TestCase):
         self.assertEqual(second.status_code, 200)
         self.assertNotEqual(second.json()['token'], first.json()['token'])
 
-    def test_payment_note_closes_after_order_is_paid(self):
+    def test_v2_payment_note_shows_safe_terminal_state_after_order_is_paid(self):
         order = self._order()
         response = self.client.post('/privnote/create/', {
             'note_type': 'payment',
@@ -1357,8 +1357,9 @@ class PaymentSalesOrderBoundaryTestCase(TestCase):
         order.payment_status = SalesOrder.PaymentStatus.PAID
         order.save(update_fields=['payment_status'])
         view = self.client.get(f"/api/privnote/{response.json()['token']}/")
-        self.assertEqual(view.status_code, 410)
-        self.assertEqual(view.json()['reason'], 'closed')
+        self.assertEqual(view.status_code, 200)
+        self.assertEqual(view.json()['data']['payment_flow']['status'], 'accepted')
+        self.assertIsNone(view.json()['data']['payment_methods'][0]['qr_url'])
 
     def test_new_payment_note_ignores_legacy_extra_fees_and_does_not_snapshot_them(self):
         order = self._order()

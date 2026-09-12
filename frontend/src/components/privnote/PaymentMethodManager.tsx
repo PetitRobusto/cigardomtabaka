@@ -7,6 +7,8 @@ import {
   fetchManagedPaymentMethods,
   setPaymentMethodActive,
 } from "../../api";
+import PaymentDialog from "./PaymentDialog";
+import { selectActiveCnyAccountId } from "../sales/SalesOrderCard.logic";
 import type { PaymentMethod } from "../../types";
 
 const TYPES = [
@@ -21,7 +23,6 @@ const EMPTY = {
   bank_name: "",
   card_number: "",
   card_holder: "",
-  account: "",
   remark: "",
   sort_order: "0",
   fund_account_id: "",
@@ -52,6 +53,7 @@ export default function PaymentMethodManager() {
       ),
     [accounts.data],
   );
+  const selectedAccountId = selectActiveCnyAccountId(accounts.data || [], Number(form.fund_account_id)) || "";
   const update = (field: keyof typeof EMPTY, value: string) =>
     setForm((previous) => ({ ...previous, [field]: value }));
 
@@ -66,22 +68,22 @@ export default function PaymentMethodManager() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (busy) return;
     setError("");
     setMessage("");
-    const fundAccountId =
-      form.fund_account_id || (cnyAccounts[0] ? String(cnyAccounts[0].id) : "");
+    const fundAccountId = String(selectedAccountId);
     if (!fundAccountId) {
       setError("请选择启用中的 CNY 资金账户");
       return;
     }
     if (
       (form.method_type === "wechat" || form.method_type === "alipay") &&
-      !form.account.trim() &&
       !qrFile
     ) {
-      setError("微信或支付宝至少填写收款账号或上传二维码");
+      setError("请上传微信或支付宝收款二维码");
       return;
     }
+    if (qrFile && (qrFile.size > 5 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp"].includes(qrFile.type))) { setError("二维码需为 JPG、PNG 或 WebP，且不超过 5MB"); return; }
     setBusy(true);
     const payload = new FormData();
     Object.entries({ ...form, fund_account_id: fundAccountId }).forEach(
@@ -169,7 +171,7 @@ export default function PaymentMethodManager() {
           {message}
         </p>
       )}
-      {error && (
+      {error && !showForm && (
         <p
           role="alert"
           className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
@@ -299,18 +301,10 @@ export default function PaymentMethodManager() {
           ))}
         </div>
         {showForm && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="payment-method-form-title"
-            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-8 sm:items-center"
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) setShowForm(false);
-            }}
-          >
+          <PaymentDialog title="新建收款方式" onClose={() => setShowForm(false)} busy={busy}>
             <form
               onSubmit={submit}
-              className="w-full max-w-2xl overflow-hidden rounded-lg border border-border bg-white shadow-2xl"
+              className="w-full overflow-hidden rounded-lg border border-border bg-white shadow-2xl"
             >
               <div className="flex items-center justify-between border-b border-border px-5 py-4">
                 <div>
@@ -333,7 +327,8 @@ export default function PaymentMethodManager() {
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <div className="grid gap-4 p-5 sm:grid-cols-2">
+              <fieldset disabled={busy} className="grid gap-4 p-5 sm:grid-cols-2">
+                {error && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 sm:col-span-2">{error}</p>}
                 <label className="text-xs font-medium text-muted">
                   类型
                   <select
@@ -395,21 +390,10 @@ export default function PaymentMethodManager() {
                       />
                     </label>
                   </>
-                ) : (
-                  <label className="text-xs font-medium text-muted sm:col-span-2">
-                    收款账号（二维码和账号至少填一个）
-                    <input
-                      value={form.account}
-                      onChange={(event) =>
-                        update("account", event.target.value)
-                      }
-                      className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg"
-                    />
-                  </label>
-                )}
+                ) : null}
                 {form.method_type !== "bank_card" && (
                   <label className="text-xs font-medium text-muted sm:col-span-2">
-                    收款二维码（可选，JPG/PNG/WebP，最大 5MB）
+                    收款二维码（JPG/PNG/WebP，最大 5MB）
                     <input
                       type="file"
                       accept=".jpg,.jpeg,.png,.webp"
@@ -424,10 +408,7 @@ export default function PaymentMethodManager() {
                   绑定 CNY 资金账户
                   <select
                     required
-                    value={
-                      form.fund_account_id ||
-                      (cnyAccounts[0] ? String(cnyAccounts[0].id) : "")
-                    }
+                    value={selectedAccountId}
                     onChange={(event) =>
                       update("fund_account_id", event.target.value)
                     }
@@ -454,7 +435,7 @@ export default function PaymentMethodManager() {
                   />
                 </label>
                 <label className="text-xs font-medium text-muted sm:col-span-2">
-                  收款备注
+                  补充备注（客户可见，可选）
                   <textarea
                     value={form.remark}
                     onChange={(event) => update("remark", event.target.value)}
@@ -463,7 +444,7 @@ export default function PaymentMethodManager() {
                     placeholder="例如：转账请备注订单号"
                   />
                 </label>
-              </div>
+              </fieldset>
               <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
                 <button
                   type="button"
@@ -488,7 +469,7 @@ export default function PaymentMethodManager() {
                 </button>
               </div>
             </form>
-          </div>
+          </PaymentDialog>
         )}
       </div>
     </div>

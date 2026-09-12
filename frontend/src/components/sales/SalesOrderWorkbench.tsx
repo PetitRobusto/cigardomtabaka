@@ -39,6 +39,8 @@ import {
   selectActiveCnyAccountId,
 } from "./SalesOrderCard.logic";
 import { formatShanghaiDateTime } from "../../utils/businessDate";
+import PaymentRequestModal from "./PaymentRequestModal";
+import PaymentDialog from "../privnote/PaymentDialog";
 import SalesOrderStatusTags from "./SalesOrderStatusTags";
 
 function publicPrivnoteUrl(value: string): string {
@@ -392,7 +394,6 @@ function ReceiptPanel({
   const [methodId, setMethodId] = useState("");
   const [temporaryType, setTemporaryType] = useState<"wechat" | "alipay" | "bank_card">("wechat");
   const [temporaryAccountId, setTemporaryAccountId] = useState("");
-  const [temporaryAccount, setTemporaryAccount] = useState("");
   const [temporaryBankName, setTemporaryBankName] = useState("");
   const [temporaryCardNumber, setTemporaryCardNumber] = useState("");
   const [temporaryCardHolder, setTemporaryCardHolder] = useState("");
@@ -406,6 +407,7 @@ function ReceiptPanel({
   const [copied, setCopied] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const cnyAccounts = allAccounts.filter((account) => account.currency === "CNY" && account.is_active);
+  const selectedAccountId = selectActiveCnyAccountId(allAccounts, Number(temporaryAccountId)) || "";
 
   const startCreate = async () => {
     setError("");
@@ -421,14 +423,17 @@ function ReceiptPanel({
     }
   };
   const createLink = async () => {
+    if (busy) return;
+    if (source === "temporary" && temporaryType !== "bank_card" && !temporaryQr) { setError("请上传收款二维码"); return; }
     if (source === "saved" && !methodId) {
       setError("请选择一个常用收款方式");
       return;
     }
-    if (source === "temporary" && !temporaryAccountId) {
+    if (source === "temporary" && !selectedAccountId) {
       setError("临时收款方式必须选择人民币入账账户");
       return;
     }
+    if (source === "temporary" && temporaryQr && (temporaryQr.size > 5 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp"].includes(temporaryQr.type))) { setError("二维码需为 JPG、PNG 或 WebP，且不超过 5MB"); return; }
     setBusy(true);
     setError("");
     try {
@@ -438,9 +443,8 @@ function ReceiptPanel({
       form.append("payment_source", source);
       if (source === "saved") form.append("payment_method_id", methodId);
       if (source === "temporary") {
-        form.append("fund_account_id", temporaryAccountId);
+        form.append("fund_account_id", String(selectedAccountId));
         form.append("temporary_method_type", temporaryType);
-        form.append("temporary_account", temporaryAccount);
         form.append("temporary_bank_name", temporaryBankName);
         form.append("temporary_card_number", temporaryCardNumber);
         form.append("temporary_card_holder", temporaryCardHolder);
@@ -488,7 +492,7 @@ function ReceiptPanel({
     <div className="rounded-md border-t-4 border border-gold/60 bg-[#FFFDFA] p-4 text-sm shadow-sm">
       {activeNote && (
         <div className="mb-4 rounded border border-blue-200 bg-blue-50/50 p-3">
-          <strong className="block text-blue-900">付款链接已发送</strong>
+          <strong className="block text-blue-900">付款链接已创建</strong>
           <span className="mt-1 block text-xs text-blue-800">
             客户可在链接有效期内反复查看并提交付款凭证。
           </span>
@@ -513,16 +517,16 @@ function ReceiptPanel({
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2"><strong className="block text-fg">{review ? "客户已提交凭证，等待人工核实" : "收款进度"}</strong><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${review ? "bg-orange-50 text-orange-800" : "bg-blue-50 text-blue-800"}`}>{review ? "待核实" : activeNote ? "链接有效" : "待创建"}</span></div>
+          <div className="flex items-center gap-2"><strong className="block text-fg">{review?.status === "pending" ? "客户已提交凭证，等待人工核实" : review?.status === "needs_more" ? "等待客户补充凭证" : "收款进度"}</strong><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${review ? "bg-orange-50 text-orange-800" : "bg-blue-50 text-blue-800"}`}>{review?.status === "pending" ? "待核实" : review?.status === "needs_more" ? "需补充" : activeNote ? "链接有效" : "待创建"}</span></div>
           <span className="mt-1 block text-xs text-muted">
             应收 {formatCny(order.amount_due_cny)} · 截图提交不代表已到账，确认后才生成正式收款记录。
           </span>
         </div>
         <div className="flex flex-wrap gap-2">
-        {review && (
+        {review?.status === "pending" && (
           <button type="button" onClick={() => setReviewOpen(true)} className="rounded bg-accent px-3 py-2 text-xs font-semibold text-white hover:bg-accent-hover">核实收款</button>
         )}
-        {canCreateLink && !review && (
+        {canCreateLink && review?.status !== "pending" && (
           <button
             type="button"
             onClick={startCreate}
@@ -533,14 +537,13 @@ function ReceiptPanel({
         )}
         </div>
       </div>
-      {!canCreateLink && !activeNote && (
+      {!canCreateLink && !activeNote && !review && (
         <p className="mt-3 text-xs text-muted">订单确认后才可以创建收款单。</p>
       )}
       {open && (canCreateLink || Boolean(url)) && <PaymentRequestModal
         order={order} source={source} setSource={setSource} methods={methods} methodId={methodId} setMethodId={setMethodId}
         accounts={cnyAccounts} temporaryType={temporaryType} setTemporaryType={setTemporaryType}
-        temporaryAccountId={temporaryAccountId} setTemporaryAccountId={setTemporaryAccountId}
-        temporaryAccount={temporaryAccount} setTemporaryAccount={setTemporaryAccount}
+        temporaryAccountId={String(selectedAccountId)} setTemporaryAccountId={setTemporaryAccountId}
         temporaryBankName={temporaryBankName} setTemporaryBankName={setTemporaryBankName}
         temporaryCardNumber={temporaryCardNumber} setTemporaryCardNumber={setTemporaryCardNumber}
         temporaryCardHolder={temporaryCardHolder} setTemporaryCardHolder={setTemporaryCardHolder}
@@ -551,61 +554,6 @@ function ReceiptPanel({
       {reviewOpen && <PaymentReviewModal order={order} onClose={() => setReviewOpen(false)} onChanged={onChanged} />}
     </div>
   );
-}
-
-function PaymentRequestModal({
-  order, source, setSource, methods, methodId, setMethodId, accounts,
-  temporaryType, setTemporaryType, temporaryAccountId, setTemporaryAccountId,
-  temporaryAccount, setTemporaryAccount, temporaryBankName, setTemporaryBankName,
-  temporaryCardNumber, setTemporaryCardNumber, temporaryCardHolder, setTemporaryCardHolder,
-  temporaryQr, setTemporaryQr, duration, setDuration, password, setPassword,
-  remark, setRemark, busy, error, url, copied, onCopy, onClose, onSubmit,
-}: {
-  order: SalesOrder;
-  source: "temporary" | "saved";
-  setSource: (value: "temporary" | "saved") => void;
-  methods: PaymentMethod[]; methodId: string; setMethodId: (value: string) => void;
-  accounts: FundAccount[]; temporaryType: "wechat" | "alipay" | "bank_card";
-  setTemporaryType: (value: "wechat" | "alipay" | "bank_card") => void;
-  temporaryAccountId: string; setTemporaryAccountId: (value: string) => void;
-  temporaryAccount: string; setTemporaryAccount: (value: string) => void;
-  temporaryBankName: string; setTemporaryBankName: (value: string) => void;
-  temporaryCardNumber: string; setTemporaryCardNumber: (value: string) => void;
-  temporaryCardHolder: string; setTemporaryCardHolder: (value: string) => void;
-  temporaryQr: File | null; setTemporaryQr: (value: File | null) => void;
-  duration: string; setDuration: (value: string) => void; password: string; setPassword: (value: string) => void;
-  remark: string; setRemark: (value: string) => void; busy: boolean; error: string; url: string; copied: boolean;
-  onCopy: () => void; onClose: () => void; onSubmit: () => void;
-}) {
-  const selectedMethod = methods.find(method => String(method.id) === methodId);
-  const previewType = source === "saved" ? selectedMethod?.method_type : temporaryType;
-  const previewAccount = source === "saved" ? selectedMethod?.account : temporaryAccount;
-  const isBank = previewType === "bank_card";
-  return <div role="dialog" aria-modal="true" aria-label="创建收款单" className="fixed inset-0 z-50 flex items-end bg-fg/40 p-0 sm:items-center sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <div className="max-h-[100dvh] w-full overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:max-w-5xl sm:rounded-lg">
-      <header className="sticky top-0 z-10 flex items-start justify-between border-b border-border bg-[#FFFDFA] px-5 py-4">
-        <div><h3 className="font-display text-xl font-semibold">创建收款单</h3><p className="mt-1 text-xs text-muted">{order.order_number} · {order.customer_name || "散客"} · 应收 <strong className="font-mono text-fg">{formatCny(order.amount_due_cny)}</strong></p></div>
-        <button type="button" aria-label="关闭创建收款单" onClick={onClose} className="rounded border border-border p-1.5 text-muted hover:border-gold"><X className="h-4 w-4" /></button>
-      </header>
-      {url ? <div className="m-5 rounded border border-green-200 bg-green-50 p-5"><strong className="text-green-900">收款链接已创建</strong><p className="mt-1 text-xs text-green-800">二维码与链接同一有效期；客户无需登录即可上传付款凭证。</p><div className="mt-3 break-all rounded border border-green-200 bg-white p-3 font-mono text-xs">{url}</div><div className="mt-3 flex gap-2"><button type="button" onClick={onCopy} className="rounded border border-green-300 px-3 py-2 text-xs font-semibold text-green-800">{copied ? "已复制" : "复制链接"}</button><a href={url} target="_blank" rel="noreferrer" className="rounded border border-green-300 px-3 py-2 text-xs font-semibold text-green-800">查看客户页</a></div></div> : <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <section className="space-y-4">
-          <div className="grid grid-cols-2 rounded-md border border-border bg-cream p-1"><button type="button" onClick={() => setSource("temporary")} className={`rounded px-3 py-2 text-sm font-semibold ${source === "temporary" ? "bg-white text-accent shadow-sm" : "text-muted"}`}>本次临时</button><button type="button" onClick={() => setSource("saved")} className={`rounded px-3 py-2 text-sm font-semibold ${source === "saved" ? "bg-white text-accent shadow-sm" : "text-muted"}`}>常用方式</button></div>
-          {source === "temporary" ? <>
-            <div className="rounded border border-gold/40 bg-gold/5 p-3 text-xs leading-relaxed text-muted"><strong className="text-fg">临时收款信息仅保留在本张收款单快照中。</strong>不会创建或改动常用收款方式。</div>
-            <label className="block text-xs font-semibold text-muted">收款类型<select value={temporaryType} onChange={event => setTemporaryType(event.target.value as "wechat" | "alipay" | "bank_card")} className="mt-1.5 w-full rounded border border-border bg-white px-3 py-2 text-sm text-fg"><option value="wechat">微信</option><option value="alipay">支付宝</option><option value="bank_card">银行卡</option></select></label>
-            <label className="block text-xs font-semibold text-muted">入账 CNY 账户（仅内部）<select value={temporaryAccountId} onChange={event => setTemporaryAccountId(event.target.value)} className="mt-1.5 w-full rounded border border-border bg-white px-3 py-2 text-sm text-fg"><option value="">请选择入账账户</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.name} · CNY</option>)}</select></label>
-            {temporaryType === "bank_card" ? <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-muted">银行名<input value={temporaryBankName} onChange={event => setTemporaryBankName(event.target.value)} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg" /></label><label className="text-xs font-semibold text-muted">户名<input value={temporaryCardHolder} onChange={event => setTemporaryCardHolder(event.target.value)} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg" /></label><label className="text-xs font-semibold text-muted sm:col-span-2">卡号<input value={temporaryCardNumber} onChange={event => setTemporaryCardNumber(event.target.value)} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg" /></label></div> : <label className="block text-xs font-semibold text-muted">{temporaryType === "wechat" ? "微信号" : "支付宝账号"}（账号或二维码至少填写一个）<input value={temporaryAccount} onChange={event => setTemporaryAccount(event.target.value)} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg" /></label>}
-            {temporaryType !== "bank_card" && <label className="block rounded border border-dashed border-border bg-[#FFFDFA] p-3 text-xs text-muted hover:border-gold">上传收款二维码（PNG / JPG / WebP，≤ 5MB）<input type="file" accept="image/png,image/jpeg,image/webp" onChange={event => setTemporaryQr(event.target.files?.[0] || null)} className="mt-2 block w-full text-xs" />{temporaryQr && <span className="mt-2 block font-medium text-fg">已选择：{temporaryQr.name}</span>}</label>}
-          </> : <div className="space-y-2">{methods.length === 0 && <p className="rounded border border-border bg-[#FFFDFA] p-3 text-xs text-muted">暂无启用中的常用收款方式。请使用临时方式，或先到收款方式管理中新增。</p>}{methods.map(method => <button key={method.id} type="button" onClick={() => setMethodId(String(method.id))} className={`block w-full rounded border p-3 text-left ${methodId === String(method.id) ? "border-accent bg-accent-light/40" : "border-border hover:border-gold"}`}><span className="font-semibold">{method.label || "未命名收款方式"}</span><span className="mt-1 block font-mono text-xs text-muted">{method.method_type === "bank_card" ? `${method.bank_name || "银行卡"} · ${method.card_number || ""}` : method.account || "二维码收款"}</span></button>)}</div>}
-          <details className="rounded border border-border p-3"><summary className="cursor-pointer text-xs font-semibold text-fg">更多设置</summary><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-muted">有效期<select value={duration} onChange={event => setDuration(event.target.value)} className="mt-1.5 w-full rounded border border-border bg-white px-3 py-2 text-sm text-fg">{[["1","1 小时"],["6","6 小时"],["24","24 小时"],["72","3 天"],["168","7 天"],["720","30 天"]].map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="text-xs font-semibold text-muted">查看密码（可选）<input type="password" value={password} onChange={event => setPassword(event.target.value)} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg" placeholder="客户查看时输入" /></label></div></details>
-          <label className="block text-xs font-semibold text-muted">给客户的付款说明（可选）<textarea value={remark} onChange={event => setRemark(event.target.value)} rows={3} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg" placeholder="例如：转账请备注订单号；完成后上传截图。" /></label>
-          {error && <p className="rounded border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</p>}
-        </section>
-        <aside className="rounded-md border border-border bg-[#FFFDFA] p-4"><span className="text-[11px] font-bold uppercase tracking-wide text-muted">客户预览</span><div className="mt-3 rounded border border-border bg-white p-4"><p className="font-display text-base font-semibold">付款信息</p><p className="mt-1 text-xs text-muted">应付总额</p><strong className="mt-1 block font-mono text-2xl text-accent">{formatCny(order.amount_due_cny)}</strong><div className="mt-4 border-t border-border pt-3 text-xs"><strong>{previewType === "bank_card" ? "银行卡转账" : previewType === "wechat" ? "微信扫码付款" : "支付宝扫码付款"}</strong>{isBank ? <dl className="mt-2 space-y-1 text-muted"><div>银行：{source === "saved" ? selectedMethod?.bank_name : temporaryBankName || "—"}</div><div>户名：{source === "saved" ? selectedMethod?.card_holder : temporaryCardHolder || "—"}</div><div>卡号：{source === "saved" ? selectedMethod?.card_number : temporaryCardNumber || "—"}</div></dl> : <p className="mt-2 text-muted">{previewAccount || (temporaryQr ? "收款二维码" : "待填写账号或二维码")}</p>}</div><p className="mt-4 text-[11px] leading-relaxed text-muted">客户不会看到入账账户、常用方式标签或后台审核信息。</p></div></aside>
-      </div>}
-      {!url && <footer className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-[#FFFDFA] px-5 py-4"><button type="button" onClick={onClose} className="rounded border border-border px-4 py-2 text-sm">取消</button><button type="button" onClick={onSubmit} disabled={busy} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "创建中…" : "创建并生成链接"}</button></footer>}
-    </div>
-  </div>;
 }
 
 function PaymentReviewModal({ order, onClose, onChanged }: { order: SalesOrder; onClose: () => void; onChanged: () => void }) {
@@ -627,7 +575,7 @@ function PaymentReviewModal({ order, onClose, onChanged }: { order: SalesOrder; 
   }, [order.id]);
   const accept = async () => { if (!current || !businessDate) return; setBusy(true); setError(""); try { await acceptPaymentSubmission(order.id, current.id, businessDate); onChanged(); onClose(); } catch (requestError) { setError(apiErrorMessage(requestError, "确认到账失败")); } finally { setBusy(false); } };
   const needsMore = async () => { if (!current) return; if (!reviewNote.trim()) { setError("请填写客户可见的补充说明"); return; } setBusy(true); setError(""); try { await requestMorePaymentEvidence(order.id, current.id, reviewNote.trim()); load(); onChanged(); } catch (requestError) { setError(apiErrorMessage(requestError, "发送补充要求失败")); } finally { setBusy(false); } };
-  return <div role="dialog" aria-modal="true" aria-label="核实付款凭证" className="fixed inset-0 z-50 flex items-end bg-fg/40 sm:items-center sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div className="max-h-[100dvh] w-full overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:max-w-3xl sm:rounded-lg"><header className="sticky top-0 z-10 flex justify-between border-b border-border bg-[#FFFDFA] px-5 py-4"><div><h3 className="font-display text-xl font-semibold">核实收款</h3><p className="mt-1 text-xs text-muted">{order.order_number} · 应收 {formatCny(order.amount_due_cny)} · 确认到账会生成正式收款，履约状态不变。</p></div><button type="button" onClick={onClose} className="rounded border border-border p-1.5 text-muted"><X className="h-4 w-4" /></button></header><div className="space-y-4 p-5">{loading ? <p className="text-sm text-muted">加载付款凭证…</p> : !current ? <p className="rounded border border-border bg-[#FFFDFA] p-4 text-sm text-muted">当前没有待核实的付款凭证。</p> : <><div className="grid gap-3 rounded border border-border bg-[#FFFDFA] p-4 text-xs sm:grid-cols-3"><div><span className="block text-muted">应收金额</span><strong className="mt-1 block font-mono text-base">{formatCny(current.amount_cny)}</strong></div><div><span className="block text-muted">入账账户 ID</span><strong className="mt-1 block">#{current.fund_account_id}</strong></div><div><span className="block text-muted">提交时间</span><strong className="mt-1 block">{current.submitted_at ? formatShanghaiDateTime(current.submitted_at) : "—"}</strong></div></div><div><h4 className="text-xs font-bold uppercase tracking-wide text-muted">付款凭证</h4><div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">{current.attachments?.map(attachment => <a key={attachment.id} href={paymentSubmissionAttachmentUrl(order.id, current.id, attachment.id)} target="_blank" rel="noreferrer" className="overflow-hidden rounded border border-border bg-[#FFFDFA] hover:border-gold"><img src={paymentSubmissionAttachmentUrl(order.id, current.id, attachment.id)} alt={attachment.name} className="aspect-square w-full object-cover" /><span className="block truncate p-2 text-[11px] text-muted">{attachment.name}</span></a>)}</div></div><div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-muted">业务日期<input type="date" value={businessDate} onChange={event => setBusinessDate(event.target.value)} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg" /></label><label className="text-xs font-semibold text-muted">需补充说明（客户可见）<textarea value={reviewNote} onChange={event => setReviewNote(event.target.value)} rows={2} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg" placeholder="例如：请补充含付款账户尾号的完整回单" /></label></div></>}</div>{error && <p className="mx-5 mb-0 rounded border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</p>}<footer className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-[#FFFDFA] px-5 py-4"><button type="button" onClick={onClose} className="rounded border border-border px-4 py-2 text-sm">关闭</button>{current && <><button type="button" onClick={needsMore} disabled={busy} className="rounded border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">需补充凭证</button><button type="button" onClick={accept} disabled={busy || !businessDate} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "处理中…" : "确认到账"}</button></>}</footer></div></div>;
+  return <PaymentDialog title="核实付款凭证" onClose={onClose} busy={busy}><div className="max-h-[100dvh] w-full overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:max-w-3xl sm:rounded-lg"><header className="sticky top-0 z-10 flex justify-between border-b border-border bg-[#FFFDFA] px-5 py-4"><div><h3 className="font-display text-xl font-semibold">核实收款</h3><p className="mt-1 text-xs text-muted">{order.order_number} · 应收 {formatCny(order.amount_due_cny)} · 确认到账会生成正式收款，履约状态不变。</p></div><button type="button" onClick={onClose} className="rounded border border-border p-1.5 text-muted"><X className="h-4 w-4" /></button></header><div className="space-y-4 p-5">{loading ? <p className="text-sm text-muted">加载付款凭证…</p> : !current ? <p className="rounded border border-border bg-[#FFFDFA] p-4 text-sm text-muted">当前没有待核实的付款凭证。</p> : <><div className="grid gap-3 rounded border border-border bg-[#FFFDFA] p-4 text-xs sm:grid-cols-3"><div><span className="block text-muted">应收金额</span><strong className="mt-1 block font-mono text-base">{formatCny(current.amount_cny)}</strong></div><div><span className="block text-muted">入账账户 ID</span><strong className="mt-1 block">#{current.fund_account_id}</strong></div><div><span className="block text-muted">提交时间</span><strong className="mt-1 block">{current.submitted_at ? formatShanghaiDateTime(current.submitted_at) : "—"}</strong></div></div><div><h4 className="text-xs font-bold uppercase tracking-wide text-muted">付款凭证</h4><div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">{current.attachments?.map(attachment => <a key={attachment.id} href={paymentSubmissionAttachmentUrl(order.id, current.id, attachment.id)} target="_blank" rel="noreferrer" className="overflow-hidden rounded border border-border bg-[#FFFDFA] hover:border-gold"><img src={paymentSubmissionAttachmentUrl(order.id, current.id, attachment.id)} alt={attachment.name} className="aspect-square w-full object-cover" /><span className="block truncate p-2 text-[11px] text-muted">{attachment.name}</span></a>)}</div></div><div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-muted">业务日期<input type="date" value={businessDate} onChange={event => setBusinessDate(event.target.value)} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg" /></label><label className="text-xs font-semibold text-muted">需补充说明（客户可见）<textarea value={reviewNote} onChange={event => setReviewNote(event.target.value)} rows={2} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg" placeholder="例如：请补充含付款账户尾号的完整回单" /></label></div></>}</div>{error && <p className="mx-5 mb-0 rounded border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</p>}<footer className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-[#FFFDFA] px-5 py-4"><button type="button" onClick={onClose} className="rounded border border-border px-4 py-2 text-sm">关闭</button>{current && <><button type="button" onClick={needsMore} disabled={busy} className="rounded border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">需补充凭证</button><button type="button" onClick={accept} disabled={busy || !businessDate} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "处理中…" : "确认到账"}</button></>}</footer></div></PaymentDialog>;
 }
 
 function Amounts({ order }: { order: SalesOrder }) {

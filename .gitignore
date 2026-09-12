@@ -17,6 +17,7 @@ db.sqlite3
 *.db-wal
 staticfiles/
 media/
+private_payment_media/
 
 # 前端构建产物
 static/price-tracker/assets/

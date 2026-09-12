@@ -1268,6 +1268,29 @@ class PaymentSalesOrderBoundaryTestCase(TestCase):
         )
         return order
 
+    def test_payment_duration_validation_returns_400_instead_of_500(self):
+        invalid_durations = ('', 'not-a-number', '2')
+        for duration in invalid_durations:
+            with self.subTest(duration=duration):
+                response = self.client.post('/privnote/create/', {
+                    'note_type': 'payment',
+                    'sales_order_id': self._order().id,
+                    'payment_method_id': self.pm.id,
+                    'duration': duration,
+                })
+                self.assertEqual(response.status_code, 400)
+                self.assertIn('有效期', response.json()['error'])
+
+        valid_order = self._order()
+        response = self.client.post('/privnote/create/', {
+            'note_type': 'payment',
+            'sales_order_id': valid_order.id,
+            'payment_method_id': self.pm.id,
+            'duration': '24',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Privnote.objects.filter(token=response.json()['token']).exists())
+
     def test_payment_note_references_existing_order_without_mutating_sales_fact(self):
         order = self._order()
         before = {

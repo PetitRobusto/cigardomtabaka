@@ -3,18 +3,14 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Flame,
+  User,
   AlertTriangle,
   Cigarette,
   Package,
-  CreditCard,
   MessageSquare,
-  User,
-  MapPin,
-  Phone,
-  MessageCircle,
   FileText,
 } from "lucide-react";
-import { fetchPrivnote, submitPaymentEvidence, verifyPrivnotePassword } from "../api";
+import { fetchPrivnote, verifyPrivnotePassword } from "../api";
 import { LoadingState } from "../components/shared/LoadingState";
 import { usePageMeta } from "../hooks/usePageMeta";
 import type {
@@ -25,46 +21,17 @@ import type {
   PrivnoteResponse,
 } from "../types";
 
+import StoreHeader from "../components/privnote/StoreHeader";
+import PaymentView from "../components/privnote/PaymentView";
+
 const base = import.meta.env.BASE_URL;
-
-/* ── Contact Strip ── */
-
-/* ── Store Header (for payment/inventory/quote) ── */
-function StoreHeader() {
-  return (
-    <div className="bg-accent-light border border-accent/20 rounded-sm px-5 py-5 mb-6 text-center">
-      <img
-        src={`${base}logo-512.png`}
-        alt="CigarDomTabaka"
-        className="w-[120px] h-[120px] mx-auto mb-3 object-contain"
-      />
-      <h2 className="text-lg font-bold tracking-wide text-fg mb-2">
-        莫斯科烟草之家
-        <br />
-        <span className="font-normal text-sm text-muted">
-          Москва Сигар дом табака
-        </span>
-      </h2>
-      <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted justify-center">
-        <span className="flex items-center gap-1">
-          <MapPin className="w-3.5 h-3.5 text-accent" />
-          Москва, Молодёжная ул. 3
-        </span>
-        <span className="flex items-center gap-1">
-          <Phone className="w-3.5 h-3.5 text-accent" />
-          +7 929 638-48-78
-        </span>
-        <span className="flex items-center gap-1">
-          <MessageCircle className="w-3.5 h-3.5 text-accent" />
-          WeChat: cigardomtabaka
-        </span>
-      </div>
-    </div>
-  );
-}
 
 export default function PrivnoteViewPage() {
   const { token } = useParams<{ token: string }>();
+  return <PrivnoteDocument key={token} token={token} />;
+}
+
+function PrivnoteDocument({ token }: { token?: string }) {
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [verifiedData, setVerifiedData] = useState<PrivnoteResponse | null>(
@@ -171,7 +138,7 @@ export default function PrivnoteViewPage() {
             </button>
           </form>
           <p className="mt-5 text-xs text-muted">
-            此私密链接已设置阅后即焚，关闭页面后将无法再次查看
+            请向发送方获取查看密码，并在链接有效期内查看。
           </p>
         </div>
       </div>
@@ -188,16 +155,13 @@ export default function PrivnoteViewPage() {
 
   return (
     <div className="min-h-screen bg-cream text-fg">
-      {/* View Header */}
-      <div className="bg-white border-b border-border px-6 py-5 mb-6">
+      {/* Payment uses the same compact header as its customer preview. */}
+      {mode !== "payment" && <div className="bg-white border-b border-border px-6 py-5 mb-6">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-2 mb-1">
               {mode === "inventory" && (
                 <Package className="w-5 h-5 text-accent" />
-              )}
-              {mode === "payment" && (
-                <CreditCard className="w-5 h-5 text-accent" />
               )}
               {mode === "message" && (
                 <MessageSquare className="w-5 h-5 text-accent" />
@@ -223,12 +187,12 @@ export default function PrivnoteViewPage() {
             )}
           </div>
         </div>
-      </div>
+      </div>}
 
-      <div className="max-w-5xl mx-auto px-4 pb-10">
+      <div className={`${mode === "payment" ? "max-w-2xl pt-4" : "max-w-5xl"} mx-auto px-4 pb-10`}>
         {/* Store info for payment, inventory & quote */}
         {(mode === "payment" || mode === "inventory" || mode === "quote") && (
-          <StoreHeader />
+          <StoreHeader compact={mode === "payment"} />
         )}
 
         {/* INVENTORY VIEW */}
@@ -362,314 +326,6 @@ function InventoryView({ data }: { data: InventoryViewData }) {
         共 {data.brand_groups.length} 个品牌 · {data.total_items} 款雪茄 ·
         数据更新于实时库存
       </div>
-    </div>
-  );
-}
-
-function PaymentView({
-  data,
-  token,
-  onZoom,
-  onSubmitted,
-}: {
-  data: PaymentData;
-  token: string;
-  onZoom: (url: string) => void;
-  onSubmitted: () => void;
-}) {
-  const [zoomedQr, setZoomedQr] = useState<string | null>(null);
-  const [files, setFiles] = useState<File[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  // Keep the same key for a retry of this exact upload.  A network failure can
-  // happen after the server has persisted the evidence, so generating a new
-  // key per click would risk duplicate submissions.
-  const [submissionKey, setSubmissionKey] = useState("");
-  const flow = data.payment_flow?.status || "active";
-  const canSubmit = flow === "active" || flow === "needs_more";
-  const submitEvidence = async () => {
-    if (!files.length) { setSubmitError("请先选择至少一张付款凭证"); return; }
-    setSubmitting(true); setSubmitError("");
-    const idempotencyKey = submissionKey || `payment-evidence-${token}-${crypto.randomUUID()}`;
-    if (!submissionKey) setSubmissionKey(idempotencyKey);
-    try {
-      await submitPaymentEvidence(token, files, idempotencyKey);
-      setFiles([]); setSubmissionKey(""); onSubmitted();
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "付款凭证提交失败");
-    } finally { setSubmitting(false); }
-  };
-
-  return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-white px-4 py-3 shadow-sm">
-        <div>
-          <p className="font-display text-lg font-semibold text-fg">收款信息</p>
-          <p className="mt-0.5 text-xs text-muted">{flow === "accepted" ? "商家已核实到账" : flow === "pending" ? "付款凭证已提交，等待核实" : flow === "needs_more" ? "请按说明补充付款凭证" : "请按下方信息完成转账"}</p>
-        </div>
-          <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${flow === "accepted" ? "bg-green-50 text-green-800" : flow === "pending" ? "bg-orange-50 text-orange-800" : "bg-blue-50 text-blue-800"}`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${flow === "accepted" ? "bg-green-600" : flow === "pending" ? "bg-orange-600" : "bg-blue-600"}`} />{flow === "accepted" ? "已收款" : flow === "pending" ? "等待核实" : flow === "needs_more" ? "需补充" : "待付款"}
-        </span>
-      </div>
-      {data.customer_name && (
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent-light rounded-full text-sm font-medium">
-          <User className="w-4 h-4 text-muted" />
-          客户：{data.customer_name}
-        </div>
-      )}
-
-      {flow === "accepted" && <div className="rounded border border-green-200 bg-green-50 p-5 text-sm text-green-900"><strong className="block text-base">付款已确认，感谢</strong><p className="mt-1 text-xs leading-relaxed text-green-800">商家已核实到账，订单将按原定方式履约。本页收款方式与凭证上传已关闭。</p></div>}
-      {flow === "pending" && <div className="rounded border border-orange-200 bg-orange-50 p-5 text-sm text-orange-900"><strong className="block text-base">付款凭证已提交，等待核实</strong><p className="mt-1 text-xs leading-relaxed text-orange-800">提交不代表款项已到账，请勿重复转账。商家核实后本页会更新。</p></div>}
-      {flow === "needs_more" && <div className="rounded border border-red-200 bg-red-50 p-5 text-sm text-red-900"><strong className="block text-base">需要补充付款凭证</strong><p className="mt-1 text-xs leading-relaxed text-red-800">{data.payment_flow?.review_note || "请补充清晰的付款凭证。"}</p></div>}
-
-      {/* Order items */}
-      <div className="bg-white border border-border rounded-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-          <span className="text-xs text-muted uppercase tracking-wider font-medium">
-            订单商品
-          </span>
-          <span className="text-sm text-muted">{data.items.length} 项</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="bg-accent-light">
-                <th className="px-4 py-3 text-left text-xs text-muted uppercase tracking-wider font-medium">
-                  雪茄
-                </th>
-                <th className="px-4 py-3 text-left text-xs text-muted uppercase tracking-wider font-medium">
-                  型号
-                </th>
-                <th className="px-4 py-3 text-right text-xs text-muted uppercase tracking-wider font-medium">
-                  数量
-                </th>
-                <th className="px-4 py-3 text-right text-xs text-muted uppercase tracking-wider font-medium">
-                  单价
-                </th>
-                <th className="px-4 py-3 text-right text-xs text-muted uppercase tracking-wider font-medium">
-                  小计
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((item, idx) => (
-                <tr
-                  key={idx}
-                  className="border-b border-border hover:bg-accent-light/30"
-                >
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-sm bg-accent-light flex items-center justify-center shrink-0 overflow-hidden">
-                        {item.thumb_url ? (
-                          <img
-                            src={item.thumb_url}
-                            alt={item.name}
-                            className="w-full h-full object-contain p-0.5"
-                          />
-                        ) : (
-                          <Cigarette className="w-4 h-4 text-border" />
-                        )}
-                      </div>
-                      <span className="font-medium">{item.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted">{item.vitola}</td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    {item.quantity}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono">
-                    ¥{item.unit_price.toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono font-semibold">
-                    ¥{item.subtotal.toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-              <tr className="bg-accent-light font-semibold">
-                <td
-                  colSpan={4}
-                  className="px-4 py-3 text-right text-sm text-muted"
-                >
-                  合计
-                </td>
-                <td className="px-4 py-3 text-right font-display text-lg text-accent">
-                  ¥{data.total.toLocaleString()}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Total with extra fees */}
-      {Array.isArray(data.extra_fees) && data.extra_fees.length > 0 && (
-        <div className="bg-white border border-border rounded-sm p-5 space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted">商品合计</span>
-            <span className="font-semibold">
-              ¥{data.total.toLocaleString()}
-            </span>
-          </div>
-          <div className="border-t border-border pt-2 space-y-1.5">
-            {data.extra_fees.map((fee, idx) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between text-sm"
-              >
-                <span className="text-muted">{fee.name}</span>
-                <span>¥{fee.amount.toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted">额外费用合计</span>
-            <span>¥{data.extra_total.toLocaleString()}</span>
-          </div>
-          <div className="border-t border-border pt-2 flex items-center justify-between">
-            <span className="text-base font-semibold">总计</span>
-            <span className="text-2xl font-display font-bold text-accent">
-              ¥{data.grand_total.toLocaleString()}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Remark */}
-      {data.remark && (
-        <div className="bg-white border border-border rounded-sm p-5">
-          <div className="text-xs text-muted uppercase tracking-wider font-medium mb-3">
-            备注
-          </div>
-          <div className="text-sm whitespace-pre-wrap leading-relaxed">
-            {data.remark}
-          </div>
-        </div>
-      )}
-
-      {/* Remark Images */}
-      {Array.isArray(data.images) && data.images.length > 0 && (
-        <div className="bg-white border border-border rounded-sm p-5">
-          <div className="text-xs text-muted uppercase tracking-wider font-medium mb-3">
-            备注图片
-          </div>
-          <div className="grid grid-cols-4 gap-3">
-            {data.images.map((img, idx) => (
-              <div
-                key={idx}
-                className="aspect-square rounded-sm overflow-hidden cursor-pointer border border-border bg-accent-light hover:opacity-80 transition-opacity"
-                onClick={() => onZoom(img.url)}
-              >
-                <img
-                  src={img.url}
-                  alt={img.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {canSubmit && <div className="rounded-lg border border-border bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="font-display text-base font-semibold text-fg">付款步骤</p>
-          <span className="text-[11px] font-mono text-muted">3 STEPS</span>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {[
-            ["01", "核对金额", "确认订单应付总额"],
-            ["02", "完成转账", "按下方方式付款"],
-            ["03", "上传凭证", "等待我们确认到账"],
-          ].map(([number, title, detail]) => (
-            <div key={number} className="rounded-md bg-[#fffdf9] p-3">
-              <span className="font-mono text-xs font-bold text-accent">{number}</span>
-              <p className="mt-1 text-sm font-semibold text-fg">{title}</p>
-              <p className="mt-0.5 text-xs text-muted">{detail}</p>
-            </div>
-          ))}
-        </div>
-      </div>}
-
-      {/* Payment methods */}
-      {canSubmit && data.payment_methods.length > 0 && (
-        <div className="bg-white border border-border rounded-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-border">
-            <span className="text-xs text-muted uppercase tracking-wider font-medium">
-              收款方式
-            </span>
-          </div>
-          <div className="p-5 space-y-3">
-            {data.payment_methods.map((pm, idx) => (
-              <div
-                key={idx}
-                className="bg-white border border-border rounded-sm p-5 flex items-center gap-4 hover:shadow-md transition-shadow"
-              >
-                <div className="w-12 h-12 rounded-sm bg-accent-light flex items-center justify-center shrink-0 font-display text-lg font-semibold text-accent">
-                  {pm.method_type === "bank_card"
-                    ? "银"
-                    : pm.method_type === "wechat"
-                      ? "微"
-                      : "支"}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold">
-                    {pm.method_type === "bank_card"
-                      ? pm.bank_name || "银行卡"
-                      : pm.method_type === "wechat"
-                        ? "微信"
-                        : "支付宝"}
-                  </div>
-                  <div className="text-xs text-muted mt-0.5">
-                    {pm.card_number && <span>卡号 {pm.card_number}</span>}
-                    {pm.card_holder && <span> · 持卡人 {pm.card_holder}</span>}
-                    {pm.account && (
-                      <span>
-                        {pm.card_number || pm.card_holder ? " · " : ""}收款账号{" "}
-                        {pm.account}
-                      </span>
-                    )}
-                    {pm.remark && (
-                      <div className="mt-1 whitespace-pre-wrap">
-                        {pm.remark}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {pm.qr_url && (
-                  <div
-                    className="w-20 h-20 rounded-sm bg-accent-light flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-                    onClick={() => setZoomedQr(pm.qr_url!)}
-                  >
-                    <img
-                      src={pm.qr_url}
-                      alt="收款码"
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {canSubmit && <div className="rounded border border-border bg-white p-5"><div className="mb-3 flex items-center justify-between"><p className="font-display text-base font-semibold">付款凭证</p><span className="text-xs text-muted">1–5 张图片</span></div><label className="block rounded border border-dashed border-border bg-[#FFFDFA] p-4 text-center text-sm text-muted hover:border-gold">上传转账截图或银行回单<input type="file" accept="image/jpeg,image/png,image/webp" multiple className="mt-2 block w-full text-xs" onChange={event => { setFiles(Array.from(event.target.files || []).slice(0, 5)); setSubmissionKey(""); }} /></label>{files.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{files.map((file, index) => <div key={`${file.name}-${index}`} className="rounded border border-border bg-[#FFFDFA] px-2 py-1 text-xs text-muted">{file.name}<button type="button" onClick={() => { setFiles(current => current.filter((_, currentIndex) => currentIndex !== index)); setSubmissionKey(""); }} className="ml-2 text-accent">移除</button></div>)}</div>}{submitError && <p className="mt-3 text-xs text-red-700">{submitError}</p>}<button type="button" onClick={submitEvidence} disabled={submitting || !files.length} className="mt-4 w-full rounded bg-accent px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{submitting ? "提交中…" : flow === "needs_more" ? "重新提交凭证" : "提交凭证，等待核实"}</button></div>}
-
-      {/* QR zoom overlay */}
-      {zoomedQr && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 cursor-pointer"
-          onClick={() => setZoomedQr(null)}
-        >
-          <img
-            src={zoomedQr}
-            alt="收款码"
-            className="max-w-full max-h-[90vh] object-contain rounded-sm shadow-2xl"
-          />
-        </div>
-      )}
-
-      <div className="text-center py-6 text-muted text-xs">收款信息仅在链接有效期内展示；付款凭证提交不代表已到账。</div>
     </div>
   );
 }
@@ -1032,7 +688,7 @@ function MessageView({
       )}
 
       <div className="text-center py-6 text-muted text-xs border-t border-border">
-        此私密链接已设置阅后即焚，关闭页面后将无法再次查看
+        请向发送方获取查看密码，并在链接有效期内查看。
       </div>
     </div>
   );

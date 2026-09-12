@@ -95,6 +95,29 @@ class PaymentSubmissionWorkflowTest(TestCase):
         self.assertEqual(qr.status_code, 200)
         self.assertEqual(qr['Content-Type'], 'image/png')
 
+    def test_invalid_temporary_qr_returns_400_without_creating_a_payment_request(self):
+        from privnote.models import Privnote
+
+        self.staff_client.raise_request_exception = False
+        invalid_images = [
+            ('empty.png', b'', 'image/png'),
+            ('invalid.png', b'not an image', 'image/png'),
+            ('unsupported.gif', PNG, 'image/gif'),
+            ('large.png', b'x' * (5 * 1024 * 1024 + 1), 'image/png'),
+        ]
+        for name, content, content_type in invalid_images:
+            with self.subTest(name=name):
+                response = self.staff_client.post('/privnote/create/', {
+                    'note_type': 'payment', 'sales_order_id': self.order.id,
+                    'duration': '24', 'payment_source': 'temporary',
+                    'fund_account_id': self.account.id, 'temporary_method_type': 'wechat',
+                    'temporary_qr_image': SimpleUploadedFile(name, content, content_type=content_type),
+                })
+                self.assertEqual(response.status_code, 400)
+                self.assertIn('error', response.json())
+                self.assertFalse(Privnote.objects.filter(sales_order=self.order).exists())
+                self.assertFalse(SalesReceipt.objects.filter(sales_order=self.order).exists())
+
     def test_anonymous_submission_is_idempotent_and_does_not_create_a_receipt(self):
         note = self._note()
         first = self._submit(note)

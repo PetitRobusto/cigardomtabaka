@@ -398,6 +398,9 @@ export interface PaymentData {
     english_name: string;
     vitola: string;
     quantity: number;
+    sale_unit?: string;
+    sale_quantity?: number | null;
+    box_size?: number | null;
     unit_price: number;
     subtotal: number;
     thumb_url: string;

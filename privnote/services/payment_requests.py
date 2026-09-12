@@ -41,7 +41,10 @@ def _active_cny_account(raw_id) -> FundAccount:
 
 
 def _save_private_file(uploaded: UploadedFile, *, prefix: str) -> str:
-    prepared = _validate_image(uploaded)
+    try:
+        prepared = _validate_image(uploaded)
+    except PaymentSubmissionError as exc:
+        raise PaymentRequestError(str(exc), status=exc.status) from exc
     extension = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}[prepared.content_type]
     return private_payment_storage.save(
         f'{prefix}/{timezone.now():%Y/%m}/{uuid.uuid4().hex}{extension}', prepared.uploaded,

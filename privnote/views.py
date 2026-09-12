@@ -184,7 +184,10 @@ def create(request):
     """POST /privnote/create/ — 四种类型统一创建入口"""
     note_type = request.POST.get('note_type', 'inventory')
     note_type = NOTE_TYPE_BACKWARD_COMPAT.get(note_type, note_type)
-    duration_hours = int(request.POST.get('duration', 24))
+    try:
+        duration_hours = int(request.POST.get('duration', 24))
+    except (TypeError, ValueError):
+        return JsonResponse({'error': '有效期必须是指定小时数'}, status=400)
     password = request.POST.get('password', '').strip()
     burn = request.POST.get('burn', 'on') == 'on'
     try:

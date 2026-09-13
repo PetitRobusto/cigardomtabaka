@@ -1,3 +1,4 @@
+import type { HistoryRange } from './types';
 import axios from 'axios';
 import type {
   PriceSnapshot, PriceHistoryResponse, Source, AlertItem, CigarListItem,
@@ -50,7 +51,7 @@ export const fetchSources = (): Promise<Source[]> =>
 export const fetchLatestPrices = (): Promise<PriceSnapshot[]> =>
   api.get<unknown>('/prices/snapshots/latest/').then(r => unwrapResults<PriceSnapshot>(r.data));
 
-export const fetchPriceHistory = (cigarId: string, days = 30): Promise<PriceHistoryResponse> =>
+export const fetchPriceHistory = (cigarId: string, days: HistoryRange = 30): Promise<PriceHistoryResponse> =>
   api.get<PriceHistoryResponse>('/prices/snapshots/history/', { params: { cigar_id: cigarId, days } }).then(r => r.data);
 
 export const fetchAlerts = (): Promise<AlertItem[]> =>

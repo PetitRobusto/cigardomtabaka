@@ -1,5 +1,5 @@
 """价格跟踪系统 — DRF Views"""
-from django.db.models import OuterRef, Subquery, Max, Q
+from django.db.models import OuterRef, Subquery, Max, Q, Case, When, F
 from django.utils import timezone
 from datetime import timedelta
 from rest_framework import viewsets, permissions, status
@@ -16,6 +16,8 @@ from .serializers import (
 )
 from .pricing import per_stick, avg_per_stick, convert_to_cny
 from .helpers import resolve_brand_cn, get_cigar_image_url
+from .presentation import product_name, anomaly_info
+from math import isfinite
 
 
 # --- DRF ViewSets ---
@@ -112,95 +114,88 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def history(self, request):
-        """单款雪茄价格历史 —— 按 (来源, 包装) 分组，未来可接多源"""
+        """单款雪茄历史：按来源、盒规、商品链接分组；当前报价独立于时间窗口"""
         cigar_id = request.query_params.get('cigar_id')
         if not cigar_id:
             return Response(
                 {'error': 'cigar_id required'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        days = int(request.query_params.get('days', 30))
-        cutoff = timezone.now() - timedelta(days=days)
+        try:
+            cigar_id = int(cigar_id)
+            raw_days = request.query_params.get('days', '30')
+            days = None if raw_days == 'all' else int(raw_days)
+            if cigar_id <= 0 or (days is not None and not 1 <= days <= 36500):
+                raise ValueError
+        except (ValueError, TypeError):
+            return Response({'error': 'cigar_id must be positive; days must be 1–36500 or all'}, status=400)
+        cutoff = timezone.now() - timedelta(days=days) if days is not None else None
 
-        # 始终保留每个 (source, box_size) 的最新快照（即使超过时间窗口）
-        latest_ids = (
-            PriceSnapshot.objects
-            .filter(cigar_id=cigar_id)
-            .values('source_id', 'box_size')
-            .annotate(max_id=Max('id'))
-            .values_list('max_id', flat=True)
-        )
-        # 取最新快照 + 时间窗口内的历史数据（取并集）
-        snapshots = (
-            PriceSnapshot.objects
-            .select_related('source', 'cigar')
-            .filter(cigar_id=cigar_id)
-            .filter(
-                Q(id__in=latest_ids) | Q(scraped_at__gte=cutoff)
-            )
-            .order_by('source__name', 'box_size', 'scraped_at')
-        )
-
-        cigar = snapshots[0].cigar if snapshots.exists() else None
-
-        # Resolve Chinese brand name
-        brand_cn = None
-        if cigar:
-            from cigars.models import Brand
-            brand_obj = Brand.objects.filter(english_name=cigar.brand).first()
-            if not brand_obj:
-                brand_obj = Brand.objects.filter(english_name__startswith=cigar.brand).first()
-            if not brand_obj:
-                brand_obj = Brand.objects.filter(english_name__icontains=cigar.brand).first()
-            brand_cn = brand_obj.name if brand_obj else cigar.brand
-
-        # 按 (来源, 包装) 分组 —— 每个 variant 独立追踪
+        # Current quotes are independent of the history window. URL identifies an offer.
+        snapshots = list(PriceSnapshot.objects.select_related('source', 'cigar')
+                         .filter(cigar_id=cigar_id)
+                         .order_by('source__name', 'box_size', 'scraped_at', 'id'))
+        from cigars.models import Cigar
+        cigar = snapshots[0].cigar if snapshots else Cigar.objects.filter(pk=cigar_id).first()
+        brand_cn = resolve_brand_cn(cigar.brand) if cigar else None
         variants = {}
         for snap in snapshots:
             bs = snap.box_size
-            key = f'{snap.source.slug}__{bs}'
+            key = (snap.source_id, bs, snap.url)
             if key not in variants:
-                short_nm = snap.source.short_name or snap.source.name
-                box_label = f'{bs}支' if bs else '25支'
                 variants[key] = {
                     'source_id': snap.source_id,
                     'source_name': snap.source.name,
-                    'source_short_name': short_nm,
+                    'source_short_name': snap.source.short_name or snap.source.name,
                     'source_slug': snap.source.slug,
                     'source_url': snap.source.base_url,
-                    'currency': snap.currency,
+                    'source_currency': snap.source.currency,
+                    'source_exchange_rate': snap.source.exchange_rate,
                     'box_size': bs,
-                    'box_label': box_label,
-                    'url': snap.url or snap.source.base_url,
-                    'scraped_name': (snap.raw_data or {}).get('title_original') or (snap.raw_data or {}).get('product', '') or '',
-                    'delisted': (snap.raw_data or {}).get('delisted', False),
+                    'box_label': f'{bs}支' if bs and bs > 0 else '未知盒规',
+                    'record_count': 0,
                     'points': [],
                 }
-            variants[key]['points'].append({
+            v = variants[key]
+            raw = snap.raw_data if isinstance(snap.raw_data, dict) else {}
+            point = {
+                'snapshot_id': snap.id,
                 'date': snap.scraped_at.isoformat(),
                 'price': snap.price,
                 'original_price': snap.original_price,
                 'price_cny': snap.price_cny,
+                'currency': snap.currency,
                 'in_stock': snap.in_stock,
-                'delisted': (snap.raw_data or {}).get('delisted', False),
+                'delisted': raw.get('delisted') is True,
+                'anomaly': anomaly_info(snap),
+            }
+            if cutoff is None or snap.scraped_at >= cutoff:
+                v['points'].append(point)
+            v['record_count'] += 1
+            # Every current field comes from the same latest snapshot, including null prices.
+            v.update({
+                'snapshot_id': snap.id,
+                'product_name': product_name(snap),
+                'scraped_name': product_name(snap),
+                'currency': snap.currency,
+                'url': snap.url or snap.source.base_url,
+                'current_price': snap.price,
+                'current_price_cny': snap.price_cny,
+                'in_stock': snap.in_stock,
+                'delisted': point['delisted'],
+                'anomaly': point['anomaly'],
+                'scraped_at': point['date'],
+                'price_per_stick': per_stick(snap.price_cny, bs),
             })
 
-        # Compute aggregates per variant
         for v in variants.values():
-            prices = [p['price'] for p in v['points'] if p['price'] is not None]
-            v['current_price'] = prices[-1] if prices else None
+            prices = [p['price'] for p in v['points']
+                      if p['currency'] == v['currency'] and p['price'] is not None
+                      and isfinite(p['price']) and p['price'] > 0
+                      and p['in_stock'] and not p['delisted'] and not p['anomaly']]
             v['min_price'] = min(prices) if prices else None
             v['max_price'] = max(prices) if prices else None
-            v['record_count'] = len(v['points'])
-            # 最新一条的衍生字段
-            latest_point = v['points'][-1] if v['points'] else None
-            if latest_point:
-                v['current_price_cny'] = latest_point.get('price_cny')
-                v['in_stock'] = latest_point.get('in_stock', True)
-                v['delisted'] = latest_point.get('delisted', False)
-                v['scraped_at'] = latest_point.get('date')
-                # 每支单价 = 整盒人民币价 / 支数（使用共享定价模块）
-                v['price_per_stick'] = per_stick(v['current_price_cny'], v['box_size'])
+            v['history_record_count'] = len(v['points'])
 
         release_type_cn = cigar.release_type_cn if cigar else None
 
@@ -211,6 +206,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             'cigar_name': (cigar.name or cigar.english_name) if cigar else None,
             'cigar_name_en': cigar.english_name if cigar else None,
             'release_type_cn': release_type_cn,
+            'history_days': days,
             'variants': list(variants.values()),
         })
 
@@ -322,16 +318,15 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'], url_path='list')
     def list_aggregated(self, request):
         """Dashboard列表页聚合数据 — 每款雪茄一条，带均价/主图/来源"""
-        from django.db.models import Max as DMax
 
-        # 1. 取每个(cigar, source, box_size)的最新快照（排除异常，含售罄）
-        latest_ids = (
-            PriceSnapshot.objects
-            .filter(is_anomalous=False)
-            .values('cigar_id', 'source_id', 'box_size')
-            .annotate(max_id=DMax('id'))
-            .values_list('max_id', flat=True)
-        )
+        latest = (PriceSnapshot.objects
+                  .filter(cigar_id=OuterRef('cigar_id'), source_id=OuterRef('source_id'),
+                          url=OuterRef('url')).order_by('-scraped_at', '-id'))
+        # NULL is its own identity, distinct even from an explicitly invalid zero box.
+        latest_ids = (PriceSnapshot.objects.annotate(latest_id=Case(
+            When(box_size__isnull=True, then=Subquery(latest.filter(box_size__isnull=True).values('id')[:1])),
+            default=Subquery(latest.filter(box_size=OuterRef('box_size')).values('id')[:1]),
+        )).filter(id=F('latest_id')).values('id'))
         snapshots = (
             PriceSnapshot.objects
             .select_related('cigar', 'source')
@@ -372,13 +367,8 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
             entry = cigars_map[cid]
             currency = (snap.currency or snap.source.currency or 'USD').strip()
 
-            # CNY 换算：已存的 price_cny > 共享汇率换算
-            if snap.price_cny is not None:
-                price_cny = snap.price_cny
-            elif snap.price:
-                price_cny = convert_to_cny(snap.price, currency)
-            else:
-                price_cny = None
+            # Use stored snapshot conversion, matching history; never invent a fallback here.
+            price_cny = snap.price_cny
 
             entry['sources'].append({
                 'source_id': snap.source_id,
@@ -391,10 +381,12 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
                 'currency': currency,
                 'box_size': snap.box_size,
                 'in_stock': snap.in_stock,
+                'delisted': bool((snap.raw_data or {}).get('delisted', False)),
+                'anomaly': anomaly_info(snap),
                 'url': snap.url or snap.source.base_url,
             })
 
-            if snap.in_stock:
+            if snap.in_stock and not (snap.raw_data or {}).get('delisted'):
                 entry['in_stock'] = True
 
         # 3. 计算平均单支价（与详情页算法一致：
@@ -406,7 +398,13 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         ]
         result = list(cigars_map.values())
         for entry in result:
-            entry['avg_per_stick_cny'] = avg_per_stick(entry['sources'])
+            # 均价只反映当前可售、未下架且有有效盒规的报价。
+            entry['avg_per_stick_cny'] = avg_per_stick([
+                source for source in entry['sources']
+                if source['in_stock'] and not source['delisted'] and not source['anomaly']
+                and source['price_cny'] is not None and isfinite(source['price_cny'])
+                and source['price_cny'] > 0 and source['box_size'] and source['box_size'] > 0
+            ])
         def _sort_key(entry):
             brand_order = BRANDS_ORDER.index(entry['cigar_brand_cn']) if entry['cigar_brand_cn'] in BRANDS_ORDER else 999
             # 非常规款判断：机制雪茄 或 有特别款类型

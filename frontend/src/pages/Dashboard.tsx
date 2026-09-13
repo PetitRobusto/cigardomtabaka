@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLatestPrices } from '../hooks/useLatestPrices';
 import { useRecentChanges } from '../hooks/useRecentChanges';
@@ -49,6 +49,8 @@ export default function Dashboard() {
   const { data: cigars = [], isLoading, error, refetch } = useLatestPrices();
   const { data: changesData } = useRecentChanges();
   const { setMeta } = usePageMeta();
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState<'all' | 'in' | 'out' | 'delisted' | 'invalid'>('all');
 
   useEffect(() => {
     setMeta({
@@ -62,8 +64,17 @@ export default function Dashboard() {
 
   const brands = useMemo(() => extractBrands(cigars), [cigars]);
   const filtered = useMemo(
-    () => cigars.filter((g) => !activeBrand || (g.cigar_brand_cn || g.cigar_brand) === activeBrand),
-    [cigars, activeBrand]
+    () => cigars.filter((g) => {
+      if (activeBrand && (g.cigar_brand_cn || g.cigar_brand) !== activeBrand) return false;
+      const haystack = `${g.cigar_name} ${g.cigar_name_en} ${g.cigar_brand} ${g.cigar_brand_cn}`.toLowerCase();
+      if (query.trim() && !haystack.includes(query.trim().toLowerCase())) return false;
+      if (status === 'in' && !g.in_stock) return false;
+      if (status === 'out' && g.in_stock) return false;
+      if (status === 'delisted' && !g.sources.some((s) => s.delisted)) return false;
+      if (status === 'invalid' && !g.avg_per_stick_cny && !g.sources.some((s) => s.price_cny != null)) return false;
+      return true;
+    }),
+    [cigars, activeBrand, query, status]
   );
 
   if (isLoading) return <LoadingState text="加载价格数据…" />;
@@ -86,6 +97,26 @@ export default function Dashboard() {
             onItemClick={(id) => navigate(`/prices/cigar/${id}`)}
           />
         )}
+        <div className="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-white p-3 shadow-sm">
+          <input
+            aria-label="搜索雪茄、品牌或品型"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="搜索款式 / 品牌 / 品型"
+            className="min-w-[220px] flex-1 rounded-lg border border-border bg-cream px-3 py-2 text-sm outline-none focus:border-gold"
+          />
+          {([['all', '全部'], ['in', '在售'], ['out', '缺货'], ['delisted', '含已下架'], ['invalid', '无有效价格']] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setStatus(value)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${status === value ? 'border-fg bg-fg text-white' : 'border-border bg-white text-muted hover:border-gold hover:text-fg'}`}
+            >
+              {label}
+            </button>
+          ))}
+          <span className="w-full text-xs text-muted md:ml-auto md:w-auto">{filtered.length} 款 · 均价口径统一</span>
+        </div>
         <BrandTabs brands={brands} activeBrand={activeBrand} onSelect={setActiveBrand} />
         <PriceCardGrid
           cigars={filtered}

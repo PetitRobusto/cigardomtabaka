@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchPriceHistory } from '../api';
-import type { PriceHistoryResponse } from '../types';
+import type { PriceHistoryResponse, HistoryRange } from '../types';
 
-export function usePriceHistory(cigarId: string | undefined, days: number) {
+export function usePriceHistory(cigarId: string | undefined, days: HistoryRange) {
   return useQuery<PriceHistoryResponse>({
     queryKey: ['prices', 'history', cigarId, days],
     queryFn: () => fetchPriceHistory(cigarId!, days),

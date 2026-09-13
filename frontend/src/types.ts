@@ -30,7 +30,20 @@ export interface PriceSnapshot {
   record_count?: number;
 }
 
+export type HistoryRange = number | 'all';
+
+export interface PriceAnomaly {
+  code: 'spike' | 'parse_error' | 'outlier' | 'invalid_box';
+  label: string;
+  reason: string;
+  exclude_from_aggregate: boolean;
+}
+
 export interface HistoryPoint {
+  snapshot_id?: number;
+  currency?: string;
+  delisted?: boolean;
+  anomaly?: PriceAnomaly | null;
   date: string;
   price: number | null;
   original_price: number | null;
@@ -39,6 +52,12 @@ export interface HistoryPoint {
 }
 
 export interface Variant {
+  snapshot_id?: number;
+  product_name?: string;
+  source_currency?: string;
+  source_exchange_rate?: number | null;
+  history_record_count?: number;
+  anomaly?: PriceAnomaly | null;
   source_slug: string;
   source_name: string;
   source_short_name?: string;
@@ -60,6 +79,7 @@ export interface Variant {
 }
 
 export interface PriceHistoryResponse {
+  history_days?: number | null;
   cigar_id: number;
   cigar_name: string;
   cigar_name_en?: string;
@@ -105,6 +125,8 @@ export interface CigarListItem {
     currency: string;
     box_size: number | null;
     in_stock: boolean;
+    delisted?: boolean;
+    anomaly?: PriceAnomaly | null;
     url: string;
   }[];
   in_stock: boolean;

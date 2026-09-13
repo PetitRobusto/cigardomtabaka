@@ -1,262 +1,73 @@
-import { useState, useEffect } from 'react';
-import { BarChart, Bar, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { motion } from 'framer-motion';
+import { useState } from 'react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, LineChart, Line, Legend } from 'recharts';
 import type { Variant } from '../../types';
-import { buildChartData, cnyPerStick, variantLabel } from '../../utils/priceData';
+import { average } from '../../utils/offerPricing';
+import { money } from './rebuild/detailFormatters';
+import { currentBars, weeklyHistory } from './priceChartData';
 
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 640px)');
-    const handler = (e: MediaQueryListEvent | MediaQueryList) => setIsMobile(e.matches);
-    handler(mq);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
-  return isMobile;
-}
-
-const COLORS = [
-  '#A16207', '#c0392b', '#2c3e50', '#27ae60', '#8e44ad',
-  '#e67e22', '#2980b9', '#16a085', '#d35400', '#7f8c8d',
-  '#1abc9c', '#9b59b6', '#f39c12', '#e74c3c', '#34495e',
-];
-
-interface PriceChartProps {
-  variants: Variant[];
-}
-
-interface BarDatum {
-  name: string;
-  price: number;
-  color: string;
-  tag: string | null;
-}
-
-/** 从 variants 提取当前单支 CNY 价格用于柱状图对比 */
-function buildBarData(variants: Variant[]): BarDatum[] {
-  const raw = variants.flatMap((v, i): BarDatum[] => {
-    const points = v.points || [];
-    const latest = points[points.length - 1];
-    const perStick = cnyPerStick(latest?.price_cny, v.box_size, v.price_per_stick);
-    if (perStick === null) return [];
-    return [{
-      name: `${v.source_short_name || v.source_name} ${v.box_label}`,
-      price: perStick,
-      color: COLORS[i % COLORS.length],
-      tag: null as string | null,
-    }];
-  });
-
-  if (raw.length === 0) return raw;
-
-  const prices = raw.map((d) => d.price);
-  const max = Math.max(...prices);
-  const min = Math.min(...prices);
-  const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
-
-  // 找到最接近平均价的值
-  let closestDelta = Math.abs(prices[0] - avg);
-  for (const p of prices) {
-    const d = Math.abs(p - avg);
-    if (d < closestDelta) {
-      closestDelta = d;
-    }
-  }
-
-  // 只在多于 1 根柱子时标注（否则全一样）
-  const unique = new Set(prices);
-  if (unique.size <= 1) return raw;
-
-  // 标注策略：先标最高/最低，再标最接近平均（避免重复）
-  const usedTags = new Set<string>();
-  for (const d of raw) {
-    if (d.price === max && !usedTags.has('最高')) {
-      d.tag = '最高';
-      usedTags.add('最高');
-    } else if (d.price === min && !usedTags.has('最低')) {
-      d.tag = '最低';
-      usedTags.add('最低');
-    }
-  }
-  // 最接近平均 —— 排除已标记的，找最接近的
-  if (unique.size >= 3 && !usedTags.has('均价')) {
-    let bestIdx = -1;
-    let bestDelta = Infinity;
-    for (let i = 0; i < raw.length; i++) {
-      if (raw[i].tag) continue; // 已被标为最高/最低
-      const d = Math.abs(raw[i].price - avg);
-      if (d < bestDelta) { bestDelta = d; bestIdx = i; }
-    }
-    if (bestIdx >= 0) {
-      raw[bestIdx].tag = '均价';
-    }
-  }
-
-  return raw;
-}
-
-export function PriceChart({ variants }: PriceChartProps) {
-  const isMobile = useIsMobile();
-  const barHeight = isMobile ? 240 : 380;
-  const lineHeight = isMobile ? 200 : 280;
-  const chartMargin = isMobile
-    ? { top: 32, right: 4, bottom: 40, left: 4 }
-    : { top: 40, right: 20, bottom: 60, left: 20 };
-  const tickFontSize = isMobile ? 9 : 11;
-  const maxBarSize = isMobile ? 40 : 64;
-
-  const barData = buildBarData(variants);
-  const originalData = buildChartData(variants, 'original');
-
-  if (originalData.length === 0 && barData.length === 0) return null;
-
+export function PriceChart({ variants }: { variants: Variant[] }) {
+  const [original, setOriginal] = useState(false);
+  const [selectedCurrency, setSelectedCurrency] = useState('');
+  const [showUnavailable, setShowUnavailable] = useState(true);
+  const currencies = [...new Set(variants.flatMap(v => [v.currency, ...v.points.map(p => p.currency || v.currency)]).filter(Boolean))].sort();
+  const currency = original ? (currencies.includes(selectedCurrency) ? selectedCurrency : currencies[0] || 'CNY') : 'CNY';
+  const bars = currentBars(variants, currency, original);
+  const data = weeklyHistory(variants, currency, original);
+  const avg = average(bars.map(bar => bar.price));
+  const points = variants.flatMap(v => v.points);
+  const outCount = points.filter(p => p.in_stock === false && !p.delisted).length;
+  const delistedCount = points.filter(p => p.delisted === true).length;
+  const anomalyCount = points.filter(p => p.anomaly?.exclude_from_aggregate).length;
+  const hasTrend = data.some(row => row.active !== null || row.soldOut !== null || row.delisted !== null);
   return (
-    <>
-      {/* ===== 单支价格对比 · ¥ — 柱状图 ===== */}
-      {barData.length > 0 && (
-        <motion.div
-          className="bg-white rounded-xl border border-accent/20 shadow-md p-5 mb-6"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.05 }}
-        >
-          <h3 className="text-sm font-bold text-accent uppercase tracking-widest mb-4">
-            单支价格对比 · ¥
-          </h3>
-          <ResponsiveContainer width="100%" height={barHeight}>
-            <BarChart data={barData} margin={chartMargin}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F0EDE8" vertical={false} />
-              <XAxis
-                dataKey="name"
-                stroke="#A8A29E"
-                tick={{ fontSize: tickFontSize, fill: '#78716C' }}
-                tickLine={false}
-                axisLine={{ stroke: '#E8E4DF' }}
-                angle={isMobile ? -45 : -20}
-                textAnchor="end"
-                interval={isMobile ? 'preserveStartEnd' : 0}
-                height={isMobile ? 50 : 60}
-              />
-              <YAxis
-                stroke="#A8A29E"
-                tick={{ fontSize: isMobile ? 9 : 12, fill: '#A8A29E' }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(v: number) => (isMobile ? `¥${Math.round(v)}` : `¥${v}`)}
-                width={isMobile ? 35 : 55}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: '#fff',
-                  border: '1px solid #E8E4DF',
-                  borderRadius: 12,
-                  boxShadow: '0 4px 20px rgba(28,25,23,0.08)',
-                }}
-                labelStyle={{ color: '#1C1917', fontWeight: 700, fontSize: 13 }}
-                itemStyle={{ fontSize: 13 }}
-                formatter={(value) => {
-                  // Recharts 可能传入非数值占位，先收窄再格式化。
-                  if (typeof value !== 'number') return ['—', '单支价格'];
-                  return [`¥${value.toLocaleString()}`, '单支价格'];
-                }}
-              />
-              <Bar dataKey="price" radius={[isMobile ? 3 : 6, isMobile ? 3 : 6, 0, 0]} maxBarSize={maxBarSize}
-                label={({ x, y, width, value, index }) => {
-                  if (
-                    typeof index !== 'number'
-                    || typeof x !== 'number'
-                    || typeof y !== 'number'
-                    || typeof width !== 'number'
-                    || typeof value !== 'number'
-                  ) return null;
-                  const tag = barData[index]?.tag;
-                  if (!tag) return null;
-                  const colors: Record<string, string> = {
-                    '最高': '#dc2626',
-                    '最低': '#16a34a',
-                    '均价': '#78716C',
-                  };
-                  return (
-                    <text
-                      x={x + width / 2}
-                      y={y - 8}
-                      textAnchor="middle"
-                      fill={colors[tag] || '#78716C'}
-                      fontSize={11}
-                      fontWeight={700}
-                    >
-                      {tag} ¥{value.toLocaleString()}
-                    </text>
-                  );
-                }}
-              >
-                {barData.map((entry, idx) => (
-                  <Cell key={idx} fill={entry.color} />
-                ))}
-              </Bar>
+    <div className="rd-charts" data-guide="prices-history-chart">
+      <div className="rd-chart-toolbar">
+        <div className="rd-chart-controls" role="group" aria-label="图表币种">
+          <button type="button" aria-pressed={!original} onClick={() => setOriginal(false)}>CNY</button>
+          <button type="button" aria-pressed={original} onClick={() => setOriginal(true)}>原币</button>
+        </div>
+        {original && <label className="rd-currency-label">原币种走势 <select aria-label="选择原币币种" value={currency} onChange={event => setSelectedCurrency(event.target.value)}>{currencies.map(code => <option key={code}>{code}</option>)}</select></label>}
+      </div>
+      <section aria-label="当前在售报价图">
+        <h3>当前在售单支价格（{currency}）</h3>
+        {bars.length ? <>
+          <ResponsiveContainer width="100%" height={Math.max(220, bars.length * 44)}>
+            <BarChart data={bars} layout="vertical" margin={{ left: 0, right: 24, top: 18, bottom: 8 }}>
+              <CartesianGrid stroke="#E8E0D6" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11 }} />
+              <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
+              <Tooltip formatter={value => [money(Number(value), currency) + '/支', '价格']} labelFormatter={(_, payload) => payload[0]?.payload?.product || ''} />
+              {avg !== null && <ReferenceLine x={avg} stroke="#B87A3A" strokeDasharray="4 4" label={{ value: '均价', fill: '#B87A3A', fontSize: 11 }} />}
+              <Bar dataKey="price" name="在售单支价" fill="#7A1F2E" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </motion.div>
-      )}
-
-      {/* ===== 原币种走势 — 线图 ===== */}
-      {originalData.length > 0 && (
-        <motion.div
-          className="bg-white rounded-xl border border-border shadow-sm p-5 mb-8"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.15 }}
-        >
-          <h3 className="text-sm font-bold text-fg uppercase tracking-widest mb-4">
-            原币种走势
-          </h3>
-          <ResponsiveContainer width="100%" height={lineHeight}>
-            <LineChart data={originalData} margin={chartMargin}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F0EDE8" />
-              <XAxis
-                dataKey="date"
-                stroke="#A8A29E"
-                tick={{ fontSize: isMobile ? 9 : 12, fill: '#A8A29E' }}
-                tickLine={false}
-                axisLine={{ stroke: '#E8E4DF' }}
-              />
-              <YAxis
-                stroke="#A8A29E"
-                tick={{ fontSize: isMobile ? 9 : 12, fill: '#A8A29E' }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(v: number) => v.toLocaleString()}
-                width={isMobile ? 35 : 55}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: '#fff',
-                  border: '1px solid #E8E4DF',
-                  borderRadius: 12,
-                  boxShadow: '0 4px 20px rgba(28,25,23,0.08)',
-                }}
-                labelStyle={{ color: '#1C1917', fontWeight: 700, fontSize: 13 }}
-                itemStyle={{ fontSize: 13 }}
-              />
-              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12, color: '#78716C' }} />
-              {variants.map((v, i) => (
-                <Line
-                  key={`${v.source_slug}__${v.box_size}`}
-                  type="monotone"
-                  dataKey={variantLabel(v, 'original')}
-                  stroke={COLORS[i % COLORS.length]}
-                  strokeWidth={isMobile ? 1.5 : 2.5}
-                  dot={isMobile ? false : { r: 3, strokeWidth: 1.5, fill: '#fff' }}
-                  activeDot={isMobile ? { r: 4 } : { r: 5, strokeWidth: 2.5 }}
-                  connectNulls
-                  name={variantLabel(v, 'original')}
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </motion.div>
-      )}
-    </>
+          <p className="rd-note">由低到高排列 · 虚线为当前在售报价均价 {money(avg, currency)}/支。仅统计在售且 CNY 价格、盒规有效的报价；原币模式另需该币种原始价格有效。</p>
+        </> : <p className="rd-chart-empty">暂无符合条件的当前在售报价。</p>}
+      </section>
+      <section aria-label="每周价格趋势">
+        <div className="rd-chart-toolbar">
+          <h3>历史单支价格趋势（{currency}）</h3>
+          <label className="rd-note"><input type="checkbox" checked={showUnavailable} onChange={event => setShowUnavailable(event.target.checked)} /> 显示售罄 / 下架历史</label>
+        </div>
+        {hasTrend ? <ResponsiveContainer width="100%" height={280}>
+          <LineChart data={data} margin={{ left: 0, right: 20, top: 8, bottom: 8 }}>
+            <CartesianGrid stroke="#E8E0D6" strokeDasharray="3 3" />
+            <XAxis dataKey="date" tick={{ fontSize: 10 }} minTickGap={35} />
+            <YAxis tick={{ fontSize: 10 }} width={55} />
+            <Tooltip formatter={(value, name) => [money(Number(value), currency) + '/支', name]} labelFormatter={label => `周起始：${label}`} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Line type="linear" dataKey="active" name="在售来源均线" stroke="#7A1F2E" strokeWidth={2.5} dot={{ r: 3 }} connectNulls={false} />
+            {showUnavailable && <Line type="linear" dataKey="soldOut" name="售罄历史均线（不参与在售统计）" stroke="#A75B27" strokeOpacity={0.55} strokeDasharray="5 5" dot={{ r: 2 }} connectNulls={false} />}
+            {showUnavailable && <Line type="linear" dataKey="delisted" name="下架历史均线（不参与在售统计）" stroke="#8A7E6E" strokeOpacity={0.45} strokeDasharray="2 5" dot={{ r: 2 }} connectNulls={false} />}
+          </LineChart>
+        </ResponsiveContainer> : <p className="rd-chart-empty">所选范围暂无可绘制的有效历史价格。</p>}
+        <p className="rd-note">按 UTC 周一分周，每个来源 × 盒规 × 商品链接取周内最后一次快照；先在来源内平均，再对来源等权平均。状态取自当时快照，不套用当前状态。无快照周不补值，空缺处断线；快照经过去重，均线不是每日市场均价。</p>
+        <p className="rd-note">本范围保留 {outCount} 条售罄、{delistedCount} 条下架记录；{anomalyCount} 条异常记录排除统计。缺少有效价格或盒规的记录不绘制价格，售罄与下架仅作历史参考。</p>
+        <p className="rd-note">CNY 使用快照保存的折算值；原币按快照币种分别展示，不合并不同币种。历史实际折算汇率与日期未保存，来源当前参考汇率见报价表。</p>
+        {data.length > 0 && <details className="rd-weekly-data"><summary>查看每周统计数据</summary><div className="rd-weekly-list">
+          {data.map(row => <div key={row.date}><time>{row.date}</time><span>在售 {money(row.active, currency)}/支 · {row.sourceCount} 个来源</span><span>售罄 {money(row.soldOut, currency)}/支</span><span>下架 {money(row.delisted, currency)}/支</span></div>)}
+        </div></details>}
+      </section>
+    </div>
   );
 }

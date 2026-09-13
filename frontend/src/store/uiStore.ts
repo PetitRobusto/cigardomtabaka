@@ -1,10 +1,11 @@
 import { create } from 'zustand';
+import type { HistoryRange } from '../types';
 
 interface UIState {
   activeBrand: string;
   setActiveBrand: (brand: string) => void;
-  daysFilter: number;
-  setDaysFilter: (days: number) => void;
+  daysFilter: HistoryRange;
+  setDaysFilter: (days: HistoryRange) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({

@@ -11,7 +11,7 @@ vi.mock('axios', () => ({
   },
 }));
 
-import { fetchAggregatedPrices } from '../api';
+import { fetchAggregatedPrices, fetchPriceHistory } from '../api';
 
 function response<T>(data: T) {
   return Promise.resolve({ data });
@@ -32,5 +32,14 @@ describe('price tracker API contracts', () => {
     client.get.mockReturnValueOnce(response({ unexpected: true }));
 
     await expect(fetchAggregatedPrices()).resolves.toEqual([]);
+  });
+});
+
+
+describe('price history range', () => {
+  it('sends an explicit all sentinel instead of a fixed decade', async () => {
+    client.get.mockReturnValueOnce(response({ variants: [] }));
+    await fetchPriceHistory('1', 'all');
+    expect(client.get).toHaveBeenCalledWith('/prices/snapshots/history/', { params: { cigar_id: '1', days: 'all' } });
   });
 });

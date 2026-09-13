@@ -34,7 +34,7 @@ function StockBadge({ delisted, inStock }: { delisted?: boolean; inStock: boolea
 
 export function VariantTable({ variants }: Props) {
   const { bestPrice, worstPrice, closestAvgPrice, uniquePrices } = useMemo(() => {
-    const active = variants.filter(v => !v.delisted && v.price_per_stick != null);
+    const active = variants.filter(v => !v.delisted && v.in_stock !== false && v.price_per_stick != null);
     if (active.length === 0) return { bestPrice: null, worstPrice: null, closestAvgPrice: null, uniquePrices: 0 };
 
     const prices = active.map(v => v.price_per_stick!);

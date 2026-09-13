@@ -1,6 +1,7 @@
 """价格跟踪系统 — DRF Serializers"""
 from rest_framework import serializers
 from .models import PriceSource, PriceSnapshot, PriceAlert
+from .presentation import product_name, anomaly_info
 
 
 class PriceSourceSerializer(serializers.ModelSerializer):
@@ -23,17 +24,21 @@ class PriceSnapshotSerializer(serializers.ModelSerializer):
     cigar_brand = serializers.CharField(source='cigar.brand', read_only=True)
     cigar_brand_cn = serializers.SerializerMethodField()
     scraped_name = serializers.SerializerMethodField()
+    product_name = serializers.SerializerMethodField()
+    anomaly = serializers.SerializerMethodField()
     # Variant-level aggregates (annotated by views, not model fields)
     min_price = serializers.FloatField(read_only=True, allow_null=True, default=None)
     max_price = serializers.FloatField(read_only=True, allow_null=True, default=None)
     record_count = serializers.IntegerField(read_only=True, default=0)
 
     def get_scraped_name(self, obj):
-        """从 raw_data 重建爬虫原始品名"""
-        rd = obj.raw_data or {}
-        brand = rd.get('brand', '')
-        product = rd.get('product', '')
-        return f'{brand} {product}'.strip() if brand or product else ''
+        return product_name(obj)
+
+    def get_product_name(self, obj):
+        return product_name(obj)
+
+    def get_anomaly(self, obj):
+        return anomaly_info(obj)
 
     def get_cigar_brand_cn(self, obj):
         """Look up Chinese brand name from Brand model (fuzzy match)"""
@@ -52,9 +57,9 @@ class PriceSnapshotSerializer(serializers.ModelSerializer):
     class Meta:
         model = PriceSnapshot
         fields = [
-            'id', 'source', 'source_name', 'source_slug', 'source_currency',
+            'id', 'source', 'source_name', 'source_slug', 'source_currency', 'source_short_name',
             'cigar', 'cigar_name', 'cigar_english_name', 'cigar_brand', 'cigar_brand_cn',
-            'scraped_name',
+            'scraped_name', 'product_name', 'anomaly',
             'price', 'original_price', 'currency', 'price_cny',
             'box_size', 'box_price', 'url', 'in_stock',
             'scraped_at',

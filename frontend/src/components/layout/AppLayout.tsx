@@ -213,8 +213,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 md:gap-8 pb-8 border-b border-border">
             {/* Brand */}
             <div className="flex items-center gap-4">
-              <img src={`${base}logo-512.png`} alt="CigarDomTabaka" className="w-[120px] h-[120px] object-contain shrink-0 mr-4" />
-              <div>
+              <img src={`${base}logo-512.png`} alt="CigarDomTabaka" className="w-[72px] h-[72px] sm:w-[120px] sm:h-[120px] object-contain shrink-0 sm:mr-4" />
+              <div className="min-w-0 break-words">
                 <div className="font-display text-[22px] font-semibold tracking-wide text-fg">
                   CigarDomTabaka
                 </div>

@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { BRAND_LOGO_LOCAL } from '../../utils/priceData';
 import type { CigarListItem } from '../../types';
+import { average, eligibleQuote, unitPrice } from '../../utils/offerPricing';
 
 interface PriceCardProps {
   cigar: CigarListItem;
@@ -9,13 +10,9 @@ interface PriceCardProps {
 }
 
 export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
+  const active = cigar.sources.filter(eligibleQuote);
+  const avg = average(active.map(source => unitPrice(source.price_cny, source.box_size)!));
   const brandLogo = BRAND_LOGO_LOCAL[cigar.cigar_brand] || '';
-  // Build slug→short_name map from source entries
-  const slugNameMap: Record<string, string> = {};
-  cigar.sources.forEach(s => {
-    slugNameMap[s.source_slug] = s.source_short_name || s.source_name;
-  });
-
   return (
     <motion.div
       className={`group bg-white rounded-xl border border-border overflow-hidden cursor-pointer
@@ -107,11 +104,10 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
 
         {/* 均价/支 (RMB) */}
         <div className="flex items-baseline gap-1 mb-2.5">
-          <span className="text-[0.7rem] text-muted">均价/支</span>
-          {cigar.avg_per_stick_cny != null ? (
-            <span className={`text-xl font-bold font-mono tracking-tight tabular-nums
-              ${cigar.in_stock ? 'text-accent' : 'text-muted line-through'}`}>
-              ¥{cigar.avg_per_stick_cny.toLocaleString()}
+          <span className="text-[0.7rem] text-muted">在售均价/支</span>
+          {avg != null ? (
+            <span className={`text-xl font-bold font-mono tracking-tight tabular-nums ${cigar.in_stock ? 'text-accent' : 'text-muted line-through'}`}>
+              ¥{avg.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
             </span>
           ) : (
             <span className="text-sm font-medium text-muted">暂无报价</span>
@@ -120,8 +116,13 @@ export function PriceCard({ cigar, index, onClick }: PriceCardProps) {
 
         {/* 来源计数 — 只计算在售的唯一网站 */}
         <div className="flex items-center gap-1.5 text-[0.7rem] text-muted">
-          <span className="font-semibold text-accent">{new Set(cigar.sources.filter(s => s.in_stock).map(s => s.source_slug)).size}</span>
-          <span>个网站有售</span>
+          <span className="font-semibold text-accent">{new Set(active.map(s => s.source_slug)).size}</span>
+          <span>个网站有有效在售价</span>
+          {cigar.sources.some(s => s.delisted) && (
+            <span className="ml-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-bold text-[0.6rem] border border-gray-300">
+              含已下架
+            </span>
+          )}
           {cigar.sources.some(s => s.original_price) && (
             <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold text-[0.6rem] border border-amber-300">
               折

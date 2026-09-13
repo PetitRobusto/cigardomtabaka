@@ -1,35 +1,15 @@
-import { motion } from 'framer-motion';
+import type { HistoryRange } from '../../types';
 
-interface DaysFilterProps {
-  days: number;
-  onChange: (days: number) => void;
-}
+const OPTIONS: { value: HistoryRange; label: string }[] = [
+  { value: 30, label: '月' }, { value: 90, label: '3 个月' },
+  { value: 180, label: '6 个月' }, { value: 365, label: '1 年' },
+  { value: 'all', label: '全部' },
+];
 
-const OPTIONS = [7, 14, 30, 90];
-
-export function DaysFilter({ days, onChange }: DaysFilterProps) {
+export function DaysFilter({ days, onChange }: { days: HistoryRange; onChange: (days: HistoryRange) => void }) {
   return (
-    <div className="flex gap-2 mb-6">
-      {OPTIONS.map((d) => (
-        <button
-          key={d}
-          onClick={() => onChange(d)}
-          className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
-            days === d
-              ? 'bg-accent text-white shadow-sm'
-              : 'bg-white text-muted border border-border hover:border-accent hover:text-accent'
-          }`}
-        >
-          {days === d && (
-            <motion.div
-              layoutId="daysFilterActive"
-              className="absolute inset-0 bg-accent rounded-lg -z-10"
-              transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }}
-            />
-          )}
-          {d}天
-        </button>
-      ))}
+    <div className="rd-chart-controls" role="group" aria-label="历史时间范围" data-guide="prices-history-filter">
+      {OPTIONS.map(({ value, label }) => <button key={value} type="button" aria-pressed={days === value} onClick={() => onChange(value)}>{label}</button>)}
     </div>
   );
 }

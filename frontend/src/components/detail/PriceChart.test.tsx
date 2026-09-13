@@ -24,6 +24,8 @@ describe('PriceChart missing-price handling', () => {
     const html = renderToStaticMarkup(<PriceChart variants={variants} />);
 
     expect(html).not.toContain('单支价格对比');
-    expect(html).toContain('原币种走势');
+    expect(html).toContain('原币');
+    expect(html).toContain('暂无符合条件的当前在售报价');
+    expect(html).toContain('暂无可绘制的有效历史价格');
   });
 });

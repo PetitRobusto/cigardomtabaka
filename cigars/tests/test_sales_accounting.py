@@ -29,7 +29,7 @@ from privnote.models import PaymentMethod
 from cigars.tests.inventory_fixtures import create_purchase_batch, force_inventory_update
 
 
-class SalesAccountingModelTest(TestCase):
+class SalesAccountingFixtureMixin:
     def setUp(self):
         self.operator = User.objects.create_user('sales-accounting-operator', password='pass', is_staff=True)
         self.brand = Brand.objects.create(english_name='Accounting Brand', name='账务品牌')
@@ -365,7 +365,11 @@ class PurchaseBatchInventoryMigrationFixture:
         self.batch_id = batch.pk
 
 
-class SalesAccountingConstraintTest(SalesAccountingModelTest):
+class SalesAccountingModelTest(SalesAccountingFixtureMixin, TestCase):
+    pass
+
+
+class SalesAccountingConstraintTest(SalesAccountingFixtureMixin, TestCase):
     def test_sales_database_constraints_reject_invalid_row_local_facts(self):
         def assert_rejected(model, pk, changes):
             with self.subTest(model=model.__name__, changes=changes):

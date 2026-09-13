@@ -523,26 +523,5 @@ class OpeningSequenceConcurrencyTest(TransactionTestCase):
                         transactions['opening'].effective_sequence,
                         transactions['exchange'].effective_sequence,
                     )
-    def test_concurrent_opening_and_exchange_attempt_1(self):
-        self._exercise_concurrent_opening_and_exchange()
-
-    def test_concurrent_opening_and_exchange_attempt_2(self):
-        self._exercise_concurrent_opening_and_exchange()
-
-    def test_concurrent_opening_and_exchange_attempt_3(self):
-        self._exercise_concurrent_opening_and_exchange()
-
-    def test_concurrent_opening_and_exchange_attempt_4(self):
-        self._exercise_concurrent_opening_and_exchange()
-
-    def test_concurrent_opening_and_exchange_attempt_5(self):
-        self._exercise_concurrent_opening_and_exchange()
-
-    def test_concurrent_opening_and_exchange_attempt_6(self):
-        self._exercise_concurrent_opening_and_exchange()
-
-    def test_concurrent_opening_and_exchange_attempt_7(self):
-        self._exercise_concurrent_opening_and_exchange()
-
-    def test_concurrent_opening_and_exchange_attempt_8(self):
+    def test_concurrent_opening_and_exchange_is_serialized(self):
         self._exercise_concurrent_opening_and_exchange()

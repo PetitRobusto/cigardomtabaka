@@ -100,10 +100,10 @@ def test_blocked_response_detection(payload, expected):
 
 def test_nyon_delay_adds_bounded_jitter():
     assert [_nyon_delay_ms(i) for i in range(6)] == [
-        8000,
-        9700,
-        11400,
-        13100,
-        14800,
-        8000,
+        10000,
+        13000,
+        16000,
+        19000,
+        22000,
+        10000,
     ]

@@ -1,3 +1,4 @@
+import { privnoteDeviceHeaders } from './api/privnoteAccess';
 import type { HistoryRange } from './types';
 import axios from 'axios';
 import type {
@@ -400,11 +401,11 @@ function privnoteErrorMessage(value: unknown): string | null {
   return typeof value.error === 'string' && value.error ? value.error : null;
 }
 
-export const fetchPrivnote = (token: string): Promise<PrivnoteResponse> =>
-  api.get(`/privnote/${token}/`).then(r => r.data);
+export const fetchPrivnote = async (token: string): Promise<PrivnoteResponse> =>
+  api.get(`/privnote/${token}/`, { headers: await privnoteDeviceHeaders() }).then(r => r.data);
 
-export const verifyPrivnotePassword = (token: string, password: string): Promise<PrivnoteResponse> =>
-  api.post(`/privnote/${token}/`, { password }).then(r => r.data);
+export const verifyPrivnotePassword = async (token: string, password: string): Promise<PrivnoteResponse> =>
+  api.post(`/privnote/${token}/`, { password }, { headers: await privnoteDeviceHeaders() }).then(r => r.data);
 
 export const createPrivnote = async (data: FormData): Promise<CreatePrivnoteResponse> => {
   const payload = Object.fromEntries(Array.from(data.entries()).map(([key, value]) => [
@@ -456,7 +457,7 @@ export const submitPaymentEvidence = async (token: string, files: File[], idempo
   files.forEach(file => form.append('files', file));
   const response = await fetch(`/api/privnote/${token}/payment-submissions/`, {
     method: 'POST', body: form, credentials: 'same-origin',
-    headers: { 'Idempotency-Key': idempotencyKey },
+    headers: { 'Idempotency-Key': idempotencyKey, ...await privnoteDeviceHeaders() },
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok || !body?.payment_submission) throw new Error(privnoteErrorMessage(body) || '付款凭证提交失败');

@@ -89,6 +89,43 @@ class Privnote(models.Model):
         return cls.objects.create(**kwargs)
 
 
+class PrivnoteAccessEvent(models.Model):
+    """短期访问观察，不参与阅后即焚、订单或会计事实。"""
+
+    class Event(models.TextChoices):
+        OPEN = 'open', '成功打开'
+        PASSWORD_REQUIRED = 'password_required', '需要密码'
+        PASSWORD_FAILED = 'password_failed', '密码错误'
+        EXPIRED = 'expired', '已过期'
+        DESTROYED = 'destroyed', '已销毁'
+        CLOSED = 'closed', '已关闭'
+        ERROR = 'error', '打开失败'
+        QR_OPEN = 'qr_open', '放大收款二维码'
+        COPY_CARD = 'copy_card', '复制卡号'
+        COPY_ACCOUNT = 'copy_account', '复制收款账号'
+        SUBMISSION = 'submission', '提交凭证'
+
+    class Actor(models.TextChoices):
+        CUSTOMER = 'customer', '客户'
+        STAFF = 'staff', '员工'
+        BOT = 'bot', '疑似机器人'
+
+    privnote = models.ForeignKey(Privnote, on_delete=models.CASCADE, related_name='access_events')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    visitor_key = models.CharField(max_length=64, blank=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    device = models.CharField(max_length=100)
+    browser = models.CharField(max_length=40)
+    actor = models.CharField(max_length=12, choices=Actor.choices)
+    event = models.CharField(max_length=24, choices=Event.choices)
+    dedupe_key = models.CharField(max_length=80, null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [models.Index(fields=['privnote', 'created_at'], name='pn_access_note_time')]
+        constraints = [models.UniqueConstraint(fields=['privnote', 'dedupe_key'], name='pn_access_dedupe')]
+
+
 class PaymentMethodQuerySet(models.QuerySet):
     _immutable_fields = {
         'method_type', 'label', 'bank_name', 'card_number', 'card_holder',

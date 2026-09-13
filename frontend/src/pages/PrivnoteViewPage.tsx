@@ -21,6 +21,7 @@ import type {
   PrivnoteResponse,
 } from "../types";
 
+import { trackAccessAction } from "../api/privnoteAccess";
 import StoreHeader from "../components/privnote/StoreHeader";
 import PaymentView from "../components/privnote/PaymentView";
 
@@ -202,7 +203,7 @@ function PrivnoteDocument({ token }: { token?: string }) {
 
         {/* PAYMENT VIEW */}
         {mode === "payment" && noteData && (
-          <PaymentView data={noteData as PaymentData} token={token!} onZoom={setZoomedImage} onSubmitted={() => { setVerifiedData(null); void refetch(); }} />
+          <PaymentView data={noteData as PaymentData} token={token!} onAccess={event => trackAccessAction(token!, displayData?.tracking_token, event)} onZoom={setZoomedImage} onSubmitted={() => { setVerifiedData(null); void refetch(); }} />
         )}
 
         {/* MESSAGE VIEW */}

@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type ReactNode } from 'react';
 import { Check, Copy, ImagePlus, X } from 'lucide-react';
 import { submitPaymentEvidence } from '../../api';
+import type { AccessAction } from '../../api/privnoteAccess';
 import type { PaymentData } from '../../types';
 import { formatCny } from '../sales/salesState';
 import { useFilePreview } from '../../hooks/useFilePreview';
@@ -10,7 +11,7 @@ function EvidenceThumbnail({ file }: { file: File }) {
   return <img src={url} alt={file.name} className="aspect-[4/3] w-full rounded object-contain bg-cream" />;
 }
 
-function CopyValue({ label, value }: { label: string; value: string }) {
+function CopyValue({ label, value, onCopied }: { label: string; value: string; onCopied?: () => void }) {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
   const copy = async () => {
@@ -24,7 +25,7 @@ function CopyValue({ label, value }: { label: string; value: string }) {
         try { field.select(); if (!document.execCommand('copy')) throw new Error(); }
         finally { field.remove(); }
       }
-      setCopied(true); setError('');
+      setCopied(true); setError(''); onCopied?.();
     } catch { setError('请长按或选中号码复制'); }
   };
   return <div className="border-b border-border py-3 last:border-0">
@@ -41,9 +42,9 @@ function Step({ number, title, children }: { number: string; title: string; chil
 }
 
 /** Both the customer route and the staff preview render this same component. */
-export default function PaymentView({ data, token = '', onZoom, onSubmitted, preview = false }: {
+export default function PaymentView({ data, token = '', onZoom, onSubmitted, preview = false, onAccess }: {
   data: PaymentData; token?: string; onZoom: (url: string) => void;
-  onSubmitted?: () => void; preview?: boolean;
+  onSubmitted?: () => void; preview?: boolean; onAccess?: (event: AccessAction) => void;
 }) {
   const stepId = useId();
   const [files, setFiles] = useState<File[]>([]);
@@ -104,10 +105,10 @@ export default function PaymentView({ data, token = '', onZoom, onSubmitted, pre
         {data.payment_methods.length === 0 && <p className="rounded border border-dashed border-border p-4 text-center text-sm text-muted">填写收款信息后显示在这里</p>}
         {data.payment_methods.map((method, index) => <div key={index}>
           <p className="text-sm font-semibold">{method.method_type === 'bank_card' ? '银行卡转账' : method.method_type === 'wechat' ? '微信扫码付款' : '支付宝扫码付款'}</p>
-          {method.method_type === 'bank_card' ? <div className="mt-2"><CopyValue label="银行" value={method.bank_name || '—'} /><CopyValue label="户名" value={method.card_holder || '—'} /><CopyValue label="卡号" value={method.card_number || '—'} /></div> : <div className="mt-4 text-center">
-            {method.qr_url ? <button type="button" onClick={() => onZoom(method.qr_url!)} aria-label="放大收款二维码" className="mx-auto block rounded-lg border border-border bg-white p-3 hover:border-gold"><img src={method.qr_url} alt="收款二维码" className="h-48 w-48 object-contain" /></button> : <div className="mx-auto grid h-40 w-40 place-items-center rounded border border-dashed border-border text-xs text-muted">{preview ? '上传二维码后显示' : '请核对下方收款账号'}</div>}
+          {method.method_type === 'bank_card' ? <div className="mt-2"><CopyValue label="银行" value={method.bank_name || '—'} /><CopyValue label="户名" value={method.card_holder || '—'} /><CopyValue label="卡号" value={method.card_number || '—'} onCopied={() => { if (!preview && method.card_number) onAccess?.('copy_card'); }} /></div> : <div className="mt-4 text-center">
+            {method.qr_url ? <button type="button" onClick={() => { onZoom(method.qr_url!); if (!preview) onAccess?.('qr_open'); }} aria-label="放大收款二维码" className="mx-auto block rounded-lg border border-border bg-white p-3 hover:border-gold"><img src={method.qr_url} alt="收款二维码" className="h-48 w-48 object-contain" /></button> : <div className="mx-auto grid h-40 w-40 place-items-center rounded border border-dashed border-border text-xs text-muted">{preview ? '上传二维码后显示' : '请核对下方收款账号'}</div>}
             {method.qr_url && <p className="mt-3 text-xs text-muted">点击二维码放大 · 保存后在微信 / 支付宝中识别</p>}
-            {method.account && <CopyValue label="收款账号" value={method.account} />}
+            {method.account && <CopyValue label="收款账号" value={method.account} onCopied={() => { if (!preview) onAccess?.('copy_account'); }} />}
           </div>}
           {method.remark && <p className="mt-4 whitespace-pre-wrap rounded bg-cream p-3 text-sm leading-relaxed">{method.remark}</p>}
         </div>)}

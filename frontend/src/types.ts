@@ -329,6 +329,7 @@ export interface InventoryResponse {
 }
 
 export interface PrivnoteResponse {
+  tracking_token?: string;
   title: string;
   note_type?: string;
   data?: InventoryViewData | PaymentData | MessageData | QuoteData;

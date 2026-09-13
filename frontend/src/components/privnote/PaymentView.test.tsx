@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { submitPaymentEvidence } from '../../api';
+import { trackAccessAction } from '../../api/privnoteAccess';
 import type { PaymentData } from '../../types';
 import PaymentView from './PaymentView';
 
@@ -92,4 +93,57 @@ it('历史链接保留收款信息，明确提示通过商家提交凭证', () =
   expect(screen.getByRole('img', { name: '收款二维码' })).toBeTruthy();
   expect(screen.queryByLabelText('付款凭证图片')).toBeNull();
   expect(screen.getByText(/此历史收款链接不支持上传凭证/)).toBeTruthy();
+});
+
+
+it('仅成功复制才记录卡号操作，失败和预览都不记录', async () => {
+  const onAccess = vi.fn();
+  const execCommand = vi.fn().mockReturnValue(true);
+  const previous = Object.getOwnPropertyDescriptor(document, 'execCommand');
+  Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand });
+  const bankData: PaymentData = {
+    ...data,
+    payment_methods: [{ id: 2, method_type: 'bank_card', bank_name: '银行', card_number: '62220001', card_holder: '持卡人' }],
+  };
+  try {
+    const screen = render(<PaymentView data={bankData} onZoom={vi.fn()} onAccess={onAccess} />);
+    fireEvent.click(screen.getByRole('button', { name: '复制卡号' }));
+    await waitFor(() => expect(onAccess).toHaveBeenCalledWith('copy_card'));
+
+    execCommand.mockReturnValue(false);
+    fireEvent.click(screen.getByRole('button', { name: '复制卡号' }));
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('长按'));
+    expect(onAccess).toHaveBeenCalledTimes(1);
+
+    execCommand.mockReturnValue(true);
+    const preview = render(<PaymentView data={bankData} preview onZoom={vi.fn()} onAccess={onAccess} />);
+    fireEvent.click(within(preview.container).getByRole('button', { name: '复制卡号' }));
+    await waitFor(() => expect(onAccess).toHaveBeenCalledTimes(1));
+  } finally {
+    if (previous) Object.defineProperty(document, 'execCommand', previous);
+    else Reflect.deleteProperty(document, 'execCommand');
+  }
+});
+
+it('二维码放大先完成界面动作，埋点网络失败不影响客户操作', async () => {
+  const fetchMock = vi.fn().mockRejectedValue(new Error('offline'));
+  vi.stubGlobal('fetch', fetchMock);
+  const onZoom = vi.fn();
+  const qrData: PaymentData = {
+    ...data,
+    payment_methods: [{ id: 1, method_type: 'wechat', qr_url: '/qr.png', account: '' }],
+  };
+  const screen = render(
+    <PaymentView
+      data={qrData}
+      token="pay/token"
+      onZoom={onZoom}
+      onAccess={event => trackAccessAction('pay/token', 'visit-token', event)}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: '放大收款二维码' }));
+
+  expect(onZoom).toHaveBeenCalledWith('/qr.png');
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 });

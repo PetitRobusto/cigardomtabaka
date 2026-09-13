@@ -23,6 +23,7 @@ from cigars.search import CigarSearchEngine
 from cigars.constants import BRAND_CN_MAP
 from .models import PaymentAttachment, PaymentMethod, PaymentSubmission, Privnote
 from .decorators import staff_required
+from .access import observe_access, record as record_access
 from .helpers import (
     decimal_to_number,
     safe_json_loads,
@@ -594,9 +595,11 @@ def upload_image(request):
 # ═══════════════ API: VIEW NOTE ═══════════════
 
 @csrf_exempt
+@observe_access
 def api_privnote(request, token):
     """GET/POST /api/privnote/<token>/"""
     note = get_object_or_404(Privnote, token=token)
+    request._access_note = note
 
     if request.method == 'POST':
         if note.has_password:
@@ -762,6 +765,7 @@ def payment_submission(request, token):
         return JsonResponse({'error': str(exc)}, status=exc.status)
     except OperationalError:
         return JsonResponse({'error': '付款凭证正在处理中，请使用相同幂等键重试'}, status=409)
+    record_access(request, note, 'submission', dedupe_key=f'submission:{result.pk}')
     return JsonResponse({'payment_submission': serialize_submission(result)}, status=200 if replayed else 201)
 
 

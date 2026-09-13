@@ -1,6 +1,7 @@
 import base64
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
@@ -9,7 +10,7 @@ from accounting.models import Day1Initialization, FundAccount
 from cigars.models import Brand, Cigar, OrderEvent, SalesOrder, SalesOrderItem, SalesReceipt, User
 from cigars.sales_accounting import receive_sales_order_payment
 from cigars.services import cancel_confirmed_sales_order
-from privnote.models import PaymentMethod, PaymentSubmission
+from privnote.models import PaymentMethod, PaymentSubmission, PrivnoteAccessEvent
 from privnote.services.payment_requests import create_payment_request
 
 
@@ -120,6 +121,7 @@ class PaymentSubmissionWorkflowTest(TestCase):
 
     def test_anonymous_submission_is_idempotent_and_does_not_create_a_receipt(self):
         note = self._note()
+        self.client.get(f'/api/privnote/{note.token}/')
         first = self._submit(note)
         second = self._submit(note)
         self.assertEqual(first.status_code, 201)
@@ -131,6 +133,52 @@ class PaymentSubmissionWorkflowTest(TestCase):
         submission = PaymentSubmission.objects.get()
         self.assertEqual(submission.status, PaymentSubmission.Status.PENDING)
         self.assertEqual(submission.attachments.count(), 1)
+        event = PrivnoteAccessEvent.objects.get(
+            privnote=note, event=PrivnoteAccessEvent.Event.SUBMISSION,
+        )
+        self.assertEqual(event.dedupe_key, f'submission:{submission.pk}')
+        opened = PrivnoteAccessEvent.objects.get(privnote=note, event=PrivnoteAccessEvent.Event.OPEN)
+        self.assertEqual(event.visitor_key, opened.visitor_key)
+
+    def test_access_database_failure_preserves_submission_and_replay_recovers_one_event(self):
+        note = self._note()
+
+        def invalid_access_insert(**kwargs):
+            # A real NOT NULL violation poisons the current savepoint until it
+            # rolls back; a mocked exception alone would not prove isolation.
+            return PrivnoteAccessEvent.objects.create(privnote_id=None)
+
+        with patch('privnote.access.Access.objects.get_or_create', side_effect=invalid_access_insert):
+            with self.assertLogs('privnote.access', level='WARNING'):
+                first = self._submit(note)
+        self.assertEqual(first.status_code, 201)
+        submission = PaymentSubmission.objects.get()
+        self.assertEqual(submission.status, PaymentSubmission.Status.PENDING)
+        self.assertEqual(submission.attachments.count(), 1)
+        self.assertFalse(PrivnoteAccessEvent.objects.filter(privnote=note).exists())
+
+        replay = self._submit(note)
+        self.assertEqual(replay.status_code, 200)
+        self.assertEqual(replay.json()['payment_submission']['id'], submission.pk)
+        self.assertEqual(PaymentSubmission.objects.count(), 1)
+        self.assertEqual(PrivnoteAccessEvent.objects.filter(
+            privnote=note, event=PrivnoteAccessEvent.Event.SUBMISSION,
+        ).count(), 1)
+        self.assertFalse(SalesReceipt.objects.filter(sales_order=self.order).exists())
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.payment_status, SalesOrder.PaymentStatus.UNPAID)
+
+    def test_rejected_submission_does_not_record_success(self):
+        note = self._note()
+        response = self.client.post(
+            f'/api/privnote/{note.token}/payment-submissions/',
+            {}, HTTP_IDEMPOTENCY_KEY='proof-missing-files',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(PaymentSubmission.objects.exists())
+        self.assertFalse(PrivnoteAccessEvent.objects.filter(
+            privnote=note, event=PrivnoteAccessEvent.Event.SUBMISSION,
+        ).exists())
 
     def test_password_protects_submission_and_private_attachment_read(self):
         note = self._note(password='open-sesame')

@@ -29,6 +29,7 @@ import {
   paymentOrderSummary,
 } from "./privnotePayment";
 import { selectedIdsOnCustomEntry, type QuoteMode } from "./privnoteQuote";
+import AccessRecords from "../components/privnote/AccessRecords";
 import PaymentMethodManager from "../components/privnote/PaymentMethodManager";
 
 const DURATIONS = [
@@ -166,14 +167,13 @@ export default function PrivnotePage() {
   const { user } = useAuthStore();
   const { setMeta } = usePageMeta();
   const [activeTab, setActiveTab] = useState<TabKey>("quote");
-  const [pageMode, setPageMode] = useState<"create" | "methods">("create");
+  const [pageMode, setPageMode] = useState<"create" | "methods" | "records">("create");
 
+  const [recordToken, setRecordToken] = useState("");
   useEffect(() => {
-    setMeta({
-      title: "创建链接",
-      breadcrumbs: [{ label: "首页", to: "/" }, { label: "创建链接" }],
-    });
-  }, [setMeta]);
+    const title = pageMode === "records" ? "访问记录" : pageMode === "methods" ? "收款方式" : "创建链接";
+    setMeta({ title, breadcrumbs: [{ label: "首页", to: "/" }, { label: title }] });
+  }, [setMeta, pageMode]);
 
   // Common config
   const [duration, setDuration] = useState("24");
@@ -416,23 +416,26 @@ export default function PrivnotePage() {
         >
           收款方式
         </button>
+        <button type="button" onClick={() => { setRecordToken(""); setPageMode("records"); }} className={`rounded-md px-4 py-2 text-xs font-semibold transition-colors ${pageMode === "records" ? "bg-accent text-white" : "text-muted hover:text-fg"}`}>访问记录</button>
       </div>
       <div className="mb-5">
         <p className="font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-accent">
           Privnote ·{" "}
-          {pageMode === "methods" ? "Payment Methods" : "Private Link"}
+          {pageMode === "records" ? "Access Records" : pageMode === "methods" ? "Payment Methods" : "Private Link"}
         </p>
         <h1 className="mt-1 font-display text-3xl font-semibold text-fg">
-          {pageMode === "methods" ? "收款方式管理" : "创建私密链接"}
+          {pageMode === "records" ? "访问记录" : pageMode === "methods" ? "收款方式管理" : "创建私密链接"}
         </h1>
         <p className="mt-1.5 max-w-3xl text-sm text-muted">
-          {pageMode === "methods"
+          {pageMode === "records" ? "访问明细保留 30 天，历史累计打开次数保留。回访由本站匿名 Cookie 估算。" : pageMode === "methods"
             ? "管理收款链接对客户展示的银行卡、微信和支付宝信息。"
             : "为客户生成一次性查看的库存清单、报价单、收款单或消息。"}
         </p>
       </div>
 
-      {pageMode === "methods" ? (
+      {pageMode === "records" ? (
+        <AccessRecords key={recordToken} initialToken={recordToken} />
+      ) : pageMode === "methods" ? (
         <PaymentMethodManager />
       ) : result ? (
         <div className="bg-white border border-border rounded-sm p-6 text-center">
@@ -461,6 +464,7 @@ export default function PrivnotePage() {
           >
             创建新的链接
           </button>
+          <button type="button" className="ml-5 text-sm text-accent hover:underline" onClick={() => { setRecordToken(result.token); setPageMode("records"); }}>查看访问记录</button>
         </div>
       ) : (
         <form onSubmit={handleCreate} className="space-y-5">

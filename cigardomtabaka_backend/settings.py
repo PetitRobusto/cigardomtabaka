@@ -130,3 +130,8 @@ REST_FRAMEWORK = {
 
 # CORS (dev only — tighten in prod)
 CORS_ALLOW_ALL_ORIGINS = DEBUG
+
+# Short-lived Privnote observations. Deployment is Nginx -> Gunicorn Unix
+# socket; TCP proxies require explicit configuration before trusting X-Real-IP.
+PRIVNOTE_ACCESS_RETENTION_DAYS = int(os.getenv('PRIVNOTE_ACCESS_RETENTION_DAYS', '30'))
+PRIVNOTE_TRUSTED_PROXIES = tuple(value.strip() for value in os.getenv('PRIVNOTE_TRUSTED_PROXIES', 'unix').split(',') if value.strip())

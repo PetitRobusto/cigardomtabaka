@@ -11,6 +11,7 @@ from cigars import sales_api
 from cigars import inventory_api
 from cigars.auth_views import api_login, api_logout, api_me
 from cigars.guide_views import guide_status, guide_complete, guide_replay
+from privnote.access import access_notes, access_detail, access_event
 from privnote.views import (
     api_privnote, create as privnote_create,
     payment_submission as privnote_payment_submission,
@@ -103,6 +104,9 @@ urlpatterns = [
     path('api/prices/', include('price_tracker.urls')),
     # Privnote — JSON API + customer view API (frontend handled by React SPA)
     path('api/privnote/<str:token>/', api_privnote, name='api_privnote'),
+    path('api/privnote/<str:token>/events/', access_event, name='privnote_access_event'),
+    path('privnote/api/access/', access_notes, name='privnote_access_notes'),
+    path('privnote/api/access/<str:token>/', access_detail, name='privnote_access_detail'),
     path('api/privnote/<str:token>/payment-submissions/', privnote_payment_submission, name='privnote_payment_submission'),
     path('api/privnote/<str:token>/payment-images/<str:image_id>/', privnote_payment_image, name='privnote_payment_image'),
     path('privnote/create/', privnote_create, name='privnote_create'),

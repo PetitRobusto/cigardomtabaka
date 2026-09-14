@@ -82,17 +82,13 @@ const accountingExpenseSteps: readonly ContextTourStep[] = [
 ];
 
 const accountingDividendSteps: readonly ContextTourStep[] = [
-  { id: 'accounting-actions-dividend', title: '开始处理分红', description: '先创建草稿，再填写两位合伙人的金额和账户，预览后才确认。', target: '[data-guide="accounting-actions-dividend"]', route: '/accounting' },
-  { id: 'accounting-dividend-total', title: '填写分红总额', description: '填本次准备分出的人民币总额，不能超过可分配利润。', target: '[data-guide="accounting-dividend-total"]', route: '/accounting', waitForTarget: true },
+  { id: 'accounting-actions-dividend', title: '开始处理分红', description: '每轮选择两位启用用户，各分 50%；先确认分配，实际领取另行记账。', target: '[data-guide="accounting-actions-dividend"]', route: '/accounting' },
+  { id: 'accounting-dividend-total', title: '填写分红总额', description: '总额须为正且能按分精确平分。利润不足会提示警告，必须明确确认后才能继续。', target: '[data-guide="accounting-dividend-total"]', route: '/accounting', waitForTarget: true },
   { id: 'accounting-dividend-date', title: '填写分红日期', description: '使用实际分红业务日期。', target: '[data-guide="accounting-dividend-date"]', route: '/accounting', waitForTarget: true },
-  { id: 'accounting-dividend-create', title: '创建分红草稿', description: '先保存草稿，草稿本身不会扣款。', target: '[data-guide="accounting-dividend-create"]', route: '/accounting', waitForTarget: true },
-  { id: 'accounting-dividend-partner-a', title: '填写合伙人 A 金额', description: '按本次约定填写 A 的人民币分红金额。', target: '[data-guide="accounting-dividend-partner-a"]', route: '/accounting', waitForTarget: true },
-  { id: 'accounting-dividend-partner-b', title: '填写合伙人 B 金额', description: '按本次约定填写 B 的人民币分红金额，两人合计应等于总额。', target: '[data-guide="accounting-dividend-partner-b"]', route: '/accounting', waitForTarget: true },
-  { id: 'accounting-dividend-account-a', title: '选择 A 的账户', description: '选择 A 实际收款的人民币账户。', target: '[data-guide="accounting-dividend-account-a"]', route: '/accounting', waitForTarget: true },
-  { id: 'accounting-dividend-account-b', title: '选择 B 的账户', description: '选择 B 实际收款的另一个人民币账户。', target: '[data-guide="accounting-dividend-account-b"]', route: '/accounting', waitForTarget: true },
-  { id: 'accounting-dividend-save', title: '保存分红编辑', description: '金额和账户都填好后先保存编辑，再进行预览。', target: '[data-guide="accounting-dividend-save"]', route: '/accounting', waitForTarget: true },
+  { id: 'accounting-dividend-partner-a', title: '选择领取人 1', description: '选择本轮第一位启用系统用户，确认后锁定。', target: '[data-guide="accounting-dividend-partner-a"]', route: '/accounting', waitForTarget: true },
+  { id: 'accounting-dividend-partner-b', title: '选择领取人 2', description: '选择另一位不同的用户，金额自动精确平分。', target: '[data-guide="accounting-dividend-partner-b"]', route: '/accounting', waitForTarget: true },
   { id: 'accounting-dividend-preview', title: '预览分红', description: '预览会显示可分配利润和本次金额，确认数据仍是当前版本。', target: '[data-guide="accounting-dividend-preview"]', route: '/accounting', waitForTarget: true },
-  { id: 'accounting-dividend-confirm', title: '确认分红', description: '最后核对预览结果后确认，系统才会从两个人民币账户记出分红。', target: '[data-guide="accounting-dividend-confirm"]', route: '/accounting', waitForTarget: true },
+  { id: 'accounting-dividend-confirm', title: '确认分红分配', description: '弹窗核对两人、各 50% 金额和利润。确认只形成待付分红，不付现金；随后通过轮次上的记录领取按钮分别付款。', target: '[data-guide="accounting-dividend-confirm"]', route: '/accounting', waitForTarget: true },
 ];
 
 const accountingReconciliationSteps: readonly ContextTourStep[] = [

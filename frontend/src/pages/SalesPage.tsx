@@ -61,6 +61,9 @@ export default function SalesPage() {
     queryClient.invalidateQueries({ queryKey: ['monthly-profit'] });
     queryClient.invalidateQueries({ queryKey: ['accounting-actions'] });
     queryClient.invalidateQueries({ queryKey: ['sales-customer'] });
+    queryClient.invalidateQueries({ queryKey: ['sales-customers'] });
+    queryClient.invalidateQueries({ queryKey: ['sales-receipts'] });
+    queryClient.invalidateQueries({ queryKey: ['dividend-rounds'] });
   };
   const create = async (payload: Parameters<typeof createSalesOrder>[0]) => {
     setFormError('');

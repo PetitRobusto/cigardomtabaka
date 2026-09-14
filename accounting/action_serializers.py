@@ -152,6 +152,40 @@ def serialize_dividend(dividend):
     })
 
 
+def serialize_dividend_payout(payout):
+    return _value({
+        'id': payout.pk, 'recipient_id': payout.recipient_id,
+        'recipient_name': payout.recipient_name,
+        'fund_account_id': payout.fund_account_id,
+        'fund_account_name': payout.fund_account.name,
+        'amount_cny': payout.amount_cny, 'business_date': payout.business_date,
+        'note': payout.note, 'operator_id': payout.operator_id,
+        'agent_source': payout.agent_source,
+        'ledger_transaction_id': payout.ledger_transaction_id,
+    })
+
+
+def serialize_dividend_round(round):
+    payouts = list(round.payouts.all())
+    allocated = round.total_cny / 2
+    partners = []
+    for recipient_id, name in ((round.partner_a_id, round.partner_a_name),
+                               (round.partner_b_id, round.partner_b_name)):
+        paid = sum((p.amount_cny for p in payouts if p.recipient_id == recipient_id), Decimal('0.00'))
+        partners.append({'id': recipient_id, 'name': name,
+                         'allocated_cny': allocated, 'paid_cny': paid,
+                         'pending_cny': allocated - paid})
+    return _value({
+        'id': round.pk, 'status': round.status, 'total_cny': round.total_cny,
+        'business_date': round.business_date, 'note': round.note,
+        'operator_id': round.operator_id, 'agent_source': round.agent_source,
+        'ledger_transaction_id': round.ledger_transaction_id,
+        'partners': partners,
+        'pending_cny': sum((p['pending_cny'] for p in partners), Decimal('0.00')),
+        'payouts': [serialize_dividend_payout(p) for p in payouts],
+    })
+
+
 def serialize_action(action):
     """Serialize a small actionable item without exposing mutable model state."""
     return _value(action)

@@ -1,8 +1,10 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { parseAccountingApiError, recordExpense } from '../../api';
 import type { AccountingApiError, ExpenseActionPayload, ExpenseSubcategory, FundAccount } from '../../types';
 import type { ActionState } from '../../features/accounting/actionState';
 import { moscowBusinessDate } from '../../utils/businessDate';
+import { useDialogFocus } from '../../hooks/useDialogFocus';
+import { formatDecimalAmount } from '../../utils/decimalDisplay';
 
 export type ExpenseCategory = 'salary' | 'rent' | 'utilities' | 'professional' | 'interest' | 'transport' | 'other' | 'salary_expense';
 export type ExpenseGroup = 'personnel' | 'rent' | 'utilities' | 'transport' | 'office' | 'facility' | 'marketing' | 'professional' | 'financial' | 'tax' | 'other';
@@ -88,6 +90,10 @@ export default function ExpenseAction({ accounts, businessDate = today(), catego
   const [localValue, setLocalValue] = useState<ExpenseActionValue>({ amount: '', business_date: businessDate, ...value });
   const [localState, setLocalState] = useState<ActionState>({ status: 'idle', input: {} });
   const [fallbackError, setFallbackError] = useState('');
+  const [confirmation, setConfirmation] = useState<ExpenseConfirmation | null>(null);
+  const [confirmationError, setConfirmationError] = useState('');
+  const [requestBusy, setRequestBusy] = useState(false);
+  const requestInFlight = useRef(false);
   const currentCategory = normaliseCategory(category ?? localCategory);
   const currentGroup = EXPENSE_GROUP_OPTIONS.find(group => group.value === (category ? groupFor(currentCategory, value?.subcategory).value : localGroup)) || initialGroup;
   const currentSubcategory = value?.subcategory || localSubcategory;
@@ -111,26 +117,44 @@ export default function ExpenseAction({ accounts, businessDate = today(), catego
   const updateCurrency = (next: 'CNY' | 'RUB') => { setLocalCurrency(next); onChange?.({ fund_account_id: '' }); if (!value) setLocalValue(currentValue => ({ ...currentValue, fund_account_id: '' })); };
   const setActionState = (next: ActionState) => { if (!state) setLocalState(next); };
 
-  const submitForm = async (event: FormEvent<HTMLFormElement>) => {
+  const submitForm = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setFallbackError('');
+    if (requestInFlight.current || confirmation || busy) return;
     const payload: ExpenseActionPayload = { category: currentCategory, subcategory: currentSubcategory, amount: current.amount, fund_account_id: Number(accountId), business_date: current.business_date, note: current.note || '' };
     if (!payload.fund_account_id || !payload.amount || !payload.business_date || !payload.subcategory) { setFallbackError('请选择费用分类、费用明细和账户，并填写金额、业务日期'); return; }
+    setConfirmationError('');
+    setActionState({ status: 'idle', input: { ...current }, error: undefined });
+    setConfirmation({ payload: { ...payload }, categoryLabel: currentGroup.label, detailLabel: currentGroup.options.find(option => option.value === currentSubcategory)?.label || currentSubcategory, accountLabel: filteredAccounts.find(account => account.id === Number(accountId))?.name || '', currency });
+  };
+
+  const confirmExpense = async () => {
+    if (!confirmation || requestInFlight.current || busy) return;
+    const pending = confirmation;
+    const payload = pending.payload;
+    requestInFlight.current = true;
+    setRequestBusy(true);
+    setConfirmationError('');
     setActionState({ status: 'loading', input: { ...current, category: currentCategory, subcategory: currentSubcategory }, error: undefined });
     try {
       const result = submit ? await submit(payload) : onSubmit ? await onSubmit(payload) : await recordExpense(payload);
       setActionState({ status: 'success', input: { ...current, category: currentCategory, subcategory: currentSubcategory }, result, error: undefined });
+      setConfirmation(null);
     } catch (requestError) {
       const parsed = parseAccountingApiError(requestError); const nextStatus = isConflict(parsed) ? 'conflict' : 'error';
       setActionState({ status: nextStatus, input: { ...current, category: currentCategory, subcategory: currentSubcategory }, error: { code: parsed.code, message: parsed.message, details: parsed.details } });
+      setConfirmationError(parsed.message);
+    } finally {
+      requestInFlight.current = false;
+      setRequestBusy(false);
     }
   };
 
   const errorMessage = fallbackError || actionState.error?.message;
-  const busy = actionState.status === 'loading';
+  const busy = requestBusy || actionState.status === 'loading';
   return (
     <section tabIndex={-1} data-guide="accounting-actions-expense" className="rounded-md border border-border bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 className="font-display text-lg font-semibold">记录经营费用</h2><p className="mt-0.5 text-xs text-muted">先选费用分类，再选具体明细；每种费用都可以选择人民币或卢布账户。</p></div><span className="text-[11px] uppercase tracking-wider text-accent">Expense</span></div>
-      <form onSubmit={submitForm} className="space-y-3 p-5">
+      <form onSubmit={submitForm} inert={confirmation !== null} className="space-y-3 p-5">
         {errorMessage && <p role="alert" className={`rounded border px-3 py-2 text-sm ${actionState.status === 'conflict' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-700'}`}>{errorMessage}</p>}
         {actionState.status === 'success' && <p className="rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">费用已记录</p>}
         <div className="grid gap-3 sm:grid-cols-2"><label className="block text-xs font-medium text-muted">费用分类<select data-guide="accounting-expense-category" value={currentGroup.value} onChange={event => updateGroup(event.target.value as ExpenseGroup)} className="mt-1.5 w-full rounded border border-border bg-white px-3 py-2 text-sm text-fg">{EXPENSE_GROUP_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label className="block text-xs font-medium text-muted">费用明细<select data-guide="accounting-expense-subcategory" required disabled={busy} value={currentSubcategory} onChange={event => updateSubcategory(event.target.value as ExpenseSubcategory)} className="mt-1.5 w-full rounded border border-border bg-white px-3 py-2 text-sm text-fg">{currentGroup.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></div>
@@ -139,6 +163,36 @@ export default function ExpenseAction({ accounts, businessDate = today(), catego
         <label className="block text-xs font-medium text-muted">备注<textarea data-guide="accounting-expense-note" value={current.note || ''} onChange={event => update({ note: event.target.value })} rows={2} placeholder={`${currentGroup.label} · ${currentGroup.options.find(option => option.value === currentSubcategory)?.label || ''}说明（可选）`} className="mt-1.5 w-full resize-none rounded border border-border px-3 py-2 text-sm" /></label>
         <div data-guide="accounting-expense-submit" className="flex items-center justify-between border-t border-border pt-3"><span className="text-xs text-muted">当前分类：{currentGroup.label} · {currentGroup.options.find(option => option.value === currentSubcategory)?.label} · {currency}</span><button type="submit" disabled={busy || !filteredAccounts.length} className="rounded bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{busy ? '记录中…' : '记录费用'}</button></div>
       </form>
+      {confirmation && <ExpenseConfirmationModal confirmation={confirmation} busy={busy} error={confirmationError || actionState.error?.message} onCancel={() => { if (!requestInFlight.current && !busy) setConfirmation(null); }} onConfirm={confirmExpense} />}
     </section>
   );
+}
+
+interface ExpenseConfirmation {
+  payload: ExpenseActionPayload;
+  categoryLabel: string;
+  detailLabel: string;
+  accountLabel: string;
+  currency: string;
+}
+
+function ExpenseConfirmationModal({ confirmation, busy, error, onCancel, onConfirm }: {
+  confirmation: ExpenseConfirmation; busy: boolean; error?: string; onCancel: () => void; onConfirm: () => void;
+}) {
+  const dialogRef = useDialogFocus(onCancel, busy);
+  const { payload, categoryLabel, detailLabel, accountLabel, currency } = confirmation;
+  return <div role="presentation" className="fixed inset-0 z-50 grid place-items-center bg-fg/50 p-3 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onCancel(); }}>
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="expense-confirmation-title" aria-describedby="expense-confirmation-risk" className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-lg bg-white shadow-2xl outline-none">
+      <div className="border-b border-border px-5 py-4"><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Financial confirmation</p><h2 id="expense-confirmation-title" className="mt-1 font-display text-xl font-semibold">确认记录费用</h2><p className="mt-1 text-xs text-muted">请按实际付款逐项核对；确认后会写入正式会计事实。</p></div>
+      <div className="space-y-4 px-5 py-5"><dl className="space-y-2 rounded border border-gold/30 bg-[#FFFDF7] p-4 text-sm">
+        {[
+          ['费用分类', categoryLabel], ['费用明细', detailLabel], ['支付金额', `${formatDecimalAmount(payload.amount, currency)} ${currency}`],
+          ['公司付款账户', `${accountLabel} · ${currency}`], ['业务日期', payload.business_date], ['备注', payload.note || '—'],
+        ].map(([label, content]) => <div key={label} className="flex justify-between gap-4"><dt className="shrink-0 text-muted">{label}</dt><dd className="whitespace-pre-wrap break-words text-right font-semibold">{content}</dd></div>)}
+      </dl><p id="expense-confirmation-risk" className="rounded border border-[#E3C3C6] bg-[#FAF1F0] px-3 py-3 text-xs leading-5 text-accent">费用将扣减公司付款账户，并按账面成本计入经营费用。正式记录不能直接修改或删除。</p>
+        {error && <p role="alert" className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      </div>
+      <footer className="flex justify-end gap-2 border-t border-border bg-[#FFFDF9] px-5 py-4"><button type="button" disabled={busy} onClick={onCancel} className="rounded border border-border bg-white px-3 py-2 text-sm font-semibold disabled:opacity-50">返回修改</button><button type="button" disabled={busy} onClick={onConfirm} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? '入账中…' : '确认费用并入账'}</button></footer>
+    </div>
+  </div>;
 }

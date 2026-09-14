@@ -17,6 +17,21 @@ class LedgerMutationScope:
 
 
 REASON_ALLOWED_FIELDS = {
+    'dividend_round': {
+        'accounting.DividendRound': frozenset({
+            'id', 'fact_fingerprint', 'status', 'total_cny', 'partner_a', 'partner_b',
+            'partner_a_name', 'partner_b_name', 'business_date', 'note', 'operator',
+            'agent_source', 'ledger_transaction', 'idempotency_key', 'request_fingerprint',
+            'warning_fingerprint', 'warning_ack', 'warning_retained_earnings_cny', 'created_at',
+        }),
+    },
+    'dividend_payout': {
+        'accounting.DividendPayout': frozenset({
+            'id', 'fact_fingerprint', 'status', 'round', 'recipient', 'recipient_name',
+            'fund_account', 'amount_cny', 'business_date', 'note', 'operator',
+            'agent_source', 'ledger_transaction', 'idempotency_key', 'request_fingerprint', 'created_at',
+        }),
+    },
     "purchase_payment": {
         "cigars.PurchaseOrder": frozenset({"id", "status", "paid_cny_cost", "paid_at", "payment_idempotency_key"}),
         "cigars.PurchaseOrderItem": frozenset({"id", "actual_cost_cny"}),

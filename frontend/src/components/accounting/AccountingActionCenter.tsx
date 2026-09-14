@@ -12,7 +12,7 @@ import { apiErrorMessage, exchangeToRub, recordExpense } from '../../api';
 import ExchangeAction from './ExchangeAction';
 import PurchaseAction from './PurchaseAction';
 import ExpenseAction from './ExpenseAction';
-import DividendActionCard from './DividendAction';
+import DividendRoundsAction from './DividendRoundsAction';
 import { formatOriginalAmount } from '../sales/salesState';
 export type AccountingActionKind = 'exchange' | 'purchase' | 'expense' | 'dividend';
 
@@ -54,20 +54,18 @@ export default function AccountingActionCenter({
   summaryAccounts,
   actions,
   purchases = [],
-  dividends = [],
   businessDate,
   loading = false,
   error,
   actionsLoading,
   actionsError,
   onChanged,
-  initialAction = 'exchange',
+  initialAction = 'expense',
   onOpenReconciliation,
 }: AccountingActionCenterProps) {
   const [activeAction, setActiveAction] = useState<AccountingActionKind>(initialAction);
   const isLoading = actionsLoading ?? loading;
   const actionPurchases = actions?.purchases ?? purchases;
-  const actionDividends = actions?.dividends ?? dividends;
   const listError = actionErrorMessage(actionsError ?? error);
   const activeAccounts = (summaryAccounts ?? accounts).filter(account => account.is_active);
   const accountsWithAmount = activeAccounts.filter(account => accountAmount(account) !== null);
@@ -86,7 +84,7 @@ export default function AccountingActionCenter({
   const actionButtons = [
     { id: 'expense' as const, label: '记录费用', Icon: ReceiptText, count: 0 },
     { id: 'exchange' as const, label: '换汇', Icon: ArrowLeftRight, count: 0 },
-    { id: 'dividend' as const, label: '分红', Icon: HandCoins, count: actionDividends.length },
+    { id: 'dividend' as const, label: '分红', Icon: HandCoins, count: 0 },
     { id: 'purchase' as const, label: '采购', Icon: PackageCheck, count: actionPurchases.length },
   ];
 
@@ -94,7 +92,7 @@ export default function AccountingActionCenter({
     exchange: <ExchangeAction accounts={accounts} businessDate={businessDate} submit={submitExchange} />,
     purchase: <PurchaseAction purchases={actionPurchases} rubAccounts={accounts} businessDate={businessDate} onChanged={onChanged} />,
     expense: <ExpenseAction accounts={accounts} businessDate={businessDate} submit={submitExpense} />,
-    dividend: <DividendActionCard accounts={accounts} draft={actionDividends[0] || null} businessDate={businessDate} onChanged={onChanged} />,
+    dividend: <DividendRoundsAction accounts={accounts} businessDate={businessDate} onChanged={onChanged} />,
   }[activeAction];
 
   return (

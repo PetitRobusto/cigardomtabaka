@@ -42,6 +42,7 @@ export default function AccountingDashboardPage() {
     queryClient.invalidateQueries({ queryKey: ['reconciliations'] });
 
     queryClient.invalidateQueries({ queryKey: ['accounting-actions'] });
+    queryClient.invalidateQueries({ queryKey: ['dividend-rounds'] });
     queryClient.invalidateQueries({ queryKey: ['accounting-expenses'] });
     queryClient.invalidateQueries({ queryKey: ['accounting-exchange-transactions'] });
   };
@@ -67,7 +68,7 @@ export default function AccountingDashboardPage() {
           month={month}
         />
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] lg:items-start">
-          <AccountingActionCenter accounts={accounts.data || data.accounts || []} summaryAccounts={data.accounts} actions={actions.data} businessDate={moscowBusinessDate()} actionsLoading={actions.isLoading} actionsError={actions.isError ? apiErrorMessage(actions.error, '账务动作列表加载失败') : undefined} onChanged={refresh} initialAction={initialAction} onOpenReconciliation={() => setReconciliationOpen(true)} />
+          <AccountingActionCenter key={guideTourId || 'default'} accounts={accounts.data || data.accounts || []} summaryAccounts={data.accounts} actions={actions.data} businessDate={moscowBusinessDate()} actionsLoading={actions.isLoading} actionsError={actions.isError ? apiErrorMessage(actions.error, '账务动作列表加载失败') : undefined} onChanged={refresh} initialAction={initialAction} onOpenReconciliation={() => setReconciliationOpen(true)} />
         <AccountingPanel
       accounts={regionStates.accounts === 'ready' ? accounts.data : undefined}
       summary={regionStates.summary === 'ready' ? summary.data : undefined}
@@ -91,7 +92,8 @@ function accountingActionForGuide(guideTourId?: string): AccountingActionKind {
   if (guideTourId?.includes('purchase')) return 'purchase';
   if (guideTourId?.includes('expense')) return 'expense';
   if (guideTourId?.includes('dividend')) return 'dividend';
-  return 'exchange';
+  if (guideTourId?.includes('exchange')) return 'exchange';
+  return 'expense';
 }
 
 function moneyStat(value: string | null): string { return dashboardStatDisplay(value == null ? null : formatCny(value)); }

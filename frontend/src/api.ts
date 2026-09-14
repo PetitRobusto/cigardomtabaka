@@ -12,6 +12,7 @@ import type {
   Day1State,
 } from './types';
 import { writeWithIdempotency, acquireIdempotencyKey, isRetryableWriteError, releaseIdempotencyKey } from './api/idempotency';
+import type { DividendRound, DividendRoundsResponse, DividendRoundPayload, DividendRoundConfirmPayload, DividendPayoutPayload, DividendPayout } from './types';
 
 import type { AccountingActionsResponse, InventoryPurchaseDirectory, PurchaseAction, PurchaseActionCreatePayload, PurchaseActionUpdatePayload, PurchasePayPayload, PurchaseReceivePayload, PurchaseCancelPayload, PurchaseSupplier, ExpenseActionPayload, AccountingExpensesResponse, AccountingTransaction, AccountingTransactionsResponse, DividendAction, DividendPreview, DividendCreatePayload, DividendUpdatePayload, DividendConfirmPayload, AccountingApiError } from './types';
 function getCSRFToken(): string {
@@ -378,6 +379,22 @@ export function parseAccountingApiError(error: unknown): AccountingApiError {
     message: error instanceof Error && error.message ? error.message : '账务动作失败，请稍后重试',
   };
 }
+
+export const fetchDividendRounds = (page = 1): Promise<DividendRoundsResponse> =>
+  api.get('/accounting/dividend-rounds/', { params: { page } }).then(r => r.data);
+
+export const previewDividendRound = (payload: DividendRoundPayload): Promise<DividendPreview> =>
+  api.post('/accounting/dividend-rounds/preview/', payload).then(r => r.data.preview);
+
+export const confirmDividendRound = (payload: DividendRoundConfirmPayload): Promise<DividendRound> =>
+  writeWithIdempotency<{ round: DividendRound }>('confirm-dividend-round', payload, config =>
+    api.post('/accounting/dividend-rounds/confirm/', payload, config),
+  ).then(r => r.round);
+
+export const recordDividendPayout = (id: number, payload: DividendPayoutPayload): Promise<{ round: DividendRound; payout: DividendPayout }> =>
+  writeWithIdempotency<{ round: DividendRound; payout: DividendPayout }>(`dividend-payout-${id}`, payload, config =>
+    api.post(`/accounting/dividend-rounds/${id}/payouts/`, payload, config),
+  );
 
 // Privnote APIs
 interface CreatePrivnoteResponse {

@@ -20,6 +20,10 @@ import {
   confirmReconciliation,
   confirmSalesOrder,
   confirmDividend,
+  fetchDividendRounds,
+  previewDividendRound,
+  confirmDividendRound,
+  recordDividendPayout,
   createDividend,
   createPurchaseOrder,
   createReconciliation,
@@ -278,5 +282,25 @@ describe('accounting action API contracts', () => {
       response: { status: 409, data: { error: '余额不足', code: 'insufficient_balance', details: { account_id: '11' } } },
     })).toEqual({ code: 'insufficient_balance', message: '余额不足', details: { account_id: '11' }, status: 409 });
     expect(parseAccountingApiError(new Error('网络失败'))).toMatchObject({ code: 'unknown', message: '网络失败' });
+  });
+
+  it('keeps round allocation and cash payout separate, decimal strings and retry identity intact', async () => {
+    const payload = { total_cny: '100.02', partner_a_id: 1, partner_b_id: 2, business_date: businessDate, note: '分配' };
+    client.get.mockReturnValueOnce(response({ rounds: [], recipients: [], count: 0, next_page: null, legacy_dividends: [] }));
+    await fetchDividendRounds(2);
+    expect(client.get).toHaveBeenCalledWith('/accounting/dividend-rounds/', { params: { page: 2 } });
+    client.post.mockReturnValueOnce(response({ preview: { warning_fingerprint: 'fp' } }));
+    await previewDividendRound(payload);
+    expect(client.post).toHaveBeenLastCalledWith('/accounting/dividend-rounds/preview/', payload);
+    const confirm = { ...payload, warning_fingerprint: 'fp', warning_ack: true };
+    client.post.mockReturnValueOnce(response({ round: { id: 8 } }));
+    await expect(confirmDividendRound(confirm)).resolves.toEqual({ id: 8 });
+    expect(client.post).toHaveBeenLastCalledWith('/accounting/dividend-rounds/confirm/', confirm, expect.objectContaining({ headers: { 'Idempotency-Key': expect.any(String) } }));
+    const payout = { recipient_id: 1, fund_account_id: 3, amount_cny: '20.01', business_date: businessDate };
+    client.post.mockRejectedValueOnce(new Error('network timeout')).mockReturnValueOnce(response({ round: { id: 8 }, payout: { id: 9 } }));
+    await expect(recordDividendPayout(8, payout)).rejects.toThrow('network timeout');
+    const key = client.post.mock.calls.slice(-1)[0]?.[2].headers['Idempotency-Key'];
+    await recordDividendPayout(8, payout);
+    expect(client.post).toHaveBeenLastCalledWith('/accounting/dividend-rounds/8/payouts/', payout, { headers: { 'Idempotency-Key': key } });
   });
 });

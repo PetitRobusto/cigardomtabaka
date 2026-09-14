@@ -375,6 +375,7 @@ class LedgerTransaction(models.Model):
         PURCHASE_RECEIPT = 'purchase_receipt', '采购到货'
         EXPENSE = 'expense', '经营费用'
         DIVIDEND = 'dividend', '分红'
+        DIVIDEND_PAYOUT = 'dividend_payout', '分红领取'
         INVENTORY_ADJUSTMENT = 'inventory_adjustment', '库存调整'
     class Status(models.TextChoices):
         DRAFT = 'draft', '草稿'
@@ -450,6 +451,7 @@ class LedgerPosting(models.Model):
         INTEREST_EXPENSE = 'interest_expense', '利息支出（财务费用）'
         OTHER_EXPENSE = 'other_expense', '其他经营费用'
         DIVIDEND_DISTRIBUTION = 'dividend_distribution', '分红分配'
+        DIVIDEND_PAYABLE = 'dividend_payable', '待付分红'
         INVENTORY_ADJUSTMENT_GAIN = 'inventory_adjustment_gain', '库存调整收益'
         INVENTORY_ADJUSTMENT_LOSS = 'inventory_adjustment_loss', '库存调整损失'
         RECONCILIATION_GAIN = 'reconciliation_gain', '对账收益'
@@ -803,6 +805,115 @@ class Dividend(models.Model):
         if self.pk and type(self).objects.filter(pk=self.pk, status=self.Status.POSTED).exists():
             raise LedgerMutationError('已入账分红不可删除')
         return super().delete(*args, **kwargs)
+
+
+class DividendFactQuerySet(_FinalFactQuerySet):
+    _append_only = True
+
+    def get_or_create(self, defaults=None, **kwargs):
+        raise LedgerMutationError('分红事实禁止通过 get_or_create 写入')
+
+
+class _DividendAppendOnlyFact(models.Model):
+    """新分红事实只能通过受控命令追加，禁止 ORM 编辑、删除与批量写入。"""
+
+    objects = DividendFactQuerySet.as_manager()
+    fact_fingerprint = models.CharField(max_length=64)
+    mutation_reason = ''
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding or self.pk is not None or kwargs.get('force_update') or kwargs.get('update_fields'):
+            raise LedgerMutationError('正式分红事实不可修改')
+        fields = _concrete_fields(self, kwargs)
+        if not _scope_allows(self.mutation_reason, f'accounting.{type(self).__name__}', fields, self.operator):
+            raise LedgerMutationError('分红事实只能通过受控命令创建')
+        self.clean()
+        kwargs['force_insert'] = True
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise LedgerMutationError('正式分红事实不可删除')
+
+
+class DividendRound(_DividendAppendOnlyFact):
+    """已确认的 50/50 分配轮次；现金领取由独立事实表达。"""
+
+    mutation_reason = 'dividend_round'
+    status = models.CharField(max_length=12, default='posted', editable=False)
+    total_cny = models.DecimalField(max_digits=22, decimal_places=2)
+    partner_a = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    partner_b = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    partner_a_name = models.CharField(max_length=255)
+    partner_b_name = models.CharField(max_length=255)
+    business_date = models.DateField()
+    note = models.TextField(blank=True, default='')
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    agent_source = models.CharField(max_length=128, blank=True, default='')
+    ledger_transaction = models.OneToOneField(LedgerTransaction, on_delete=models.PROTECT)
+    idempotency_key = models.CharField(max_length=128, unique=True)
+    request_fingerprint = models.CharField(max_length=64)
+    warning_fingerprint = models.CharField(max_length=64)
+    warning_ack = models.BooleanField()
+    warning_retained_earnings_cny = models.DecimalField(max_digits=22, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        base_manager_name = 'objects'
+        ordering = ['-business_date', '-id']
+        constraints = [
+            models.CheckConstraint(condition=Q(status='posted'), name='dividend_round_posted'),
+            models.CheckConstraint(condition=Q(total_cny__gt=0), name='dividend_round_positive'),
+            models.CheckConstraint(condition=~Q(partner_a=models.F('partner_b')), name='dividend_round_different_partners'),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.status != 'posted' or self.partner_a_id == self.partner_b_id:
+            raise ValidationError('分红必须已确认且选择两位不同用户')
+        total = Decimal(str(self.total_cny))
+        if not total.is_finite() or total <= 0 or total * 100 != (total * 100).to_integral_value() or total * 100 % 2:
+            raise ValidationError('分红总额必须为正且能按分精确平分')
+
+
+class DividendPayout(_DividendAppendOnlyFact):
+    mutation_reason = 'dividend_payout'
+    status = models.CharField(max_length=12, default='posted', editable=False)
+    round = models.ForeignKey(DividendRound, on_delete=models.PROTECT, related_name='payouts')
+    recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    recipient_name = models.CharField(max_length=255)
+    fund_account = models.ForeignKey(FundAccount, on_delete=models.PROTECT)
+    amount_cny = models.DecimalField(max_digits=22, decimal_places=2)
+    business_date = models.DateField()
+    note = models.TextField(blank=True, default='')
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    agent_source = models.CharField(max_length=128, blank=True, default='')
+    ledger_transaction = models.OneToOneField(LedgerTransaction, on_delete=models.PROTECT)
+    idempotency_key = models.CharField(max_length=128, unique=True)
+    request_fingerprint = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        base_manager_name = 'objects'
+        ordering = ['business_date', 'id']
+        constraints = [
+            models.CheckConstraint(condition=Q(status='posted'), name='dividend_payout_posted'),
+            models.CheckConstraint(condition=Q(amount_cny__gt=0), name='dividend_payout_positive'),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.status != 'posted' or self.recipient_id not in (self.round.partner_a_id, self.round.partner_b_id):
+            raise ValidationError('领取人必须属于已确认分红轮次')
+        amount = Decimal(str(self.amount_cny))
+        if not amount.is_finite() or amount <= 0 or amount * 100 != (amount * 100).to_integral_value():
+            raise ValidationError('领取金额必须为正且精确到分')
+        if self.fund_account.currency != 'CNY' or not self.fund_account.is_active:
+            raise ValidationError('领取必须使用启用的人民币公司账户')
+        if self.business_date < self.round.business_date:
+            raise ValidationError('领取日期不能早于分配日期')
 
 
 class PurchaseDraftAction(models.Model):

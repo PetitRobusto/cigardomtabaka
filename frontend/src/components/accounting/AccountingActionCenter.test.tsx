@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import AccountingActionCenter from './AccountingActionCenter';
 
 describe('账务动作中心 SSR 契约', () => {
-  it('默认只渲染换汇表单，并保留全部操作入口', () => {
+  it('默认只渲染费用表单，并保留全部操作入口', () => {
     const props = {
       accounts: [],
       purchases: [],
@@ -16,10 +16,16 @@ describe('账务动作中心 SSR 契约', () => {
     for (const label of ['换汇', '采购', '记录费用', '分红', '账户对账']) {
       expect(html).toContain(label);
     }
-    expect(html).toMatch(/<section(?=[^>]*data-guide="accounting-actions-exchange")(?=[^>]*tabindex="-1")[^>]*>/);
+    expect(html).toMatch(/<section(?=[^>]*data-guide="accounting-actions-expense")(?=[^>]*tabindex="-1")[^>]*>/);
     expect(html).not.toContain('data-guide="accounting-actions-purchase"');
-    expect(html).not.toContain('data-guide="accounting-actions-expense"');
+    expect(html).not.toContain('data-guide="accounting-actions-exchange"');
     expect(html).not.toContain('data-guide="accounting-actions-dividend"');
+  });
+
+  it('保留换汇帮助引导入口', () => {
+    const html = renderToStaticMarkup(<AccountingActionCenter accounts={[]} businessDate="2026-08-15" initialAction="exchange" />);
+    expect(html).toContain('data-guide="accounting-actions-exchange"');
+    expect(html).not.toContain('data-guide="accounting-actions-expense"');
   });
 
   it('可按帮助引导直接打开采购表单', () => {

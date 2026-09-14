@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.db.models import Sum
 from accounting.business_time import moscow_business_date
 from accounting.models import (
-    AccountReconciliation, Dividend, FundAccount, LedgerPosting, LedgerTransaction,
+    AccountReconciliation, Dividend, DividendRound, FundAccount, LedgerPosting, LedgerTransaction,
 )
 from cigars.models import PurchaseBatch, PurchaseOrder
 
@@ -143,6 +143,10 @@ def retained_earnings(*, as_of):
         Dividend.objects.filter(
             status=Dividend.Status.POSTED, business_date__lte=as_of,
         ).values_list('total_cny', flat=True), Decimal('0.00'),
+    )
+    dividends += sum(
+        DividendRound.objects.filter(business_date__lte=as_of).values_list('total_cny', flat=True),
+        Decimal('0.00'),
     )
     return (profit - dividends).quantize(Decimal('0.01'))
 

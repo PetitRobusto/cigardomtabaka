@@ -954,6 +954,59 @@ export interface DividendPreview {
   warning_fingerprint: string;
 }
 
+export interface DividendRoundPayload {
+  total_cny: string;
+  partner_a_id: number;
+  partner_b_id: number;
+  business_date: string;
+  note?: string;
+  agent_source?: string;
+}
+
+export interface DividendRoundConfirmPayload extends DividendRoundPayload {
+  warning_fingerprint: string;
+  warning_ack: boolean;
+}
+
+export interface DividendPayoutPayload {
+  recipient_id: number;
+  fund_account_id: number;
+  amount_cny: string;
+  business_date: string;
+  note?: string;
+  agent_source?: string;
+}
+
+export interface DividendPayout extends DividendPayoutPayload {
+  id: number;
+  recipient_name: string;
+  fund_account_name: string;
+  operator_id: number;
+  ledger_transaction_id: number;
+}
+
+export interface DividendRound {
+  id: number;
+  status: 'posted';
+  total_cny: string;
+  business_date: string;
+  note: string;
+  operator_id: number;
+  agent_source: string;
+  ledger_transaction_id: number;
+  partners: { id: number; name: string; allocated_cny: string; paid_cny: string; pending_cny: string }[];
+  pending_cny: string;
+  payouts: DividendPayout[];
+}
+
+export interface DividendRoundsResponse {
+  rounds: DividendRound[];
+  recipients: { id: number; name: string }[];
+  count: number;
+  next_page: number | null;
+  legacy_dividends: DividendAction[];
+}
+
 export interface AccountingActionsResponse {
   purchases: PurchaseAction[];
   dividends: DividendAction[];

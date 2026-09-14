@@ -16,6 +16,10 @@ from accounting.day1 import (
 from accounting.day1_serializers import serialize_day1_state
 from accounting.action_serializers import (
     serialize_dividend, serialize_expense, serialize_purchase_order,
+    serialize_dividend_round, serialize_dividend_payout,
+)
+from accounting.dividend_round_actions import (
+    preview_dividend_round, confirm_dividend_round, record_dividend_payout,
 )
 from accounting.dividend_actions import (
     DividendActionError, confirm_dividend, create_dividend_draft,
@@ -29,7 +33,7 @@ from accounting.purchase_actions import (
 )
 from accounting.models import (
     AccountReconciliation, Dividend, FundAccount, LedgerPosting,
-    LedgerTransaction, Expense,
+    LedgerTransaction, Expense, DividendRound, DividendPayout,
 )
 from accounting.selectors import (
     accounting_dashboard, accounting_summary, monthly_profit,
@@ -75,6 +79,7 @@ _ERROR_STATUS = {
     'dividend_not_found': 404,
     'invalid_state': 409,
     'warning_required': 409,
+    'payout_exceeded': 409,
     'account_inactive': 409,
     'historical_replay_required': 409,
     'reason_required': 400,
@@ -706,6 +711,90 @@ def reconciliation_confirm(request, reconciliation_id):
 def _action_failure(error):
     """Map action-domain errors without allowing HTML responses to escape."""
     return error_response(error, default_status=400)
+
+
+_DIVIDEND_ROUND_MESSAGES = {
+    'uneven_split': '总额必须能精确到分各分 50%（例如 100.02 元）',
+    'recipient_same': '请选择两位不同的领取人',
+    'invalid_recipient': '领取人必须是启用用户，并属于该分红轮次',
+    'payout_exceeded': '领取金额超过该人的剩余待领金额',
+    'warning_stale': '利润或预览请求已变化，请重新预览后确认',
+    'warning_required': '请先预览，并明确确认利润不足警告',
+    'invalid_business_date': '业务日期无效；领取不能早于分配日期',
+    'invalid_amount': '请输入大于零的有效人民币金额',
+    'invalid_money_precision': '人民币金额最多保留两位小数，且不能超出范围',
+    'insufficient_balance': '公司付款账户余额不足',
+    'currency_rule': '分红领取只能使用人民币公司账户',
+    'account_inactive': '公司付款账户已停用',
+    'invalid_operator': '操作人必须是启用的真实工作人员',
+    'idempotency_conflict': '同一操作编号的请求或原记录不一致，请核实后重试',
+    'dividend_not_found': '分红轮次不存在',
+    'account_not_found': '公司付款账户不存在',
+    'invalid_agent_source': 'Agent 来源必须是不超过 128 字符的文本',
+}
+
+
+def _rounds_queryset():
+    return DividendRound.objects.prefetch_related(Prefetch(
+        'payouts', queryset=DividendPayout.objects.select_related('fund_account'),
+    ))
+
+
+@staff_json_required
+def dividend_round_action(request, round_id=None, action=None):
+    if request.method != ('GET' if action is None else 'POST'):
+        return _json_error('不支持此请求方法', status=405, code='method_not_allowed')
+    try:
+        if action is None:
+            raw_page = request.GET.get('page', '1')
+            if not raw_page.isascii() or not raw_page.isdigit() or len(raw_page) > 9 or int(raw_page) < 1:
+                raise ApiInputError('页码无效')
+            page = int(raw_page)
+            rows = _rounds_queryset()
+            count = rows.count()
+            return JsonResponse({
+                'rounds': [serialize_dividend_round(row) for row in rows[(page - 1) * 20:page * 20]],
+                'count': count, 'next_page': page + 1 if page * 20 < count else None,
+                'recipients': [{'id': user.pk, 'name': user.get_full_name() or user.username}
+                               for user in User.objects.filter(is_active=True).order_by('id')],
+                'legacy_dividends': [serialize_dividend(row) for row in Dividend.objects.order_by('-id')[:50]],
+            })
+        payload = _json_object(request)
+        common = {
+            'total_cny': payload.get('total_cny'),
+            'partner_a_id': payload.get('partner_a_id'),
+            'partner_b_id': payload.get('partner_b_id'),
+            'business_date': payload.get('business_date'),
+            'note': _optional_note(payload), 'agent_source': payload.get('agent_source', ''),
+        }
+        if action == 'preview':
+            return JsonResponse({'preview': preview_dividend_round(operator=request.accounting_operator, **common)})
+        if action == 'confirm':
+            round = confirm_dividend_round(
+                operator=request.accounting_operator, idempotency_key=_idempotency_key(request),
+                warning_fingerprint=payload.get('warning_fingerprint'),
+                warning_ack=payload.get('warning_ack'), **common,
+            )
+            return JsonResponse({'round': serialize_dividend_round(_rounds_queryset().get(pk=round.pk))}, status=201)
+        payout = record_dividend_payout(
+            round_id=round_id, recipient_id=payload.get('recipient_id'),
+            fund_account_id=payload.get('fund_account_id'), amount_cny=payload.get('amount_cny'),
+            business_date=payload.get('business_date'), note=_optional_note(payload),
+            agent_source=payload.get('agent_source', ''), operator=request.accounting_operator,
+            idempotency_key=_idempotency_key(request),
+        )
+        return JsonResponse({
+            'round': serialize_dividend_round(_rounds_queryset().get(pk=payout.round_id)),
+            'payout': serialize_dividend_payout(payout),
+        }, status=201)
+    except OperationalError:
+        return _busy_response()
+    except (ApiInputError, DividendActionError, LedgerError, ValueError, TypeError) as error:
+        code = getattr(error, 'code', None)
+        if code in _DIVIDEND_ROUND_MESSAGES:
+            return _json_error(_DIVIDEND_ROUND_MESSAGES[code], status=_ERROR_STATUS.get(code, 400),
+                               code=code, details=_json_value(getattr(error, 'details', {})))
+        return _action_failure(error)
 
 
 def _busy_response():

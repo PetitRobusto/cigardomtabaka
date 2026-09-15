@@ -64,8 +64,8 @@ class TelegramErrorHandler(logging.Handler):
             now = time.monotonic()
             cooldown = float(getattr(settings, "TELEGRAM_ERROR_COOLDOWN_SECONDS", 300))
             with _seen_lock:
-                previous = _seen.get(fingerprint, 0)
-                if now - previous < cooldown:
+                previous = _seen.get(fingerprint)
+                if previous is not None and now - previous < cooldown:
                     return
                 _seen[fingerprint] = now
                 if len(_seen) > 256:

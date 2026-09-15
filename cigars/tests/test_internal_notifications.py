@@ -168,7 +168,10 @@ class TelegramErrorHandlerTest(TestCase):
 
     def test_error_summary_is_redacted_and_rate_limited(self):
         handler = logging_handler.TelegramErrorHandler()
-        with patch("internal_notifications.logging_handler.dispatch") as dispatch_mock:
+        with (
+            patch("internal_notifications.logging_handler.time.monotonic", side_effect=[100.0, 101.0]),
+            patch("internal_notifications.logging_handler.dispatch") as dispatch_mock,
+        ):
             handler.emit(self._record())
             handler.emit(self._record())
         dispatch_mock.assert_called_once()

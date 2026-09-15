@@ -42,12 +42,19 @@ jobs:
           DJANGO_DEBUG: "True"
           DJANGO_SECRET_KEY: ci-test-key
         run: |
+          set +e
           python3 manage.py test cigars privnote accounting \
             --settings=cigardomtabaka_backend.settings_test \
             --parallel=1 \
             --durations=20 \
             --timing \
-            --verbosity=1
+            --verbosity=1 2>&1 | tee /tmp/backend-test-output.log
+          test_status=${PIPESTATUS[0]}
+          if [ "$test_status" -ne 0 ]; then
+            annotation=$(tail -n 120 /tmp/backend-test-output.log | python3 -c 'import sys; value=sys.stdin.read()[-60000:]; print(value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))')
+            echo "::error file=.github/workflows/ci.yml,line=45,title=Backend tests failed::$annotation"
+          fi
+          exit "$test_status"
 
   frontend:
     runs-on: ubuntu-latest

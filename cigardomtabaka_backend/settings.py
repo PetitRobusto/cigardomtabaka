@@ -135,3 +135,54 @@ CORS_ALLOW_ALL_ORIGINS = DEBUG
 # socket; TCP proxies require explicit configuration before trusting X-Real-IP.
 PRIVNOTE_ACCESS_RETENTION_DAYS = int(os.getenv('PRIVNOTE_ACCESS_RETENTION_DAYS', '30'))
 PRIVNOTE_TRUSTED_PROXIES = tuple(value.strip() for value in os.getenv('PRIVNOTE_TRUSTED_PROXIES', 'unix').split(',') if value.strip())
+
+# Internal Telegram notifications.  Destinations are fixed deployment
+# configuration; the application does not accept Telegram chat IDs from HTTP
+# requests or use Telegram identity as website authentication.
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '').strip()
+# Fixed internal destinations approved by the owner.  Environment variables
+# remain available as an emergency override without a code deployment.
+TELEGRAM_BUSINESS_CHAT_ID = os.getenv('TELEGRAM_BUSINESS_CHAT_ID', '-1003900174592').strip()
+TELEGRAM_ERROR_CHAT_ID = os.getenv('TELEGRAM_ERROR_CHAT_ID', '8206776258').strip()
+INTERNAL_SITE_URL = os.getenv('INTERNAL_SITE_URL', '').strip().rstrip('/')
+TELEGRAM_NOTIFICATION_MAX_ATTEMPTS = 3
+TELEGRAM_NOTIFICATION_CONNECT_TIMEOUT = 2.0
+TELEGRAM_NOTIFICATION_READ_TIMEOUT = 5.0
+TELEGRAM_ERROR_COOLDOWN_SECONDS = 300
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '{asctime} {levelname} {name} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'standard',
+        },
+        'telegram_errors': {
+            'class': 'internal_notifications.logging_handler.TelegramErrorHandler',
+            'level': 'ERROR',
+        },
+    },
+    'root': {
+        'handlers': ['console', 'telegram_errors'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'telegram_errors'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.server': {
+            'handlers': ['console', 'telegram_errors'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

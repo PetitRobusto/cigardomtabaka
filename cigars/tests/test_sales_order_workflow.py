@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import TestCase
 
@@ -203,10 +204,13 @@ class SalesOrderWorkflowTest(TestCase):
         )
         from cigars.services import confirm_sales_order
 
-        confirmed = confirm_sales_order(
-            sales_order_id=order.id, operator=self.operator,
-            agent_context=self.context("confirm_sales_order"),
-        )
+        with patch("internal_notifications.business.schedule_order_notification") as notification:
+            confirmed = confirm_sales_order(
+                sales_order_id=order.id, operator=self.operator,
+                agent_context=self.context("confirm_sales_order"),
+            )
+        notification.assert_called_once()
+        self.assertEqual(notification.call_args.args[0], "waiting_shipment")
 
         batch.refresh_from_db(); item = confirmed.items.get()
         self.assertEqual(batch.remaining, 1)
@@ -251,10 +255,13 @@ class SalesOrderWorkflowTest(TestCase):
         from cigars.services import cancel_confirmed_sales_order, confirm_sales_order
         confirm_sales_order(sales_order_id=order.id, operator=self.operator, agent_context=self.context("confirm_sales_order"))
 
-        cancelled = cancel_confirmed_sales_order(
-            sales_order_id=order.id, operator=self.operator,
-            agent_context=self.context("cancel_confirmed_sales_order"),
-        )
+        with patch("internal_notifications.business.schedule_order_notification") as notification:
+            cancelled = cancel_confirmed_sales_order(
+                sales_order_id=order.id, operator=self.operator,
+                agent_context=self.context("cancel_confirmed_sales_order"),
+            )
+        notification.assert_called_once()
+        self.assertEqual(notification.call_args.args[0], "cancelled")
 
         batch.refresh_from_db(); allocation = StockAllocation.objects.get()
         self.assertEqual(batch.remaining, 2)
@@ -304,6 +311,30 @@ class SalesOrderWorkflowTest(TestCase):
         self.assertFalse(StockAllocation.objects.filter(sales_order_item__sales_order=order).exists())
         self.assertEqual(order.fulfillment_status, SalesOrder.FulfillmentStatus.DRAFT)
 
+    def test_confirmed_preorder_does_not_claim_it_is_ready_to_ship(self):
+        order = create_sales_order_draft(
+            items=[{
+                "cigar_id": self.cigar.id,
+                "sale_unit": "stick",
+                "quantity": 1,
+                "unit_price": "30.00",
+                "fulfillment_type": SalesOrderItem.FulfillmentType.PREORDER,
+            }],
+            operator=self.operator,
+            agent_context=self.context("create_sales_order_draft"),
+        )
+        from cigars.services import confirm_sales_order
+
+        with patch("internal_notifications.business.schedule_order_notification") as notification:
+            confirmed = confirm_sales_order(
+                sales_order_id=order.id,
+                operator=self.operator,
+                agent_context=self.context("confirm_sales_order"),
+            )
+
+        self.assertEqual(confirmed.fulfillment_status, SalesOrder.FulfillmentStatus.CONFIRMED)
+        notification.assert_not_called()
+
     def test_confirmed_order_cannot_be_updated_or_confirmed_twice(self):
         self.batch(remaining=1)
         order = create_sales_order_draft(
@@ -327,10 +358,12 @@ class SalesOrderWorkflowTest(TestCase):
             items=[{"cigar_id": self.cigar.id, "sale_unit": "stick", "quantity": 1, "unit_price": "30.00"}],
             operator=self.operator, agent_context=self.context("create_sales_order_draft"),
         )
-        cancelled = cancel_confirmed_sales_order(
-            sales_order_id=draft.id, operator=self.operator,
-            agent_context=self.context("cancel_sales_order_draft"),
-        )
+        with patch("internal_notifications.business.schedule_order_notification") as notification:
+            cancelled = cancel_confirmed_sales_order(
+                sales_order_id=draft.id, operator=self.operator,
+                agent_context=self.context("cancel_sales_order_draft"),
+            )
+        notification.assert_not_called()
         self.assertEqual(cancelled.fulfillment_status, SalesOrder.FulfillmentStatus.CANCELLED)
         self.assertTrue(cancelled.locked)
         self.assertFalse(StockAllocation.objects.exists())

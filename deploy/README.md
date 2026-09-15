@@ -71,4 +71,12 @@ sudo nginx -t && sudo systemctl reload nginx
 DJANGO_DEBUG=False
 DJANGO_SECRET_KEY=<生产密钥>
 LCDH_DL_PASSWORD=<刮刀密码>
+TELEGRAM_BOT_TOKEN=<BotFather Token>
+TELEGRAM_BUSINESS_CHAT_ID=-1003900174592
+TELEGRAM_ERROR_CHAT_ID=8206776258
+INTERNAL_SITE_URL=https://cigardomtabaka.com
 ```
+
+Telegram Bot 只向以上固定目标发送消息，不接收业务命令。负责人需要先主动私聊 Bot
+一次，Bot 才能向该私聊发送故障告警。两个 Chat ID 已在 Django settings 中作为固定
+默认值，服务器 `.env` 可覆盖；真实 Token 只保存在服务器 `.env` 或 CI secret 中。

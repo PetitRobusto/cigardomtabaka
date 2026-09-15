@@ -198,6 +198,11 @@ def submit_payment_evidence(*, note: Privnote, files: Iterable[UploadedFile], id
                     sha256=item.sha256,
                     sort_order=index,
                 )
+            from internal_notifications.business import schedule_payment_submission_notification
+            schedule_payment_submission_notification(
+                submission, order,
+                [private_payment_storage.path(name) for name in saved_names],
+            )
             return submission, False
     except Exception:
         for name in saved_names:

@@ -530,11 +530,14 @@ class SalesFulfillmentServiceTest(TestCase):
         self.batch(quantity=3, unit_cost='10.00')
         order = self.confirmed_order(quantity=3, unit_price='20.00')
         from cigars.sales_accounting import ship_sales_order
-        first = ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-idempotent-1')
-        second = ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-idempotent-1')
-        self.assertEqual(second.id, first.id)
-        with self.assertRaises(Exception):
-            ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-idempotent-2')
+        with patch("internal_notifications.business.schedule_order_notification") as notification:
+            first = ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-idempotent-1')
+            second = ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-idempotent-1')
+            self.assertEqual(second.id, first.id)
+            with self.assertRaises(Exception):
+                ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-idempotent-2')
+        notification.assert_called_once()
+        self.assertEqual(notification.call_args.args[0], "shipped")
         self.assertEqual(first.id, order.id)
         self.assertEqual(SalesShipment.objects.count(), 1)
         self.assertEqual(LedgerTransaction.objects.filter(transaction_type=LedgerTransaction.TransactionType.SALES_SHIPMENT).count(), 1)
@@ -564,7 +567,12 @@ class SalesFulfillmentServiceTest(TestCase):
         order = self.confirmed_order(quantity=3, unit_price='30.00')
         from cigars.sales_accounting import receive_sales_order_payment, ship_sales_order
         ship_sales_order(order_id=order.id, business_date=self.business_date, operator=self.operator, idempotency_key='ship-before-receipt-1', note='出库')
-        received = receive_sales_order_payment(order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='sales-receipt-1')
+        with patch("internal_notifications.business.schedule_order_notification") as notification:
+            received = receive_sales_order_payment(order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='sales-receipt-1')
+            replay = receive_sales_order_payment(order_id=order.id, amount_cny=Decimal('95.00'), fund_account=account, business_date=self.business_date, operator=self.operator, idempotency_key='sales-receipt-1')
+        self.assertEqual(replay.pk, received.pk)
+        notification.assert_called_once()
+        self.assertEqual(notification.call_args.args[0], "received")
         account.refresh_from_db(); order.refresh_from_db()
         self.assertEqual(account_snapshot(account).original_balance, Decimal('95.00000000'))
         self.assertEqual(account_snapshot(account).cny_book_cost, Decimal('95.00'))

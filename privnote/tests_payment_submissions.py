@@ -122,8 +122,10 @@ class PaymentSubmissionWorkflowTest(TestCase):
     def test_anonymous_submission_is_idempotent_and_does_not_create_a_receipt(self):
         note = self._note()
         self.client.get(f'/api/privnote/{note.token}/')
-        first = self._submit(note)
-        second = self._submit(note)
+        with patch("internal_notifications.business.schedule_payment_submission_notification") as notification:
+            first = self._submit(note)
+            second = self._submit(note)
+        notification.assert_called_once()
         self.assertEqual(first.status_code, 201)
         self.assertEqual(second.status_code, 200)
         self.assertEqual(PaymentSubmission.objects.count(), 1)

@@ -227,6 +227,8 @@ def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note
         "total_cost", "fifo_cost_cny", "total_profit", "contribution_profit_cny",
         "fulfillment_status", "status",
     ])
+    from internal_notifications.business import schedule_order_notification
+    schedule_order_notification("shipped", order, operator, items=items)
     return order
 
 
@@ -365,6 +367,11 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
             'idempotency_key': idempotency_key,
         })
         _record_order_event(order, operator=operator, context=context, metadata=metadata)
+    from internal_notifications.business import schedule_order_notification
+    schedule_order_notification(
+        "received", order, operator,
+        account_name=account.name, amount=receipt.amount_cny,
+    )
     return receipt
 
 

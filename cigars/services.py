@@ -618,7 +618,8 @@ def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note=""
             order.payment_status != SalesOrder.PaymentStatus.UNPAID):
         raise OrderServiceError("当前订单不能确认")
     total_cost = Decimal("0.00")
-    for item in order.items.select_for_update().select_related("cigar").order_by("id"):
+    items = list(order.items.select_for_update().select_related("cigar").order_by("id"))
+    for item in items:
         if item.fulfillment_type == SalesOrderItem.FulfillmentType.PREORDER:
             item_cost = Decimal("0.00")
         elif item.sale_unit == SalesOrderItem.SaleUnit.BOX:
@@ -643,6 +644,9 @@ def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note=""
         order.note = note
     order.save()
     _record_order_event(order, operator=operator, context=context, note=note, metadata=_sales_event_metadata(order, business_date))
+    if items and all(item.fulfillment_type == SalesOrderItem.FulfillmentType.IN_STOCK for item in items):
+        from internal_notifications.business import schedule_order_notification
+        schedule_order_notification("waiting_shipment", order, operator, items=items)
     return order
 
 
@@ -713,6 +717,8 @@ def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None
             'idempotency_key': context.idempotency_key,
         })
     _record_order_event(order, operator=operator, context=context, note=note, metadata=metadata)
+    from internal_notifications.business import schedule_order_notification
+    schedule_order_notification("cancelled", order, operator, reason=note)
     return order
 
 
@@ -827,6 +833,7 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
 
     total_revenue = Decimal('0.00')
     total_cost = Decimal('0.00')
+    created_items = []
     transport_fee = _to_money(customer_transport_fee_cny, '客户人肉费')
     selected_transport_payer = _transport_payer(transport_payer, transport_fee)
 
@@ -871,6 +878,7 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
             sale_quantity=sale_quantity,
             box_size=box_size,
         )
+        created_items.append(item)
 
         if fulfillment_type == SalesOrderItem.FulfillmentType.IN_STOCK:
             if sale_unit == SalesOrderItem.SaleUnit.BOX:
@@ -912,6 +920,9 @@ def create_sales_order(*, items, operator, customer=None, customer_id=None,
         note=note,
         metadata={'status': order.status},
     )
+    if created_items and all(item.fulfillment_type == SalesOrderItem.FulfillmentType.IN_STOCK for item in created_items):
+        from internal_notifications.business import schedule_order_notification
+        schedule_order_notification("waiting_shipment", order, operator, items=created_items)
     return order
 
 

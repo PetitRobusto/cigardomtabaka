@@ -13,4 +13,3 @@ gunicorn>=22.0
 # Dev / Testing
 pytest>=8.0
 pytest-django>=4.5
-tblib>=3.0

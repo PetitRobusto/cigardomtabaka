@@ -44,7 +44,7 @@ jobs:
         run: |
           python3 manage.py test cigars privnote accounting \
             --settings=cigardomtabaka_backend.settings_test \
-            --parallel=2 \
+            --parallel=1 \
             --durations=20 \
             --timing \
             --verbosity=1

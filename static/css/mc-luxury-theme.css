@@ -7,8 +7,7 @@
  * Usage: <link rel="stylesheet" href="css/mc-luxury-theme.css">
  * Then add the component classes listed in the README below.
  *
- * Fonts required:
- *   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+ * Uses local system fonts only; no remote font request is required.
  */
 
 /* =========================================================
@@ -36,7 +35,7 @@
   --radius:    4px;
 
   /* Typography */
-  --font-display: 'Playfair Display', 'Times New Roman', Georgia, serif;
+  --font-display: Georgia, 'Songti SC', 'Noto Serif SC', serif;
   --font-body:    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
   --font-mono:    'SF Mono', ui-monospace, Menlo, monospace;
 }

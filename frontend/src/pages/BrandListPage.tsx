@@ -86,6 +86,10 @@ export default function BrandListPage() {
                           <img
                             src={brand.logo_url}
                             alt={brand.name}
+                            width="80"
+                            height="80"
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-contain p-1"
                             onError={(e) => {
                               (e.target as HTMLImageElement).style.display = 'none';

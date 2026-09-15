@@ -22,7 +22,7 @@ export default {
         success: '#3D6B4F',        // --success 森林绿
       },
       fontFamily: {
-        display: ['Playfair Display', 'Times New Roman', 'Georgia', 'serif'],
+        display: ['Georgia', 'Songti SC', 'Noto Serif SC', 'serif'],
         body: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'Segoe UI', 'system-ui', 'sans-serif'],
         mono: ['SF Mono', 'ui-monospace', 'Menlo', 'monospace'],
       },

@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { usePageMetaContext } from '../../contexts/usePageMetaContext';
 import Breadcrumb from './Breadcrumb';
@@ -10,10 +10,11 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
-import GuideController from '../../features/guides/GuideController';
 import { mobileNavItems } from './mobileNav';
+import { BrandLoader } from '../shared/BrandLoader';
+import { brandLogoUrl } from '../../utils/brandAssets';
 
-const base = import.meta.env.BASE_URL;
+const GuideController = lazy(() => import('../../features/guides/GuideController'));
 
 interface NavItem {
   to: string;
@@ -61,11 +62,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-cream">
-        <div className="animate-spin w-8 h-8 border-2 border-accent border-t-transparent rounded-full" />
-      </div>
-    );
+    return <BrandLoader fullScreen />;
   }
 
   return (
@@ -77,8 +74,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {/* Logo */}
             <div className="flex items-center gap-3">
               <img
-                src={`${base}logo-512.png`}
+                src={brandLogoUrl}
                 alt="CigarDomTabaka"
+                width="45"
+                height="45"
                 className="w-[45px] h-[45px] cursor-pointer object-contain"
                 onClick={() => navigate('/')}
               />
@@ -213,7 +212,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5 md:gap-8 pb-8 border-b border-border">
             {/* Brand */}
             <div className="flex items-center gap-4">
-              <img src={`${base}logo-512.png`} alt="CigarDomTabaka" className="w-[72px] h-[72px] sm:w-[120px] sm:h-[120px] object-contain shrink-0 sm:mr-4" />
+              <img src={brandLogoUrl} alt="CigarDomTabaka" width="120" height="120" loading="lazy" decoding="async" className="w-[72px] h-[72px] sm:w-[120px] sm:h-[120px] object-contain shrink-0 sm:mr-4" />
               <div className="min-w-0 break-words">
                 <div className="font-display text-[22px] font-semibold tracking-wide text-fg">
                   CigarDomTabaka
@@ -280,7 +279,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           ))}
         </div>
       </nav>
-      <GuideController />
+      <Suspense fallback={null}><GuideController /></Suspense>
     </div>
   );
 }

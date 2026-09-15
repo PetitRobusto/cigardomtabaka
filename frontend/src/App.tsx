@@ -1,34 +1,50 @@
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { lazy, Suspense, useEffect } from 'react';
 import { PageMetaProvider } from './contexts/PageMetaContext';
 import AppLayout from './components/layout/AppLayout';
-
-// Catalog pages
-import BrandListPage from './pages/BrandListPage';
-import BrandDetailPage from './pages/BrandDetailPage';
-import CigarCatalogDetailPage from './pages/CigarCatalogDetailPage';
-
-// Inventory & Auth
-import InventoryPage from './pages/InventoryWorkbenchPage';
-import InventoryPurchasesPage from './pages/InventoryPurchasesPage';
-import LoginPage from './pages/LoginPage';
-
-// Privnote
-import PrivnotePage from './pages/PrivnotePage';
-import PrivnoteViewPage from './pages/PrivnoteViewPage';
-
-// Price tracker (existing pages)
-import PriceDashboard from './pages/Dashboard';
-import PriceCigarDetail from './pages/CigarDetail';
-import AlertsPage from './pages/Alerts';
-import SalesPage from './pages/SalesPage';
-import SalesCustomersPage from './pages/SalesCustomersPage';
-import AccountingDashboardPage from './pages/AccountingDashboardPage';
-import Day1SetupPage from './pages/Day1SetupPage';
-import HelpPage from './pages/HelpPage';
 import { decideStaffRoute } from './utils/routeGuard';
 import { BUSINESS_STAFF_PATHS, resolveBusinessRoute } from './pages/businessRoutes';
 import { useAuthStore } from './store/authStore';
+import { BrandLoader } from './components/shared/BrandLoader';
+
+// Route components stay out of the startup bundle until their URL is rendered.
+const BrandListPage = lazy(() => import('./pages/BrandListPage'));
+const BrandDetailPage = lazy(() => import('./pages/BrandDetailPage'));
+const CigarCatalogDetailPage = lazy(() => import('./pages/CigarCatalogDetailPage'));
+
+// Inventory & Auth
+const InventoryPage = lazy(() => import('./pages/InventoryWorkbenchPage'));
+const InventoryPurchasesPage = lazy(() => import('./pages/InventoryPurchasesPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+
+// Privnote
+const PrivnotePage = lazy(() => import('./pages/PrivnotePage'));
+const PrivnoteViewPage = lazy(() => import('./pages/PrivnoteViewPage'));
+
+// Price tracker (existing pages)
+const PriceDashboard = lazy(() => import('./pages/Dashboard'));
+const PriceCigarDetail = lazy(() => import('./pages/CigarDetail'));
+const AlertsPage = lazy(() => import('./pages/Alerts'));
+const SalesPage = lazy(() => import('./pages/SalesPage'));
+const SalesCustomersPage = lazy(() => import('./pages/SalesCustomersPage'));
+const AccountingDashboardPage = lazy(() => import('./pages/AccountingDashboardPage'));
+const Day1SetupPage = lazy(() => import('./pages/Day1SetupPage'));
+const HelpPage = lazy(() => import('./pages/HelpPage'));
+
+function StartupLoaderHandoff() {
+  useEffect(() => {
+    const startupLoader = document.getElementById('startup-loader');
+    if (!startupLoader) return;
+
+    startupLoader.classList.add('is-leaving');
+    document.body.classList.remove('cdt-starting');
+    const removeTimer = window.setTimeout(() => startupLoader.remove(), 280);
+
+    return () => window.clearTimeout(removeTimer);
+  }, []);
+
+  return null;
+}
 
 function StaffGate({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated, user } = useAuthStore();
@@ -53,16 +69,8 @@ function StaffHelpRoute() {
 function AnimatedRoutes() {
   const location = useLocation();
   return (
-    <AnimatePresence mode="sync">
-      <motion.div
-        key={location.key}
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -8 }}
-        transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-        style={{ position: 'relative' }}
-      >
-        <Routes location={location}>
+    <div key={location.key} className="animate-fade-in" style={{ position: 'relative' }}>
+      <Routes location={location}>
           {/* Catalog */}
           <Route path="/" element={<BrandListPage />} />
           <Route path="/brand/:slug" element={<BrandDetailPage />} />
@@ -89,9 +97,8 @@ function AnimatedRoutes() {
 
           {/* Auth */}
           <Route path="/login" element={<LoginPage />} />
-        </Routes>
-      </motion.div>
-    </AnimatePresence>
+      </Routes>
+    </div>
   );
 }
 
@@ -99,16 +106,19 @@ export default function App() {
   return (
     <BrowserRouter>
       <PageMetaProvider>
+        <StartupLoaderHandoff />
         <Routes>
-          {/* Routes without AppLayout (login, privnote view) */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/p/:token" element={<PrivnoteViewPage />} />
-          {/* All other routes with AppLayout */}
+          {/* Routes without AppLayout keep a full-screen initial fallback. */}
+          <Route path="/login" element={<Suspense fallback={<BrandLoader fullScreen />}><LoginPage /></Suspense>} />
+          <Route path="/p/:token" element={<Suspense fallback={<BrandLoader fullScreen />}><PrivnoteViewPage /></Suspense>} />
+          {/* In-app route chunks load inside the content area without replacing navigation. */}
           <Route
             path="/*"
             element={
               <AppLayout>
-                <AnimatedRoutes />
+                <Suspense fallback={<BrandLoader />}>
+                  <AnimatedRoutes />
+                </Suspense>
               </AppLayout>
             }
           />

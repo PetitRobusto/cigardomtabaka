@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CigarDomTabaka · 开屏动画对比</title>
+  <style>
+    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: #f2eee8; color: #2c2416; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; padding: 18px; }
+    header { width: min(1200px, 100%); margin: 0 auto 12px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    h1 { margin: 0; font: 600 20px/1.25 Georgia, "Songti SC", serif; }
+    p { margin: 4px 0 0; color: #8a7e6e; font-size: 12px; }
+    nav { display: flex; gap: 6px; padding: 5px; border: 1px solid #e1d8cd; background: #fff; }
+    button { min-height: 34px; padding: 0 14px; border: 0; background: #f5efe8; color: #6d6255; cursor: pointer; }
+    button.active { background: #7a1f2e; color: #fff; }
+    .frame { width: min(1200px, 100%); height: calc(100vh - 94px); min-height: 540px; margin: auto; border: 1px solid #ddd2c5; background: #faf8f5; box-shadow: 0 12px 40px rgba(44, 36, 22, .09); }
+    iframe { display: block; width: 100%; height: 100%; border: 0; }
+    @media (max-width: 680px) { body { padding: 10px; } header { align-items: flex-start; flex-direction: column; } .frame { height: calc(100vh - 125px); min-height: 480px; } nav { width: 100%; } button { flex: 1; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div><h1>CigarDomTabaka 开屏动画</h1><p>切换方案后，可使用画面右下角控件重播不同加载状态。</p></div>
+    <nav aria-label="动画方案">
+      <button type="button" data-src="brand-loading-20260915.html">方案 A · 雪茄环标</button>
+      <button class="active" type="button" data-src="logo-opening-animation.html">方案 B · 原版 Logo</button>
+    </nav>
+  </header>
+  <div class="frame"><iframe id="preview" title="开屏动画预览" src="logo-opening-animation.html"></iframe></div>
+  <script>
+    const frame = document.querySelector('#preview');
+    document.querySelectorAll('button[data-src]').forEach(button => button.addEventListener('click', () => {
+      document.querySelectorAll('button[data-src]').forEach(item => item.classList.toggle('active', item === button));
+      frame.src = button.dataset.src;
+    }));
+  </script>
+</body>
+</html>

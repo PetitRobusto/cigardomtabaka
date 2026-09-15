@@ -1,11 +1,14 @@
 import { MapPin, Phone, MessageCircle } from "lucide-react";
-const base = import.meta.env.BASE_URL;
+import { brandLogoUrl } from "../../utils/brandAssets";
+
 export default function StoreHeader({ compact = false }: { compact?: boolean }) {
   return (
     <div className="bg-accent-light border border-accent/20 rounded-sm px-5 py-5 mb-6 text-center">
       <img
-        src={`${base}logo-512.png`}
+        src={brandLogoUrl}
         alt="CigarDomTabaka"
+        width="120"
+        height="120"
         className={`${compact ? "h-12 w-12" : "h-[120px] w-[120px]"} mx-auto mb-3 object-contain`}
       />
       <h2 className="text-lg font-bold tracking-wide text-fg mb-2">

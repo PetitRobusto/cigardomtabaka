@@ -24,8 +24,7 @@ import type {
 import { trackAccessAction } from "../api/privnoteAccess";
 import StoreHeader from "../components/privnote/StoreHeader";
 import PaymentView from "../components/privnote/PaymentView";
-
-const base = import.meta.env.BASE_URL;
+import { brandLogoUrl } from '../utils/brandAssets';
 
 export default function PrivnoteViewPage() {
   const { token } = useParams<{ token: string }>();
@@ -110,8 +109,10 @@ function PrivnoteDocument({ token }: { token?: string }) {
         <div className="bg-white border border-border rounded-sm p-10 text-center w-full max-w-md">
           <div className="flex items-center justify-center mx-auto mb-6 bg-accent-light">
             <img
-              src={`${base}logo-512.png`}
+              src={brandLogoUrl}
               alt="CigarDomTabaka"
+              width="120"
+              height="120"
               className="w-[120px] h-[120px] object-contain"
             />
           </div>

@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 
 interface ErrorStateProps {
@@ -8,12 +7,7 @@ interface ErrorStateProps {
 
 export function ErrorState({ message = '数据加载失败', onRetry }: ErrorStateProps) {
   return (
-    <motion.div
-      className="flex flex-col items-center justify-center py-20 text-center"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
       <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mb-5">
         <AlertTriangle className="w-8 h-8 text-red-400" />
       </div>
@@ -28,6 +22,6 @@ export function ErrorState({ message = '数据加载失败', onRetry }: ErrorSta
           重新加载
         </button>
       )}
-    </motion.div>
+    </div>
   );
 }

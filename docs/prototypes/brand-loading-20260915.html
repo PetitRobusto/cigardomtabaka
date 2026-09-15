@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CigarDomTabaka — 加载</title>
+<style>
+/* ==================== [CDT CORE CSS START] ====================
+   CigarDomTabaka 品牌加载器核心样式。
+   集成时整段复制到入口 HTML 的 <style> 中即可。
+   令牌来自 brand-spec.md：bg #FAF8F5 / fg #2C2416 / muted #8A7E6E
+   / border #E8E0D6 / wine #7A1F2E / gold #B87A3A。禁止外部字体。 */
+:root{
+  --cdt-bg:#FAF8F5; --cdt-fg:#2C2416; --cdt-muted:#8A7E6E;
+  --cdt-border:#E8E0D6; --cdt-wine:#7A1F2E; --cdt-gold:#B87A3A;
+  --cdt-serif:Georgia,'Songti SC','Noto Serif SC',serif;
+  --cdt-sans:-apple-system,'Segoe UI',system-ui,sans-serif;
+}
+.cdt-loader{
+  position:fixed; inset:0; z-index:900; background:var(--cdt-bg);
+  display:flex; align-items:center; justify-content:center;
+  transition:opacity .26s ease, transform .26s ease;
+}
+.cdt-loader.is-leaving{ opacity:0; transform:translateY(-4px); pointer-events:none; }
+.cdt-loader[hidden]{ display:none; }
+.cdt-stage{
+  display:flex; flex-direction:column; align-items:center; text-align:center;
+  padding:0 24px; transform:translateY(-4vh); /* 主视觉组落在视口约 46% 高度 */
+}
+.cdt-visual{ width:220px; height:auto; display:block; }
+.cdt-word{
+  position:relative; display:inline-block; margin-top:24px;
+  font-family:var(--cdt-serif); font-size:28px; letter-spacing:.06em;
+  line-height:1.2; color:var(--cdt-fg);
+}
+.cdt-word__sheen{
+  position:absolute; inset:0; pointer-events:none; opacity:0;
+  color:transparent; -webkit-text-fill-color:transparent;
+  background-image:linear-gradient(100deg,
+    rgba(255,255,255,0) 42%, rgba(255,255,255,.95) 50%, rgba(255,255,255,0) 58%);
+  background-size:300% 100%; background-position:130% 0;
+  -webkit-background-clip:text; background-clip:text;
+}
+.cdt-status{ margin:10px 0 0; font:13px/1.5 var(--cdt-sans); color:var(--cdt-muted); }
+.cdt-line{ margin-top:22px; width:96px; height:1px; background:var(--cdt-border); overflow:hidden; }
+.cdt-line__glint{
+  display:block; width:28px; height:1px; transform:translateX(-30px);
+  background:linear-gradient(90deg, rgba(184,122,58,0), rgba(184,122,58,.9), rgba(184,122,58,0));
+}
+.cdt-retry{
+  margin-top:18px; padding:10px 8px; background:none; border:0; cursor:pointer;
+  font:13px/1 var(--cdt-sans); color:var(--cdt-wine);
+  text-decoration:underline; text-underline-offset:3px;
+}
+.cdt-retry[hidden]{ display:none; }
+.cdt-retry:hover{ color:var(--cdt-fg); }
+.cdt-retry:focus-visible{ outline:2px solid var(--cdt-gold); outline-offset:2px; border-radius:2px; }
+/* 错误态：停止一切循环动画，只留可读错误与重试 */
+.cdt-loader.is-error .cdt-smoke,
+.cdt-loader.is-error .cdt-line{ display:none; }
+
+/* 页面内小型版本：112×80 主视觉，上下 48px，不遮挡导航 */
+.cdt-loader--inline{ position:static; inset:auto; z-index:auto; padding:48px 0; background:transparent; }
+.cdt-loader--inline .cdt-stage{ transform:none; padding:0; }
+.cdt-loader--inline .cdt-visual{ width:112px; }
+.cdt-loader--inline .cdt-word{ font-size:20px; margin-top:16px; }
+.cdt-loader--inline .cdt-line{ margin-top:18px; }
+
+@media (max-width:520px){
+  .cdt-visual{ width:180px; }
+  .cdt-word{ font-size:24px; }
+}
+
+/* 动效全部收敛在 no-preference 且未强制减少时启用；
+   默认状态即最终可见状态 —— JS 缺失 / reduced-motion 下为完整静态标志。
+   html.cdt-rm 为预览面板的「减少动态」强制开关，与系统设置等效。 */
+@media (prefers-reduced-motion: no-preference){
+  html:not(.cdt-rm) .cdt-trace{
+    stroke-dasharray:100; stroke-dashoffset:100;
+    animation:cdt-draw .42s cubic-bezier(.45,0,.25,1) forwards;
+  }
+  html:not(.cdt-rm) .cdt-core-in{
+    opacity:0; transform:scale(.97);
+    transform-box:fill-box; transform-origin:center;
+    animation:cdt-core .47s ease-out .18s forwards;
+  }
+  html:not(.cdt-rm) .cdt-core-breath{
+    transform-box:fill-box; transform-origin:center;
+    animation:cdt-breath 3.6s ease-in-out .9s infinite;
+  }
+  html:not(.cdt-rm) .cdt-word__sheen{ animation:cdt-sheen .58s ease-in-out .32s both; }
+  html:not(.cdt-rm) .cdt-smoke-a{ animation:cdt-smoke-a 3.2s ease-in-out .9s infinite; }
+  html:not(.cdt-rm) .cdt-smoke-b{ animation:cdt-smoke-b 3.6s ease-in-out 2.1s infinite; }
+  html:not(.cdt-rm) .cdt-line__glint{ animation:cdt-glint 2.6s cubic-bezier(.45,0,.55,1) infinite; }
+}
+@keyframes cdt-draw{ to{ stroke-dashoffset:0; } }
+@keyframes cdt-core{ to{ opacity:1; transform:scale(1); } }
+@keyframes cdt-breath{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.01); } }
+@keyframes cdt-sheen{
+  0%{ opacity:1; background-position:130% 0; }
+  100%{ opacity:1; background-position:-30% 0; }
+}
+@keyframes cdt-smoke-a{
+  0%{ opacity:0; transform:translateY(8px); }
+  22%{ opacity:.20; } 65%{ opacity:.12; }
+  100%{ opacity:0; transform:translateY(-12px); }
+}
+@keyframes cdt-smoke-b{
+  0%{ opacity:0; transform:translateY(6px); }
+  25%{ opacity:.14; } 70%{ opacity:.08; }
+  100%{ opacity:0; transform:translateY(-10px); }
+}
+@keyframes cdt-glint{
+  0%{ transform:translateX(-30px); }
+  55%,100%{ transform:translateX(100px); }
+}
+/* ==================== [CDT CORE CSS END] ==================== */
+
+/* ===== 以下为「仅预览」样式：演示页壳、品牌目录占位、控制面板，均不属于生产组件 ===== */
+*{ box-sizing:border-box; }
+html,body{ margin:0; padding:0; }
+body{ background:var(--cdt-bg); color:var(--cdt-fg); font-family:var(--cdt-sans); }
+.site{
+  display:flex; align-items:baseline; justify-content:space-between;
+  padding:20px 28px; border-bottom:1px solid var(--cdt-border);
+}
+.site__brand{ font-family:var(--cdt-serif); font-size:17px; letter-spacing:.08em; }
+.site__nav{ display:flex; gap:22px; }
+.site__nav a{ font-size:13px; color:var(--cdt-muted); text-decoration:none; }
+.site__nav a:hover{ color:var(--cdt-fg); }
+.app{ max-width:720px; margin:0 auto; padding:56px 28px 200px; }
+.app h1{ font-family:var(--cdt-serif); font-size:30px; font-weight:400; letter-spacing:.04em; margin:0 0 6px; }
+.app__hint{ font-size:13px; color:var(--cdt-muted); margin:0 0 24px; }
+.dir{ list-style:none; margin:0; padding:0; }
+.dir li{
+  display:flex; align-items:baseline; justify-content:space-between; gap:16px;
+  padding:14px 0; border-bottom:1px solid var(--cdt-border);
+}
+.dir__name{ font-family:var(--cdt-serif); font-size:16px; }
+.dir__meta{ font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:12px; color:var(--cdt-muted); white-space:nowrap; }
+.demo-card{ margin-top:40px; border:1px solid var(--cdt-border); border-radius:12px; background:#fff; overflow:hidden; }
+.demo-card__head{ padding:14px 18px; border-bottom:1px solid var(--cdt-border); font-size:13px; color:var(--cdt-muted); }
+.demo-card__body{ padding:0 18px; }
+.demo-card__body .dir{ padding-bottom:8px; }
+
+.pv{
+  position:fixed; left:16px; bottom:16px; z-index:1200;
+  max-width:min(600px, calc(100vw - 32px));
+  background:#fff; border:1px solid var(--cdt-border); border-radius:10px;
+  padding:10px 12px 12px; box-shadow:0 8px 24px rgba(44,36,22,.10);
+  font-family:var(--cdt-sans);
+}
+.pv__tag{
+  display:block; margin-bottom:8px;
+  font:10px/1.4 ui-monospace,'SF Mono',Menlo,monospace;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--cdt-muted);
+}
+.pv__btns{ display:flex; flex-wrap:wrap; gap:6px; }
+.pv__btn{
+  min-height:36px; padding:6px 12px; border-radius:7px; cursor:pointer;
+  border:1px solid var(--cdt-border); background:#fff; color:var(--cdt-fg);
+  font-size:12.5px; font-family:var(--cdt-sans);
+}
+.pv__btn:hover{ background:#F4EFE9; border-color:#DCD2C4; }
+.pv__btn.is-on{ background:var(--cdt-wine); border-color:var(--cdt-wine); color:#FBF7F2; }
+.pv__btn.is-on:hover{ background:color-mix(in oklch, #7A1F2E 88%, black); color:#FBF7F2; }
+.pv__btn[aria-pressed="true"]{ border-color:var(--cdt-gold); color:var(--cdt-wine); }
+.pv__btn:focus-visible{ outline:2px solid var(--cdt-gold); outline-offset:2px; }
+</style>
+</head>
+<body>
+
+<!-- ==================== [CDT CORE HTML START] ====================
+     生产集成：把这段覆盖层放在 <body> 最前、应用挂载点之前。
+     首绘即有完整底稿 + 可读品牌名，不等待任何脚本。 -->
+<div class="cdt-loader" id="cdtLoader" data-od-id="boot-loader">
+  <div class="cdt-stage" data-od-id="boot-stage">
+    <svg class="cdt-visual" viewBox="0 0 220 148" aria-hidden="true" focusable="false" data-od-id="boot-visual">
+      <!-- 底稿：始终可见的静态完整标志（30% 透明） -->
+      <g opacity="0.3">
+        <path d="M25 122 a85 26 0 1 0 170 0 a85 26 0 1 0 -170 0 Z" fill="none" stroke="#B87A3A" stroke-width="1"/>
+        <path d="M29.5 122 a80.5 21.5 0 1 0 161 0 a80.5 21.5 0 1 0 -161 0 Z" fill="none" stroke="#B87A3A" stroke-width="0.7"/>
+        <g stroke="#B87A3A" stroke-width="0.9" stroke-linecap="round">
+          <path d="M40 122 H74"/><path d="M46 113 H76"/><path d="M46 131 H76"/>
+          <path d="M146 122 H180"/><path d="M144 113 H174"/><path d="M144 131 H174"/>
+        </g>
+        <ellipse cx="110" cy="122" rx="26" ry="19.5" fill="#7A1F2E"/>
+        <ellipse cx="110" cy="122" rx="21.5" ry="15" fill="none" stroke="#B87A3A" stroke-width="0.8"/>
+        <text x="110" y="129.5" text-anchor="middle" font-family="Georgia,'Songti SC',serif" font-size="22" fill="#F5EEE2">C</text>
+      </g>
+      <!-- 恒久小高光：翼端菱形，无动画 -->
+      <g fill="#B87A3A" opacity="0.9">
+        <path d="M34 122 l3 -3 3 3 -3 3 Z"/><path d="M180 122 l3 -3 3 3 -3 3 Z"/>
+      </g>
+      <!-- 描金层：入场 0–420ms 沿轮廓描出（pathLength 归一） -->
+      <g fill="none" stroke="#B87A3A">
+        <path class="cdt-trace" pathLength="100" stroke-width="1.1" d="M25 122 a85 26 0 1 0 170 0 a85 26 0 1 0 -170 0 Z"/>
+        <path class="cdt-trace" pathLength="100" stroke-width="0.7" d="M29.5 122 a80.5 21.5 0 1 0 161 0 a80.5 21.5 0 1 0 -161 0 Z"/>
+        <g stroke-width="0.9" stroke-linecap="round">
+          <path class="cdt-trace" pathLength="100" d="M40 122 H74"/>
+          <path class="cdt-trace" pathLength="100" d="M46 113 H76"/>
+          <path class="cdt-trace" pathLength="100" d="M46 131 H76"/>
+          <path class="cdt-trace" pathLength="100" d="M146 122 H180"/>
+          <path class="cdt-trace" pathLength="100" d="M144 113 H174"/>
+          <path class="cdt-trace" pathLength="100" d="M144 131 H174"/>
+        </g>
+      </g>
+      <!-- 中心印记：180–650ms 显影，之后 1% 呼吸 -->
+      <g class="cdt-core-breath">
+        <g class="cdt-core-in">
+          <ellipse cx="110" cy="122" rx="26" ry="19.5" fill="#7A1F2E"/>
+          <ellipse cx="110" cy="122" rx="21.5" ry="15" fill="none" stroke="#B87A3A" stroke-width="0.8"/>
+          <text x="110" y="129.5" text-anchor="middle" font-family="Georgia,'Songti SC',serif" font-size="22" fill="#F5EEE2">C</text>
+        </g>
+      </g>
+      <!-- 两缕暖灰烟丝：自环标上侧偏右升起，循环错开 1.2s -->
+      <g class="cdt-smoke" fill="none" stroke="#8A7E6E" stroke-linecap="round">
+        <path class="cdt-smoke-a" stroke-width="1.1" d="M128 94 C134 82 120 74 127 60 C133 47 122 44 126 34" opacity="0"/>
+        <path class="cdt-smoke-b" stroke-width="0.8" d="M117 96 C112 86 124 80 118 68 C113 58 122 54 119 46" opacity="0"/>
+      </g>
+    </svg>
+    <div class="cdt-word" data-od-id="boot-wordmark">CigarDomTabaka<span class="cdt-word__sheen" aria-hidden="true">CigarDomTabaka</span></div>
+    <p class="cdt-status" id="cdtStatus" role="status" aria-live="polite" data-od-id="boot-status">正在准备你的雪茄世界</p>
+    <div class="cdt-line" aria-hidden="true" data-od-id="boot-line"><span class="cdt-line__glint"></span></div>
+    <button type="button" class="cdt-retry" id="cdtRetry" hidden data-od-id="boot-retry">重新加载</button>
+  </div>
+</div>
+<!-- ==================== [CDT CORE HTML END] ==================== -->
+
+<!-- ===== 以下为「仅预览」内容：退场后的品牌目录占位，非生产代码 ===== -->
+<header class="site" data-od-id="site-header">
+  <span class="site__brand">CigarDomTabaka</span>
+  <nav class="site__nav" aria-label="主导航">
+    <a href="#" data-od-id="nav-catalog">品牌目录</a>
+    <a href="#" data-od-id="nav-series">系列</a>
+    <a href="#" data-od-id="nav-about">关于</a>
+  </nav>
+</header>
+<main class="app" id="appRoot" data-od-id="app-root">
+  <h1 data-od-id="catalog-title">品牌目录</h1>
+  <p class="app__hint">占位内容 · 仅用于演示加载器退场后的页面呈现</p>
+  <ul class="dir" data-od-id="catalog-list">
+    <li><span class="dir__name">Cohiba 高希霸</span><span class="dir__meta">古巴 · 1966</span></li>
+    <li><span class="dir__name">Montecristo 蒙特克里斯托</span><span class="dir__meta">古巴 · 1935</span></li>
+    <li><span class="dir__name">Partagás 帕特加斯</span><span class="dir__meta">古巴 · 1845</span></li>
+    <li><span class="dir__name">Romeo y Julieta 罗密欧与朱丽叶</span><span class="dir__meta">古巴 · 1875</span></li>
+    <li><span class="dir__name">Hoyo de Monterrey 好友</span><span class="dir__meta">古巴 · 1865</span></li>
+  </ul>
+
+  <section class="demo-card" id="inlineDemo" hidden data-od-id="inline-demo">
+    <div class="demo-card__head">页面内加载演示 · 获取品牌数据</div>
+    <div class="demo-card__body" id="inlineSlot"></div>
+  </section>
+</main>
+
+<!-- ===== 仅预览控制面板：与生产组件严格分离，集成时整段删除 ===== -->
+<aside class="pv" aria-label="预览控制" data-od-id="preview-panel">
+  <span class="pv__tag" id="pvTag">仅预览 · 当前：正常 2.5s</span>
+  <div class="pv__btns">
+    <button type="button" class="pv__btn is-on" data-mode="normal" data-od-id="pv-normal">正常 2.5s</button>
+    <button type="button" class="pv__btn" data-mode="fast" data-od-id="pv-fast">快速 0.1s</button>
+    <button type="button" class="pv__btn" data-mode="slow" data-od-id="pv-slow">慢速 12s</button>
+    <button type="button" class="pv__btn" data-mode="fail" data-od-id="pv-fail">失败</button>
+    <button type="button" class="pv__btn" data-mode="inline" data-od-id="pv-inline">页面内</button>
+    <button type="button" class="pv__btn" data-mode="rm" aria-pressed="false" data-od-id="pv-rm">减少动态</button>
+    <button type="button" class="pv__btn" data-mode="replay" data-od-id="pv-replay">重新播放</button>
+  </div>
+</aside>
+
+<script>
+/* ==================== [CDT CORE JS START] ====================
+   生产集成 API（挂 window.CDTLoader）：
+   - init()            初始化 / 重置（覆盖层替换后需重新调用）
+   - ready()           内容就绪：立即 260ms 淡出 + 上移 4px 退场；
+                       无最低展示时长，不等待动画结束；
+                       reduced-motion 下直接移除
+   - fail(message)     失败态：显示可读错误与「重试」，停止循环动画
+   - setStatus(text)   更新状态文案（如「加载品牌数据…」）
+   - destroy()         立即移除覆盖层（hidden + aria-hidden）
+   慢网络 >10s 自动切换文案并出现「重新加载」。 */
+window.CDTLoader = (function(){
+  var L, S, R, slowT, done = false;
+  function q(id){ return document.getElementById(id); }
+  function reduced(){
+    return document.documentElement.classList.contains('cdt-rm') ||
+      (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+  function armSlow(){
+    clearTimeout(slowT);
+    slowT = setTimeout(function(){
+      if (done || !S) return;
+      S.textContent = '加载时间较长，请稍候';
+      if (R) R.hidden = false;
+    }, 10000);
+  }
+  function destroy(){
+    if (!L) return;
+    L.hidden = true;
+    L.setAttribute('aria-hidden', 'true');
+  }
+  function ready(){
+    if (done || !L) return;
+    done = true; clearTimeout(slowT);
+    if (reduced()){ destroy(); return; }
+    L.classList.add('is-leaving');
+    setTimeout(destroy, 320); /* 固定时长移除，不监听 transitionend */
+  }
+  function fail(msg){
+    if (done || !L) return;
+    done = true; clearTimeout(slowT);
+    L.classList.add('is-error');
+    if (S) S.textContent = msg || '加载失败，请检查网络后重试。';
+    if (R){ R.hidden = false; R.textContent = '重试'; }
+  }
+  function setStatus(t){ if (S && !done) S.textContent = t; }
+  function init(){
+    L = q('cdtLoader'); S = q('cdtStatus'); R = q('cdtRetry'); done = false;
+    if (R) R.onclick = function(){ window.location.reload(); };
+    armSlow();
+  }
+  init();
+  return { init:init, ready:ready, fail:fail, destroy:destroy, setStatus:setStatus };
+})();
+/* ==================== [CDT CORE JS END] ==================== */
+</script>
+
+<script>
+/* ===== 仅预览驱动：模拟就绪时序与页面内加载，集成时整段删除 ===== */
+(function(){
+  var mode = 'normal', timer = null;
+  var tag = document.getElementById('pvTag');
+  var inlineDemo = document.getElementById('inlineDemo');
+  var inlineSlot = document.getElementById('inlineSlot');
+  var labels = { normal:'正常 2.5s', fast:'快速 0.1s', slow:'慢速 12s', fail:'失败', inline:'页面内' };
+
+  var INLINE_HTML =
+    '<div class="cdt-loader cdt-loader--inline" id="inlineLoader">' +
+      '<div class="cdt-stage">' +
+        '<svg class="cdt-visual" viewBox="0 0 220 148" aria-hidden="true" focusable="false">' +
+          '<g opacity="0.3"><path d="M25 122 a85 26 0 1 0 170 0 a85 26 0 1 0 -170 0 Z" fill="none" stroke="#B87A3A" stroke-width="1"/>' +
+          '<path d="M29.5 122 a80.5 21.5 0 1 0 161 0 a80.5 21.5 0 1 0 -161 0 Z" fill="none" stroke="#B87A3A" stroke-width="0.7"/>' +
+          '<g stroke="#B87A3A" stroke-width="0.9" stroke-linecap="round"><path d="M40 122 H74"/><path d="M46 113 H76"/><path d="M46 131 H76"/><path d="M146 122 H180"/><path d="M144 113 H174"/><path d="M144 131 H174"/></g>' +
+          '<ellipse cx="110" cy="122" rx="26" ry="19.5" fill="#7A1F2E"/><ellipse cx="110" cy="122" rx="21.5" ry="15" fill="none" stroke="#B87A3A" stroke-width="0.8"/>' +
+          '<text x="110" y="129.5" text-anchor="middle" font-family="Georgia,serif" font-size="22" fill="#F5EEE2">C</text></g>' +
+          '<g fill="#B87A3A" opacity="0.9"><path d="M34 122 l3 -3 3 3 -3 3 Z"/><path d="M180 122 l3 -3 3 3 -3 3 Z"/></g>' +
+          '<g fill="none" stroke="#B87A3A"><path class="cdt-trace" pathLength="100" stroke-width="1.1" d="M25 122 a85 26 0 1 0 170 0 a85 26 0 1 0 -170 0 Z"/>' +
+          '<path class="cdt-trace" pathLength="100" stroke-width="0.7" d="M29.5 122 a80.5 21.5 0 1 0 161 0 a80.5 21.5 0 1 0 -161 0 Z"/>' +
+          '<g stroke-width="0.9" stroke-linecap="round"><path class="cdt-trace" pathLength="100" d="M40 122 H74"/><path class="cdt-trace" pathLength="100" d="M46 113 H76"/><path class="cdt-trace" pathLength="100" d="M46 131 H76"/><path class="cdt-trace" pathLength="100" d="M146 122 H180"/><path class="cdt-trace" pathLength="100" d="M144 113 H174"/><path class="cdt-trace" pathLength="100" d="M144 131 H174"/></g></g>' +
+          '<g class="cdt-core-breath"><g class="cdt-core-in"><ellipse cx="110" cy="122" rx="26" ry="19.5" fill="#7A1F2E"/><ellipse cx="110" cy="122" rx="21.5" ry="15" fill="none" stroke="#B87A3A" stroke-width="0.8"/>' +
+          '<text x="110" y="129.5" text-anchor="middle" font-family="Georgia,serif" font-size="22" fill="#F5EEE2">C</text></g></g>' +
+          '<g class="cdt-smoke" fill="none" stroke="#8A7E6E" stroke-linecap="round">' +
+          '<path class="cdt-smoke-a" stroke-width="1.1" d="M128 94 C134 82 120 74 127 60 C133 47 122 44 126 34" opacity="0"/>' +
+          '<path class="cdt-smoke-b" stroke-width="0.8" d="M117 96 C112 86 124 80 118 68 C113 58 122 54 119 46" opacity="0"/></g>' +
+        '</svg>' +
+        '<div class="cdt-word">CigarDomTabaka<span class="cdt-word__sheen" aria-hidden="true">CigarDomTabaka</span></div>' +
+        '<p class="cdt-status" role="status" aria-live="polite">加载品牌数据…</p>' +
+        '<div class="cdt-line" aria-hidden="true"><span class="cdt-line__glint"></span></div>' +
+      '</div>' +
+    '</div>';
+
+  var INLINE_DONE =
+    '<ul class="dir">' +
+    '<li><span class="dir__name">Cohiba 高希霸</span><span class="dir__meta">12 个系列</span></li>' +
+    '<li><span class="dir__name">Montecristo 蒙特克里斯托</span><span class="dir__meta">9 个系列</span></li>' +
+    '<li><span class="dir__name">Partagás 帕特加斯</span><span class="dir__meta">7 个系列</span></li>' +
+    '</ul>';
+
+  function freshLoader(){
+    var old = document.getElementById('cdtLoader');
+    var clone = old.cloneNode(true); /* 重新插入节点以重放入场动画 */
+    clone.hidden = false;
+    clone.classList.remove('is-leaving', 'is-error');
+    clone.removeAttribute('aria-hidden');
+    clone.querySelector('#cdtStatus').textContent = '正在准备你的雪茄世界';
+    var r = clone.querySelector('#cdtRetry');
+    r.hidden = true; r.textContent = '重新加载';
+    old.parentNode.replaceChild(clone, old);
+    window.CDTLoader.init();
+  }
+  function hideInline(){
+    inlineDemo.hidden = true;
+    inlineSlot.innerHTML = '';
+  }
+  function runInline(){
+    window.CDTLoader.destroy(); /* 全屏覆盖层立即让位 */
+    inlineDemo.hidden = false;
+    inlineSlot.innerHTML = INLINE_HTML;
+    var inl = document.getElementById('inlineLoader');
+    setTimeout(function(){
+      var rm = document.documentElement.classList.contains('cdt-rm') ||
+        (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      if (rm){ inlineSlot.innerHTML = INLINE_DONE; return; }
+      inl.classList.add('is-leaving');
+      setTimeout(function(){ inlineSlot.innerHTML = INLINE_DONE; }, 320);
+    }, 2500);
+  }
+  function run(){
+    clearTimeout(timer);
+    hideInline();
+    freshLoader();
+    tag.textContent = '仅预览 · 当前：' + (labels[mode] || '重新播放');
+    if (mode === 'inline'){ runInline(); return; }
+    var d = mode === 'fast' ? 100 : mode === 'slow' ? 12000 : mode === 'fail' ? 1600 : 2500;
+    timer = setTimeout(function(){
+      if (mode === 'fail') window.CDTLoader.fail('无法连接品牌数据服务（预览模拟），请检查网络后重试。');
+      else window.CDTLoader.ready();
+    }, d);
+  }
+
+  var btns = document.querySelectorAll('.pv__btn');
+  Array.prototype.forEach.call(btns, function(b){
+    b.addEventListener('click', function(){
+      var m = b.getAttribute('data-mode');
+      if (m === 'rm'){
+        var on = document.documentElement.classList.toggle('cdt-rm');
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        run();
+        return;
+      }
+      if (m !== 'replay'){
+        mode = m;
+        Array.prototype.forEach.call(btns, function(x){ x.classList.remove('is-on'); });
+        b.classList.add('is-on');
+      }
+      run();
+    });
+  });
+
+  run(); /* 默认打开即播放：正常 2.5s */
+})();
+</script>
+</body>
+</html>
+

@@ -33,14 +33,12 @@ const HelpPage = lazy(() => import('./pages/HelpPage'));
 
 function StartupLoaderHandoff() {
   useEffect(() => {
-    const startupLoader = document.getElementById('startup-loader');
-    if (!startupLoader) return;
-
-    startupLoader.classList.add('is-leaving');
-    document.body.classList.remove('cdt-starting');
-    const removeTimer = window.setTimeout(() => startupLoader.remove(), 280);
-
-    return () => window.clearTimeout(removeTimer);
+    document.documentElement.dataset.cdtAppReady = 'true';
+    window.dispatchEvent(new Event('cdt:app-ready'));
+    const startup = (window as Window & {
+      CDTStartup?: { ready(): void };
+    }).CDTStartup;
+    startup?.ready();
   }, []);
 
   return null;

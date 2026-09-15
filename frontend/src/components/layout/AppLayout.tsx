@@ -12,7 +12,7 @@ import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { mobileNavItems } from './mobileNav';
 import { BrandLoader } from '../shared/BrandLoader';
-import { brandLogoUrl } from '../../utils/brandAssets';
+import { brandDockLogoUrl, brandLogoUrl } from '../../utils/brandAssets';
 
 const GuideController = lazy(() => import('../../features/guides/GuideController'));
 
@@ -74,8 +74,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {/* Logo */}
             <div className="flex items-center gap-3">
               <img
-                src={brandLogoUrl}
+                src={brandDockLogoUrl}
                 alt="CigarDomTabaka"
+                data-startup-logo-target
                 width="45"
                 height="45"
                 className="w-[45px] h-[45px] cursor-pointer object-contain"

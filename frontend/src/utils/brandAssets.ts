@@ -7,3 +7,11 @@ const moduleOrigin = new URL(import.meta.url).origin;
 export const brandLogoUrl = moduleOrigin === 'null'
   ? `${base}logo-opening.webp`
   : new URL(`${base}logo-opening.webp`, moduleOrigin).href;
+
+export const brandMotionLogoUrl = moduleOrigin === 'null'
+  ? `${base}logo-opening-motion.svg`
+  : new URL(`${base}logo-opening-motion.svg`, moduleOrigin).href;
+
+export const brandDockLogoUrl = moduleOrigin === 'null'
+  ? `${base}logo-motion.webp`
+  : new URL(`${base}logo-motion.webp`, moduleOrigin).href;

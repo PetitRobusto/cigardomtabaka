@@ -30,15 +30,16 @@ from cigars.tests.inventory_fixtures import create_purchase_batch, force_invento
 
 
 class SalesAccountingFixtureMixin:
-    def setUp(self):
-        self.operator = User.objects.create_user('sales-accounting-operator', password='pass', is_staff=True)
-        self.brand = Brand.objects.create(english_name='Accounting Brand', name='账务品牌')
-        self.cigar = Cigar.objects.create(
-            brand=self.brand.english_name,
+    @classmethod
+    def setUpTestData(cls):
+        cls.operator = User.objects.create_user('sales-accounting-operator', password='pass', is_staff=True)
+        cls.brand = Brand.objects.create(english_name='Accounting Brand', name='账务品牌')
+        cls.cigar = Cigar.objects.create(
+            brand=cls.brand.english_name,
             english_name='Accounting Cigar',
             name='账务雪茄',
         )
-        self.cny_account = FundAccount.objects.create(
+        cls.cny_account = FundAccount.objects.create(
             name='销售人民币账户',
             currency=FundAccount.Currency.CNY,
             creation_idempotency_key='sales-accounting-cny',
@@ -64,6 +65,8 @@ class SalesAccountingFixtureMixin:
         values.update(changes)
         return SalesOrder.objects.create(**values)
 
+
+class SalesAccountingModelTestsMixin(SalesAccountingFixtureMixin):
     def test_display_status_is_composed_from_independent_axes(self):
         order = self.order()
         self.assertEqual(order.fulfillment_status, SalesOrder.FulfillmentStatus.DRAFT)
@@ -365,7 +368,7 @@ class PurchaseBatchInventoryMigrationFixture:
         self.batch_id = batch.pk
 
 
-class SalesAccountingModelTest(SalesAccountingFixtureMixin, TestCase):
+class SalesAccountingModelTest(SalesAccountingModelTestsMixin, TestCase):
     pass
 
 

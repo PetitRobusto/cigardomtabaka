@@ -56,6 +56,12 @@ jobs:
           fi
           exit "$test_status"
 
+      - name: Run price tracker tests
+        env:
+          DJANGO_DEBUG: "True"
+          DJANGO_SECRET_KEY: ci-test-key
+        run: python3 -m pytest -q price_tracker/tests
+
   frontend:
     runs-on: ubuntu-latest
 

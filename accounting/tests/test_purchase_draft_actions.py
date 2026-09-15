@@ -17,13 +17,14 @@ from cigars.models import Cigar, PurchaseOrder, PurchaseOrderItem, Supplier, Use
 
 
 class PurchaseDraftActionTest(TestCase):
-    def setUp(self):
-        self.operator = User.objects.create_user('purchase-draft', is_staff=True)
-        self.supplier = Supplier.objects.create(name='Task3 Supplier')
-        self.cigar = Cigar.objects.create(
+    @classmethod
+    def setUpTestData(cls):
+        cls.operator = User.objects.create_user('purchase-draft', is_staff=True)
+        cls.supplier = Supplier.objects.create(name='Task3 Supplier')
+        cls.cigar = Cigar.objects.create(
             english_name='Task3 Cigar', name='Task3 雪茄', brand='Task3',
         )
-        Day1Initialization.objects.create(status=Day1Initialization.Status.COMPLETED, updated_by=self.operator, completed_by=self.operator)
+        Day1Initialization.objects.create(status=Day1Initialization.Status.COMPLETED, updated_by=cls.operator, completed_by=cls.operator)
 
     def canonical_items(self):
         return [{

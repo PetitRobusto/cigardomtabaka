@@ -31,21 +31,21 @@ from cigars.tests.inventory_fixtures import create_purchase_batch
 
 
 class SalesOrderApiTest(TestCase):
-    def setUp(self):
-        self.client = Client()
-        self.operator = User.objects.create_user(
+    @classmethod
+    def setUpTestData(cls):
+        cls.operator = User.objects.create_user(
             "sales-api-operator", password="pass", is_staff=True
         )
-        self.non_staff = User.objects.create_user("sales-api-customer", password="pass")
+        cls.non_staff = User.objects.create_user("sales-api-customer", password="pass")
         # 销售动作是正式账务事实；普通 API fixture 从已完成 Day 1 开始。
         Day1Initialization.objects.create(
             singleton_key="company",
             status=Day1Initialization.Status.COMPLETED,
             business_date=date(2026, 8, 10),
-            completed_by=self.operator,
+            completed_by=cls.operator,
         )
         brand = Brand.objects.create(english_name="API Brand", name="接口品牌")
-        self.cigar = Cigar.objects.create(
+        cls.cigar = Cigar.objects.create(
             brand=brand.english_name,
             english_name="API Cigar",
             name="接口雪茄",

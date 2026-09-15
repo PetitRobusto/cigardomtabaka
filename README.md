@@ -73,6 +73,7 @@ python manage.py check
 python manage.py makemigrations --check --dry-run
 python manage.py test cigars privnote accounting \
   --settings=cigardomtabaka_backend.settings_test --parallel=2
+python -m pytest -q price_tracker/tests
 
 cd frontend
 npm run lint

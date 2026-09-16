@@ -35,7 +35,10 @@ export function BrandLoader({
           height="525"
           aria-hidden="true"
         />
-        <p className="cdt-loader__status" role="status" aria-live="polite">{status}</p>
+        <p className="cdt-loader__status" role="status" aria-live="polite">
+          <span>{status}</span>
+          <span className="cdt-loading-dots" aria-hidden="true"><i /><i /><i /></span>
+        </p>
         {slowText === text && (
           <button className="cdt-loader__retry cdt-loader__retry--visible" type="button" onClick={() => window.location.reload()}>
             重新加载

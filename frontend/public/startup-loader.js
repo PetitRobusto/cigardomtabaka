@@ -8,9 +8,9 @@
   var status = root.querySelector('.cdt-startup__status');
   var retry = root.querySelector('.cdt-startup__retry');
   var surface = root.querySelector('.cdt-startup__surface');
-  var motionStart = performance.now();
+  var motionStart = null;
   var cycleDuration = 2580;
-  var drawingDuration = 1500;
+  var logoReady = false;
   var readyRequested = false;
   var state = 'loading';
   var handoffTimer;
@@ -27,7 +27,9 @@
   }
 
   function setStatus(text) {
-    if (state === 'loading' || state === 'failed') status.textContent = String(text);
+    if (state === 'loading' || state === 'failed') {
+      status.querySelector('.cdt-startup__status-label').textContent = String(text);
+    }
   }
 
   function hasPendingReactLoader() {
@@ -95,8 +97,9 @@
   }
 
   function attemptReady() {
-    if (!readyRequested || state !== 'loading' || hasPendingReactLoader()) return;
+    if (!readyRequested || !logoReady || state !== 'loading' || hasPendingReactLoader()) return;
     window.cancelAnimationFrame(attemptReady.frame);
+    window.clearTimeout(handoffTimer);
     attemptReady.frame = window.requestAnimationFrame(function () {
       attemptReady.frame = window.requestAnimationFrame(function () {
         if (hasPendingReactLoader()) return;
@@ -104,11 +107,28 @@
           dock();
           return;
         }
-        var elapsed = (performance.now() - motionStart) % cycleDuration;
-        var wait = elapsed < drawingDuration ? drawingDuration - elapsed : 0;
+        var elapsed = performance.now() - motionStart;
+        var wait = Math.max(cycleDuration - elapsed, 0);
         handoffTimer = window.setTimeout(dock, wait);
       });
     });
+  }
+
+  function revealLogo() {
+    if (logoReady) return;
+    logoReady = true;
+    motionStart = performance.now();
+    root.dataset.logoReady = 'true';
+    attemptReady();
+  }
+
+  function prepareLogo() {
+    if (!mark.naturalWidth) return;
+    if (typeof mark.decode === 'function') {
+      mark.decode().then(revealLogo, revealLogo);
+      return;
+    }
+    revealLogo();
   }
 
   function ready() {
@@ -140,6 +160,9 @@
   }
 
   retry.addEventListener('click', function () { window.location.reload(); });
+  mark.addEventListener('load', prepareLogo);
+  mark.src = mark.dataset.motionSrc;
+  if (mark.complete) prepareLogo();
   observer = new MutationObserver(attemptReady);
   observer.observe(document.getElementById('root'), { childList: true, subtree: true });
   slowTimer = window.setTimeout(function () {

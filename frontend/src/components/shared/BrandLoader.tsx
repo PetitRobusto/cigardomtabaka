@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { brandMotionLogoUrl } from '../../utils/brandAssets';
+import { brandMotionLogoUrl, habanosSpecialistLogoUrl } from '../../utils/brandAssets';
 
 interface BrandLoaderProps {
   fullScreen?: boolean;
@@ -35,10 +35,19 @@ export function BrandLoader({
           height="525"
           aria-hidden="true"
         />
-        <p className="cdt-loader__status" role="status" aria-live="polite">
-          <span>{status}</span>
-          <span className="cdt-loading-dots" aria-hidden="true"><i /><i /><i /></span>
-        </p>
+        <div className="cdt-loader__status" role="status" aria-live="polite">
+          <img
+            className="cdt-loader__specialist"
+            src={habanosSpecialistLogoUrl}
+            alt="Habanos Specialist"
+            width="173"
+            height="216"
+          />
+          <span className="cdt-loader__status-copy">
+            <span>{status}</span>
+            <span className="cdt-loading-dots" aria-hidden="true"><i /><i /><i /></span>
+          </span>
+        </div>
         {slowText === text && (
           <button className="cdt-loader__retry cdt-loader__retry--visible" type="button" onClick={() => window.location.reload()}>
             重新加载

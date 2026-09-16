@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PageMetaProvider } from '../../contexts/PageMetaContext';
@@ -23,6 +23,18 @@ afterEach(() => {
 });
 
 describe('AppLayout navigation', () => {
+  it('shows the Habanos Specialist credential and its meaning in the footer', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <PageMetaProvider><AppLayout><div>页面内容</div></AppLayout></PageMetaProvider>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('img', { name: 'Habanos Specialist' })).not.toBeNull();
+    expect(screen.getByText('莫斯科持证雪茄服务商')).not.toBeNull();
+    expect(screen.getByText(/Habanos Specialist · 专业门店资质/)).not.toBeNull();
+  });
+
   it('keeps desktop and mobile app tabs selected on a nested route', () => {
     const { container } = render(
       <MemoryRouter initialEntries={['/accounting/day1']}>

@@ -128,10 +128,6 @@
 
   function prepareLogo() {
     if (!mark.naturalWidth) return;
-    if (typeof mark.decode === 'function') {
-      mark.decode().then(function () { revealLogo(usingStaticLogo); }, function () { revealLogo(usingStaticLogo); });
-      return;
-    }
     revealLogo(usingStaticLogo);
   }
 

@@ -14,15 +14,6 @@ export function BrandLoader({
   const [slowText, setSlowText] = useState<string | null>(null);
   const status = slowText === text ? '加载时间较长，请稍候' : text;
 
-  const revealLogo = (image: HTMLImageElement) => {
-    if (typeof image.decode !== 'function') {
-      setLogoReady(true);
-      return;
-    }
-
-    void image.decode().catch(() => undefined).then(() => setLogoReady(true));
-  };
-
   useEffect(() => {
     const slowTimer = window.setTimeout(() => {
       setSlowText(text);
@@ -44,7 +35,7 @@ export function BrandLoader({
           width="640"
           height="525"
           aria-hidden="true"
-          onLoad={event => revealLogo(event.currentTarget)}
+          onLoad={() => setLogoReady(true)}
         />
         <div className="cdt-loader__status" role="status" aria-live="polite">
           <img

@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
-import { apiErrorMessage, fetchAccountingAccounts, fetchAccountingActions, fetchAccountingDashboard, fetchAccountingExchangeTransactions, fetchAccountingExpenses, fetchAccountingSummary, fetchMonthlyBusinessReport, fetchMonthlyProfit, fetchReconciliations, reverseExchange, reverseExpense } from '../api';
+import { apiErrorMessage, fetchAccountingAccounts, fetchAccountingActions, fetchAccountingDashboard, fetchAccountingExchangeTransactions, fetchAccountingExpenses, fetchAccountingSummary, fetchReconciliations, reverseExchange, reverseExpense } from '../api';
 import { usePageMeta } from '../hooks/usePageMeta';
 import AccountingPanel from '../components/sales/AccountingPanel';
 import AccountingActionCenter, { type AccountingActionKind } from '../components/accounting/AccountingActionCenter';
 import ExpenseDetails from '../components/accounting/ExpenseDetails';
 import ExchangeDetails from '../components/accounting/ExchangeDetails';
-import MonthlyBusinessReportPanel from '../components/accounting/MonthlyBusinessReportPanel';
-import { formatCny, formatSignedCny } from '../components/sales/salesState';
+import { formatCny } from '../components/sales/salesState';
 import { dashboardDay1Action, dashboardRegionStates, dashboardStatDisplay } from './businessRoutes';
 import { moscowBusinessDate, moscowBusinessMonth, recentMoscowBusinessMonths } from '../utils/businessDate';
 import { DelayedAppSkeleton } from '../components/layout/AppSkeleton';
@@ -28,8 +27,6 @@ export default function AccountingDashboardPage() {
   const day1Completed = dashboard.data?.day1_status === 'completed' && !dashboard.data.requires_day1;
   const accounts = useQuery({ queryKey: ['accounting-accounts'], queryFn: fetchAccountingAccounts, enabled: Boolean(dashboard.data && !dashboard.data.requires_day1) });
   const summary = useQuery({ queryKey: ['accounting-summary'], queryFn: () => fetchAccountingSummary(moscowBusinessDate()), enabled: Boolean(dashboard.data && !dashboard.data.requires_day1) });
-  const profit = useQuery({ queryKey: ['monthly-profit', month], queryFn: () => fetchMonthlyProfit(month), enabled: Boolean(dashboard.data && !dashboard.data.requires_day1) });
-  const businessReport = useQuery({ queryKey: ['monthly-business-report', month], queryFn: () => fetchMonthlyBusinessReport(month), enabled: Boolean(dashboard.data && !dashboard.data.requires_day1) });
   const reconciliations = useQuery({ queryKey: ['reconciliations'], queryFn: fetchReconciliations, enabled: Boolean(dashboard.data && !dashboard.data.requires_day1) });
   // 动作列表单独查询，局部失败时不清空 dashboard 的统计快照。
   const actions = useQuery({ queryKey: ['accounting-actions'], queryFn: fetchAccountingActions, enabled: day1Completed });
@@ -40,8 +37,6 @@ export default function AccountingDashboardPage() {
     queryClient.invalidateQueries({ queryKey: ['accounting-dashboard'] });
     queryClient.invalidateQueries({ queryKey: ['accounting-accounts'] });
     queryClient.invalidateQueries({ queryKey: ['accounting-summary'] });
-    queryClient.invalidateQueries({ queryKey: ['monthly-profit'] });
-    queryClient.invalidateQueries({ queryKey: ['monthly-business-report'] });
     queryClient.invalidateQueries({ queryKey: ['reconciliations'] });
 
     queryClient.invalidateQueries({ queryKey: ['accounting-actions'] });
@@ -51,37 +46,25 @@ export default function AccountingDashboardPage() {
   };
   if (dashboard.isLoading) return <DelayedAppSkeleton path="/accounting" label="加载账务工作台…" />;
   const data = dashboard.data;
-  const selectedMonthProfit = businessReport.data?.profit.net_operating_profit_cny
-    ?? profit.data?.net_profit_cny
-    ?? (month === moscowBusinessMonth() ? data?.stats.month_net_profit_cny : null)
-    ?? null;
   const regionStates = dashboardRegionStates({
     accounts: { isError: accounts.isError, hasData: Boolean(accounts.data) },
     summary: { isError: summary.isError, hasData: Boolean(summary.data) },
-    profit: { isError: profit.isError, hasData: Boolean(profit.data) },
     reconciliation: { isError: reconciliations.isError, hasData: Boolean(reconciliations.data) },
   });
   return <div className="w-full">
-    <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Accounting desk</p><h1 className="mt-1 font-display text-3xl font-semibold tracking-tight sm:text-4xl">账务工作台</h1><p className="mt-2 text-sm text-muted">资金、库存成本、利润和对账的真实快照。</p></div><div className="flex gap-2"><label className="text-xs font-semibold text-muted"><span className="sr-only">报表月份</span><select data-guide="accounting-profit-month" aria-label="报表月份" value={month} onChange={event => setMonth(event.target.value)} className="rounded border border-border bg-white px-3 py-2 text-sm font-normal text-fg hover:border-gold">{monthOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button type="button" onClick={refresh} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
+    <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">账务操作</p><h1 className="mt-1 font-display text-3xl font-semibold tracking-tight sm:text-4xl">账务工作台</h1><p className="mt-2 text-sm text-muted">记录费用、换汇、采购付款和对账。</p></div><div className="flex gap-2"><label className="text-xs font-semibold text-muted"><span className="sr-only">明细月份</span><select aria-label="明细月份" value={month} onChange={event => setMonth(event.target.value)} className="rounded border border-border bg-white px-3 py-2 text-sm font-normal text-fg hover:border-gold">{monthOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button type="button" onClick={refresh} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
     {dashboard.error && <div className="mb-5 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{apiErrorMessage(dashboard.error, '账务数据加载失败')}</div>}
     {data && <>
-      <section className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat label="总资产" value={moneyStat(data.stats.total_funds_cny)} note="资金账户账面成本 + 库存成本 + 在途采购 + 应收款" /><Stat label="库存成本" value={moneyStat(data.stats.inventory_book_cost_cny)} /><Stat label="所选月利润" value={signedMoneyStat(selectedMonthProfit)} tone="text-success" /><Stat label="待收金额" value={moneyStat(data.stats.pending_collection_cny)} note={`${data.stats.pending_collection_order_count ?? 0} 笔已确认未收款订单`} /></section>
+      <section className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat label="总资产" value={moneyStat(data.stats.total_funds_cny)} note="资金账户账面成本 + 库存成本 + 在途采购 + 应收款" /><Stat label="库存成本" value={moneyStat(data.stats.inventory_book_cost_cny)} /><Stat label="人民币资金" value={moneyStat(data.stats.cny_funds_total)} /><Stat label="待收金额" value={moneyStat(data.stats.pending_collection_cny)} note={`${data.stats.pending_collection_order_count ?? 0} 笔已确认未收款订单`} /></section>
       {!day1Completed ? <Day1Card status={data.day1_status} /> : <>
-        <MonthlyBusinessReportPanel
-          report={businessReport.data}
-          error={businessReport.isError ? apiErrorMessage(businessReport.error, '经营月报加载失败') : undefined}
-          month={month}
-        />
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] lg:items-start">
           <AccountingActionCenter key={guideTourId || 'default'} accounts={accounts.data || data.accounts || []} summaryAccounts={data.accounts} actions={actions.data} businessDate={moscowBusinessDate()} actionsLoading={actions.isLoading} actionsError={actions.isError ? apiErrorMessage(actions.error, '账务动作列表加载失败') : undefined} onChanged={refresh} initialAction={initialAction} onOpenReconciliation={() => setReconciliationOpen(true)} />
         <AccountingPanel
       accounts={regionStates.accounts === 'ready' ? accounts.data : undefined}
       summary={regionStates.summary === 'ready' ? summary.data : undefined}
-      profit={regionStates.profit === 'ready' ? profit.data : undefined}
       reconciliations={regionStates.reconciliation === 'ready' ? reconciliations.data : undefined}
       accountsError={regionStates.accounts === 'error' ? apiErrorMessage(accounts.error, '资金账户数据加载失败') : undefined}
       summaryError={regionStates.summary === 'error' ? apiErrorMessage(summary.error, '库存与账务摘要加载失败') : undefined}
-      profitError={regionStates.profit === 'error' ? apiErrorMessage(profit.error, '月度利润加载失败') : undefined}
       reconciliationError={regionStates.reconciliation === 'error' ? apiErrorMessage(reconciliations.error, '账户对账加载失败') : undefined}
       month={month} onChanged={refresh} showStats={false} showProfit={false}
       reconciliationOpen={reconciliationOpen}
@@ -102,7 +85,6 @@ function accountingActionForGuide(guideTourId?: string): AccountingActionKind {
 }
 
 function moneyStat(value: string | null): string { return dashboardStatDisplay(value == null ? null : formatCny(value)); }
-function signedMoneyStat(value: string | null): string { return dashboardStatDisplay(value == null ? null : formatSignedCny(value)); }
 function Stat({ label, value, tone = '', note }: { label: string; value: string; tone?: string; note?: string }) { return <div className="rounded-md border border-border bg-white p-4 shadow-sm"><p className="text-[11px] uppercase tracking-wider text-muted">{label}</p><p className={`mt-2 font-mono text-2xl font-semibold ${tone}`}>{value}</p>{note && <p className="mt-1 text-[10px] text-muted">{note}</p>}</div>; }
 function Day1Card({ status }: { status: string }) {
   const action = dashboardDay1Action(status);

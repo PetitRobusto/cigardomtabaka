@@ -145,7 +145,7 @@ export const MANUAL_CHAPTERS: readonly ManualChapter[] = [
       guidedSection('accounting-actions-expense', '记录实际人肉成本', '订单出库后，按实际花了多少钱记人肉成本。它和客户付的人肉费是两回事：客户付的是收入，实际花的是成本，两笔金额可以不一样。'),
       guidedSection('accounting-actions-expense', '记录日常费用', '工资一般从人民币账户出，房租水电一般从卢布账户出——以实际付款的账户为准，填好日期和备注。费用记在费用里，不要混进销售订单。'),
       guidedSection('accounting-reconciliation', '完成对账', '在 /accounting 的对账区逐个账户核对：系统余额和实际余额对不对得上。有差异就查明原因、处理掉，并写清说明。'),
-      guidedSection('accounting-profit-month', '查看月利润', '先选月份，再逐项核对：销售收入、商品成本、实际人肉成本和日常费用。退款和冲正会算进实际发生的那个月份。'),
+      guidedSection('accounting-profit-month', '查看月度经营报告', '进入独立月报页选择月份，再逐项核对销售收入、商品成本、实际人肉成本、日常费用、回款和库存。退款和冲正会算进实际发生的月份。'),
       guidedSection('accounting-actions-dividend', '合伙人分红', '每轮选择两位用户，各分 50%。预览并确认分配只建立待付分红，不扣现金；实际领取时再选择公司人民币账户付款，可分期，两人可使用同一账户。'),
     ],
   },

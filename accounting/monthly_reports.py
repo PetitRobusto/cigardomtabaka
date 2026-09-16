@@ -3,11 +3,12 @@ from collections import defaultdict
 from datetime import timedelta
 from decimal import Decimal
 
-from django.db.models import Min, Sum
+from django.db.models import Min, Q, Sum
 
 from accounting.business_time import moscow_business_date
-from accounting.models import LedgerPosting, LedgerTransaction
+from accounting.models import Expense, LedgerPosting, LedgerTransaction
 from accounting.selectors import _operating_profit_facts, _sum_category
+from cigars.constants import BRAND_CN_MAP
 from cigars.models import (
     PurchaseBatch,
     SalesOrder,
@@ -21,6 +22,14 @@ from cigars.models import (
 
 MONEY = Decimal('0.01')
 RATE = Decimal('0.0001')
+TRANSPORT_OPERATING_SUBCATEGORIES = (
+    Expense.Subcategory.TRANSPORT_TAXI,
+    Expense.Subcategory.TRANSPORT_PUBLIC,
+    Expense.Subcategory.TRANSPORT_TRAVEL,
+    Expense.Subcategory.TRANSPORT_DELIVERY,
+    Expense.Subcategory.TRANSPORT_PARKING,
+    Expense.Subcategory.TRANSPORT_FUEL,
+)
 
 
 def _money(value):
@@ -69,6 +78,30 @@ def _ratio(profit, revenue):
     return (profit / revenue).quantize(RATE)
 
 
+def _transport_operating_expense(*, start, end):
+    """Separate ordinary transport from the legacy `other` ledger bucket."""
+    source_transaction_ids = list(
+        Expense.objects.filter(
+            subcategory__in=TRANSPORT_OPERATING_SUBCATEGORIES,
+            ledger_transaction__business_date__lte=end,
+        ).values_list('ledger_transaction_id', flat=True)
+    )
+    if not source_transaction_ids:
+        return Decimal('0.00')
+    source_ids = [str(transaction_id) for transaction_id in source_transaction_ids]
+    postings = LedgerPosting.objects.filter(
+        transaction__status=LedgerTransaction.Status.POSTED,
+        transaction__business_date__gte=start,
+        transaction__business_date__lte=end,
+        category=LedgerPosting.Category.OTHER_EXPENSE,
+    ).filter(
+        Q(transaction_id__in=source_transaction_ids)
+        | Q(transaction__source_type='ledger_reversal', transaction__source_id__in=source_ids)
+    )
+    total = sum(postings.values_list('cny_amount', flat=True), Decimal('0.00'))
+    return _money(total)
+
+
 def _profit_facts(*, start, end):
     facts = _operating_profit_facts(start=start, end=end)
     sales_revenue = _money(
@@ -78,13 +111,17 @@ def _profit_facts(*, start, end):
     human_cost = _money(
         facts['transport_expense_cny'] + facts['transport_settlement_expense_cny']
     )
+    transport_operating = _transport_operating_expense(start=start, end=end)
     expenses = {
         'salary_cny': _money(facts['salary_expense_cny']),
         'rent_cny': _money(facts['rent_expense_cny']),
-        'utilities_cny': _money(facts['utilities_expense_cny']),
+        'transport_cny': transport_operating,
         'professional_services_cny': _money(facts['professional_expense_cny']),
         'financial_cny': _money(facts['interest_expense_cny']),
-        'other_cny': _money(facts['other_expense_cny']),
+        'other_cny': _money(
+            facts['other_expense_cny'] - transport_operating
+            + facts['utilities_expense_cny']
+        ),
     }
     operating_expenses = _money(sum(expenses.values(), Decimal('0.00')))
     sales_profit = _money(sales_revenue - product_cost - human_cost)
@@ -182,8 +219,9 @@ def _apply_item_dimensions(brand_rows, product_rows, items, *, revenues, costs,
                            human_costs, quantity_sign):
     for item, revenue, cost, human_cost in zip(items, revenues, costs, human_costs):
         brand_key = item.cigar.brand
-        brand = brand_rows.setdefault(brand_key, _empty_rank_value(brand_key))
-        product_name = f'{item.cigar.brand} {item.cigar.name or item.cigar.english_name}'
+        brand_name = BRAND_CN_MAP.get(brand_key, brand_key)
+        brand = brand_rows.setdefault(brand_key, _empty_rank_value(brand_name))
+        product_name = f'{brand_name} {item.cigar.name or item.cigar.english_name}'
         product = product_rows.setdefault(
             item.cigar_id, _empty_rank_value(product_name),
         )
@@ -416,9 +454,10 @@ def _inventory_warnings(*, end, is_current):
             if days_of_stock > Decimal('180'):
                 warning_type = 'overstock_180d'
         if warning_type:
+            brand_name = BRAND_CN_MAP.get(row['cigar__brand'], row['cigar__brand'])
             warnings.append({
                 'cigar_id': row['cigar_id'],
-                'name': f"{row['cigar__brand']} {row['cigar__name'] or row['cigar__english_name']}",
+                'name': f"{brand_name} {row['cigar__name'] or row['cigar__english_name']}",
                 'warning_type': warning_type,
                 'inventory_cost_cny': _money(row['cost_cny']),
                 'quantity': row['quantity'],
@@ -544,6 +583,16 @@ def _comparison(current, previous, *, previous_start, previous_end, is_current):
     }
 
 
+def _conclusion_cny(value):
+    amount = _money(value)
+    sign = '-' if amount < 0 else ''
+    return f'{sign}¥{abs(amount):,.2f}'
+
+
+def _conclusion_rate(value):
+    return f'{Decimal(value) * 100:.1f}%'
+
+
 def _conclusions(report):
     profit = report['profit']
     comparison = report['comparison']['metrics']['sales_revenue_cny']
@@ -551,50 +600,106 @@ def _conclusions(report):
     inventory = report['inventory']
     conclusions = []
     if profit['sales_revenue_cny'] > 0:
+        if profit['sales_profit_cny'] >= 0:
+            sales_text = (
+                f"本月净销售收入 {_conclusion_cny(profit['sales_revenue_cny'])}，"
+                f"销售利润 {_conclusion_cny(profit['sales_profit_cny'])}，"
+                f"销售利润率 {_conclusion_rate(profit['sales_profit_rate'])}。"
+            )
+        else:
+            sales_text = (
+                f"本月净销售收入 {_conclusion_cny(profit['sales_revenue_cny'])}，"
+                f"销售利润 {_conclusion_cny(profit['sales_profit_cny'])}，本月销售出现亏损。"
+            )
         conclusions.append({
             'code': 'sales_margin',
             'status': 'available',
             'metric_keys': ['profit.sales_revenue_cny', 'profit.sales_profit_cny', 'profit.sales_profit_rate'],
-            'text': '本月销售利润率已按销售收入、商品成本和人肉成本计算。',
+            'text': sales_text,
         })
     else:
         conclusions.append({
             'code': 'sales_data_insufficient',
             'status': 'insufficient_data',
             'metric_keys': ['profit.sales_revenue_cny'],
-            'text': '本期没有可用于销售利润分析的净销售收入。',
+            'text': '本月没有净销售收入，暂不形成销售利润结论。',
         })
+    if comparison['status'] == 'available':
+        delta = comparison['delta_cny']
+        if delta == 0:
+            comparison_text = (
+                f"本月净销售收入与上月持平，为 {_conclusion_cny(comparison['current_cny'])}。"
+            )
+        else:
+            direction = '增长' if delta > 0 else '下降'
+            rate_label = '增幅' if delta > 0 else '降幅'
+            comparison_text = (
+                f"本月净销售收入比上月{direction} {_conclusion_cny(abs(delta))}，"
+                f"{rate_label} {_conclusion_rate(abs(comparison['change_rate']))}。"
+            )
+    elif comparison['status'] == 'new':
+        comparison_text = (
+            f"上月可比期间没有净销售收入，本月为 {_conclusion_cny(comparison['current_cny'])}。"
+        )
+    else:
+        comparison_text = '本月和上月可比期间都没有净销售收入。'
     conclusions.append({
         'code': 'sales_comparison',
         'status': comparison['status'],
         'metric_keys': ['comparison.metrics.sales_revenue_cny'],
-        'text': '净销售收入已按所选期间与上一月可比期间对照。',
+        'text': comparison_text,
     })
+    if cash['accounts_receivable_cny'] > 0:
+        working_capital_text = (
+            f"期末还有 {_conclusion_cny(cash['accounts_receivable_cny'])} 应收款未收回；"
+            f"另有客户预收 {_conclusion_cny(cash['customer_prepayments_cny'])}。"
+        )
+    elif cash['accounts_receivable_cny'] == 0:
+        working_capital_text = (
+            f"期末没有应收款；客户预收 {_conclusion_cny(cash['customer_prepayments_cny'])}。"
+        )
+    else:
+        working_capital_text = (
+            f"期末应收款无待收余额，账面余额为 {_conclusion_cny(cash['accounts_receivable_cny'])}；"
+            f"客户预收 {_conclusion_cny(cash['customer_prepayments_cny'])}。"
+        )
     conclusions.append({
         'code': 'working_capital',
         'status': 'attention' if cash['accounts_receivable_cny'] > 0 else 'available',
         'metric_keys': ['cash.accounts_receivable_cny', 'cash.customer_prepayments_cny'],
-        'text': '期末应收款与客户预收款用于观察销售占款，不计入利润。',
+        'text': working_capital_text,
     })
     if inventory['monthly_turnover_rate'] is not None:
         conclusions.append({
             'code': 'inventory_turnover',
             'status': 'available',
             'metric_keys': ['inventory.product_cost_consumed_cny', 'inventory.average_cost_cny', 'inventory.monthly_turnover_rate'],
-            'text': '月度库存周转率由商品成本消耗除以月初月末平均库存成本。',
+            'text': (
+                f"本月库存周转 {Decimal(inventory['monthly_turnover_rate']):.2f} 次："
+                f"商品成本消耗 {_conclusion_cny(inventory['product_cost_consumed_cny'])}，"
+                f"平均库存成本 {_conclusion_cny(inventory['average_cost_cny'])}。"
+            ),
         })
     cost_rows = {
-        'profit.product_cost_cny': profit['product_cost_cny'],
-        'profit.human_cost_cny': profit['human_cost_cny'],
-        'profit.operating_expenses_cny': profit['operating_expenses_cny'],
+        'profit.product_cost_cny': abs(profit['product_cost_cny']),
+        'profit.human_cost_cny': abs(profit['human_cost_cny']),
+        'profit.operating_expenses_cny': abs(profit['operating_expenses_cny']),
     }
     if any(cost_rows.values()):
         largest_key = max(cost_rows, key=cost_rows.get)
+        cost_labels = {
+            'profit.product_cost_cny': '商品成本',
+            'profit.human_cost_cny': '人肉成本',
+            'profit.operating_expenses_cny': '经营费用',
+        }
         conclusions.append({
             'code': 'largest_cost',
             'status': 'available',
             'metric_keys': [largest_key],
-            'text': '成本结构中金额最高的项目已标记，便于继续查看明细。',
+            'text': (
+                f"本月金额最高的成本项是 {cost_labels[largest_key]}，"
+                f"共 {_conclusion_cny(cost_rows[largest_key])}。"
+            ),
         })
     return conclusions[:5]
 

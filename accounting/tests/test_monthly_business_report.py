@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from accounting.models import (
     Day1Initialization,
+    Expense,
     FundAccount,
     LedgerPosting,
     LedgerTransaction,
@@ -18,6 +19,7 @@ from accounting.services import (
     record_opening_balance,
     reverse_ledger_transaction,
 )
+from accounting.expense_actions import record_expense, reverse_expense
 from cigars.models import (
     Cigar,
     Customer,
@@ -204,10 +206,111 @@ class MonthlyBusinessReportTest(TestCase):
             report['comparison']['metrics']['sales_revenue_cny']['change_rate'],
         )
         brand = report['rankings']['brands'][0]
+        self.assertEqual(brand['name'], '高希霸')
         self.assertEqual(brand['net_sales_revenue_cny'], Decimal('190.00'))
         self.assertEqual(brand['human_cost_cny'], Decimal('20.00'))
         self.assertEqual(report['customers']['new_customer_count'], 1)
         self.assertEqual(report['customers']['repeat_customer_count'], 1)
+        conclusion_text = ' '.join(item['text'] for item in report['conclusions'])
+        self.assertIn('本月净销售收入 ¥190.00，销售利润 ¥100.00，销售利润率 52.6%。', conclusion_text)
+        self.assertIn('上月可比期间没有净销售收入，本月为 ¥190.00。', conclusion_text)
+        self.assertNotIn('已按', conclusion_text)
+        self.assertNotIn('用于观察', conclusion_text)
+        self.assertTrue(report['conclusions'][0]['metric_keys'])
+
+    def test_cost_breakdown_separates_transport_and_groups_utilities_under_other(self):
+        for index, (category, subcategory, amount) in enumerate((
+            (Expense.Category.OTHER, Expense.Subcategory.TRANSPORT_TAXI, '30.00'),
+            (Expense.Category.UTILITIES, Expense.Subcategory.ELECTRICITY, '20.00'),
+            (Expense.Category.OTHER, Expense.Subcategory.OTHER, '10.00'),
+        )):
+            record_expense(
+                category=category,
+                subcategory=subcategory,
+                amount=amount,
+                fund_account_id=self.account.pk,
+                business_date=date(2026, 8, 20),
+                operator=self.operator,
+                idempotency_key=f'monthly-report-expense-{index}',
+            )
+
+        from accounting.monthly_reports import monthly_business_report
+
+        with patch('accounting.monthly_reports.moscow_business_date', return_value=date(2026, 9, 16)):
+            report = monthly_business_report(month=date(2026, 8, 1))
+
+        breakdown = report['profit']['operating_expense_breakdown']
+        self.assertEqual(report['profit']['operating_expenses_cny'], Decimal('60.00'))
+        self.assertEqual(breakdown['transport_cny'], Decimal('30.00'))
+        self.assertEqual(breakdown['other_cny'], Decimal('30.00'))
+        self.assertNotIn('utilities_cny', breakdown)
+
+    def test_transport_cost_reversal_follows_its_business_month(self):
+        expense = record_expense(
+            category=Expense.Category.OTHER,
+            subcategory=Expense.Subcategory.TRANSPORT_TAXI,
+            amount='30.00',
+            fund_account_id=self.account.pk,
+            business_date=date(2026, 8, 20),
+            operator=self.operator,
+            idempotency_key='monthly-report-transport-cross-month',
+        )
+        reverse_expense(
+            expense_id=expense.pk,
+            business_date=date(2026, 9, 2),
+            operator=self.operator,
+            idempotency_key='monthly-report-transport-cross-month-reversal',
+            reason='次月冲正测试',
+        )
+
+        from accounting.monthly_reports import monthly_business_report
+
+        with patch('accounting.monthly_reports.moscow_business_date', return_value=date(2026, 10, 16)):
+            august = monthly_business_report(month=date(2026, 8, 1))
+            september = monthly_business_report(month=date(2026, 9, 1))
+
+        self.assertEqual(
+            august['profit']['operating_expense_breakdown']['transport_cny'],
+            Decimal('30.00'),
+        )
+        self.assertEqual(
+            september['profit']['operating_expense_breakdown']['transport_cny'],
+            Decimal('-30.00'),
+        )
+        self.assertEqual(
+            august['profit']['operating_expenses_cny']
+            + september['profit']['operating_expenses_cny'],
+            Decimal('0.00'),
+        )
+
+    def test_transport_cost_and_same_month_reversal_net_to_zero(self):
+        expense = record_expense(
+            category=Expense.Category.OTHER,
+            subcategory=Expense.Subcategory.TRANSPORT_TAXI,
+            amount='30.00',
+            fund_account_id=self.account.pk,
+            business_date=date(2026, 8, 20),
+            operator=self.operator,
+            idempotency_key='monthly-report-transport-same-month',
+        )
+        reverse_expense(
+            expense_id=expense.pk,
+            business_date=date(2026, 8, 21),
+            operator=self.operator,
+            idempotency_key='monthly-report-transport-same-month-reversal',
+            reason='同月冲正测试',
+        )
+
+        from accounting.monthly_reports import monthly_business_report
+
+        with patch('accounting.monthly_reports.moscow_business_date', return_value=date(2026, 9, 16)):
+            report = monthly_business_report(month=date(2026, 8, 1))
+
+        self.assertEqual(
+            report['profit']['operating_expense_breakdown']['transport_cny'],
+            Decimal('0.00'),
+        )
+        self.assertEqual(report['profit']['operating_expenses_cny'], Decimal('0.00'))
 
     def test_fulfillment_receipt_and_return_follow_their_own_business_months(self):
         customer = Customer.objects.create(name='跨月客户')

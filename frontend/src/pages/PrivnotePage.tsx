@@ -398,7 +398,7 @@ export default function PrivnotePage() {
   return (
     <div
       data-guide="privnote-create"
-      className="animate-fade-in w-full max-w-[1520px] mx-auto pb-32"
+      className="w-full max-w-[1520px] mx-auto pb-32"
     >
       {/* OpenDesign: 与销售/库存工作台同构的二级导航和页头 */}
       <div className="mb-5 inline-flex max-w-full items-center gap-1 rounded-lg border border-border bg-white p-1 shadow-sm">

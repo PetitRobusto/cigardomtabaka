@@ -37,7 +37,7 @@ export default function BrandListPage() {
   })).filter(s => s.brands.length > 0);
 
   return (
-    <div data-guide="overview" className="animate-fade-in">
+    <div data-guide="overview">
       {/* Page Header */}
         <div data-guide="overview-stats" className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
         <div>

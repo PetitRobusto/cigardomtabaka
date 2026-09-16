@@ -12,6 +12,7 @@ import MonthlyProfitSummary from '../components/accounting/MonthlyProfitSummary'
 import { formatCny, formatSignedCny } from '../components/sales/salesState';
 import { dashboardDay1Action, dashboardRegionStates, dashboardStatDisplay } from './businessRoutes';
 import { moscowBusinessDate, moscowBusinessMonth, recentMoscowBusinessMonths } from '../utils/businessDate';
+import { DelayedAppSkeleton } from '../components/layout/AppSkeleton';
 
 export default function AccountingDashboardPage() {
   const { setMeta } = usePageMeta();
@@ -46,6 +47,7 @@ export default function AccountingDashboardPage() {
     queryClient.invalidateQueries({ queryKey: ['accounting-expenses'] });
     queryClient.invalidateQueries({ queryKey: ['accounting-exchange-transactions'] });
   };
+  if (dashboard.isLoading) return <DelayedAppSkeleton path="/accounting" label="加载账务工作台…" />;
   const data = dashboard.data;
   const selectedMonthProfit = profit.data?.net_profit_cny
     ?? (month === moscowBusinessMonth() ? data?.stats.month_net_profit_cny : null)
@@ -56,7 +58,7 @@ export default function AccountingDashboardPage() {
     profit: { isError: profit.isError, hasData: Boolean(profit.data) },
     reconciliation: { isError: reconciliations.isError, hasData: Boolean(reconciliations.data) },
   });
-  return <div className="w-full animate-fade-in">
+  return <div className="w-full">
     <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Accounting desk</p><h1 className="mt-1 font-display text-3xl font-semibold tracking-tight sm:text-4xl">账务工作台</h1><p className="mt-2 text-sm text-muted">资金、库存成本、利润和对账的真实快照。</p></div><div className="flex gap-2"><label className="text-xs font-semibold text-muted"><span className="sr-only">报表月份</span><select data-guide="accounting-profit-month" aria-label="报表月份" value={month} onChange={event => setMonth(event.target.value)} className="rounded border border-border bg-white px-3 py-2 text-sm font-normal text-fg hover:border-gold">{monthOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button type="button" onClick={refresh} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
     {dashboard.error && <div className="mb-5 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{apiErrorMessage(dashboard.error, '账务数据加载失败')}</div>}
     {data && <>

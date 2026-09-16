@@ -28,6 +28,8 @@ export default function InventoryWorkbenchPage() {
   const inventory = useQuery({
     queryKey: ['inventory', brandFilter, search],
     queryFn: () => fetchInventory({ brand: brandFilter, q: search }),
+    // 筛选时保留当前结果，避免整页骨架覆盖仍可操作的筛选控件。
+    placeholderData: previous => previous,
   });
 
   if (inventory.isLoading) return <LoadingState text="加载库存数据…" />;
@@ -79,7 +81,7 @@ export default function InventoryWorkbenchPage() {
   };
 
   return (
-    <div data-guide="inventory-summary" className="w-full animate-fade-in">
+    <div data-guide="inventory-summary" className="w-full">
       <InventorySectionNav />
       <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>

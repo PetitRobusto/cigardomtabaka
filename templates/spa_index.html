@@ -1,6 +1,6 @@
 {% load static vite_manifest %}
 {% static 'frontend/logo-motion.webp' as logo_url %}
-{% static 'frontend/logo-opening-motion.svg' as opening_logo_url %}
+{% static 'frontend/logo-opening-motion-v2.svg' as opening_logo_url %}
 {% static 'frontend/startup-loader.js' as startup_loader_url %}
 <!DOCTYPE html>
 <html lang="zh-CN" data-cdt-starting>
@@ -9,7 +9,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>CigarDomTabaka</title>
 <link rel="preload" as="image" href="{% if debug %}http://192.168.0.97:5173/static/frontend/logo-motion.webp{% else %}{{ logo_url }}{% endif %}" type="image/webp" fetchpriority="high">
-<link rel="preload" as="image" href="{% if debug %}http://192.168.0.97:5173/static/frontend/logo-opening-motion.svg{% else %}{{ opening_logo_url }}{% endif %}" type="image/svg+xml">
+<link rel="preload" as="image" href="{% if debug %}http://192.168.0.97:5173/static/frontend/logo-opening-motion-v2.svg{% else %}{{ opening_logo_url }}{% endif %}" type="image/svg+xml">
 <style>
 html,body{min-height:100%;margin:0}html{background:#faf8f5}body{color:#2c2416;background:#faf8f5;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}.cdt-starting{overflow:hidden}.cdt-starting #root{opacity:0}.cdt-starting.cdt-revealing #root{opacity:1;transition:opacity 290ms ease-out 70ms}.cdt-starting [data-startup-logo-target]{visibility:hidden}#root{min-height:100vh}
 #startup-loader{position:fixed;inset:0;z-index:9999;overflow:hidden}#startup-loader[hidden]{display:none}.cdt-startup__surface{position:absolute;inset:0;background:#faf8f5}.cdt-startup__composition{position:absolute;left:50%;top:50%;width:min(330px,calc(100vw - 40px));text-align:center;transform:translate(-50%,-50%)}.cdt-startup__logo{display:block;width:188px;height:auto;margin:auto;transform-origin:0 0;user-select:none;-webkit-user-drag:none}.cdt-startup__logo--docking{position:relative}.cdt-startup__status{min-height:24px;margin:30px 0 0;color:#2c2416;font-size:12px;line-height:2;letter-spacing:.1em}.cdt-startup__recovery{position:absolute;top:100%;left:0;right:0;padding-top:8px}.cdt-startup__retry{min-height:44px;padding:9px 14px;border:0;color:#7a1f2e;background:transparent;font:12px inherit;text-decoration:underline;text-underline-offset:4px;cursor:pointer}.cdt-startup__retry[hidden]{display:none}.cdt-startup__retry:focus-visible{outline:2px solid #7a1f2e;outline-offset:3px}
@@ -20,7 +20,7 @@ html,body{min-height:100%;margin:0}html{background:#faf8f5}body{color:#2c2416;ba
 <section id="startup-loader" data-phase="intro" aria-busy="true">
   <div class="cdt-startup__surface" aria-hidden="true"></div>
   <div class="cdt-startup__composition">
-    <img class="cdt-startup__logo" src="{% if debug %}http://192.168.0.97:5173/static/frontend/logo-opening-motion.svg{% else %}{{ opening_logo_url }}{% endif %}" data-static-src="{% if debug %}http://192.168.0.97:5173/static/frontend/logo-motion.webp{% else %}{{ logo_url }}{% endif %}" width="640" height="525" alt="CigarDomTabaka / Сигар Дом Табака">
+    <img class="cdt-startup__logo" src="{% if debug %}http://192.168.0.97:5173/static/frontend/logo-opening-motion-v2.svg{% else %}{{ opening_logo_url }}{% endif %}" data-static-src="{% if debug %}http://192.168.0.97:5173/static/frontend/logo-motion.webp{% else %}{{ logo_url }}{% endif %}" width="640" height="525" alt="CigarDomTabaka / Сигар Дом Табака">
     <p class="cdt-startup__status" role="status" aria-live="polite" aria-atomic="true">莫斯科持证雪茄服务商</p>
     <div class="cdt-startup__recovery"><button class="cdt-startup__retry" type="button" hidden>重新加载</button></div>
   </div>

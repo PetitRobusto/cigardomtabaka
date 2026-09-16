@@ -6,7 +6,7 @@ import { usePageMetaContext } from '../../contexts/usePageMetaContext';
 import Breadcrumb from './Breadcrumb';
 import {
   LayoutGrid, Package, TrendingUp, Link2, LogIn, LogOut, Menu, X,
-  CircleDollarSign, ClipboardList, ChartPie,
+  CircleDollarSign, ClipboardList,
   MapPin, Phone, MessageCircle, BookOpen
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -51,7 +51,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       { to: '/inventory', label: '库存', icon: Package },
       { to: '/sales', label: '订单', icon: CircleDollarSign },
       { to: '/accounting', label: '账务', icon: ClipboardList },
-      { to: '/reports/monthly', label: '月报', icon: ChartPie },
       { to: '/prices', label: '价格', icon: TrendingUp },
       { to: '/privnote', label: '链接', icon: Link2 },
       { to: '/help', label: '帮助', icon: BookOpen },

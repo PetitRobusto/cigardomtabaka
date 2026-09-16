@@ -5,8 +5,7 @@ describe('app section routing', () => {
   it.each([
     ['/', 'catalog'], ['/brand/cohiba', 'catalog'], ['/cigar/12', 'catalog'],
     ['/inventory/purchases', 'inventory'], ['/sales/customers', 'sales'],
-    ['/accounting/day1', 'accounting'], ['/prices/cigar/12', 'prices'],
-    ['/reports/contributions', 'reports'],
+    ['/accounting/day1', 'accounting'], ['/accounting/reports/contributions', 'accounting'], ['/prices/cigar/12', 'prices'],
     ['/privnote', 'privnote'], ['/p/customer-note', 'privnote'], ['/help', 'help'],
   ] as const)('maps %s to %s', (path, section) => {
     expect(appSectionForPath(path)).toBe(section);
@@ -21,7 +20,7 @@ describe('app section routing', () => {
 
   it('keeps the top-level tab active on nested routes', () => {
     expect(isAppNavPathActive('/accounting/day1', '/accounting')).toBe(true);
-    expect(isAppNavPathActive('/reports/contributions', '/reports/monthly')).toBe(true);
+    expect(isAppNavPathActive('/accounting/reports/contributions', '/accounting')).toBe(true);
     expect(isAppNavPathActive('/brand/cohiba', '/')).toBe(true);
     expect(isAppNavPathActive('/prices', '/')).toBe(false);
   });

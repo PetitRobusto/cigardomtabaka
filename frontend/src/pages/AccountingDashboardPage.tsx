@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { ChartPie, RefreshCw } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { apiErrorMessage, fetchAccountingAccounts, fetchAccountingActions, fetchAccountingDashboard, fetchAccountingExchangeTransactions, fetchAccountingExpenses, fetchAccountingSummary, fetchReconciliations, reverseExchange, reverseExpense } from '../api';
 import { usePageMeta } from '../hooks/usePageMeta';
 import AccountingPanel from '../components/sales/AccountingPanel';
@@ -52,7 +52,7 @@ export default function AccountingDashboardPage() {
     reconciliation: { isError: reconciliations.isError, hasData: Boolean(reconciliations.data) },
   });
   return <div className="w-full">
-    <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">账务操作</p><h1 className="mt-1 font-display text-3xl font-semibold tracking-tight sm:text-4xl">账务工作台</h1><p className="mt-2 text-sm text-muted">记录费用、换汇、采购付款和对账。</p></div><div className="flex gap-2"><label className="text-xs font-semibold text-muted"><span className="sr-only">明细月份</span><select aria-label="明细月份" value={month} onChange={event => setMonth(event.target.value)} className="rounded border border-border bg-white px-3 py-2 text-sm font-normal text-fg hover:border-gold">{monthOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button type="button" onClick={refresh} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
+    <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">账务操作</p><h1 className="mt-1 font-display text-3xl font-semibold tracking-tight sm:text-4xl">账务工作台</h1><p className="mt-2 text-sm text-muted">记录费用、换汇、采购付款和对账。</p></div><div className="flex flex-wrap gap-2"><Link to="/accounting/reports/monthly" className="inline-flex items-center gap-1.5 rounded border border-gold/50 bg-[#FFFAF3] px-3 py-2 text-sm font-semibold text-accent hover:border-gold"><ChartPie className="h-4 w-4" />月度经营报告</Link><label className="text-xs font-semibold text-muted"><span className="sr-only">明细月份</span><select aria-label="明细月份" value={month} onChange={event => setMonth(event.target.value)} className="rounded border border-border bg-white px-3 py-2 text-sm font-normal text-fg hover:border-gold">{monthOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button type="button" onClick={refresh} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
     {dashboard.error && <div className="mb-5 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{apiErrorMessage(dashboard.error, '账务数据加载失败')}</div>}
     {data && <>
       <section className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat label="总资产" value={moneyStat(data.stats.total_funds_cny)} note="资金账户账面成本 + 库存成本 + 在途采购 + 应收款" /><Stat label="库存成本" value={moneyStat(data.stats.inventory_book_cost_cny)} /><Stat label="人民币资金" value={moneyStat(data.stats.cny_funds_total)} /><Stat label="待收金额" value={moneyStat(data.stats.pending_collection_cny)} note={`${data.stats.pending_collection_order_count ?? 0} 笔已确认未收款订单`} /></section>

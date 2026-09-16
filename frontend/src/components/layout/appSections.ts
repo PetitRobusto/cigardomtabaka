@@ -1,4 +1,4 @@
-export type AppSection = 'catalog' | 'inventory' | 'sales' | 'accounting' | 'reports' | 'prices' | 'privnote' | 'help';
+export type AppSection = 'catalog' | 'inventory' | 'sales' | 'accounting' | 'prices' | 'privnote' | 'help';
 
 export type AppSkeletonVariant = 'catalog' | 'table' | 'panel';
 
@@ -6,14 +6,13 @@ const SECTION_PREFIXES: ReadonlyArray<{ prefix: string; section: AppSection }> =
   { prefix: '/inventory', section: 'inventory' },
   { prefix: '/sales', section: 'sales' },
   { prefix: '/accounting', section: 'accounting' },
-  { prefix: '/reports', section: 'reports' },
   { prefix: '/prices', section: 'prices' },
   { prefix: '/privnote', section: 'privnote' },
   { prefix: '/p', section: 'privnote' },
   { prefix: '/help', section: 'help' },
 ];
 
-const TABLE_SECTIONS = new Set<AppSection>(['inventory', 'sales', 'accounting', 'reports', 'prices']);
+const TABLE_SECTIONS = new Set<AppSection>(['inventory', 'sales', 'accounting', 'prices']);
 
 /** Maps every nested URL to the top-level app whose navigation state it belongs to. */
 export function appSectionForPath(pathname: string): AppSection {

@@ -36,5 +36,16 @@ describe('AppLayout navigation', () => {
     expect(mobileCurrent?.textContent).toContain('账务');
     expect(container.querySelector('nav[aria-label="应用导航"] a[href="/"]')?.getAttribute('aria-current')).toBeNull();
   });
-});
 
+  it('keeps monthly reports inside the accounting app navigation', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/accounting/reports/monthly']}>
+        <PageMetaProvider><AppLayout><div>月度经营报告</div></AppLayout></PageMetaProvider>
+      </MemoryRouter>,
+    );
+
+    const desktopNav = container.querySelector('nav[aria-label="应用导航"]');
+    expect(desktopNav?.querySelector('a[aria-current="page"]')?.textContent).toContain('账务');
+    expect(desktopNav?.textContent).not.toContain('月报');
+  });
+});

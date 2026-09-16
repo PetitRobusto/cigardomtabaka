@@ -17,11 +17,11 @@ export default function ContributionRankingPage() {
   const month = selectedMonth(searchParams.get('month'));
   const report = useQuery({ queryKey: ['monthly-business-report', month], queryFn: () => fetchMonthlyBusinessReport(month) });
 
-  useEffect(() => { setMeta({ title: '经营贡献排行', breadcrumbs: [{ label: '首页', to: '/' }, { label: '月度经营报告', to: `/reports/monthly?month=${month}` }, { label: '经营贡献排行' }] }); }, [month, setMeta]);
+  useEffect(() => { setMeta({ title: '经营贡献排行', breadcrumbs: [{ label: '首页', to: '/' }, { label: '账务工作台', to: '/accounting' }, { label: '月度经营报告', to: `/accounting/reports/monthly?month=${month}` }, { label: '经营贡献排行' }] }); }, [month, setMeta]);
 
   return <div className="w-full">
     <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-      <div><Link to={`/reports/monthly?month=${month}`} className="mb-2 inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"><ArrowLeft className="h-3.5 w-3.5" />返回月度经营报告</Link><h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">经营贡献排行</h1><p className="mt-2 text-sm text-muted">按品牌、商品和客户查看销售贡献。</p></div>
+      <div><Link to={`/accounting/reports/monthly?month=${month}`} className="mb-2 inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"><ArrowLeft className="h-3.5 w-3.5" />返回月度经营报告</Link><h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">经营贡献排行</h1><p className="mt-2 text-sm text-muted">按品牌、商品和客户查看销售贡献。</p></div>
       <div className="flex items-center gap-2">
         <label><span className="sr-only">选择月份</span><select aria-label="选择月份" value={month} onChange={event => setSearchParams({ month: event.target.value })} className="rounded border border-border bg-white px-3 py-2 text-sm text-fg hover:border-gold">{recentMoscowBusinessMonths().map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         <button type="button" onClick={() => report.refetch()} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className={`h-4 w-4 ${report.isFetching ? 'animate-spin' : ''}`} />刷新</button>

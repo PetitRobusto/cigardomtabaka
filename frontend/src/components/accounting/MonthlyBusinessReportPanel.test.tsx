@@ -26,7 +26,7 @@ const report: MonthlyBusinessReport = {
     opening_cost_cny: '200.00', received_cost_cny: '50.00', product_cost_consumed_cny: '70.00', adjustment_net_cny: '0.00', closing_cost_cny: '180.00', average_cost_cny: '190.00', monthly_turnover_rate: '0.3684',
     warnings: { status: 'unavailable', reason: '历史商品级月末库存成本尚无独立业务日期快照', items: [] },
   },
-  customers: { fulfilled_customer_count: 1, new_customer_count: 1, repeat_customer_count: 1, guest_orders_excluded: true },
+  customers: { fulfilled_customer_count: 1, new_customer_count: 1, repeat_customer_count: 1, new_customer_rate: '1.0000', repeat_customer_rate: '1.0000', fulfilled_order_count: 2, average_order_revenue_cny: '95.00', identified_customer_revenue_cny: '190.00', guest_orders_excluded: true },
   rankings: {
     default_sort: 'sales_profit_cny', allocation_rule: '测试分摊规则', unallocated_human_cost_cny: '0.00',
     brands: [{ key: 'Cohiba', name: '高希霸', net_sales_revenue_cny: '190.00', quantity: 2, product_cost_cny: '70.00', human_cost_cny: '20.00', sales_profit_cny: '100.00', sales_profit_rate: '0.5263' }],
@@ -58,7 +58,7 @@ describe('经营月报', () => {
     expect(screen.queryByText('profit.sales_profit_cny')).toBeNull();
   });
 
-  it('展示运输费用、双环形图和中文品牌前三名入口', () => {
+  it('展示运输费用、双环形图和三类经营贡献入口', () => {
     renderReport();
 
     expect(screen.getByText('运输（含打车）')).toBeTruthy();
@@ -66,7 +66,22 @@ describe('经营月报', () => {
     expect(screen.getByRole('img', { name: /成本合计环形图/ })).toBeTruthy();
     expect(screen.getByRole('img', { name: /费用合计环形图/ })).toBeTruthy();
     expect(screen.getByText('高希霸')).toBeTruthy();
-    expect(screen.getByRole('link', { name: /查看完整经营贡献排行/ }).getAttribute('href')).toBe('/reports/contributions?month=2026-08');
+    expect(screen.getByText('品牌贡献')).toBeTruthy();
+    expect(screen.getByText('商品贡献')).toBeTruthy();
+    expect(screen.getByText('客户贡献')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /查看完整经营贡献排行/ }).getAttribute('href')).toBe('/accounting/reports/contributions?month=2026-08');
+  });
+
+  it('客户结构同时展示订单、客单价、复购覆盖与客户贡献', () => {
+    renderReport();
+
+    expect(screen.getByText('履约订单')).toBeTruthy();
+    expect(screen.getByText('平均订单金额')).toBeTruthy();
+    expect(screen.getByText('¥95.00')).toBeTruthy();
+    expect(screen.getByText('覆盖履约客户 100.0%')).toBeTruthy();
+    expect(screen.getByText('已识别客户销售额')).toBeTruthy();
+    expect(screen.getByText('客户贡献前三名')).toBeTruthy();
+    expect(screen.getAllByText('王先生').length).toBeGreaterThan(0);
   });
 
   it('零成本不会显示负零', () => {

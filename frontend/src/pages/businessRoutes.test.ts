@@ -11,8 +11,8 @@ describe('business routes', () => {
   it('keeps inventory stock and purchase orders as separate workspaces', () => {
     expect(BUSINESS_STAFF_PATHS.inventory).toBe('/inventory');
     expect(BUSINESS_STAFF_PATHS.inventoryPurchases).toBe('/inventory/purchases');
-    expect(BUSINESS_STAFF_PATHS.monthlyReport).toBe('/reports/monthly');
-    expect(BUSINESS_STAFF_PATHS.contributionRanking).toBe('/reports/contributions');
+    expect(BUSINESS_STAFF_PATHS.monthlyReport).toBe('/accounting/reports/monthly');
+    expect(BUSINESS_STAFF_PATHS.contributionRanking).toBe('/accounting/reports/contributions');
   });
 
   it('keeps the legal Day 1 route alongside both business workspaces', () => {

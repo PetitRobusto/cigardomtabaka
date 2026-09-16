@@ -359,7 +359,7 @@ def _rankings(*, start, end, total_human_cost):
     }
 
 
-def _customer_summary(shipments, *, start, end):
+def _customer_summary(shipments, customer_rankings, *, start, end):
     counts = defaultdict(int)
     for shipment in shipments:
         customer_id = shipment.sales_order.customer_id
@@ -383,10 +383,25 @@ def _customer_summary(shipments, *, start, end):
         first_dates[customer_id] < start or order_count >= 2
         for customer_id, order_count in counts.items()
     )
+    fulfilled_revenue = sum(
+        (shipment.sales_order.amount_due_cny for shipment in shipments),
+        Decimal('0.00'),
+    )
+    identified_customer_revenue = sum(
+        (row['net_sales_revenue_cny'] for row in customer_rankings),
+        Decimal('0.00'),
+    )
     return {
         'fulfilled_customer_count': len(counts),
         'new_customer_count': new_count,
         'repeat_customer_count': repeat_count,
+        'new_customer_rate': _ratio(Decimal(new_count), Decimal(len(counts))),
+        'repeat_customer_rate': _ratio(Decimal(repeat_count), Decimal(len(counts))),
+        'fulfilled_order_count': len(shipments),
+        'average_order_revenue_cny': (
+            _money(fulfilled_revenue / len(shipments)) if shipments else None
+        ),
+        'identified_customer_revenue_cny': _money(identified_customer_revenue),
         'guest_orders_excluded': True,
     }
 
@@ -551,7 +566,9 @@ def _period_facts(*, start, end, is_current, include_details):
             product_cost=profit['product_cost_cny'],
             is_current=is_current,
         ),
-        'customers': _customer_summary(shipments, start=start, end=end),
+        'customers': _customer_summary(
+            shipments, rankings['customers'], start=start, end=end,
+        ),
         'rankings': rankings,
     })
     return result

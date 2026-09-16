@@ -1,5 +1,6 @@
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { lazy, Suspense, useEffect } from 'react';
+import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { useAuthStore } from '../../store/authStore';
 import { usePageMetaContext } from '../../contexts/usePageMetaContext';
 import Breadcrumb from './Breadcrumb';
@@ -13,6 +14,7 @@ import { useState } from 'react';
 import { mobileNavItems } from './mobileNav';
 import { BrandLoader } from '../shared/BrandLoader';
 import { brandDockLogoUrl, brandLogoUrl } from '../../utils/brandAssets';
+import { isAppNavPathActive } from './appSections';
 
 const GuideController = lazy(() => import('../../features/guides/GuideController'));
 
@@ -28,6 +30,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading, logout } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
+  const reduceMotion = useReducedMotion();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { meta } = usePageMetaContext();
 
@@ -54,12 +57,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     ] : []),
   ];
 
-  const isActive = (path: string) => {
-    if (path === '/') return location.pathname === '/';
-    if (path === '/sales') return location.pathname.startsWith(path);
-    if (path === '/accounting') return location.pathname === path;
-    return location.pathname.startsWith(path);
-  };
+  const isActive = (path: string) => isAppNavPathActive(location.pathname, path);
+  const desktopTap = reduceMotion ? undefined : { scale: 0.98 };
+  const mobileTap = reduceMotion ? undefined : { scale: 0.96 };
+  const indicatorTransition = reduceMotion ? { duration: 0 } : { duration: 0.2, ease: [0.3, 0.7, 0.3, 1] as const };
 
   if (isLoading) {
     return <BrandLoader fullScreen />;
@@ -88,13 +89,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* Desktop Nav */}
-            <nav className="hidden md:flex items-center gap-1">
-              {navItems.map((item) =>
+            <LayoutGroup id="desktop-app-navigation">
+              <nav aria-label="应用导航" className="hidden md:flex items-center gap-1">
+                {navItems.map((item) =>
                 item.external ? (
                   <a
                     key={item.to}
                     href={item.to}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    className={`relative isolate inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                       isActive(item.to)
                         ? 'text-accent bg-accent-light'
                         : 'text-muted hover:text-fg hover:bg-white/60'
@@ -104,23 +106,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <span>{item.label}</span>
                   </a>
                 ) : (
-                  <NavLink
+                  <Link
                     key={item.to}
                     to={item.to}
-                    className={() =>
-                      `inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    aria-current={isActive(item.to) ? 'page' : undefined}
+                    className={
+                      `relative isolate inline-flex items-center rounded-md text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
                         isActive(item.to)
-                          ? 'text-accent bg-accent-light'
+                          ? 'text-accent'
                           : 'text-muted hover:text-fg hover:bg-white/60'
                       }`
                     }
                   >
-                    <item.icon className="w-4 h-4" />
-                    <span>{item.label}</span>
-                  </NavLink>
+                    {isActive(item.to) && <motion.span layoutId="active-app-pill" className="absolute inset-0 -z-10 rounded-md bg-accent-light" transition={indicatorTransition} />}
+                    <motion.span whileTap={desktopTap} transition={{ duration: 0.09 }} className="relative z-10 inline-flex items-center gap-1.5 px-3 py-1.5">
+                      <item.icon className="w-4 h-4" />
+                      <span>{item.label}</span>
+                    </motion.span>
+                  </Link>
                 )
-              )}
-            </nav>
+                )}
+              </nav>
+            </LayoutGroup>
 
             {/* Auth */}
             <div className="flex items-center gap-2">
@@ -178,19 +185,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     {item.label}
                   </a>
                 ) : (
-                  <NavLink
+                  <Link
                     key={item.to}
                     to={item.to}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={({ isActive: a }) =>
-                      `flex items-center gap-2 px-3 py-2 rounded-md text-sm ${
-                        a ? 'text-accent bg-accent-light font-medium' : 'text-fg hover:bg-white/60'
-                      }`
-                    }
+                    aria-current={isActive(item.to) ? 'page' : undefined}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition active:scale-[.98] motion-reduce:active:scale-100 ${
+                      isActive(item.to) ? 'text-accent bg-accent-light font-medium' : 'text-fg hover:bg-white/60'
+                    }`}
                   >
                     <item.icon className="w-4 h-4" />
                     {item.label}
-                  </NavLink>
+                  </Link>
                 )
               )}
             </div>
@@ -265,21 +271,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </footer>
 
       {/* ===== MOBILE BOTTOM NAV ===== */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-cream/95 backdrop-blur-sm border-t border-border z-50">
-        <div className="flex items-center justify-around h-14">
-          {mobileNavItems(Boolean(user?.is_staff)).map((item) => item.kind === 'menu' ? (
-            <button key={item.label} type="button" onClick={() => setMobileMenuOpen(true)} className="flex flex-col items-center justify-center gap-0.5 w-full h-full text-[10px] font-medium text-muted" aria-label="打开导航菜单">
-              <Menu className="w-5 h-5" />
-              <span>{item.label}</span>
-            </button>
-          ) : (
-            <NavLink key={item.to} to={item.to} className={({ isActive: a }) => `flex flex-col items-center justify-center gap-0.5 w-full h-full text-[10px] font-medium ${a ? 'text-accent' : 'text-muted'}`}>
-              {item.to === '/' ? <LayoutGrid className="w-5 h-5" /> : item.to === '/inventory' ? <Package className="w-5 h-5" /> : item.to === '/sales' ? <CircleDollarSign className="w-5 h-5" /> : <ClipboardList className="w-5 h-5" />}
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
-        </div>
-      </nav>
+      <LayoutGroup id="mobile-app-navigation">
+        <nav aria-label="移动应用导航" className="md:hidden fixed bottom-0 left-0 right-0 bg-cream/95 backdrop-blur-sm border-t border-border z-50">
+          <div className="flex items-center justify-around h-14">
+            {mobileNavItems(Boolean(user?.is_staff)).map((item) => item.kind === 'menu' ? (
+              <button key={item.label} type="button" onClick={() => setMobileMenuOpen(true)} className="flex w-full h-full items-center justify-center text-[10px] font-medium text-muted" aria-label="打开导航菜单">
+                <motion.span whileTap={mobileTap} transition={{ duration: 0.09 }} className="flex flex-col items-center justify-center gap-0.5">
+                  <Menu className="w-5 h-5" />
+                  <span>{item.label}</span>
+                </motion.span>
+              </button>
+            ) : (() => {
+              const active = isActive(item.to);
+              return <Link key={item.to} to={item.to} aria-current={active ? 'page' : undefined} className={`relative flex w-full h-full items-center justify-center text-[10px] font-medium transition-colors ${active ? 'text-accent' : 'text-muted'}`}>
+                {active && <motion.span layoutId="active-app-indicator" className="absolute inset-x-0 top-0 mx-auto h-0.5 w-5 rounded-full bg-accent" transition={indicatorTransition} />}
+                <motion.span whileTap={mobileTap} transition={{ duration: 0.09 }} className="flex flex-col items-center justify-center gap-0.5">
+                  {item.to === '/' ? <LayoutGrid className="w-5 h-5" /> : item.to === '/inventory' ? <Package className="w-5 h-5" /> : item.to === '/sales' ? <CircleDollarSign className="w-5 h-5" /> : <ClipboardList className="w-5 h-5" />}
+                  <span>{item.label}</span>
+                </motion.span>
+              </Link>;
+            })())}
+          </div>
+        </nav>
+      </LayoutGroup>
       <Suspense fallback={null}><GuideController /></Suspense>
     </div>
   );

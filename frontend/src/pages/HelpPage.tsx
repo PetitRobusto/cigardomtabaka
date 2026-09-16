@@ -59,7 +59,7 @@ export default function HelpPage() {
     navigate(decision.destination.route, { state: decision.destination.state });
   };
 
-  return <div className="animate-fade-in">
+  return <div>
     <header className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.15em] text-gold">帮助中心 · 内部手册</p><h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">让每一步，都有答案。</h1><p className="mt-2 text-sm text-muted">查找工作流程、字段解释和常用操作。</p></div><button type="button" onClick={playTour} className="inline-flex items-center justify-center gap-2 rounded bg-accent px-4 py-2.5 text-sm font-semibold text-white"><Play className="h-4 w-4" />播放本页引导</button></header>
     <Day1StatusNotice state={day1State} onRetry={loadDay1Status} />
     {message && <p role="status" className="mb-4 rounded border border-border bg-white px-4 py-3 text-sm text-muted">{message}</p>}

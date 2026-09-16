@@ -10,7 +10,6 @@ import { RecentChangesCarousel } from '../components/dashboard/RecentChangesCaro
 import { LoadingState } from '../components/shared/LoadingState';
 import { EmptyState } from '../components/shared/EmptyState';
 import { ErrorState } from '../components/shared/ErrorState';
-import { PageTransition } from '../components/animations/PageTransition';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { generateCigarSlugFromParts } from '../utils/slug';
 import type { CigarListItem, BrandInfo } from '../types';
@@ -82,8 +81,7 @@ export default function Dashboard() {
   if (filtered.length === 0) return <EmptyState title="暂无价格数据" description="等待价格数据抓取完成后自动显示" />;
 
   return (
-    <PageTransition>
-      <div data-guide="prices-dashboard">
+    <div data-guide="prices-dashboard">
         <StatsBar
           snapshotCount={cigars.reduce((sum, c) => sum + c.sources.length, 0)}
           cigarCount={cigars.length}
@@ -125,7 +123,6 @@ export default function Dashboard() {
             navigate(`/prices/cigar/${cigar.cigar_id}/${slug}`);
           }}
         />
-      </div>
-    </PageTransition>
+    </div>
   );
 }

@@ -1,7 +1,10 @@
 import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom';
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { PageMetaProvider } from './contexts/PageMetaContext';
 import AppLayout from './components/layout/AppLayout';
+import { DelayedAppSkeleton } from './components/layout/AppSkeleton';
+import { appSectionForPath } from './components/layout/appSections';
 import { decideStaffRoute } from './utils/routeGuard';
 import { BUSINESS_STAFF_PATHS, resolveBusinessRoute } from './pages/businessRoutes';
 import { useAuthStore } from './store/authStore';
@@ -66,9 +69,36 @@ function StaffHelpRoute() {
 
 function AnimatedRoutes() {
   const location = useLocation();
+  const reduceMotion = useReducedMotion();
+  const section = appSectionForPath(location.pathname);
+  const previousSection = useRef(section);
+
+  useEffect(() => {
+    if (previousSection.current !== section) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      previousSection.current = section;
+    }
+  }, [section]);
+
   return (
-    <div key={location.key} className="animate-fade-in" style={{ position: 'relative' }}>
-      <Routes location={location}>
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={section}
+        initial={{ opacity: 1 }}
+        animate={{ opacity: 1 }}
+        exit={reduceMotion
+          ? { opacity: 1, transition: { duration: 0 } }
+          : { opacity: 0, transition: { duration: 0.08, ease: 'easeOut' } }}
+        style={{ position: 'relative' }}
+      >
+        <Suspense fallback={<DelayedAppSkeleton path={location.pathname} />}>
+          <motion.div
+            initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 4 }}
+            animate={reduceMotion
+              ? { opacity: 1, transition: { duration: 0 } }
+              : { opacity: 1, y: 0, transition: { opacity: { duration: 0.15, ease: 'easeOut' }, y: { duration: 0.15, ease: [0.2, 0, 0, 1] } } }}
+          >
+            <Routes location={location}>
           {/* Catalog */}
           <Route path="/" element={<BrandListPage />} />
           <Route path="/brand/:slug" element={<BrandDetailPage />} />
@@ -95,8 +125,11 @@ function AnimatedRoutes() {
 
           {/* Auth */}
           <Route path="/login" element={<LoginPage />} />
-      </Routes>
-    </div>
+            </Routes>
+          </motion.div>
+        </Suspense>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
@@ -114,9 +147,7 @@ export default function App() {
             path="/*"
             element={
               <AppLayout>
-                <Suspense fallback={<BrandLoader />}>
-                  <AnimatedRoutes />
-                </Suspense>
+                <AnimatedRoutes />
               </AppLayout>
             }
           />

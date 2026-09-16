@@ -793,7 +793,7 @@ export interface MonthlyBusinessReport {
     operating_expense_breakdown: {
       salary_cny: string;
       rent_cny: string;
-      utilities_cny: string;
+      transport_cny: string;
       professional_services_cny: string;
       financial_cny: string;
       other_cny: string;

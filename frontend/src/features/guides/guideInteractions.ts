@@ -103,8 +103,8 @@ const accountingReconciliationSteps: readonly ContextTourStep[] = [
 ];
 
 const accountingProfitSteps: readonly ContextTourStep[] = [
-  { id: 'accounting-profit-month', title: '选择利润月份', description: '选择要结算的月份。退款、费用和冲正按各自实际发生月份进入报表。', target: '[data-guide="accounting-profit-month"]', route: '/accounting' },
-  { id: 'accounting-profit', title: '查看月利润', description: '先选择月份，再核对收入、批次成本、人肉成本和经营费用。退款与冲正会按实际发生月份体现。', target: '[data-guide="accounting-profit"]', route: '/accounting' },
+  { id: 'accounting-profit-month', title: '选择月报月份', description: '选择要查看的月份。退款、费用和冲正按各自实际发生月份进入报表。', target: '[data-guide="accounting-profit-month"]', route: '/reports/monthly' },
+  { id: 'accounting-profit', title: '查看月度经营报告', description: '核对收入、商品成本、人肉成本、经营费用、回款和库存；需要深入分析时进入独立贡献排行。', target: '[data-guide="accounting-profit"]', route: '/reports/monthly' },
 ];
 
 export const CONTEXT_TOUR_GROUPS: Readonly<Record<string, readonly ContextTourStep[]>> = {

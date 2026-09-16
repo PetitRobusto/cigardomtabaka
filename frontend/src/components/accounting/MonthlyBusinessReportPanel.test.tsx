@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { MonthlyBusinessReport } from '../../types';
 import MonthlyBusinessReportPanel from './MonthlyBusinessReportPanel';
@@ -17,7 +18,7 @@ const report: MonthlyBusinessReport = {
   profit: {
     sales_revenue_cny: '190.00', product_cost_cny: '70.00', human_cost_cny: '20.00',
     sales_profit_cny: '100.00', sales_profit_rate: '0.5263', operating_expenses_cny: '10.00',
-    operating_expense_breakdown: { salary_cny: '10.00', rent_cny: '0.00', utilities_cny: '0.00', professional_services_cny: '0.00', financial_cny: '0.00', other_cny: '0.00' },
+    operating_expense_breakdown: { salary_cny: '10.00', rent_cny: '0.00', transport_cny: '0.00', professional_services_cny: '0.00', financial_cny: '0.00', other_cny: '0.00' },
     core_operating_profit_cny: '90.00', inventory_adjustment_cny: '0.00', reconciliation_adjustment_cny: '0.00', net_operating_profit_cny: '90.00',
   },
   cash: { sales_receipts_cny: '150.00', refunds_cny: '10.00', net_receipts_cny: '140.00', accounts_receivable_cny: '40.00', customer_prepayments_cny: '20.00' },
@@ -28,8 +29,8 @@ const report: MonthlyBusinessReport = {
   customers: { fulfilled_customer_count: 1, new_customer_count: 1, repeat_customer_count: 1, guest_orders_excluded: true },
   rankings: {
     default_sort: 'sales_profit_cny', allocation_rule: '测试分摊规则', unallocated_human_cost_cny: '0.00',
-    brands: [{ key: 'Cohiba', name: 'Cohiba', net_sales_revenue_cny: '190.00', quantity: 2, product_cost_cny: '70.00', human_cost_cny: '20.00', sales_profit_cny: '100.00', sales_profit_rate: '0.5263' }],
-    products: [{ key: 1, name: 'Cohiba Robustos', net_sales_revenue_cny: '190.00', quantity: 2, product_cost_cny: '70.00', human_cost_cny: '20.00', sales_profit_cny: '100.00', sales_profit_rate: '0.5263' }],
+    brands: [{ key: 'Cohiba', name: '高希霸', net_sales_revenue_cny: '190.00', quantity: 2, product_cost_cny: '70.00', human_cost_cny: '20.00', sales_profit_cny: '100.00', sales_profit_rate: '0.5263' }],
+    products: [{ key: 1, name: '高希霸 罗布图', net_sales_revenue_cny: '190.00', quantity: 2, product_cost_cny: '70.00', human_cost_cny: '20.00', sales_profit_cny: '100.00', sales_profit_rate: '0.5263' }],
     customers: [{ key: 1, name: '王先生', net_sales_revenue_cny: '190.00', quantity: 2, product_cost_cny: '70.00', human_cost_cny: '20.00', sales_profit_cny: '100.00', sales_profit_rate: '0.5263' }],
   },
   metrics: { sales_revenue_cny: '190.00', sales_profit_cny: '100.00', core_operating_profit_cny: '90.00', net_operating_profit_cny: '90.00' },
@@ -37,45 +38,63 @@ const report: MonthlyBusinessReport = {
     mode: 'full_previous_month', previous_period_start: '2026-07-01', previous_period_end: '2026-07-31',
     metrics: { sales_revenue_cny: comparison, sales_profit_cny: comparison, core_operating_profit_cny: comparison, net_operating_profit_cny: comparison },
   },
-  conclusions: [{ code: 'sales_margin', status: 'available', metric_keys: ['profit.sales_profit_cny'], text: '销售利润可核验。' }],
+  conclusions: [{ code: 'sales_margin', status: 'available', metric_keys: ['profit.sales_profit_cny'], text: '本月销售利润 ¥100.00，利润率 52.6%。' }],
 };
 
-describe('经营月报', () => {
-  it('展示完整利润层级、负数人肉成本和独立回款区', () => {
-    render(<MonthlyBusinessReportPanel report={report} month="2026-08" />);
+function renderReport(value: MonthlyBusinessReport = report) {
+  return render(<MemoryRouter><MonthlyBusinessReportPanel report={value} month="2026-08" /></MemoryRouter>);
+}
 
-    expect(screen.getByRole('heading', { name: '2026年8月经营月报' })).toBeTruthy();
+describe('经营月报', () => {
+  it('只展示三个主指标，成本使用正数，并隐藏内部字段名', () => {
+    renderReport();
+
     expect(screen.getAllByText('净销售收入').length).toBeGreaterThan(0);
     expect(screen.getAllByText('销售利润').length).toBeGreaterThan(0);
-    expect(screen.getByText('核心经营利润')).toBeTruthy();
     expect(screen.getByText('经营净利润')).toBeTruthy();
-    expect(screen.getAllByText('较上月新增')).toHaveLength(4);
-    expect(screen.getAllByText('-¥20.00').length).toBeGreaterThan(0);
-    expect(screen.getByText('回款与占款')).toBeTruthy();
-    expect(screen.getByText('客户收款')).toBeTruthy();
-    expect(screen.getByText('客户收款净额')).toBeTruthy();
-    expect(screen.getByText('客户预收款')).toBeTruthy();
-    expect(screen.queryByText(/FIFO/)).toBeNull();
-    expect(screen.queryByText('客户人肉费收入')).toBeNull();
+    expect(screen.queryByText('核心经营利润')).toBeNull();
+    expect(screen.queryByText('-¥20.00')).toBeNull();
+    expect(screen.getAllByText('¥20.00').length).toBeGreaterThan(0);
+    expect(screen.queryByText('profit.sales_profit_cny')).toBeNull();
   });
 
-  it('可切换品牌、商品和客户排行', () => {
-    render(<MonthlyBusinessReportPanel report={report} month="2026-08" />);
+  it('展示运输费用、双环形图和中文品牌前三名入口', () => {
+    renderReport();
 
-    expect(screen.getByText('Cohiba')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '商品' }));
-    expect(screen.getByText('Cohiba Robustos')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '客户' }));
-    expect(screen.getByText('王先生')).toBeTruthy();
+    expect(screen.getByText('运输（含打车）')).toBeTruthy();
+    expect(screen.queryByText('水电')).toBeNull();
+    expect(screen.getByRole('img', { name: /成本合计环形图/ })).toBeTruthy();
+    expect(screen.getByRole('img', { name: /费用合计环形图/ })).toBeTruthy();
+    expect(screen.getByText('高希霸')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /查看完整经营贡献排行/ }).getAttribute('href')).toBe('/reports/contributions?month=2026-08');
   });
 
-  it('解释本期入账高于履约归属的人肉成本差额', () => {
-    render(<MonthlyBusinessReportPanel
-      report={{ ...report, rankings: { ...report.rankings, unallocated_human_cost_cny: '15.00' } }}
-      month="2026-08"
-    />);
+  it('零成本不会显示负零', () => {
+    renderReport({ ...report, profit: { ...report.profit, human_cost_cny: '-0.00' } });
+    expect(screen.queryByText('-¥0.00')).toBeNull();
+  });
 
-    expect(screen.getByText(/本期入账与履约归属的人肉成本差额：¥15.00/)).toBeTruthy();
-    expect(screen.getByText(/正数表示本期入账较多/)).toBeTruthy();
+  it('有调整时在经营净利润卡中展开调整前金额', () => {
+    renderReport({ ...report, profit: { ...report.profit, inventory_adjustment_cny: '-2.00', net_operating_profit_cny: '88.00' } });
+    expect(screen.getByText('调整前经营利润')).toBeTruthy();
+    expect(screen.getAllByText('库存调整').length).toBeGreaterThan(0);
+  });
+
+  it('费用冲正不会被取绝对值后误画成新增成本', () => {
+    renderReport({
+      ...report,
+      profit: {
+        ...report.profit,
+        operating_expenses_cny: '-30.00',
+        operating_expense_breakdown: {
+          ...report.profit.operating_expense_breakdown,
+          salary_cny: '0.00',
+          transport_cny: '-30.00',
+        },
+      },
+    });
+
+    expect(screen.getByRole('img', { name: '费用合计环形图，合计¥0.00' })).toBeTruthy();
+    expect(screen.getByText(/本月包含成本冲正/)).toBeTruthy();
   });
 });

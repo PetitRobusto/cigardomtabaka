@@ -31,6 +31,8 @@ const AlertsPage = lazy(() => import('./pages/Alerts'));
 const SalesPage = lazy(() => import('./pages/SalesPage'));
 const SalesCustomersPage = lazy(() => import('./pages/SalesCustomersPage'));
 const AccountingDashboardPage = lazy(() => import('./pages/AccountingDashboardPage'));
+const MonthlyBusinessReportPage = lazy(() => import('./pages/MonthlyBusinessReportPage'));
+const ContributionRankingPage = lazy(() => import('./pages/ContributionRankingPage'));
 const Day1SetupPage = lazy(() => import('./pages/Day1SetupPage'));
 const HelpPage = lazy(() => import('./pages/HelpPage'));
 
@@ -112,6 +114,8 @@ function AnimatedRoutes() {
           <Route path={BUSINESS_STAFF_PATHS.salesCustomers} element={<StaffGate><SalesCustomersPage /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.accounting} element={<StaffGate><AccountingDashboardPage /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.day1} element={<StaffGate><Day1SetupPage /></StaffGate>} />
+          <Route path={BUSINESS_STAFF_PATHS.monthlyReport} element={<StaffGate><MonthlyBusinessReportPage /></StaffGate>} />
+          <Route path={BUSINESS_STAFF_PATHS.contributionRanking} element={<StaffGate><ContributionRankingPage /></StaffGate>} />
           <Route path="/help" element={<StaffHelpRoute />} />
 
           {/* Price Tracker */}

@@ -52,7 +52,7 @@ describe('财务默认动作及刷新', () => {
     expect(screen.getByText('2 笔已确认未收款订单')).toBeTruthy();
     expect(screen.queryByText('待收订单')).toBeNull();
     expect(screen.getByRole('button', { name: '记录费用', pressed: true })).toBeTruthy();
-    const month = screen.getByLabelText('报表月份') as HTMLSelectElement;
+    const month = screen.getByLabelText('明细月份') as HTMLSelectElement;
     const chosenMonth = month.options[1].value;
     fireEvent.change(month, { target: { value: chosenMonth } });
     fireEvent.change(screen.getByLabelText('金额（CNY）'), { target: { value: '10.00' } });
@@ -62,7 +62,7 @@ describe('财务默认动作及刷新', () => {
     fireEvent.click(screen.getByRole('button', { name: '确认费用并入账' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await waitFor(() => expect(api.fetchAccountingDashboard.mock.calls.length).toBeGreaterThan(1));
-    expect((screen.getByLabelText('报表月份') as HTMLSelectElement).value).toBe(chosenMonth);
+    expect((screen.getByLabelText('明细月份') as HTMLSelectElement).value).toBe(chosenMonth);
     expect(screen.getByDisplayValue('保留输入')).toBeTruthy();
     expect(screen.getByDisplayValue('10.00')).toBeTruthy();
     expect(client.getQueryState(['dividend-rounds', 2])?.isInvalidated).toBe(true);

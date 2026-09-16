@@ -8,9 +8,13 @@
   var status = root.querySelector('.cdt-startup__status');
   var retry = root.querySelector('.cdt-startup__retry');
   var surface = root.querySelector('.cdt-startup__surface');
+  var motionSrc = mark.dataset.motionSrc || mark.getAttribute('src');
+  var staticSrc = mark.dataset.staticSrc;
   var motionStart = null;
   var cycleDuration = 2580;
   var logoReady = false;
+  var usingStaticLogo = false;
+  var logoUnavailable = false;
   var readyRequested = false;
   var state = 'loading';
   var handoffTimer;
@@ -73,7 +77,7 @@
       { duration: 140, easing: 'ease-out', fill: 'both' }
     );
 
-    if (!target) {
+    if (!target || logoUnavailable) {
       backdrop.finished.then(finish, finish);
       return;
     }
@@ -84,7 +88,7 @@
     var targetTop = box.top + (box.height - targetHeight) / 2;
     var scale = box.width / from.width;
 
-    mark.src = mark.dataset.staticSrc;
+    if (staticSrc) mark.src = staticSrc;
     mark.classList.add('cdt-startup__logo--docking');
     var flight = mark.animate(
       [
@@ -114,10 +118,10 @@
     });
   }
 
-  function revealLogo() {
+  function revealLogo(skipMotionCycle) {
     if (logoReady) return;
     logoReady = true;
-    motionStart = performance.now();
+    motionStart = performance.now() - (skipMotionCycle ? cycleDuration : 0);
     root.dataset.logoReady = 'true';
     attemptReady();
   }
@@ -125,10 +129,28 @@
   function prepareLogo() {
     if (!mark.naturalWidth) return;
     if (typeof mark.decode === 'function') {
-      mark.decode().then(revealLogo, revealLogo);
+      mark.decode().then(function () { revealLogo(usingStaticLogo); }, function () { revealLogo(usingStaticLogo); });
       return;
     }
-    revealLogo();
+    revealLogo(usingStaticLogo);
+  }
+
+  function prepareCompleteLogo() {
+    if (!mark.complete) return;
+    if (mark.naturalWidth) prepareLogo();
+    else handleLogoError();
+  }
+
+  function handleLogoError() {
+    if (!usingStaticLogo && staticSrc) {
+      usingStaticLogo = true;
+      mark.src = staticSrc;
+      prepareCompleteLogo();
+      return;
+    }
+    logoUnavailable = true;
+    mark.style.visibility = 'hidden';
+    revealLogo(true);
   }
 
   function ready() {
@@ -161,8 +183,13 @@
 
   retry.addEventListener('click', function () { window.location.reload(); });
   mark.addEventListener('load', prepareLogo);
-  mark.src = mark.dataset.motionSrc;
-  if (mark.complete) prepareLogo();
+  mark.addEventListener('error', handleLogoError);
+  if (motionSrc) {
+    if (mark.getAttribute('src') !== motionSrc) mark.src = motionSrc;
+    prepareCompleteLogo();
+  } else {
+    handleLogoError();
+  }
   observer = new MutationObserver(attemptReady);
   observer.observe(document.getElementById('root'), { childList: true, subtree: true });
   slowTimer = window.setTimeout(function () {

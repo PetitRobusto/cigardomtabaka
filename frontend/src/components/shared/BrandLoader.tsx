@@ -10,8 +10,18 @@ export function BrandLoader({
   fullScreen = false,
   text = '莫斯科持证雪茄服务商',
 }: BrandLoaderProps) {
+  const [logoReady, setLogoReady] = useState(false);
   const [slowText, setSlowText] = useState<string | null>(null);
   const status = slowText === text ? '加载时间较长，请稍候' : text;
+
+  const revealLogo = (image: HTMLImageElement) => {
+    if (typeof image.decode !== 'function') {
+      setLogoReady(true);
+      return;
+    }
+
+    void image.decode().catch(() => undefined).then(() => setLogoReady(true));
+  };
 
   useEffect(() => {
     const slowTimer = window.setTimeout(() => {
@@ -28,12 +38,13 @@ export function BrandLoader({
     >
       <div className="cdt-loader__stage">
         <img
-          className="cdt-loader__motion-logo"
+          className={`cdt-loader__motion-logo${logoReady ? ' cdt-loader__motion-logo--ready' : ''}`}
           src={brandMotionLogoUrl}
           alt=""
           width="640"
           height="525"
           aria-hidden="true"
+          onLoad={event => revealLogo(event.currentTarget)}
         />
         <div className="cdt-loader__status" role="status" aria-live="polite">
           <img

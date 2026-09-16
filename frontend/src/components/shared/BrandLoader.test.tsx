@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BrandLoader } from './BrandLoader';
 
@@ -10,6 +10,15 @@ afterEach(() => {
 });
 
 describe('BrandLoader', () => {
+  it('keeps the motion logo hidden until the SVG has loaded', () => {
+    const { container } = render(<BrandLoader />);
+    const logo = container.querySelector<HTMLImageElement>('.cdt-loader__motion-logo')!;
+
+    expect(logo.classList.contains('cdt-loader__motion-logo--ready')).toBe(false);
+    fireEvent.load(logo);
+    expect(logo.classList.contains('cdt-loader__motion-logo--ready')).toBe(true);
+  });
+
   it('pairs the specialist mark with the loading status', () => {
     render(<BrandLoader />);
 

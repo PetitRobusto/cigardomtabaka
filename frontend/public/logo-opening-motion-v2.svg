@@ -33,7 +33,7 @@
 </defs>
 <style>
 .a-pen{fill:none;stroke:#fff;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1}
-.a-register{opacity:.12}.a-finish{visibility:hidden}
+.a-finish{visibility:hidden}
 .a-tip{fill:none;stroke:#B87A3A;stroke-width:1;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-dasharray:.035 .965;opacity:0}
 .idle-leaf{display:none}
 .loop{animation:cycle-fade 2580ms ease-in-out infinite}
@@ -52,11 +52,10 @@
 @keyframes show-word{0%,42.6%{clip-path:inset(0 100% 0 32%)}52.3%,100%{clip-path:inset(0 0 0 32%)}}
 @keyframes show-lower{0%,47.3%{clip-path:inset(60% 0 40%)}57.8%,100%{clip-path:inset(60% 0 0)}}
 @keyframes show-finish{0%,58%{visibility:hidden}58.1%,93%{visibility:visible}93.1%,100%{visibility:hidden}}
-@media(prefers-reduced-motion:reduce){.loop,.a-finish{animation:none}.a-finish{visibility:visible}.a-register,.a-tip{display:none}.a-c,.a-flourish,.a-leaf,.a-word,.a-lower{display:none}}
+@media(prefers-reduced-motion:reduce){.loop,.a-finish{animation:none}.a-finish{visibility:visible}.a-tip{display:none}.a-c,.a-flourish,.a-leaf,.a-word,.a-lower{display:none}}
 </style>
 <g class="loop">
 
-            <use class="a-register" href="#logo-art" width="1225" height="1005" mask="url(#mask-c)"/>
             <g mask="url(#mask-c)"><use href="#logo-art" width="1225" height="1005" mask="url(#a-write-c)"/></g>
             <g mask="url(#mask-swash)"><use href="#logo-art" width="1225" height="1005" mask="url(#a-write-swash)"/></g>
             <g class="a-leaf"><use href="#logo-art" width="1225" height="1005" mask="url(#mask-leaf)"/></g>

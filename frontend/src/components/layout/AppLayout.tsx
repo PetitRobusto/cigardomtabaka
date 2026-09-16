@@ -260,10 +260,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               />
               <div className="max-w-2xl">
                 <div className="font-display text-base font-semibold tracking-wide text-fg">莫斯科持证雪茄服务商</div>
-                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-accent">Habanos Specialist · 专业门店资质</p>
+                <p className="mt-1 text-xs font-semibold tracking-[0.14em] text-accent">专业门店资质</p>
               </div>
             </div>
-            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">Specialist Retailer</span>
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">Certificated Retailer</span>
           </div>
 
           {/* Bottom row */}

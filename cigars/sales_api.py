@@ -20,6 +20,7 @@ from accounting.guards import Day1IncompleteError
 from accounting.services import LedgerError
 
 from .models import Customer, IdempotencyRecord, SalesOrder
+from .sales_reports import pending_collection_summary
 
 
 from .services import (
@@ -252,7 +253,10 @@ def sales_orders(request):
                 orders = orders.filter(id=int(order_match.group(1)))
             else:
                 orders = orders.filter(customer_name__icontains=query)
-    return _json({"results": [serialize_sales_order(order) for order in orders[:limit]]})
+    return _json({
+        "results": [serialize_sales_order(order) for order in orders[:limit]],
+        "pending_collection": pending_collection_summary(),
+    })
 
 
 def _customer_payload(customer, include_orders=False):

@@ -299,10 +299,22 @@ class SalesOrderApiTest(TestCase):
         second_body["customer_name"] = "另一个客户"
         second = self.create_order(key="list-two", body=second_body)
         self.login()
-        response = self.client.get("/api/sales/orders/?q=另一个&fulfillment_status=draft&limit=1")
+        SalesOrder.objects.filter(pk=first.json()["sales_order"]["id"]).update(
+            fulfillment_status=SalesOrder.FulfillmentStatus.CONFIRMED,
+            payment_status=SalesOrder.PaymentStatus.UNPAID,
+        )
+        SalesOrder.objects.filter(pk=second.json()["sales_order"]["id"]).update(
+            fulfillment_status=SalesOrder.FulfillmentStatus.SHIPPED,
+            payment_status=SalesOrder.PaymentStatus.UNPAID,
+        )
+        response = self.client.get("/api/sales/orders/?q=另一个&fulfillment_status=shipped&limit=1")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()["results"]), 1)
         self.assertEqual(response.json()["results"][0]["id"], second.json()["sales_order"]["id"])
+        self.assertEqual(response.json()["pending_collection"], {
+            "order_count": 2,
+            "amount_cny": "106.00",
+        })
         detail = self.client.get(f"/api/sales/orders/{first.json()['sales_order']['id']}/")
         self.assertEqual(detail.status_code, 200)
         self.assertIn("fifo_cost", detail.json()["sales_order"])
@@ -503,7 +515,7 @@ class SalesOrderApiTest(TestCase):
         self.login()
         # Notes and evidence each use one prefetch, independent of order count.
         for limit in (1, 5):
-            with self.subTest(limit=limit), self.assertNumQueries(8):
+            with self.subTest(limit=limit), self.assertNumQueries(9):
                 response = self.client.get(f"/api/sales/orders/?limit={limit}")
             self.assertEqual(response.status_code, 200)
             self.assertEqual(len(response.json()["results"]), limit)

@@ -38,6 +38,7 @@ from accounting.models import (
 from accounting.selectors import (
     accounting_dashboard, accounting_summary, monthly_profit,
 )
+from accounting.monthly_reports import monthly_business_report
 from accounting.serializers import serialize_account, serialize_snapshot, serialize_transaction
 from accounting.services import (
     LedgerError,
@@ -365,6 +366,8 @@ def dashboard(request):
                 'inventory_book_cost_cny': None,
                 'purchase_in_transit_cny': None,
                 'accounts_receivable_cny': None,
+                'pending_collection_cny': None,
+                'pending_collection_order_count': None,
                 'month_net_profit_cny': None,
             },
             'accounts': [],
@@ -629,6 +632,29 @@ def monthly_profit_report(request):
         return JsonResponse(_json_value(monthly_profit(month=month)))
     except (TypeError, ValueError):
         return _json_error('month 必须是 YYYY-MM')
+
+
+@staff_json_required
+def monthly_business_report_view(request):
+    if request.method != 'GET':
+        return _json_error('请求方法不支持', status=405, code='method_not_allowed')
+    value = request.GET.get('month')
+    try:
+        if (
+            not isinstance(value, str)
+            or len(value) != 7
+            or value[4] != '-'
+            or not value[:4].isdigit()
+            or not value[5:].isdigit()
+        ):
+            raise ValueError('month 必须是 YYYY-MM')
+        try:
+            month = date.fromisoformat(f'{value}-01')
+        except ValueError as error:
+            raise ValueError('month 必须是 YYYY-MM') from error
+        return JsonResponse(_json_value(monthly_business_report(month=month)))
+    except (TypeError, ValueError) as error:
+        return _json_error(str(error) or 'month 必须是 YYYY-MM')
 
 
 @staff_json_required

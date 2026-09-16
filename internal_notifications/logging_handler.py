@@ -50,6 +50,8 @@ class TelegramErrorHandler(logging.Handler):
         # errors (especially hostile Host headers) are internet background
         # noise rather than application failures and would otherwise page the
         # owner at ERROR level.
+        if not getattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True):
+            return
         if record.name.startswith(("internal_notifications", "django.security")):
             return
         try:

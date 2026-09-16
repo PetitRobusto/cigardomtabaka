@@ -2,6 +2,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.test import TestCase
+from django.utils import timezone
 
 from accounting.models import Day1Initialization, FundAccount, LedgerPosting, LedgerTransaction
 from accounting.selectors import accounting_dashboard, accounting_summary
@@ -308,3 +309,34 @@ class Task9BackendFixesTest(TestCase):
         self.assertEqual(before['stats']['total_funds_cny'], Decimal('10.00'))
         self.assertEqual(after_draft['stats']['total_funds_cny'], before['stats']['total_funds_cny'])
         self.assertEqual(after_confirmation['stats']['total_funds_cny'], before['stats']['total_funds_cny'])
+
+    def test_dashboard_pending_collection_is_distinct_from_accounting_receivable(self):
+        self.complete_day1()
+        rows = [
+            (SalesOrder.FulfillmentStatus.CONFIRMED, SalesOrder.PaymentStatus.UNPAID, '100.00'),
+            (SalesOrder.FulfillmentStatus.SHIPPED, SalesOrder.PaymentStatus.UNPAID, '200.00'),
+            (SalesOrder.FulfillmentStatus.DRAFT, SalesOrder.PaymentStatus.UNPAID, '300.00'),
+            (SalesOrder.FulfillmentStatus.CONFIRMED, SalesOrder.PaymentStatus.PAID, '400.00'),
+            (SalesOrder.FulfillmentStatus.CANCELLED, SalesOrder.PaymentStatus.UNPAID, '500.00'),
+            (SalesOrder.FulfillmentStatus.RETURNED, SalesOrder.PaymentStatus.UNPAID, '600.00'),
+        ]
+        for fulfillment_status, payment_status, amount_due_cny in rows:
+            SalesOrder.objects.create(
+                fulfillment_status=fulfillment_status,
+                payment_status=payment_status,
+                amount_due_cny=amount_due_cny,
+                operator=self.operator,
+            )
+        deleted = SalesOrder.objects.create(
+            fulfillment_status=SalesOrder.FulfillmentStatus.CONFIRMED,
+            payment_status=SalesOrder.PaymentStatus.UNPAID,
+            amount_due_cny='700.00',
+            operator=self.operator,
+        )
+        SalesOrder.objects.filter(pk=deleted.pk).update(deleted_at=timezone.now())
+
+        dashboard = accounting_dashboard(as_of=self.business_date)
+
+        self.assertEqual(dashboard['stats']['pending_collection_cny'], Decimal('300.00'))
+        self.assertEqual(dashboard['stats']['pending_collection_order_count'], 2)
+        self.assertEqual(dashboard['stats']['accounts_receivable_cny'], Decimal('0.00'))

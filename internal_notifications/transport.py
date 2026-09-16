@@ -21,7 +21,13 @@ _configuration_warnings: set[tuple[str, ...]] = set()
 _configuration_warning_lock = threading.Lock()
 
 
+def _enabled() -> bool:
+    return bool(getattr(settings, "TELEGRAM_NOTIFICATIONS_ENABLED", True))
+
+
 def _configured(chat_id: str) -> bool:
+    if not _enabled():
+        return False
     missing = []
     if not getattr(settings, "TELEGRAM_BOT_TOKEN", ""):
         missing.append("TELEGRAM_BOT_TOKEN")
@@ -41,6 +47,8 @@ def _configured(chat_id: str) -> bool:
 
 
 def _request(method: str, *, chat_id: str, text: str = "", file_path: str = "") -> bool:
+    if not _enabled():
+        return False
     token = getattr(settings, "TELEGRAM_BOT_TOKEN", "")
     if not token or not chat_id:
         return False

@@ -18,6 +18,7 @@ urlpatterns = [
     path('overview/', views.overview, name='overview'),
     path('transactions/', views.transactions, name='transactions'),
     path('reports/monthly-profit/', views.monthly_profit_report, name='monthly_profit_report'),
+    path('reports/monthly-business/', views.monthly_business_report_view, name='monthly_business_report'),
     path('reports/summary/', views.summary_report, name='summary_report'),
     path('reconciliations/', views.reconciliations, name='reconciliations'),
     path(

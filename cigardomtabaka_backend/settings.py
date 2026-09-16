@@ -1,5 +1,6 @@
 """Django settings for cigardomtabaka_backend."""
 import os
+import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -140,6 +141,13 @@ PRIVNOTE_TRUSTED_PROXIES = tuple(value.strip() for value in os.getenv('PRIVNOTE_
 # configuration; the application does not accept Telegram chat IDs from HTTP
 # requests or use Telegram identity as website authentication.
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '').strip()
+# Automated tests must never contact real notification destinations, even when
+# the developer shell has production Telegram credentials loaded.
+RUNNING_TESTS = 'test' in sys.argv or 'pytest' in Path(sys.argv[0]).name
+TELEGRAM_NOTIFICATIONS_ENABLED = (
+    not RUNNING_TESTS
+    and os.getenv('TELEGRAM_NOTIFICATIONS_ENABLED', 'true').lower() in ('true', '1', 'yes')
+)
 # Fixed internal destinations approved by the owner.  Environment variables
 # remain available as an emergency override without a code deployment.
 TELEGRAM_BUSINESS_CHAT_ID = os.getenv('TELEGRAM_BUSINESS_CHAT_ID', '-1003900174592').strip()

@@ -7,7 +7,7 @@ import type {
   InventoryResponse, PrivnoteResponse,
   PaymentMethod, SearchCigarResult, InventoryViewData,
   CustomerResult, SalesCustomer, SalesCustomerDirectory, QuoteProduct, RecentChangesResponse,
-  SalesOrder, PaymentOrder, SalesOrderPayload, FundAccount, MonthlyProfitReport, PaymentSubmission,
+  SalesOrder, SalesOrderListResponse, PaymentOrder, SalesOrderPayload, FundAccount, MonthlyProfitReport, MonthlyBusinessReport, PaymentSubmission,
   AccountingSummary, AccountingDashboard, Reconciliation,
   Day1State,
 } from './types';
@@ -85,6 +85,9 @@ export const fetchInventory = (params?: { brand?: string; q?: string }): Promise
 // Sales order workflow APIs. Equivalent pending writes share an idempotency key.
 export const fetchSalesOrders = (params?: { q?: string; fulfillment_status?: string; payment_status?: string; date_from?: string; date_to?: string; limit?: number }): Promise<SalesOrder[]> =>
   api.get('/sales/orders/', { params }).then(r => r.data.results || []);
+
+export const fetchSalesOrderList = (params?: { q?: string; fulfillment_status?: string; payment_status?: string; date_from?: string; date_to?: string; limit?: number }): Promise<SalesOrderListResponse> =>
+  api.get('/sales/orders/', { params }).then(r => r.data);
 
 export const fetchSalesCustomers = (q = ''): Promise<CustomerResult[]> =>
   api.get('/sales/customers/', { params: { q } }).then(r => r.data.results || []);
@@ -199,6 +202,9 @@ export const fetchAccountingSummary = (asOf: string): Promise<AccountingSummary>
 
 export const fetchMonthlyProfit = (month: string): Promise<MonthlyProfitReport> =>
   api.get('/accounting/reports/monthly-profit/', { params: { month } }).then(r => r.data);
+
+export const fetchMonthlyBusinessReport = (month: string): Promise<MonthlyBusinessReport> =>
+  api.get('/accounting/reports/monthly-business/', { params: { month } }).then(r => r.data);
 
 export const fetchReconciliations = (): Promise<Reconciliation[]> =>
   api.get('/accounting/reconciliations/').then(r => r.data.reconciliations || []);

@@ -8,6 +8,7 @@ from accounting.models import (
     AccountReconciliation, Dividend, DividendRound, FundAccount, LedgerPosting, LedgerTransaction,
 )
 from cigars.models import PurchaseBatch, PurchaseOrder
+from cigars.sales_reports import pending_collection_summary
 
 
 @dataclass(frozen=True)
@@ -238,6 +239,7 @@ def accounting_dashboard(*, as_of):
         as_of=as_of, require_current=False, account_rows=accounts,
     )
     profit = monthly_profit(month=as_of.replace(day=1))
+    pending_collection = pending_collection_summary()
     cny_funds_total = sum(
         (row['original_balance'] for row in accounts if row['currency'] == FundAccount.Currency.CNY),
         Decimal('0.00'),
@@ -280,6 +282,8 @@ def accounting_dashboard(*, as_of):
             'inventory_book_cost_cny': summary['inventory_remaining_cost_cny'],
             'purchase_in_transit_cny': summary['purchase_in_transit_cny'],
             'accounts_receivable_cny': summary['accounts_receivable_cny'],
+            'pending_collection_cny': pending_collection['amount_cny'],
+            'pending_collection_order_count': pending_collection['order_count'],
             'month_net_profit_cny': profit['net_profit_cny'],
         },
         'accounts': accounts,

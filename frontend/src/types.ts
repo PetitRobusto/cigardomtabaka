@@ -695,6 +695,16 @@ export interface SalesOrder {
   available_actions: string[];
 }
 
+export interface PendingCollectionSummary {
+  order_count: number;
+  amount_cny: string;
+}
+
+export interface SalesOrderListResponse {
+  results: SalesOrder[];
+  pending_collection: PendingCollectionSummary;
+}
+
 export interface SalesOrderPayload {
   items: { cigar_id: number; sale_unit: string; quantity: number; unit_price: string; sale_quantity?: number; box_size?: number }[];
   customer_id?: number | null;
@@ -739,12 +749,136 @@ export interface MonthlyProfitReport {
   transaction_count: number;
 }
 
+export interface MonthlyBusinessComparisonMetric {
+  current_cny: string;
+  previous_cny: string;
+  delta_cny: string;
+  change_rate: string | null;
+  status: 'available' | 'new' | 'not_available';
+}
+
+export interface MonthlyBusinessRankingRow {
+  key: string | number;
+  name: string;
+  net_sales_revenue_cny: string;
+  quantity: number;
+  product_cost_cny: string;
+  human_cost_cny: string;
+  sales_profit_cny: string;
+  sales_profit_rate: string | null;
+}
+
+export interface MonthlyBusinessReport {
+  period: {
+    month: string;
+    period_start: string;
+    period_end: string;
+    is_current_month: boolean;
+    business_date_cutoff: string;
+  };
+  sales: {
+    fulfilled_sales_revenue_cny: string;
+    return_reduction_cny: string;
+    net_sales_revenue_cny: string;
+    fulfillment_order_count: number;
+    return_order_count: number;
+  };
+  profit: {
+    sales_revenue_cny: string;
+    product_cost_cny: string;
+    human_cost_cny: string;
+    sales_profit_cny: string;
+    sales_profit_rate: string | null;
+    operating_expenses_cny: string;
+    operating_expense_breakdown: {
+      salary_cny: string;
+      rent_cny: string;
+      utilities_cny: string;
+      professional_services_cny: string;
+      financial_cny: string;
+      other_cny: string;
+    };
+    core_operating_profit_cny: string;
+    inventory_adjustment_cny: string;
+    reconciliation_adjustment_cny: string;
+    net_operating_profit_cny: string;
+  };
+  cash: {
+    sales_receipts_cny: string;
+    refunds_cny: string;
+    net_receipts_cny: string;
+    accounts_receivable_cny: string;
+    customer_prepayments_cny: string;
+  };
+  inventory: {
+    opening_cost_cny: string;
+    received_cost_cny: string;
+    product_cost_consumed_cny: string;
+    adjustment_net_cny: string;
+    closing_cost_cny: string;
+    average_cost_cny: string;
+    monthly_turnover_rate: string | null;
+    warnings: {
+      status: 'available' | 'unavailable';
+      reason: string | null;
+      items: Array<{
+        cigar_id: number;
+        name: string;
+        warning_type: 'no_movement_90d' | 'overstock_180d';
+        inventory_cost_cny: string;
+        quantity: number;
+        fulfilled_quantity_90d: number;
+        estimated_days_of_stock: string | null;
+      }>;
+    };
+  };
+  customers: {
+    fulfilled_customer_count: number;
+    new_customer_count: number;
+    repeat_customer_count: number;
+    guest_orders_excluded: boolean;
+  };
+  rankings: {
+    default_sort: 'sales_profit_cny';
+    allocation_rule: string;
+    unallocated_human_cost_cny: string;
+    brands: MonthlyBusinessRankingRow[];
+    products: MonthlyBusinessRankingRow[];
+    customers: MonthlyBusinessRankingRow[];
+  };
+  metrics: {
+    sales_revenue_cny: string;
+    sales_profit_cny: string;
+    core_operating_profit_cny: string;
+    net_operating_profit_cny: string;
+  };
+  comparison: {
+    mode: 'same_days_previous_month' | 'full_previous_month';
+    previous_period_start: string;
+    previous_period_end: string;
+    metrics: {
+      sales_revenue_cny: MonthlyBusinessComparisonMetric;
+      sales_profit_cny: MonthlyBusinessComparisonMetric;
+      core_operating_profit_cny: MonthlyBusinessComparisonMetric;
+      net_operating_profit_cny: MonthlyBusinessComparisonMetric;
+    };
+  };
+  conclusions: Array<{
+    code: string;
+    status: string;
+    metric_keys: string[];
+    text: string;
+  }>;
+}
+
 export interface AccountingDashboardStats {
   total_funds_cny: string | null;
   cny_funds_total: string | null;
   inventory_book_cost_cny: string | null;
   purchase_in_transit_cny: string | null;
   accounts_receivable_cny: string | null;
+  pending_collection_cny: string | null;
+  pending_collection_order_count: number | null;
   month_net_profit_cny: string | null;
 }
 

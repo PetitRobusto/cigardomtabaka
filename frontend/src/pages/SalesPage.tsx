@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, RefreshCw, Search, UserPlus, X } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiErrorMessage, createSalesOrder, fetchAccountingAccounts, fetchSalesOrders } from '../api';
+import { apiErrorMessage, createSalesOrder, fetchAccountingAccounts, fetchSalesOrderList } from '../api';
 import { usePageMeta } from '../hooks/usePageMeta';
 import SalesOrderForm from '../components/sales/SalesOrderForm';
 import SalesOrderWorkbench from '../components/sales/SalesOrderWorkbench';
 import SalesCustomerModal from '../components/sales/SalesCustomerModal';
 import SalesSectionNav from '../components/sales/SalesSectionNav';
-import { activeSalesAmount, formatCny, summarizeSalesOrders } from '../components/sales/salesState';
+import { activeSalesAmount, formatCny } from '../components/sales/salesState';
 import { salesOrderFinancialView } from '../components/sales/SalesOrderCard.logic';
 import { shanghaiBusinessDate, shiftIsoDate } from '../utils/businessDate';
 import { DelayedAppSkeleton } from '../components/layout/AppSkeleton';
@@ -18,9 +18,9 @@ export default function SalesPage() {
   const { setMeta } = usePageMeta();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [quickDate, setQuickDate] = useState<QuickDate>('all');
+  const [dateFrom, setDateFrom] = useState(() => `${shanghaiBusinessDate().slice(0, 8)}01`);
+  const [dateTo, setDateTo] = useState(() => shanghaiBusinessDate());
+  const [quickDate, setQuickDate] = useState<QuickDate>('month');
   const [fulfillment, setFulfillment] = useState('');
   const [payment, setPayment] = useState('');
   const [reviewOnly, setReviewOnly] = useState(false);
@@ -34,7 +34,7 @@ export default function SalesPage() {
 
   const ordersQuery = useQuery({
     queryKey: ['sales-orders', search, dateFrom, dateTo, fulfillment, payment],
-    queryFn: () => fetchSalesOrders({
+    queryFn: () => fetchSalesOrderList({
       q: search || undefined,
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined,
@@ -46,10 +46,10 @@ export default function SalesPage() {
     placeholderData: previous => previous,
   });
   const accountsQuery = useQuery({ queryKey: ['accounting-accounts'], queryFn: fetchAccountingAccounts });
-  const orders = useMemo(() => ordersQuery.data || [], [ordersQuery.data]);
+  const orders = useMemo(() => ordersQuery.data?.results || [], [ordersQuery.data]);
+  const pendingCollection = ordersQuery.data?.pending_collection;
   const reviewCount = orders.filter(order => order.payment_review?.status === 'pending').length;
   const visibleOrders = reviewOnly ? orders.filter(order => order.payment_review?.status === 'pending') : orders;
-  const summary = summarizeSalesOrders(visibleOrders);
   const totalDue = activeSalesAmount(visibleOrders);
   const totalProfit = visibleOrders.reduce((total, order) => total + (salesOrderFinancialView(order).contributionProfit ?? 0), 0);
 
@@ -99,7 +99,7 @@ export default function SalesPage() {
     <SalesSectionNav />
     <header className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Master-detail bench</p><h1 className="mt-1 font-display text-3xl font-semibold sm:text-4xl">销售订单工作台</h1><p className="mt-2 text-sm text-muted">订单、客户、商品成本与收付款事实在同一主从工作台中推进。</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => setCustomerModal({ mode: 'create', id: null })} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><UserPlus className="h-4 w-4" />新建客户</button><button type="button" onClick={() => { setCreateOpen(true); setFormError(''); }} className="inline-flex items-center gap-1 rounded bg-accent px-3 py-2 text-sm font-semibold text-white hover:bg-accent-hover"><Plus className="h-4 w-4" />新建销售单</button><button type="button" onClick={invalidateSales} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
 
-    <section className="mb-4 grid grid-cols-2 overflow-hidden rounded-md border border-border bg-white shadow-sm lg:grid-cols-4"><SummaryCell label="订单数" value={String(orders.length)} hint="当前筛选范围" /><SummaryCell label="应收合计" value={formatCny(totalDue)} hint="商品与客户承担费用" /><SummaryCell label="待收金额" value={formatCny(summary.unpaid.amount)} hint={String(summary.unpaid.count) + ' 笔未核销'} /><SummaryCell label="预计贡献利润" value={formatCny(totalProfit)} hint="按商品成本估算" /></section>
+    <section className="mb-4 grid grid-cols-2 overflow-hidden rounded-md border border-border bg-white shadow-sm lg:grid-cols-4"><SummaryCell label="订单数" value={String(orders.length)} hint="当前筛选范围" /><SummaryCell label="应收合计" value={formatCny(totalDue)} hint="当前筛选范围" /><SummaryCell label="待收金额" value={formatCny(pendingCollection?.amount_cny)} hint={`${pendingCollection?.order_count ?? 0} 笔已确认未收款订单`} /><SummaryCell label="预计贡献利润" value={formatCny(totalProfit)} hint="按商品成本估算" /></section>
 
     <section className="mb-4 rounded-md border border-border bg-white p-3 shadow-sm">
       <div className="flex flex-wrap items-end gap-2">

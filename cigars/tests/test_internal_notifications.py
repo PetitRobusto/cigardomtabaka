@@ -30,6 +30,7 @@ def fake_order():
 
 
 @override_settings(
+    TELEGRAM_NOTIFICATIONS_ENABLED=True,
     TELEGRAM_BUSINESS_CHAT_ID="-100123",
     INTERNAL_SITE_URL="https://example.test",
 )
@@ -104,6 +105,7 @@ class BusinessNotificationTest(TestCase):
 
 
 @override_settings(
+    TELEGRAM_NOTIFICATIONS_ENABLED=True,
     TELEGRAM_BOT_TOKEN="test-token",
     TELEGRAM_NOTIFICATION_MAX_ATTEMPTS=3,
     TELEGRAM_NOTIFICATION_CONNECT_TIMEOUT=1,
@@ -138,7 +140,7 @@ class TelegramTransportTest(TestCase):
 
 
 class TelegramMissingConfigurationTest(TestCase):
-    @override_settings(TELEGRAM_BOT_TOKEN="")
+    @override_settings(TELEGRAM_NOTIFICATIONS_ENABLED=True, TELEGRAM_BOT_TOKEN="")
     def test_missing_configuration_is_logged_only_once(self):
         transport._configuration_warnings.clear()
         with patch.object(transport.logger, "warning") as warning_mock:
@@ -147,7 +149,11 @@ class TelegramMissingConfigurationTest(TestCase):
         warning_mock.assert_called_once()
 
 
-@override_settings(TELEGRAM_ERROR_CHAT_ID="987", TELEGRAM_ERROR_COOLDOWN_SECONDS=300)
+@override_settings(
+    TELEGRAM_NOTIFICATIONS_ENABLED=True,
+    TELEGRAM_ERROR_CHAT_ID="987",
+    TELEGRAM_ERROR_COOLDOWN_SECONDS=300,
+)
 class TelegramErrorHandlerTest(TestCase):
     def setUp(self):
         logging_handler._seen.clear()
@@ -203,3 +209,19 @@ class TelegramErrorHandlerTest(TestCase):
         with patch("internal_notifications.logging_handler.dispatch") as dispatch_mock:
             logging_handler.TelegramErrorHandler().emit(record)
         dispatch_mock.assert_not_called()
+
+
+@override_settings(TELEGRAM_NOTIFICATIONS_ENABLED=False)
+class TelegramDisabledTest(TestCase):
+    def test_error_handler_and_transport_do_not_dispatch_in_tests(self):
+        record = logging.LogRecord(
+            name="django.request", level=logging.ERROR, pathname=__file__,
+            lineno=1, msg="expected test error", args=(), exc_info=None,
+        )
+        with patch("internal_notifications.logging_handler.dispatch") as dispatch_mock:
+            logging_handler.TelegramErrorHandler().emit(record)
+        dispatch_mock.assert_not_called()
+
+        with patch("internal_notifications.transport.requests.post") as post_mock:
+            self.assertFalse(transport.send_text("real-chat-id", "must stay local"))
+        post_mock.assert_not_called()

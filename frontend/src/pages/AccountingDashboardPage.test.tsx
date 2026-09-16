@@ -51,6 +51,7 @@ describe('财务默认动作及刷新', () => {
     expect(screen.getByText('¥45.00')).toBeTruthy();
     expect(screen.getByText('2 笔已确认未收款订单')).toBeTruthy();
     expect(screen.queryByText('待收订单')).toBeNull();
+    expect(screen.getByRole('link', { name: '月度经营报告' }).getAttribute('href')).toBe('/accounting/reports/monthly');
     expect(screen.getByRole('button', { name: '记录费用', pressed: true })).toBeTruthy();
     const month = screen.getByLabelText('明细月份') as HTMLSelectElement;
     const chosenMonth = month.options[1].value;

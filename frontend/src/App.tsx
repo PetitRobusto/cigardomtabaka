@@ -116,6 +116,8 @@ function AnimatedRoutes() {
           <Route path={BUSINESS_STAFF_PATHS.day1} element={<StaffGate><Day1SetupPage /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.monthlyReport} element={<StaffGate><MonthlyBusinessReportPage /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.contributionRanking} element={<StaffGate><ContributionRankingPage /></StaffGate>} />
+          <Route path="/reports/monthly" element={<StaffGate><Navigate to={`${BUSINESS_STAFF_PATHS.monthlyReport}${location.search}`} replace /></StaffGate>} />
+          <Route path="/reports/contributions" element={<StaffGate><Navigate to={`${BUSINESS_STAFF_PATHS.contributionRanking}${location.search}`} replace /></StaffGate>} />
           <Route path="/help" element={<StaffHelpRoute />} />
 
           {/* Price Tracker */}

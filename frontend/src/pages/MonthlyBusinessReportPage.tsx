@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { apiErrorMessage, fetchMonthlyBusinessReport } from '../api';
 import MonthlyBusinessReportPanel from '../components/accounting/MonthlyBusinessReportPanel';
 import { usePageMeta } from '../hooks/usePageMeta';
@@ -18,11 +18,11 @@ export default function MonthlyBusinessReportPage() {
   const monthOptions = recentMoscowBusinessMonths();
   const report = useQuery({ queryKey: ['monthly-business-report', month], queryFn: () => fetchMonthlyBusinessReport(month) });
 
-  useEffect(() => { setMeta({ title: '月度经营报告', breadcrumbs: [{ label: '首页', to: '/' }, { label: '月度经营报告' }] }); }, [setMeta]);
+  useEffect(() => { setMeta({ title: '月度经营报告', breadcrumbs: [{ label: '首页', to: '/' }, { label: '账务工作台', to: '/accounting' }, { label: '月度经营报告' }] }); }, [setMeta]);
 
   return <div className="w-full">
     <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-      <div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">经营报告</p><h1 className="mt-1 font-display text-3xl font-semibold tracking-tight sm:text-4xl">月度经营报告</h1><p className="mt-2 text-sm text-muted">收入、成本、回款与库存的月度经营事实。</p></div>
+      <div><Link to="/accounting" className="mb-2 inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"><ArrowLeft className="h-3.5 w-3.5" />返回账务工作台</Link><h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">月度经营报告</h1><p className="mt-2 text-sm text-muted">财务应用中的收入、成本、回款与库存月度分析。</p></div>
       <div className="flex flex-wrap items-center gap-2">
         <label className="text-xs font-semibold text-muted"><span className="sr-only">选择月份</span><select data-guide="accounting-profit-month" aria-label="选择月份" value={month} onChange={event => setSearchParams({ month: event.target.value })} className="rounded border border-border bg-white px-3 py-2 text-sm font-normal text-fg hover:border-gold">{monthOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         <button type="button" onClick={() => report.refetch()} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className={`h-4 w-4 ${report.isFetching ? 'animate-spin' : ''}`} />刷新</button>

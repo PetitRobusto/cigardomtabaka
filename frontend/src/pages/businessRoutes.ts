@@ -32,8 +32,8 @@ export const BUSINESS_STAFF_PATHS = {
   salesCustomers: '/sales/customers',
   accounting: '/accounting',
   day1: '/accounting/day1',
-  monthlyReport: '/reports/monthly',
-  contributionRanking: '/reports/contributions',
+  monthlyReport: '/accounting/reports/monthly',
+  contributionRanking: '/accounting/reports/contributions',
 } as const;
 
 // Keep the semantic route name while ensuring App and tests share one configuration object.

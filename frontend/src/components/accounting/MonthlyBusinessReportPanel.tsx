@@ -58,9 +58,16 @@ export default function MonthlyBusinessReportPanel({ report, error, month, onRet
   const hasCostReversals = [...costItems, ...expenseItems].some(item => item.value < 0);
   const hasAdjustments = Number(report.profit.inventory_adjustment_cny) !== 0
     || Number(report.profit.reconciliation_adjustment_cny) !== 0;
-  const topBrands = [...report.rankings.brands]
-    .sort((left, right) => Number(right.sales_profit_cny) - Number(left.sales_profit_cny))
-    .slice(0, 3);
+  const rankedGroups = [
+    { key: 'brands', label: '品牌', rows: report.rankings.brands },
+    { key: 'products', label: '商品', rows: report.rankings.products },
+    { key: 'customers', label: '客户', rows: report.rankings.customers },
+  ].map(group => ({
+    ...group,
+    rows: [...group.rows]
+      .sort((left, right) => Number(right.sales_profit_cny) - Number(left.sales_profit_cny))
+      .slice(0, 3),
+  }));
 
   return (
     <section data-guide="accounting-profit" className="space-y-7">
@@ -130,11 +137,17 @@ export default function MonthlyBusinessReportPanel({ report, error, month, onRet
       </ReportSection>
 
       <ReportSection title="客户结构" meta="新客与复购客户可能重叠，不作加总">
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <CustomerMetric label="履约客户" value={`${report.customers.fulfilled_customer_count} 位`} note="本月有履约订单" />
-          <CustomerMetric label="新客" value={`${report.customers.new_customer_count} 位`} note="本月首次履约" />
-          <CustomerMetric label="复购客户" value={`${report.customers.repeat_customer_count} 位`} note="本月前已有履约" />
+          <CustomerMetric label="新客" value={`${report.customers.new_customer_count} 位`} note={report.customers.new_customer_rate == null ? '本月首次履约' : `占履约客户 ${(Number(report.customers.new_customer_rate) * 100).toFixed(1)}%`} />
+          <CustomerMetric label="复购客户" value={`${report.customers.repeat_customer_count} 位`} note={report.customers.repeat_customer_rate == null ? '暂无复购覆盖率' : `覆盖履约客户 ${(Number(report.customers.repeat_customer_rate) * 100).toFixed(1)}%`} />
+          <CustomerMetric label="履约订单" value={`${report.customers.fulfilled_order_count} 单`} note={`平均每位客户 ${report.customers.fulfilled_customer_count ? (report.customers.fulfilled_order_count / report.customers.fulfilled_customer_count).toFixed(1) : '—'} 单`} />
+          <CustomerMetric label="平均订单金额" value={report.customers.average_order_revenue_cny == null ? '—' : formatCny(report.customers.average_order_revenue_cny)} note="履约销售额 ÷ 履约订单" />
+          <CustomerMetric label="已识别客户销售额" value={formatSignedCny(report.customers.identified_customer_revenue_cny)} note={report.customers.guest_orders_excluded ? '客户分析不含散客订单' : '包含全部客户订单'} />
         </div>
+        <div className="mt-4"><ReportCard title="客户贡献前三名">
+          <CustomerContribution rows={rankedGroups.find(group => group.key === 'customers')?.rows ?? []} />
+        </ReportCard></div>
       </ReportSection>
 
       <ReportSection title="经营结论">
@@ -150,21 +163,13 @@ export default function MonthlyBusinessReportPanel({ report, error, month, onRet
         </ReportCard>
       </ReportSection>
 
-      <ReportSection title="经营贡献排行" meta="按销售利润 · 前三名">
-        <ReportCard>
-          {topBrands.length ? (
-            <div className="divide-y divide-dashed divide-border">
-              {topBrands.map((row, index) => (
-                <div key={String(row.key)} className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 py-3 first:pt-0 last:pb-0">
-                  <span className="font-mono text-xs text-gold">{String(index + 1).padStart(2, '0')}</span>
-                  <span className="truncate text-sm font-medium">{row.name}</span>
-                  <span className="font-mono text-sm font-semibold">{formatSignedCny(row.sales_profit_cny)}</span>
-                </div>
-              ))}
-            </div>
-          ) : <p className="py-6 text-center text-sm text-muted">本月无销售，暂无经营贡献数据。</p>}
-          <div className="mt-4 text-right"><Link className="text-sm font-semibold text-accent hover:underline" to={`/reports/contributions?month=${month}`}>查看完整经营贡献排行 →</Link></div>
-        </ReportCard>
+      <ReportSection title="经营贡献排行" meta="按销售利润 · 品牌、商品、客户各前三名">
+        <div className="grid gap-4 xl:grid-cols-3">
+          {rankedGroups.map(group => (
+            <RankingPreviewCard key={group.key} label={group.label} rows={group.rows} totalCount={report.rankings[group.key as keyof Pick<MonthlyBusinessReport['rankings'], 'brands' | 'products' | 'customers'>].length} />
+          ))}
+        </div>
+        <div className="mt-3 text-right"><Link className="text-sm font-semibold text-accent hover:underline" to={`/accounting/reports/contributions?month=${month}`}>查看完整经营贡献排行 →</Link></div>
       </ReportSection>
     </section>
   );
@@ -211,6 +216,15 @@ function StripMetric({ label, value }: { label: string; value: string }) {
 
 function CustomerMetric({ label, value, note }: { label: string; value: string; note: string }) {
   return <div className="rounded-md border border-border bg-white p-4 shadow-sm"><p className="text-xs text-muted">{label}</p><p className="mt-2 font-mono text-2xl font-semibold">{value}</p><p className="mt-1 text-[11px] text-muted">{note}</p></div>;
+}
+
+function CustomerContribution({ rows }: { rows: MonthlyBusinessReport['rankings']['customers'] }) {
+  if (!rows.length) return <p className="py-3 text-center text-sm text-muted">本月没有可识别客户的贡献数据。</p>;
+  return <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-xs"><thead className="text-muted"><tr><th className="pb-2 text-left font-medium">客户</th><th className="pb-2 text-right font-medium">净销售收入</th><th className="pb-2 text-right font-medium">销售利润</th><th className="pb-2 text-right font-medium">利润率</th></tr></thead><tbody>{rows.map(row => <tr key={String(row.key)} className="border-t border-dashed border-border"><td className="py-2.5 font-medium">{row.name}</td><td className="py-2.5 text-right font-mono">{formatSignedCny(row.net_sales_revenue_cny)}</td><td className="py-2.5 text-right font-mono font-semibold">{formatSignedCny(row.sales_profit_cny)}</td><td className="py-2.5 text-right font-mono">{row.sales_profit_rate == null ? '—' : `${(Number(row.sales_profit_rate) * 100).toFixed(1)}%`}</td></tr>)}</tbody></table></div>;
+}
+
+function RankingPreviewCard({ label, rows, totalCount }: { label: string; rows: MonthlyBusinessReport['rankings']['brands']; totalCount: number }) {
+  return <ReportCard><div className="mb-3 flex items-baseline justify-between gap-2"><h3 className="font-display text-base font-semibold">{label}贡献</h3><span className="text-[11px] text-muted">共 {totalCount} 项</span></div>{rows.length ? <div className="divide-y divide-dashed divide-border">{rows.map((row, index) => <div key={String(row.key)} className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 py-3 first:pt-0 last:pb-0"><span className="font-mono text-xs text-gold">{String(index + 1).padStart(2, '0')}</span><div className="min-w-0"><p className="truncate text-sm font-medium">{row.name}</p><p className="mt-0.5 text-[10px] text-muted">收入 {formatSignedCny(row.net_sales_revenue_cny)} · {row.quantity} 支</p></div><div className="text-right"><p className="font-mono text-sm font-semibold">{formatSignedCny(row.sales_profit_cny)}</p><p className="mt-0.5 font-mono text-[10px] text-muted">{row.sales_profit_rate == null ? '—' : `${(Number(row.sales_profit_rate) * 100).toFixed(1)}%`}</p></div></div>)}</div> : <p className="py-6 text-center text-sm text-muted">暂无{label}贡献数据。</p>}</ReportCard>;
 }
 
 function InventoryWarnings({ report }: { report: MonthlyBusinessReport }) {

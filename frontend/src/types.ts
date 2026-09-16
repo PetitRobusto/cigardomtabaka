@@ -836,6 +836,11 @@ export interface MonthlyBusinessReport {
     fulfilled_customer_count: number;
     new_customer_count: number;
     repeat_customer_count: number;
+    new_customer_rate: string | null;
+    repeat_customer_rate: string | null;
+    fulfilled_order_count: number;
+    average_order_revenue_cny: string | null;
+    identified_customer_revenue_cny: string;
     guest_orders_excluded: boolean;
   };
   rankings: {

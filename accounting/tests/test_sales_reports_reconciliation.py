@@ -610,7 +610,7 @@ class SalesReportsAndReconciliationTest(TestCase):
         with patch(
             'accounting.views.create_reconciliation',
             side_effect=OperationalError('database is locked'),
-        ):
+        ), patch('internal_notifications.logging_handler.dispatch') as telegram_dispatch:
             response = self.client.post(
                 '/api/accounting/reconciliations/',
                 data={
@@ -623,6 +623,7 @@ class SalesReportsAndReconciliationTest(TestCase):
 
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.json(), {'error': '账务系统繁忙，请重试', 'code': 'busy', 'details': {}})
+        telegram_dispatch.assert_not_called()
 
 
 class AccountReconciliationIdempotencyMigrationTest(TransactionTestCase):

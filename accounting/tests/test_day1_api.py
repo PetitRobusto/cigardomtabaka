@@ -217,6 +217,8 @@ class Day1ApiTest(TestCase):
             'inventory_book_cost_cny': None,
             'purchase_in_transit_cny': None,
             'accounts_receivable_cny': None,
+            'pending_collection_cny': None,
+            'pending_collection_order_count': None,
             'month_net_profit_cny': None,
         })
         self.assertEqual(response.json()['accounts'], [])
@@ -239,6 +241,8 @@ class Day1ApiTest(TestCase):
             'inventory_book_cost_cny': '337.50',
             'purchase_in_transit_cny': '0.00',
             'accounts_receivable_cny': '0.00',
+            'pending_collection_cny': '0.00',
+            'pending_collection_order_count': 0,
             'month_net_profit_cny': '0.00',
         })
         self.assertEqual(len(data['accounts']), 4)

@@ -5,8 +5,9 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SalesOrder } from '../types';
 import SalesPage from './SalesPage';
+import { shanghaiBusinessDate } from '../utils/businessDate';
 
-const mocks = vi.hoisted(() => ({ fetchSalesOrders: vi.fn(), fetchAccountingAccounts: vi.fn(), setMeta: vi.fn() }));
+const mocks = vi.hoisted(() => ({ fetchSalesOrderList: vi.fn(), fetchAccountingAccounts: vi.fn(), setMeta: vi.fn() }));
 vi.mock('../api', () => ({ ...mocks, apiErrorMessage: (error: Error) => error.message, createSalesOrder: vi.fn() }));
 vi.mock('../hooks/usePageMeta', () => ({ usePageMeta: () => ({ setMeta: mocks.setMeta }) }));
 vi.mock('../components/sales/SalesCustomerModal', () => ({ default: () => null }));
@@ -17,6 +18,24 @@ vi.mock('../components/sales/SalesOrderWorkbench', () => ({ default: ({ selected
 afterEach(cleanup);
 
 describe('销售动作后的查询刷新', () => {
+  it('订单轨道默认只查询本月至今', async () => {
+    mocks.fetchSalesOrderList.mockResolvedValue({ results: [], pending_collection: { order_count: 2, amount_cny: '88.00' } });
+    mocks.fetchAccountingAccounts.mockResolvedValue([]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const today = shanghaiBusinessDate();
+    render(<QueryClientProvider client={client}><MemoryRouter><SalesPage /></MemoryRouter></QueryClientProvider>);
+
+    await waitFor(() => expect(mocks.fetchSalesOrderList).toHaveBeenCalledWith(expect.objectContaining({
+      date_from: `${today.slice(0, 8)}01`,
+      date_to: today,
+    })));
+    expect((await screen.findByLabelText('订单日期') as HTMLInputElement).value).toBe(`${today.slice(0, 8)}01`);
+    expect((screen.getByLabelText('结束日期') as HTMLInputElement).value).toBe(today);
+    expect(screen.getByRole('button', { name: '本月' }).className).toContain('bg-fg');
+    expect(screen.getByText('¥88.00')).toBeTruthy();
+    expect(screen.getByText('2 笔已确认未收款订单')).toBeTruthy();
+  });
+
   it('刷新所有关联缓存，包括非活动收款单、客户列表；保留筛选和选单', async () => {
     const order: SalesOrder = {
       id: 1, order_number: 'SO-1', status: 'confirmed', display_status: '已确认',
@@ -26,7 +45,7 @@ describe('销售动作后的查询刷新', () => {
       actual_transport_cost_cny: 0, locked: true, created_at: null, confirmed_at: null, cancelled_at: null,
       note: '', items: [], sales_shipment: null, sales_receipt: null, sales_refund: null, sales_transport_cost: null, available_actions: [],
     };
-    mocks.fetchSalesOrders.mockResolvedValue([order]);
+    mocks.fetchSalesOrderList.mockResolvedValue({ results: [order], pending_collection: { order_count: 1, amount_cny: '10.00' } });
     mocks.fetchAccountingAccounts.mockResolvedValue([]);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 300000 } } });
     const keys = ['inventory', 'accounting-dashboard', 'accounting-summary', 'monthly-profit', 'accounting-actions', 'sales-customer', 'sales-customers', 'sales-receipts', 'dividend-rounds'];
@@ -42,9 +61,9 @@ describe('销售动作后的查询刷新', () => {
     expect(screen.getByText('选中 1')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '动作失败' }));
     for (const key of keys) expect(client.getQueryState([key])?.isInvalidated).toBe(false);
-    const calls = mocks.fetchSalesOrders.mock.calls.length;
+    const calls = mocks.fetchSalesOrderList.mock.calls.length;
     fireEvent.click(screen.getByRole('button', { name: '动作成功' }));
-    await waitFor(() => expect(mocks.fetchSalesOrders.mock.calls.length).toBeGreaterThan(calls));
+    await waitFor(() => expect(mocks.fetchSalesOrderList.mock.calls.length).toBeGreaterThan(calls));
     for (const key of keys) expect(client.getQueryState([key])?.isInvalidated).toBe(true);
     expect(screen.getByDisplayValue('客户甲')).toBeTruthy();
     expect(screen.getByDisplayValue('2026-09-01')).toBeTruthy();

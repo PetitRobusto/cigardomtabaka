@@ -43,6 +43,15 @@ afterEach(() => {
 });
 
 describe('startup logo fallback', () => {
+  it('does not reveal the motion logo before it has loaded', () => {
+    const logo = installLoader();
+
+    expect(document.getElementById('startup-loader')?.dataset.logoReady).toBeUndefined();
+    Object.defineProperty(logo, 'naturalWidth', { configurable: true, value: 640 });
+    logo.dispatchEvent(new Event('load'));
+    expect(document.getElementById('startup-loader')?.dataset.logoReady).toBe('true');
+  });
+
   it('uses the static logo when the motion SVG fails and still opens the app', async () => {
     const logo = installLoader();
     logo.dispatchEvent(new Event('error'));

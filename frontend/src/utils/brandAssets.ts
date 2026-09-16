@@ -9,8 +9,8 @@ export const brandLogoUrl = moduleOrigin === 'null'
   : new URL(`${base}logo-opening.webp`, moduleOrigin).href;
 
 export const brandMotionLogoUrl = moduleOrigin === 'null'
-  ? `${base}logo-opening-motion.svg`
-  : new URL(`${base}logo-opening-motion.svg`, moduleOrigin).href;
+  ? `${base}logo-opening-motion-v2.svg`
+  : new URL(`${base}logo-opening-motion-v2.svg`, moduleOrigin).href;
 
 export const brandDockLogoUrl = moduleOrigin === 'null'
   ? `${base}logo-motion.webp`

@@ -13,7 +13,7 @@ import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { mobileNavItems } from './mobileNav';
 import { BrandLoader } from '../shared/BrandLoader';
-import { brandDockLogoUrl, brandLogoUrl } from '../../utils/brandAssets';
+import { brandDockLogoUrl, brandLogoUrl, habanosSpecialistLogoUrl } from '../../utils/brandAssets';
 import { isAppNavPathActive } from './appSections';
 
 const GuideController = lazy(() => import('../../features/guides/GuideController'));
@@ -245,6 +245,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <span>WeChat: cigardomtabaka</span>
               </div>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-4 border-b border-border py-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <img
+                src={habanosSpecialistLogoUrl}
+                alt="Habanos Specialist"
+                width="173"
+                height="216"
+                loading="lazy"
+                decoding="async"
+                className="h-[70px] w-[56px] shrink-0 object-contain"
+              />
+              <div className="max-w-2xl">
+                <div className="font-display text-base font-semibold tracking-wide text-fg">莫斯科持证雪茄服务商</div>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-accent">Habanos Specialist · 专业门店资质</p>
+              </div>
+            </div>
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">Specialist Retailer</span>
           </div>
 
           {/* Bottom row */}

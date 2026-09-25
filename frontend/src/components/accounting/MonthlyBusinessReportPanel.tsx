@@ -60,6 +60,17 @@ export default function MonthlyBusinessReportPanel({ report, error, month, onRet
   const hasCostReversals = [...costItems, ...expenseItems].some(item => item.value < 0);
   const hasAdjustments = Number(report.profit.inventory_adjustment_cny) !== 0
     || Number(report.profit.reconciliation_adjustment_cny) !== 0;
+  const totalCost = Number(report.profit.product_cost_cny)
+    + Number(report.profit.human_cost_cny)
+    + Number(report.profit.operating_expenses_cny);
+  const operatingProfit = Number(report.profit.core_operating_profit_cny);
+  const operatingProfitLabel = hasAdjustments ? '调整前经营利润' : '经营净利润';
+  const salesRevenue = Number(report.profit.sales_revenue_cny);
+  const canShowProfitShare = salesRevenue > 0 && totalCost >= 0 && operatingProfit >= 0
+    && Math.abs(totalCost + operatingProfit - salesRevenue) < 0.005;
+  const shareUnavailableReason = salesRevenue <= 0 ? '净销售收入非正'
+    : totalCost < 0 ? '总成本为负'
+      : operatingProfit < 0 ? '经营亏损' : '金额未对齐';
   const rankedGroups = [
     { key: 'brands', label: '品牌', rows: report.rankings.brands },
     { key: 'products', label: '商品', rows: report.rankings.products },
@@ -102,6 +113,25 @@ export default function MonthlyBusinessReportPanel({ report, error, month, onRet
           )}
         </HeadlineMetric>
       </div>
+
+      <ReportSection title="成本与利润占比" meta="按净销售收入计算；库存和对账调整不纳入占比">
+        <ReportCard>
+          <div className="mx-auto max-w-2xl">
+            {canShowProfitShare ? (
+              <DonutBreakdown
+                items={[
+                  { name: '总成本', value: totalCost, color: REPORT_CHART_COLORS[0] },
+                  { name: operatingProfitLabel, value: operatingProfit, color: REPORT_CHART_COLORS[3] },
+                ]}
+                totalLabel="净销售收入"
+              />
+            ) : (
+              <p className="text-sm leading-6 text-muted">本月{shareUnavailableReason}，无法绘制成本与利润占比。总成本 {formatSignedCny(totalCost)} · {operatingProfitLabel} {formatSignedCny(operatingProfit)}</p>
+            )}
+            {hasAdjustments && <p className="mt-3 text-[11px] leading-5 text-muted">含库存和对账调整后的经营净利润为 {formatSignedCny(report.profit.net_operating_profit_cny)}，不计入此图。</p>}
+          </div>
+        </ReportCard>
+      </ReportSection>
 
       <ReportSection title="成本结构" meta="库存调整与对账调整不计入常规成本">
         <div className="grid gap-4">

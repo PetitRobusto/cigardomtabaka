@@ -51,7 +51,7 @@ describe('经营月报', () => {
 
     expect(screen.getAllByText('净销售收入').length).toBeGreaterThan(0);
     expect(screen.getAllByText('销售利润').length).toBeGreaterThan(0);
-    expect(screen.getByText('经营净利润')).toBeTruthy();
+    expect(screen.getAllByText('经营净利润').length).toBeGreaterThan(0);
     expect(screen.queryByText('核心经营利润')).toBeNull();
     expect(screen.queryByText('-¥20.00')).toBeNull();
     expect(screen.getAllByText('¥20.00').length).toBeGreaterThan(0);
@@ -103,6 +103,54 @@ describe('经营月报', () => {
     expect(new Set(swatches.map(swatch => swatch.getAttribute('style'))).size).toBe(8);
   });
 
+  it('总览图先显示总成本和利润，再展开成本结构', () => {
+    renderReport();
+
+    const overviewHeading = screen.getByRole('heading', { name: '成本与利润占比' });
+    const overview = overviewHeading.closest('section') as HTMLElement;
+    expect(within(overview).getByRole('img', { name: '净销售收入环形图，合计¥190.00' })).toBeTruthy();
+    const costRow = within(overview).getByText('总成本').parentElement as HTMLElement;
+    expect(within(costRow).getByText('¥100.00')).toBeTruthy();
+    expect(within(costRow).getByText('52.6%')).toBeTruthy();
+    const profitRow = within(overview).getByText('经营净利润').parentElement as HTMLElement;
+    expect(within(profitRow).getByText('¥90.00')).toBeTruthy();
+    expect(within(profitRow).getByText('47.4%')).toBeTruthy();
+    expect(overviewHeading.compareDocumentPosition(screen.getByRole('heading', { name: '成本结构' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('库存调整只影响实际净利润，不混进收入分配图', () => {
+    renderReport({ ...report, profit: { ...report.profit, inventory_adjustment_cny: '-2.00', net_operating_profit_cny: '88.00' } });
+
+    const overview = screen.getByRole('heading', { name: '成本与利润占比' }).closest('section') as HTMLElement;
+    expect(within(overview).getByRole('img', { name: '净销售收入环形图，合计¥190.00' })).toBeTruthy();
+    expect(within(overview).getByText('调整前经营利润')).toBeTruthy();
+    expect(within(overview).getByText(/经营净利润为 ¥88\.00/)).toBeTruthy();
+  });
+
+  it('亏损和负成本时不把负数绘成正数扇区', () => {
+    const lossProfit = { ...report.profit, sales_revenue_cny: '80.00', core_operating_profit_cny: '-20.00', net_operating_profit_cny: '-20.00' };
+    const { rerender } = renderReport({ ...report, profit: lossProfit });
+
+    expect(screen.queryByRole('img', { name: /净销售收入环形图/ })).toBeNull();
+    expect(screen.getByText(/总成本 ¥100\.00 · 经营净利润 -¥20\.00/)).toBeTruthy();
+
+    rerender(<MemoryRouter><MonthlyBusinessReportPanel report={{ ...report, profit: { ...lossProfit, inventory_adjustment_cny: '-5.00', net_operating_profit_cny: '-25.00' } }} month="2026-08" /></MemoryRouter>);
+    expect(screen.getByText(/总成本 ¥100\.00 · 调整前经营利润 -¥20\.00/)).toBeTruthy();
+    expect(screen.getByText(/经营净利润为 -¥25\.00/)).toBeTruthy();
+
+    rerender(<MemoryRouter><MonthlyBusinessReportPanel report={{ ...report, profit: { ...report.profit, sales_revenue_cny: '10.00', product_cost_cny: '-20.00', human_cost_cny: '0.00', operating_expenses_cny: '0.00', core_operating_profit_cny: '30.00', net_operating_profit_cny: '30.00' } }} month="2026-08" /></MemoryRouter>);
+    expect(screen.queryByRole('img', { name: /净销售收入环形图/ })).toBeNull();
+    expect(screen.getByText(/总成本 -¥20\.00 · 经营净利润 ¥30\.00/)).toBeTruthy();
+
+    rerender(<MemoryRouter><MonthlyBusinessReportPanel report={{ ...report, profit: { ...report.profit, sales_revenue_cny: '0.00', product_cost_cny: '0.00', human_cost_cny: '0.00', operating_expenses_cny: '0.00', core_operating_profit_cny: '0.00', net_operating_profit_cny: '0.00' } }} month="2026-08" /></MemoryRouter>);
+    expect(screen.queryByRole('img', { name: /净销售收入环形图/ })).toBeNull();
+    expect(screen.getByText(/净销售收入非正/)).toBeTruthy();
+
+    rerender(<MemoryRouter><MonthlyBusinessReportPanel report={{ ...report, profit: { ...report.profit, sales_revenue_cny: '191.00' } }} month="2026-08" /></MemoryRouter>);
+    expect(screen.queryByRole('img', { name: /净销售收入环形图/ })).toBeNull();
+    expect(screen.getByText(/金额未对齐/)).toBeTruthy();
+  });
+
   it('客户结构同时展示订单、客单价、复购覆盖与客户贡献', () => {
     renderReport();
 
@@ -122,7 +170,7 @@ describe('经营月报', () => {
 
   it('有调整时在经营净利润卡中展开调整前金额', () => {
     renderReport({ ...report, profit: { ...report.profit, inventory_adjustment_cny: '-2.00', net_operating_profit_cny: '88.00' } });
-    expect(screen.getByText('调整前经营利润')).toBeTruthy();
+    expect(screen.getAllByText('调整前经营利润').length).toBeGreaterThan(0);
     expect(screen.getAllByText('库存调整').length).toBeGreaterThan(0);
   });
 

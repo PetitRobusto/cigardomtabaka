@@ -8,7 +8,7 @@ from django.test import Client, TestCase, TransactionTestCase
 from django.utils import timezone
 
 from accounting.models import Day1Initialization, FundAccount, LedgerPosting
-from accounting.services import record_opening_balance
+from accounting.services import record_opening_balance, transfer_same_currency
 from threading import Barrier, Thread
 
 from cigars.models import (
@@ -515,7 +515,7 @@ class SalesOrderApiTest(TestCase):
         self.login()
         # Notes and evidence each use one prefetch, independent of order count.
         for limit in (1, 5):
-            with self.subTest(limit=limit), self.assertNumQueries(9):
+            with self.subTest(limit=limit), self.assertNumQueries(10):
                 response = self.client.get(f"/api/sales/orders/?limit={limit}")
             self.assertEqual(response.status_code, 200)
             self.assertEqual(len(response.json()["results"]), limit)
@@ -572,6 +572,70 @@ class SalesOrderApiTest(TestCase):
         payload = response.json()["sales_order"]
         self.assertEqual(payload["payment_status"], SalesOrder.PaymentStatus.PAID)
         self.assertIn("sales_receipt", payload)
+
+    def test_withdraw_receipt_api_retains_history_and_allows_new_receipt(self):
+        order_id = self.action_order('api-withdraw')
+        wrong = self.action_account('api-withdraw-wrong')
+        correct = self.action_account('api-withdraw-correct')
+        received = self.request(
+            'post', f'/api/sales/orders/{order_id}/receive/',
+            {'amount_cny': '43.00', 'fund_account_id': wrong.pk, 'business_date': '2026-08-10'},
+            'api-withdraw-receive',
+        )
+        self.assertEqual(received.status_code, 200)
+        self.assertIn('withdraw_receipt', received.json()['sales_order']['available_actions'])
+        withdrawn = self.request(
+            'post', f'/api/sales/orders/{order_id}/withdraw-receipt/',
+            {'business_date': '2026-08-10', 'reason': '到账账户选错'}, 'api-withdraw-reversal',
+        )
+        self.assertEqual(withdrawn.status_code, 200, withdrawn.content)
+        payload = withdrawn.json()['sales_order']
+        self.assertEqual(payload['payment_status'], 'unpaid')
+        self.assertIsNone(payload['sales_receipt'])
+        self.assertEqual(len(payload['sales_receipts']), 1)
+        self.assertIsNotNone(payload['sales_receipts'][0]['reversed_at'])
+        self.assertIn('receive', payload['available_actions'])
+        replay = self.request(
+            'post', f'/api/sales/orders/{order_id}/withdraw-receipt/',
+            {'business_date': '2026-08-10', 'reason': '到账账户选错'}, 'api-withdraw-reversal',
+        )
+        self.assertEqual(replay.status_code, 200)
+        corrected = self.request(
+            'post', f'/api/sales/orders/{order_id}/receive/',
+            {'amount_cny': '43.00', 'fund_account_id': correct.pk, 'business_date': '2026-08-10'},
+            'api-withdraw-correct-receive',
+        )
+        self.assertEqual(corrected.status_code, 200, corrected.content)
+        self.assertEqual(corrected.json()['sales_order']['sales_receipt']['fund_account_id'], correct.pk)
+        self.assertEqual(len(corrected.json()['sales_order']['sales_receipts']), 2)
+        self.assertEqual(SalesReceipt.objects.filter(sales_order_id=order_id).count(), 2)
+
+    def test_withdraw_receipt_api_requires_reason_and_refuses_later_account_flow(self):
+        order_id = self.action_order('api-withdraw-blocked')
+        account = self.action_account('api-withdraw-blocked-account')
+        received = self.request(
+            'post', f'/api/sales/orders/{order_id}/receive/',
+            {'amount_cny': '43.00', 'fund_account_id': account.pk, 'business_date': '2026-08-10'},
+            'api-withdraw-blocked-receive',
+        )
+        self.assertEqual(received.status_code, 200)
+        missing_reason = self.request(
+            'post', f'/api/sales/orders/{order_id}/withdraw-receipt/',
+            {'business_date': '2026-08-10'}, 'api-withdraw-no-reason',
+        )
+        self.assertIn(missing_reason.status_code, (400, 409))
+        other = self.action_account('api-withdraw-later-target')
+        transfer_same_currency(
+            account, other, Decimal('1.00'), date(2026, 8, 10),
+            self.operator, 'api-withdraw-later-flow',
+        )
+        blocked = self.request(
+            'post', f'/api/sales/orders/{order_id}/withdraw-receipt/',
+            {'business_date': '2026-08-10', 'reason': '到账账户选错'}, 'api-withdraw-blocked-reversal',
+        )
+        self.assertEqual(blocked.status_code, 409)
+        self.assertIn('后续流水', blocked.json()['error'])
+        self.assertEqual(SalesReceipt.objects.get(sales_order_id=order_id).reversed_at, None)
 
     def test_refund_action_api_returns_refund_fact(self):
         order_id = self.action_order("api-refund")

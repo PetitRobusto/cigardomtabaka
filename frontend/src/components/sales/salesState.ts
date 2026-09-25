@@ -233,6 +233,7 @@ export function actionLabel(action: string): string {
       cancel: "取消订单",
       ship: "出库",
       receive: "收款",
+      withdraw_receipt: "撤回收款",
       refund: "退款",
       return: "整单退货",
       transport_cost: "记录人肉成本",

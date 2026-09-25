@@ -412,6 +412,12 @@ def _cash_facts(*, start, end):
         business_date__lte=end,
         ledger_transaction__status=LedgerTransaction.Status.POSTED,
     ).aggregate(total=Sum('amount_cny'))['total'] or Decimal('0.00')
+    receipt_reversals = SalesReceipt.objects.filter(
+        reversal_ledger_transaction__business_date__gte=start,
+        reversal_ledger_transaction__business_date__lte=end,
+        reversal_ledger_transaction__status=LedgerTransaction.Status.POSTED,
+    ).aggregate(total=Sum('amount_cny'))['total'] or Decimal('0.00')
+    receipts -= receipt_reversals
     refunds = SalesRefund.objects.filter(
         business_date__gte=start,
         business_date__lte=end,

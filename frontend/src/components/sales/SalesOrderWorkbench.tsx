@@ -22,6 +22,7 @@ import {
   refundSalesOrder,
   returnSalesOrder,
   shipSalesOrder,
+  withdrawSalesOrderReceipt,
 } from "../../api";
 import {
   actionLabel,
@@ -217,7 +218,7 @@ export default function SalesOrderWorkbench({
                 <Amounts order={selected} />
               </DetailSection>
               <DetailSection title="业务事实">
-                <Facts order={selected} />
+                <Facts order={selected} accounts={allAccounts} />
               </DetailSection>
               <DetailSection title="时间线">
                 <Timeline order={selected} />
@@ -606,8 +607,24 @@ function Amounts({ order }: { order: SalesOrder }) {
   );
 }
 
-function Facts({ order }: { order: SalesOrder }) {
+function Facts({ order, accounts }: { order: SalesOrder; accounts: FundAccount[] }) {
+  const accountName = (accountId: number) =>
+    accounts.find((account) => account.id === accountId)?.name || `账户 #${accountId}`;
   const facts = [
+    ...(order.sales_receipts || (order.sales_receipt ? [{
+      ...order.sales_receipt,
+      reversed_at: null,
+      reversal_business_date: null,
+      reversal_reason: "",
+    }] : [])).map((receipt) => ({
+      type: receipt.reversed_at ? "SalesReceipt · 已撤回收款" : "SalesReceipt · 有效收款",
+      id: receipt.id,
+      amount: receipt.amount_cny,
+      date: receipt.business_date,
+      detail: receipt.reversed_at
+        ? `${accountName(receipt.fund_account_id)} · 撤回日期 ${receipt.reversal_business_date} · ${receipt.reversal_reason}`
+        : `到账账户：${accountName(receipt.fund_account_id)}`,
+    })),
     order.sales_shipment && {
       type: "SalesShipment · 出库",
       id: order.sales_shipment.id,
@@ -637,6 +654,7 @@ function Facts({ order }: { order: SalesOrder }) {
     id: number;
     amount: number;
     date: string;
+    detail?: string;
   }[];
   if (!facts.length)
     return (
@@ -660,6 +678,7 @@ function Facts({ order }: { order: SalesOrder }) {
           <p className="mt-1 text-xs text-muted">
             事实 #{fact.id} · 业务日期 {fact.date}
           </p>
+          {fact.detail && <p className="mt-1 text-xs text-muted">{fact.detail}</p>}
         </div>
       ))}
     </div>
@@ -673,10 +692,18 @@ function Timeline({ order }: { order: SalesOrder }) {
       label: "订单确认并预留库存",
       date: order.confirmed_at,
     },
-    order.sales_receipt && {
-      label: "登记收款记录（SalesReceipt）",
-      date: order.sales_receipt.business_date,
-    },
+    ...(order.sales_receipts || (order.sales_receipt ? [{
+      ...order.sales_receipt,
+      reversed_at: null,
+      reversal_business_date: null,
+      reversal_reason: "",
+    }] : [])).flatMap((receipt) => [
+      { label: `登记收款记录 #${receipt.id}`, date: receipt.business_date },
+      receipt.reversed_at && {
+        label: `撤回收款记录 #${receipt.id} · ${receipt.reversal_reason}`,
+        date: receipt.reversal_business_date || receipt.reversed_at,
+      },
+    ]),
     order.sales_shipment && {
       label: "生成 SalesShipment 出库事实",
       date: order.sales_shipment.business_date,
@@ -732,6 +759,7 @@ function OrderActions({
     [allAccounts],
   );
   const [action, setAction] = useState("");
+  const [confirmReceipt, setConfirmReceipt] = useState(false);
   const [date, setDate] = useState(salesOrderActionBusinessDate());
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
@@ -748,6 +776,7 @@ function OrderActions({
     "refund",
     "return",
     "transport_cost",
+    "withdraw_receipt",
   ].includes(action);
   const receiveMatchesDue =
     action !== "receive" ||
@@ -757,26 +786,12 @@ function OrderActions({
     setAction(nextAction);
     setError("");
     setReason("");
+    setConfirmReceipt(false);
     setAmount(nextAction === "receive" ? String(order.amount_due_cny) : "");
     setDate(salesOrderActionBusinessDate());
   };
-  const run = async () => {
-    setError("");
-    if (action === "receive" && !receiveMatchesDue) {
-      setError(
-        `收款金额必须等于应收 ${formatCny(order.amount_due_cny)}，请修正差额后提交。`,
-      );
-      return;
-    }
-    if (action === "return" && !reason.trim()) {
-      setError("退货原因不能为空");
-      return;
-    }
-    const accountError = salesFundAccountError(action, selectedAccountId);
-    if (accountError) {
-      setError(accountError);
-      return;
-    }
+  const executeAction = async () => {
+    setConfirmReceipt(false);
     setBusy(true);
     try {
       if (action === "confirm") await confirmSalesOrder(order.id);
@@ -787,6 +802,11 @@ function OrderActions({
           amount_cny: amount,
           fund_account_id: selectedAccountId,
           business_date: date,
+        });
+      if (action === "withdraw_receipt")
+        await withdrawSalesOrderReceipt(order.id, {
+          business_date: date,
+          reason: reason.trim(),
         });
       if (action === "refund") await refundSalesOrder(order.id, date);
       if (action === "return")
@@ -808,6 +828,29 @@ function OrderActions({
       setBusy(false);
     }
   };
+  const run = async () => {
+    setError("");
+    if (action === "receive" && !receiveMatchesDue) {
+      setError(
+        `收款金额必须等于应收 ${formatCny(order.amount_due_cny)}，请修正差额后提交。`,
+      );
+      return;
+    }
+    if (["return", "withdraw_receipt"].includes(action) && !reason.trim()) {
+      setError(action === "return" ? "退货原因不能为空" : "撤回原因不能为空");
+      return;
+    }
+    const accountError = salesFundAccountError(action, selectedAccountId);
+    if (accountError) {
+      setError(accountError);
+      return;
+    }
+    if (action === "receive") {
+      setConfirmReceipt(true);
+      return;
+    }
+    await executeAction();
+  };
 
   return (
     <div className="mt-3">
@@ -818,12 +861,12 @@ function OrderActions({
             type="button"
             onClick={() => open(item)}
             disabled={Boolean(accountsError && actionNeedsFundAccount(item))}
-            className={`inline-flex items-center gap-1 rounded border px-3 py-1.5 text-xs font-semibold ${item === "cancel" || item === "refund" || item === "return" ? "border-red-200 text-red-700 hover:bg-red-50" : item === "receive" ? "border-accent bg-accent text-white" : "border-border hover:border-gold"}`}
+            className={`inline-flex items-center gap-1 rounded border px-3 py-1.5 text-xs font-semibold ${["cancel", "refund", "return", "withdraw_receipt"].includes(item) ? "border-red-200 text-red-700 hover:bg-red-50" : item === "receive" ? "border-accent bg-accent text-white" : "border-border hover:border-gold"}`}
           >
             {item === "confirm" && <PackageCheck className="h-3.5 w-3.5" />}
             {item === "ship" && <Truck className="h-3.5 w-3.5" />}
             {item === "receive" && <CircleDollarSign className="h-3.5 w-3.5" />}
-            {["refund", "return"].includes(item) && (
+            {["refund", "return", "withdraw_receipt"].includes(item) && (
               <RotateCcw className="h-3.5 w-3.5" />
             )}
             {actionLabel(item)}
@@ -866,6 +909,7 @@ function OrderActions({
                 "refund",
                 "return",
                 "transport_cost",
+                "withdraw_receipt",
               ].includes(action) && (
                 <label className="block text-xs font-medium text-muted">
                   业务日期
@@ -877,9 +921,9 @@ function OrderActions({
                   />
                 </label>
               )}
-              {action === "return" && (
+              {["return", "withdraw_receipt"].includes(action) && (
                 <label className="block text-xs font-medium text-muted">
-                  退货原因
+                  {action === "return" ? "退货原因" : "撤回原因"}
                   <input
                     value={reason}
                     onChange={(event) => setReason(event.target.value)}
@@ -931,9 +975,12 @@ function OrderActions({
               )}
               {(action === "cancel" ||
                 action === "refund" ||
-                action === "return") && (
+                action === "return" ||
+                action === "withdraw_receipt") && (
                 <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                  这是会改变订单、库存或资金事实的操作，请确认后执行。
+                  {action === "withdraw_receipt"
+                    ? "仅在原收款之后没有其他正式流水、出库或已确认对账时可撤回；原收款及冲正记录会永久保留。"
+                    : "这是会改变订单、库存或资金事实的操作，请确认后执行。"}
                 </p>
               )}
               {error && <p className="text-xs text-red-700">{error}</p>}
@@ -960,6 +1007,51 @@ function OrderActions({
                 className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {busy ? "处理中…" : "确认执行"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmReceipt && (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-label="确认收款信息"
+          className="fixed inset-0 z-[60] grid place-items-center bg-fg/40 p-4"
+        >
+          <div className="w-full max-w-md rounded-md border border-border bg-white shadow-2xl">
+            <div className="border-b border-border px-5 py-4">
+              <h3 className="font-display text-lg font-semibold">请再次确认收款</h3>
+              <p className="mt-1 text-xs text-muted">确认后会立即生成正式资金流水。</p>
+            </div>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 p-5 text-sm">
+              <dt className="text-muted">订单</dt>
+              <dd className="font-mono font-semibold">{order.order_number}</dd>
+              <dt className="text-muted">金额</dt>
+              <dd className="font-mono font-semibold">{formatCny(amount)}</dd>
+              <dt className="text-muted">业务日期</dt>
+              <dd className="font-semibold">{date}</dd>
+              <dt className="text-muted">到账账户</dt>
+              <dd className="font-semibold">
+                {accounts.find((account) => account.id === selectedAccountId)?.name ||
+                  `账户 #${selectedAccountId}`}
+              </dd>
+            </dl>
+            <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setConfirmReceipt(false)}
+                className="rounded border border-border px-4 py-2 text-sm"
+              >
+                返回修改
+              </button>
+              <button
+                type="button"
+                onClick={executeAction}
+                disabled={busy}
+                className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {busy ? "处理中…" : "确认收款"}
               </button>
             </div>
           </div>

@@ -1298,17 +1298,65 @@ class SalesShipment(models.Model):
 
 class SalesReceipt(models.Model):
     """一张销售单的一次整单人民币收款事实。"""
-    sales_order = models.OneToOneField(SalesOrder, on_delete=models.PROTECT, related_name='sales_receipt', verbose_name='销售单')
+    objects = ControlledBusinessFactQuerySet.as_manager()
+    sales_order = models.ForeignKey(SalesOrder, on_delete=models.PROTECT, related_name='sales_receipts', verbose_name='销售单')
     amount_cny = models.DecimalField('收款金额 (CNY)', max_digits=14, decimal_places=2)
     fund_account = models.ForeignKey('accounting.FundAccount', on_delete=models.PROTECT, related_name='sales_receipts', verbose_name='收款资金账户')
     business_date = models.DateField('业务日期')
     ledger_transaction = models.OneToOneField('accounting.LedgerTransaction', on_delete=models.PROTECT, related_name='sales_receipt', verbose_name='账务交易')
     operator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='sales_receipts', verbose_name='操作人')
+    reversed_at = models.DateTimeField('撤回时间', null=True, blank=True)
+    reversal_ledger_transaction = models.OneToOneField(
+        'accounting.LedgerTransaction', on_delete=models.PROTECT,
+        related_name='reversed_sales_receipt', verbose_name='收款冲正交易',
+        null=True, blank=True,
+    )
+    reversal_operator = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name='reversed_sales_receipts',
+        verbose_name='撤回操作人', null=True, blank=True,
+    )
+    reversal_reason = models.TextField('撤回原因', blank=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            requested = _requested_field_names(self, kwargs)
+            persisted = _persisted_values(self, requested)
+            changed = _changed_field_names(self, requested, persisted)
+            if changed and not _scoped_purchase_write(
+                'sales_receipt_withdrawal', 'cigars.SalesReceipt', changed,
+                operator=self.reversal_operator,
+            ):
+                _raise_ledger_mutation('销售收款事实创建后只能通过撤回动作更新')
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        _raise_ledger_mutation('销售收款事实创建后不可删除')
+
     class Meta:
+        base_manager_name = 'objects'
         constraints = [
             models.CheckConstraint(condition=models.Q(amount_cny__gt=0), name='sales_receipt_amount_gt_zero'),
+            models.UniqueConstraint(
+                fields=['sales_order'], condition=models.Q(reversed_at__isnull=True),
+                name='sales_receipt_one_active_per_order',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        reversed_at__isnull=True,
+                        reversal_ledger_transaction__isnull=True,
+                        reversal_operator__isnull=True,
+                        reversal_reason='',
+                    )
+                    | models.Q(
+                        reversed_at__isnull=False,
+                        reversal_ledger_transaction__isnull=False,
+                        reversal_operator__isnull=False,
+                    ) & ~models.Q(reversal_reason='')
+                ),
+                name='sales_receipt_reversal_fields_consistent',
+            ),
         ]
         verbose_name = '销售收款'
         verbose_name_plural = '销售收款'

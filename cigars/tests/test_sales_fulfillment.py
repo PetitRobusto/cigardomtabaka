@@ -7,7 +7,7 @@ from django.test import TestCase
 
 from accounting.models import Day1Initialization, FundAccount, LedgerMutationError, LedgerPosting, LedgerTransaction
 from accounting.selectors import account_snapshot
-from accounting.services import LedgerError
+from accounting.services import LedgerError, reverse_ledger_transaction, transfer_same_currency
 from cigars.models import (
     Brand,
     Cigar,
@@ -603,6 +603,177 @@ class SalesFulfillmentServiceTest(TestCase):
             (LedgerPosting.Category.CUSTOMER_PREPAYMENTS, Decimal('-95.00'), Decimal('-95.00')),
         ])
         self.assertFalse(received.ledger_transaction.postings.filter(category=LedgerPosting.Category.ACCOUNTS_RECEIVABLE).exists())
+
+    def test_withdraw_receipt_then_receive_into_correct_account_preserves_history(self):
+        from cigars.sales_accounting import receive_sales_order_payment, withdraw_sales_order_payment
+
+        wrong = FundAccount.objects.create(name='石账户', currency='CNY', custodian=self.operator, creation_idempotency_key='withdraw-wrong-account')
+        correct = FundAccount.objects.create(name='马账户', currency='CNY', custodian=self.operator, creation_idempotency_key='withdraw-correct-account')
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order()
+        original = receive_sales_order_payment(
+            order_id=order.pk, amount_cny=Decimal('95.00'), fund_account=wrong,
+            business_date=self.business_date, operator=self.operator, idempotency_key='withdraw-original',
+        )
+        with self.assertRaises(LedgerError):
+            reverse_ledger_transaction(
+                original_transaction=original.ledger_transaction,
+                business_date=self.business_date, operator=self.operator,
+                idempotency_key='withdraw-generic-forbidden', reason='必须走销售撤回命令',
+            )
+        withdrawn = withdraw_sales_order_payment(
+            order_id=order.pk, business_date=self.business_date, operator=self.operator,
+            idempotency_key='withdraw-original-reversal', reason='到账账户选错',
+        )
+        replay = withdraw_sales_order_payment(
+            order_id=order.pk, business_date=self.business_date, operator=self.operator,
+            idempotency_key='withdraw-original-reversal', reason='到账账户选错',
+        )
+        order.refresh_from_db()
+        self.assertEqual((withdrawn.pk, replay.pk), (original.pk, original.pk))
+        with self.assertRaises(OrderServiceError):
+            withdraw_sales_order_payment(
+                order_id=order.pk, business_date=self.business_date, operator=self.operator,
+                idempotency_key='withdraw-original-reversal', reason='不同原因',
+            )
+        self.assertEqual((order.fulfillment_status, order.payment_status, order.status), ('confirmed', 'unpaid', 'pending_payment'))
+        self.assertEqual(account_snapshot(wrong).original_balance, Decimal('0'))
+        original.refresh_from_db()
+        self.assertIsNotNone(original.reversed_at)
+        self.assertEqual(original.reversal_reason, '到账账户选错')
+        self.assertEqual(original.ledger_transaction.reversed_by_id, original.reversal_ledger_transaction_id)
+        self.assertEqual(
+            list(original.reversal_ledger_transaction.postings.order_by('id').values_list('amount', 'cny_amount')),
+            [(Decimal('-95.00'), Decimal('-95.00')), (Decimal('95.00'), Decimal('95.00'))],
+        )
+        replacement = receive_sales_order_payment(
+            order_id=order.pk, amount_cny=Decimal('95.00'), fund_account=correct,
+            business_date=self.business_date, operator=self.operator, idempotency_key='withdraw-replacement',
+        )
+        order.refresh_from_db()
+        self.assertEqual(order.payment_status, 'paid')
+        self.assertEqual(account_snapshot(wrong).original_balance, Decimal('0'))
+        self.assertEqual(account_snapshot(correct).original_balance, Decimal('95'))
+        self.assertEqual(SalesReceipt.objects.filter(sales_order=order).count(), 2)
+        self.assertEqual(SalesReceipt.objects.get(sales_order=order, reversed_at__isnull=True).pk, replacement.pk)
+        self.assertEqual(receive_sales_order_payment(
+            order_id=order.pk, amount_cny=Decimal('95.00'), fund_account=wrong,
+            business_date=self.business_date, operator=self.operator, idempotency_key='withdraw-original',
+        ).pk, original.pk)
+        from cigars.services import cancel_confirmed_sales_order
+        from cigars.sales_accounting import refund_sales_order_payment
+        cancel_confirmed_sales_order(sales_order_id=order.pk, operator=self.operator)
+        refund = refund_sales_order_payment(
+            order_id=order.pk, business_date=self.business_date, operator=self.operator,
+            idempotency_key='withdraw-replacement-refund',
+        )
+        self.assertEqual(refund.fund_account_id, correct.pk)
+        self.assertEqual(account_snapshot(wrong).original_balance, Decimal('0'))
+        self.assertEqual(account_snapshot(correct).original_balance, Decimal('0'))
+
+    def test_withdraw_receipt_rejects_later_account_business(self):
+        from cigars.sales_accounting import receive_sales_order_payment, withdraw_sales_order_payment
+
+        account = FundAccount.objects.create(name='后续流水账户', currency='CNY', custodian=self.operator, creation_idempotency_key='withdraw-later-account')
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order()
+        receipt = receive_sales_order_payment(
+            order_id=order.pk, amount_cny=Decimal('95.00'), fund_account=account,
+            business_date=self.business_date, operator=self.operator, idempotency_key='withdraw-later-original',
+        )
+        with self.assertRaises(OrderServiceError):
+            withdraw_sales_order_payment(
+                order_id=order.pk, business_date=date(2026, 8, 9), operator=self.operator,
+                idempotency_key='withdraw-too-early', reason='日期过早',
+            )
+        other = FundAccount.objects.create(name='转入账户', currency='CNY', custodian=self.operator, creation_idempotency_key='withdraw-later-target')
+        transfer_same_currency(
+            account, other, Decimal('1.00'), self.business_date,
+            self.operator, 'withdraw-later-transfer',
+        )
+        with self.assertRaisesMessage(OrderServiceError, '后续流水'):
+            withdraw_sales_order_payment(
+                order_id=order.pk, business_date=self.business_date, operator=self.operator,
+                idempotency_key='withdraw-later-attempt', reason='到账账户选错',
+            )
+        receipt.refresh_from_db(); order.refresh_from_db()
+        self.assertIsNone(receipt.reversed_at)
+        self.assertEqual(order.payment_status, 'paid')
+        self.assertEqual(account_snapshot(account).original_balance, Decimal('94'))
+
+    def test_withdraw_receipt_rejects_unrelated_account_later_receipt(self):
+        from cigars.sales_accounting import receive_sales_order_payment, withdraw_sales_order_payment
+
+        first_account = FundAccount.objects.create(name='原收款账户', currency='CNY', custodian=self.operator, creation_idempotency_key='withdraw-global-first')
+        other_account = FundAccount.objects.create(name='另一账户', currency='CNY', custodian=self.operator, creation_idempotency_key='withdraw-global-other')
+        self.batch(quantity=6, unit_cost='10.00')
+        first = self.confirmed_order()
+        second = self.confirmed_order()
+        receive_sales_order_payment(
+            order_id=first.pk, amount_cny=Decimal('95.00'), fund_account=first_account,
+            business_date=self.business_date, operator=self.operator, idempotency_key='withdraw-global-first-receipt',
+        )
+        receive_sales_order_payment(
+            order_id=second.pk, amount_cny=Decimal('95.00'), fund_account=other_account,
+            business_date=self.business_date, operator=self.operator, idempotency_key='withdraw-global-other-receipt',
+        )
+        with self.assertRaisesMessage(OrderServiceError, '后续流水'):
+            withdraw_sales_order_payment(
+                order_id=first.pk, business_date=self.business_date, operator=self.operator,
+                idempotency_key='withdraw-global-blocked', reason='到账账户选错',
+            )
+        self.assertEqual(account_snapshot(first_account).original_balance, Decimal('95'))
+
+    def test_withdraw_receipt_cross_month_reports_reversal_in_its_own_month(self):
+        from accounting.monthly_reports import _cash_facts
+        from cigars.sales_accounting import receive_sales_order_payment, withdraw_sales_order_payment
+
+        original_account = FundAccount.objects.create(name='跨月原收款账户', currency='CNY', custodian=self.operator, creation_idempotency_key='withdraw-cross-month-original-account')
+        replacement_account = FundAccount.objects.create(name='跨月新收款账户', currency='CNY', custodian=self.operator, creation_idempotency_key='withdraw-cross-month-replacement-account')
+        self.batch(quantity=3, unit_cost='10.00')
+        order = self.confirmed_order()
+        receive_sales_order_payment(
+            order_id=order.pk, amount_cny=Decimal('95.00'), fund_account=original_account,
+            business_date=date(2026, 8, 31), operator=self.operator, idempotency_key='withdraw-cross-month-original',
+        )
+        withdraw_sales_order_payment(
+            order_id=order.pk, business_date=date(2026, 9, 1), operator=self.operator,
+            idempotency_key='withdraw-cross-month-reversal', reason='到账账户选错',
+        )
+        self.assertEqual(_cash_facts(start=date(2026, 8, 1), end=date(2026, 8, 31))['sales_receipts_cny'], Decimal('95.00'))
+        self.assertEqual(_cash_facts(start=date(2026, 9, 1), end=date(2026, 9, 30))['sales_receipts_cny'], Decimal('-95.00'))
+        receive_sales_order_payment(
+            order_id=order.pk, amount_cny=Decimal('95.00'), fund_account=replacement_account,
+            business_date=date(2026, 9, 1), operator=self.operator, idempotency_key='withdraw-cross-month-replacement',
+        )
+        self.assertEqual(_cash_facts(start=date(2026, 9, 1), end=date(2026, 9, 30))['sales_receipts_cny'], Decimal('0.00'))
+
+    def test_withdraw_receipt_rejects_shipment_and_rolls_back_failed_reversal(self):
+        from cigars.sales_accounting import receive_sales_order_payment, ship_sales_order, withdraw_sales_order_payment
+
+        account = FundAccount.objects.create(name='回滚账户', currency='CNY', custodian=self.operator, creation_idempotency_key='withdraw-rollback-account')
+        self.batch(quantity=6, unit_cost='10.00')
+        first = self.confirmed_order()
+        receipt = receive_sales_order_payment(
+            order_id=first.pk, amount_cny=Decimal('95.00'), fund_account=account,
+            business_date=self.business_date, operator=self.operator, idempotency_key='withdraw-rollback-original',
+        )
+        with patch('cigars.sales_accounting._reverse_sales_receipt_ledger', side_effect=LedgerError('冲正失败')):
+            with self.assertRaises(LedgerError):
+                withdraw_sales_order_payment(
+                    order_id=first.pk, business_date=self.business_date, operator=self.operator,
+                    idempotency_key='withdraw-rollback-attempt', reason='到账账户选错',
+                )
+        first.refresh_from_db(); receipt.refresh_from_db()
+        self.assertEqual(first.payment_status, 'paid')
+        self.assertIsNone(receipt.reversed_at)
+        self.assertEqual(account_snapshot(account).original_balance, Decimal('95'))
+        ship_sales_order(order_id=first.pk, business_date=self.business_date, operator=self.operator, idempotency_key='withdraw-rollback-ship')
+        with self.assertRaises(OrderServiceError):
+            withdraw_sales_order_payment(
+                order_id=first.pk, business_date=self.business_date, operator=self.operator,
+                idempotency_key='withdraw-after-shipping', reason='到账账户选错',
+            )
 
     def test_prepaid_order_shipment_releases_prepayment_and_posts_profit(self):
         account = FundAccount.objects.create(name='预收出库账户', currency=FundAccount.Currency.CNY, custodian=self.operator, creation_idempotency_key='prepay-account-2')

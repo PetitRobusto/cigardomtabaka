@@ -54,8 +54,18 @@ jobs:
             source venv/bin/activate
             pip install -r requirements.txt
 
+            echo "=== prepare runtime database access ==="
+            sudo chown www-data:www-data cigars.db
+            for sidecar in cigars.db-wal cigars.db-shm; do
+              if [ -e "$sidecar" ]; then
+                sudo chown www-data:www-data "$sidecar"
+              fi
+            done
+            sudo -u www-data test -w .
+            sudo -u www-data sqlite3 -cmd ".timeout 5000" cigars.db "BEGIN IMMEDIATE; ROLLBACK;"
+
             echo "=== cleanup orphan FK ==="
-            sqlite3 cigars.db "
+            sudo -u www-data sqlite3 -cmd ".timeout 5000" cigars.db "
               DELETE FROM cigars_cigarimage
               WHERE cigar_id IS NULL OR cigar_id NOT IN (SELECT id FROM cigars_cigar);
               DELETE FROM cigars_cigarprice
@@ -63,7 +73,11 @@ jobs:
             "
 
             echo "=== database migrate ==="
-            python manage.py migrate
+            sudo -u www-data venv/bin/python manage.py migrate
+
+            echo "=== verify runtime database access ==="
+            sudo -u www-data test -w .
+            sudo -u www-data sqlite3 -cmd ".timeout 5000" cigars.db "BEGIN IMMEDIATE; ROLLBACK;"
 
             echo "=== frontend build ==="
             cd frontend

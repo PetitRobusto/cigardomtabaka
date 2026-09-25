@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import connection
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, models, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase
@@ -212,7 +212,7 @@ class SalesAccountingModelTestsMixin(SalesAccountingFixtureMixin):
             note='人肉费',
         )
         self.assertEqual(shipment.sales_order.sales_shipment, shipment)
-        self.assertEqual(receipt.sales_order.sales_receipt, receipt)
+        self.assertEqual(receipt.sales_order.sales_receipts.get(), receipt)
         self.assertEqual(transport.sales_order.sales_transport_cost, transport)
         with self.assertRaises(IntegrityError), transaction.atomic():
             SalesShipment.objects.create(
@@ -412,7 +412,10 @@ class SalesAccountingConstraintTest(SalesAccountingFixtureMixin, TestCase):
             business_date=date(2026, 8, 11),
             ledger_transaction=self.ledger_transaction('sales_receipt', 'constraint-receipt'), operator=self.operator,
         )
-        assert_rejected(SalesReceipt, receipt.pk, {'amount_cny': Decimal('0.00')})
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            models.QuerySet(model=SalesReceipt, using='default').filter(pk=receipt.pk).update(
+                amount_cny=Decimal('0.00'),
+            )
 
         transport = SalesTransportCost.objects.create(
             sales_order=self.order(), actual_cost_cny=Decimal('1.00'), fund_account=self.cny_account,

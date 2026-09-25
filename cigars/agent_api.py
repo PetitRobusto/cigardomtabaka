@@ -345,9 +345,13 @@ def _stock_for_cigar(cigar):
 def _sales_orders_queryset():
     # 列表和详情共用预载，避免序列化每张订单时重复查询。
     return SalesOrder.objects.select_related(
-        'customer', 'sales_shipment', 'sales_receipt', 'sales_refund',
+        'customer', 'sales_shipment', 'sales_refund',
         'sales_return', 'sales_transport_cost',
-    ).prefetch_related('items__cigar', 'items__allocations__purchase_batch')
+    ).prefetch_related(
+        'items__cigar', 'items__allocations__purchase_batch',
+        'sales_receipts__fund_account', 'sales_receipts__ledger_transaction',
+        'sales_receipts__reversal_ledger_transaction',
+    )
 
 
 def _sales_order_response(order):
@@ -907,7 +911,9 @@ def business_report(request):
     returned_revenue = return_totals['revenue'] or Decimal('0.00')
     returned_cost = return_totals['fifo_cost'] or Decimal('0.00')
     receipt_total = (
-        SalesReceipt.objects.aggregate(total=Sum('amount_cny'))['total']
+        SalesReceipt.objects.filter(reversed_at__isnull=True).aggregate(
+            total=Sum('amount_cny'),
+        )['total']
         or Decimal('0.00')
     )
     refund_total = (

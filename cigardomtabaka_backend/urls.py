@@ -86,6 +86,7 @@ urlpatterns = [
     path('api/sales/orders/<int:order_id>/cancel/', sales_api.sales_order_cancel, name='sales_order_cancel'),
     path('api/sales/orders/<int:order_id>/ship/', sales_api.sales_order_ship, name='sales_order_ship'),
     path('api/sales/orders/<int:order_id>/receive/', sales_api.sales_order_receive, name='sales_order_receive'),
+    path('api/sales/orders/<int:order_id>/withdraw-receipt/', sales_api.sales_order_withdraw_receipt, name='sales_order_withdraw_receipt'),
     path('api/sales/orders/<int:order_id>/payment-submissions/', sales_api.sales_order_payment_submissions, name='sales_order_payment_submissions'),
     path('api/sales/orders/<int:order_id>/payment-submissions/<int:submission_id>/accept/', sales_api.sales_order_payment_submission_accept, name='sales_order_payment_submission_accept'),
     path('api/sales/orders/<int:order_id>/payment-submissions/<int:submission_id>/needs-more/', sales_api.sales_order_payment_submission_needs_more, name='sales_order_payment_submission_needs_more'),

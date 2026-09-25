@@ -689,6 +689,15 @@ export interface SalesOrder {
   } | null;
   sales_shipment: { id: number; business_date: string; fifo_cost_cny: number } | null;
   sales_receipt: { id: number; amount_cny: number; business_date: string; fund_account_id: number } | null;
+  sales_receipts?: {
+    id: number;
+    amount_cny: number;
+    business_date: string;
+    fund_account_id: number;
+    reversed_at: string | null;
+    reversal_business_date: string | null;
+    reversal_reason: string;
+  }[];
   sales_refund: { id: number; amount_cny: number; business_date: string; fund_account_id: number } | null;
   sales_return?: { id: number; amount_cny: number; fifo_cost_cny: number; business_date: string; reason: string } | null;
   sales_transport_cost: { id: number; actual_cost_cny: number; business_date: string; fund_account_id: number } | null;

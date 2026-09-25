@@ -9,8 +9,9 @@ from datetime import date
 from decimal import Decimal
 
 from django.db import transaction
+from django.utils import timezone
 
-from accounting.models import FundAccount, LedgerPosting, LedgerTransaction
+from accounting.models import AccountReconciliation, FundAccount, LedgerPosting, LedgerTransaction
 from accounting.guards import require_day1_completed
 from accounting.mutation_scope import ledger_mutation_scope
 from accounting.services import (
@@ -19,6 +20,7 @@ from accounting.services import (
     _post_transaction_once,
     _retry_sqlite_locked,
     _acquire_sqlite_writer_gate,
+    _reverse_ledger_transaction,
     reverse_ledger_transaction,
 )
 from .audit import AgentContext
@@ -56,6 +58,54 @@ def _receipt_credit_category(receipt, amount):
     if len(categories) != 1:
         raise OrderServiceError("原销售收款流水不完整，不能退款")
     return categories[0]
+
+
+def _active_sales_receipt(order, *, for_update=False):
+    queryset = SalesReceipt.objects.select_related(
+        'ledger_transaction', 'fund_account',
+    ).filter(sales_order=order, reversed_at__isnull=True)
+    if for_update:
+        queryset = queryset.select_for_update()
+    return queryset.first()
+
+
+def _validate_sales_receipt(receipt):
+    """核对当前收款事实和两条原始分录，返回整单金额。"""
+    amount = receipt.amount_cny.quantize(MONEY_PLACES)
+    transaction_obj = receipt.ledger_transaction
+    postings = list(transaction_obj.postings.order_by('id'))
+    account_postings = [
+        posting for posting in postings
+        if posting.account_id == receipt.fund_account_id
+        and posting.category == LedgerPosting.Category.FUND_ACCOUNT
+        and posting.currency == FundAccount.Currency.CNY
+        and posting.amount == amount
+        and posting.cny_amount == amount
+    ]
+    _receipt_credit_category(receipt, amount)
+    if (
+        transaction_obj.transaction_type != LedgerTransaction.TransactionType.SALES_RECEIPT
+        or transaction_obj.status != LedgerTransaction.Status.POSTED
+        or transaction_obj.source_type != 'sales_order'
+        or transaction_obj.source_id != str(receipt.sales_order_id)
+        or transaction_obj.business_date != receipt.business_date
+        or transaction_obj.operator_id != receipt.operator_id
+        or len(postings) != 2
+        or len(account_postings) != 1
+        or postings[0].currency != FundAccount.Currency.CNY
+        or postings[1].currency != FundAccount.Currency.CNY
+    ):
+        raise OrderServiceError('原销售收款流水不完整，不能撤回')
+    return amount
+
+
+def _reverse_sales_receipt_ledger(receipt, *, business_date, operator, idempotency_key, reason):
+    return _reverse_ledger_transaction(
+        original_transaction=receipt.ledger_transaction,
+        business_date=business_date, operator=operator,
+        idempotency_key=idempotency_key, reason=reason,
+        reversible_transaction_types=frozenset({LedgerTransaction.TransactionType.SALES_RECEIPT}),
+    )
 
 
 def _cny_posting(category, amount):
@@ -103,9 +153,7 @@ def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note
     existing_shipment = SalesShipment.objects.select_related("ledger_transaction").filter(sales_order=order).first()
     if existing_shipment is not None:
         transaction_obj = existing_shipment.ledger_transaction
-        receipt = SalesReceipt.objects.select_related("ledger_transaction").filter(
-            sales_order=order,
-        ).first()
+        receipt = _active_sales_receipt(order)
         receipt_precedes_shipment = (
             receipt is not None
             and receipt.ledger_transaction.effective_sequence
@@ -263,8 +311,12 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
     existing_transaction = LedgerTransaction.objects.filter(
         idempotency_key=idempotency_key,
     ).first()
-    existing = SalesReceipt.objects.select_related("ledger_transaction").filter(sales_order=order).first()
-    if existing is not None:
+    if existing_transaction is not None:
+        existing = SalesReceipt.objects.select_related("ledger_transaction").filter(
+            sales_order=order, ledger_transaction=existing_transaction,
+        ).first()
+        if existing is None:
+            raise OrderServiceError("销售收款幂等键已用于其他业务")
         transaction_obj = existing.ledger_transaction
         postings = list(transaction_obj.postings.order_by("id"))
         valid_replay = (
@@ -296,8 +348,8 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
         if not valid_replay:
             raise OrderServiceError("销售收款幂等键参数不匹配")
         return existing
-    if existing_transaction is not None:
-        raise OrderServiceError("销售收款幂等键已用于其他业务")
+    if _active_sales_receipt(order, for_update=True) is not None:
+        raise OrderServiceError("销售单已经收款")
     require_day1_completed()
     operator = _require_operator(operator)
     if order.fulfillment_status not in (
@@ -371,6 +423,120 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
     schedule_order_notification(
         "received", order, operator,
         account_name=account.name, amount=receipt.amount_cny,
+    )
+    return receipt
+
+
+@_retry_sqlite_locked
+@transaction.atomic
+def withdraw_sales_order_payment(*, order_id, business_date, operator,
+                                 idempotency_key, reason, agent_context=None):
+    """在没有后续业务依赖时冲销当前收款，并恢复订单待收款状态。"""
+    _acquire_sqlite_writer_gate()
+    if type(business_date) is not date:
+        raise LedgerError('业务日期必须是 date')
+    if not isinstance(idempotency_key, str) or not idempotency_key:
+        raise LedgerError('幂等键不能为空')
+    reason = str(reason or '').strip()
+    if not reason:
+        raise OrderServiceError('撤回原因不能为空')
+    operator_id = getattr(operator, 'pk', None)
+    if not operator_id:
+        raise OrderServiceError('必须提供真实操作人 operator')
+    try:
+        order = SalesOrder.objects.select_for_update().get(pk=order_id)
+    except (SalesOrder.DoesNotExist, ValueError, TypeError):
+        raise OrderServiceError('销售单不存在')
+
+    existing_reversal = LedgerTransaction.objects.filter(
+        idempotency_key=idempotency_key,
+    ).first()
+    if existing_reversal is not None:
+        receipt = SalesReceipt.objects.select_related('ledger_transaction').filter(
+            sales_order=order, reversal_ledger_transaction=existing_reversal,
+        ).first()
+        if receipt is None:
+            raise OrderServiceError('撤回收款幂等键已用于其他业务')
+        if (
+            receipt.reversed_at is None
+            or receipt.reversal_operator_id != operator_id
+            or receipt.reversal_reason != reason
+        ):
+            raise OrderServiceError('撤回收款幂等事实不完整')
+        _reverse_sales_receipt_ledger(
+            receipt,
+            business_date=business_date, operator=operator,
+            idempotency_key=idempotency_key, reason=reason,
+        )
+        return receipt
+
+    operator = _require_operator(operator)
+    require_day1_completed()
+    receipt = _active_sales_receipt(order, for_update=True)
+    if receipt is None:
+        raise OrderServiceError('销售单没有可撤回的当前收款')
+    if (
+        order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED
+        or order.payment_status != SalesOrder.PaymentStatus.PAID
+    ):
+        raise OrderServiceError('只有尚未出库的已收款订单才能撤回收款')
+    if business_date < receipt.business_date:
+        raise OrderServiceError('撤回日期不能早于原收款日期')
+    if (
+        SalesShipment.objects.filter(sales_order=order).exists()
+        or SalesRefund.objects.filter(sales_order=order).exists()
+        or SalesReturn.objects.filter(sales_order=order).exists()
+        or SalesTransportCost.objects.filter(sales_order=order).exists()
+    ):
+        raise OrderServiceError('销售单已有后续业务，不能撤回收款')
+
+    _validate_sales_receipt(receipt)
+    if LedgerTransaction.objects.filter(
+        status=LedgerTransaction.Status.POSTED,
+        effective_sequence__gt=receipt.ledger_transaction.effective_sequence,
+    ).exists():
+        raise OrderServiceError('原收款之后已有其他正式后续流水，不能撤回收款')
+    if AccountReconciliation.objects.filter(
+        account_id=receipt.fund_account_id,
+        status=AccountReconciliation.Status.CONFIRMED,
+        business_date__gte=receipt.business_date,
+    ).exists():
+        raise OrderServiceError('原收款账户已有已确认对账，不能撤回收款')
+
+    reversal = _reverse_sales_receipt_ledger(
+        receipt,
+        business_date=business_date, operator=operator,
+        idempotency_key=idempotency_key, reason=reason,
+    )
+    with ledger_mutation_scope(
+        reason='sales_receipt_withdrawal', model='cigars.SalesReceipt',
+        operator=operator,
+    ):
+        receipt.reversed_at = timezone.now()
+        receipt.reversal_ledger_transaction = reversal
+        receipt.reversal_operator = operator
+        receipt.reversal_reason = reason
+        receipt.save(update_fields=[
+            'reversed_at', 'reversal_ledger_transaction',
+            'reversal_operator', 'reversal_reason',
+        ])
+    order.payment_status = SalesOrder.PaymentStatus.UNPAID
+    order.status = 'pending_payment'
+    order.save(update_fields=['payment_status', 'status'])
+    from .services import _record_order_event, _sales_event_metadata
+    context = agent_context or AgentContext(
+        command_name='withdraw_sales_order_payment', idempotency_key=idempotency_key,
+    )
+    metadata = _sales_event_metadata(order, business_date)
+    metadata.update({
+        'sales_receipt_id': receipt.pk,
+        'fund_account_id': receipt.fund_account_id,
+        'amount_cny': str(receipt.amount_cny),
+        'reversal_ledger_transaction_id': reversal.pk,
+        'idempotency_key': idempotency_key,
+    })
+    _record_order_event(
+        order, operator=operator, context=context, note=reason, metadata=metadata,
     )
     return receipt
 
@@ -458,9 +624,7 @@ def refund_sales_order_payment(*, order_id, business_date, operator, idempotency
         raise OrderServiceError("销售单不存在")
 
     existing_tx = LedgerTransaction.objects.filter(idempotency_key=idempotency_key).first()
-    receipt = SalesReceipt.objects.select_related(
-        "fund_account", "ledger_transaction",
-    ).filter(sales_order=order).first()
+    receipt = _active_sales_receipt(order, for_update=True)
     existing = SalesRefund.objects.select_related("ledger_transaction").filter(sales_order=order).first()
     if existing is not None:
         if receipt is None:

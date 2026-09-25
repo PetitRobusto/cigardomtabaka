@@ -51,6 +51,12 @@ REASON_ALLOWED_FIELDS = {
             "ledger_transaction", "business_date", "operator", "reason", "created_at",
         }),
     },
+    "sales_receipt_withdrawal": {
+        "cigars.SalesReceipt": frozenset({
+            "reversed_at", "reversal_ledger_transaction", "reversal_operator",
+            "reversal_reason",
+        }),
+    },
     "inventory_adjustment_fact": {
         "cigars.InventoryAdjustmentAction": frozenset({
             "id", "cigar", "quantity_delta", "inventory_form", "ledger_transaction",

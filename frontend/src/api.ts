@@ -139,6 +139,7 @@ export const confirmSalesOrder = (id: number): Promise<SalesOrder> => salesActio
 export const cancelSalesOrder = (id: number): Promise<SalesOrder> => salesAction(id, 'cancel');
 export const shipSalesOrder = (id: number, business_date: string): Promise<SalesOrder> => salesAction(id, 'ship', { business_date });
 export const receiveSalesOrder = (id: number, payload: { amount_cny: string; fund_account_id: number; business_date: string }): Promise<SalesOrder> => salesAction(id, 'receive', payload);
+export const withdrawSalesOrderReceipt = (id: number, payload: { business_date: string; reason: string }): Promise<SalesOrder> => salesAction(id, 'withdraw-receipt', payload);
 export const refundSalesOrder = (id: number, business_date: string): Promise<SalesOrder> => salesAction(id, 'refund', { business_date });
 export const recordSalesTransportCost = (id: number, payload: { actual_cost_cny: string; fund_account_id: number; business_date: string }): Promise<SalesOrder> => salesAction(id, 'transport-cost', payload);
 export const returnSalesOrder = (id: number, payload: { business_date: string; reason: string }): Promise<SalesOrder> => salesAction(id, 'return', payload);

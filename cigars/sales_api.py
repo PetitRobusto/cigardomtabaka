@@ -45,7 +45,7 @@ class ActionInputError(OrderServiceError):
 
 from .sales_accounting import (
     ship_sales_order, receive_sales_order_payment, refund_sales_order_payment,
-    record_sales_transport_cost, return_sales_order,
+    record_sales_transport_cost, return_sales_order, withdraw_sales_order_payment,
 )
 from privnote.models import PaymentAttachment, PaymentSubmission
 from privnote.services.payment_submissions import (
@@ -167,9 +167,13 @@ def _denied(request):
 def _get_order(order_id):
     try:
         return SalesOrder.objects.select_related(
-            "customer", "sales_shipment", "sales_receipt", "sales_refund",
+            "customer", "sales_shipment", "sales_refund",
             "sales_return", "sales_transport_cost",
-        ).prefetch_related("privnote_set", "payment_submissions").get(id=order_id)
+        ).prefetch_related(
+            "privnote_set", "payment_submissions",
+            "sales_receipts__fund_account", "sales_receipts__ledger_transaction",
+            "sales_receipts__reversal_ledger_transaction",
+        ).get(id=order_id)
     except (SalesOrder.DoesNotExist, ValueError, TypeError):
         return None
 
@@ -217,10 +221,12 @@ def sales_orders(request):
     except (TypeError, ValueError):
         return _error("limit 必须是 1 到 100 之间的整数", 400)
     orders = SalesOrder.objects.select_related(
-        "customer", "sales_shipment", "sales_receipt", "sales_refund",
+        "customer", "sales_shipment", "sales_refund",
         "sales_return", "sales_transport_cost",
     ).prefetch_related(
-        "items__cigar", "items__allocations__purchase_batch", "privnote_set", "payment_submissions"
+        "items__cigar", "items__allocations__purchase_batch", "privnote_set", "payment_submissions",
+        "sales_receipts__fund_account", "sales_receipts__ledger_transaction",
+        "sales_receipts__reversal_ledger_transaction",
     ).all()
     fulfillment = request.GET.get("fulfillment_status", "").strip()
     payment = request.GET.get("payment_status", "").strip()
@@ -294,10 +300,12 @@ def _customer_payload(customer, include_orders=False):
     }
     if include_orders:
         recent_orders = orders.select_related(
-            "customer", "sales_shipment", "sales_receipt", "sales_refund",
+            "customer", "sales_shipment", "sales_refund",
             "sales_return", "sales_transport_cost",
         ).prefetch_related(
             "items__cigar", "items__allocations__purchase_batch", "privnote_set",
+            "sales_receipts__fund_account", "sales_receipts__ledger_transaction",
+            "sales_receipts__reversal_ledger_transaction",
         )[:20]
         payload["recent_orders"] = [serialize_sales_order(order) for order in recent_orders]
     return payload
@@ -593,6 +601,17 @@ def sales_order_receive(request, order_id):
         fund_account=_account(body, operator), business_date=_business_date(body),
         operator=operator, idempotency_key=context.idempotency_key, agent_context=context,
     ).sales_order)
+
+
+def sales_order_withdraw_receipt(request, order_id):
+    return _action(
+        request, order_id, "withdraw_sales_order_payment",
+        lambda body, operator, context: withdraw_sales_order_payment(
+            order_id=order_id, business_date=_business_date(body), operator=operator,
+            idempotency_key=context.idempotency_key,
+            reason=_required_reason(body), agent_context=context,
+        ).sales_order,
+    )
 
 
 def sales_order_payment_submissions(request, order_id):

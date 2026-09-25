@@ -39,6 +39,7 @@ from .models import (
     SalesShipment,
     PurchaseOrder,
     PurchaseOrderItem,
+    SalesReceipt,
     SalesOrder,
     SalesOrderItem,
     StockAllocation,
@@ -246,6 +247,10 @@ def serialize_sales_order(order):
             'fulfillment_type': item.fulfillment_type,
             'allocations': allocations,
         })
+    receipt_history = _sales_receipt_history(order)
+    active_receipt = next(
+        (receipt for receipt in receipt_history if receipt.reversed_at is None), None,
+    )
     return {
         'id': order.id,
         'order_number': order.order_number,
@@ -286,11 +291,23 @@ def serialize_sales_order(order):
             'fifo_cost_cny': _decimal_to_json(order.sales_shipment.fifo_cost_cny),
         } if hasattr(order, 'sales_shipment') else None),
         'sales_receipt': ({
-            'id': order.sales_receipt.id,
-            'amount_cny': _decimal_to_json(order.sales_receipt.amount_cny),
-            'business_date': order.sales_receipt.business_date.isoformat(),
-            'fund_account_id': order.sales_receipt.fund_account_id,
-        } if hasattr(order, 'sales_receipt') else None),
+            'id': active_receipt.id,
+            'amount_cny': _decimal_to_json(active_receipt.amount_cny),
+            'business_date': active_receipt.business_date.isoformat(),
+            'fund_account_id': active_receipt.fund_account_id,
+        } if active_receipt is not None else None),
+        'sales_receipts': [{
+            'id': receipt.id,
+            'amount_cny': _decimal_to_json(receipt.amount_cny),
+            'business_date': receipt.business_date.isoformat(),
+            'fund_account_id': receipt.fund_account_id,
+            'reversed_at': receipt.reversed_at.isoformat() if receipt.reversed_at else None,
+            'reversal_business_date': (
+                receipt.reversal_ledger_transaction.business_date.isoformat()
+                if receipt.reversal_ledger_transaction_id else None
+            ),
+            'reversal_reason': receipt.reversal_reason,
+        } for receipt in receipt_history],
         'sales_refund': ({
             'id': order.sales_refund.id,
             'amount_cny': _decimal_to_json(order.sales_refund.amount_cny),
@@ -322,6 +339,11 @@ def _sales_order_available_actions(order):
         actions.append('ship')
         if order.payment_status == SalesOrder.PaymentStatus.UNPAID:
             actions.append('receive')
+        elif (
+            order.payment_status == SalesOrder.PaymentStatus.PAID
+            and any(receipt.reversed_at is None for receipt in _sales_receipt_history(order))
+        ):
+            actions.append('withdraw_receipt')
         actions.append('cancel')
     if order.fulfillment_status == SalesOrder.FulfillmentStatus.SHIPPED:
         actions.append('return')
@@ -337,6 +359,15 @@ def _sales_order_available_actions(order):
         if not hasattr(order, 'sales_transport_cost'):
             actions.append('transport_cost')
     return actions
+
+
+def _sales_receipt_history(order):
+    cache = getattr(order, '_prefetched_objects_cache', {})
+    if 'sales_receipts' in cache:
+        return list(cache['sales_receipts'])
+    return list(SalesReceipt.objects.filter(sales_order=order).select_related(
+        'fund_account', 'ledger_transaction', 'reversal_ledger_transaction',
+    ).order_by('id'))
 
 def _decimal_to_json(value):
     if value is None:

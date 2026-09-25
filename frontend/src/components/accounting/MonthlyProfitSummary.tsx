@@ -1,5 +1,5 @@
 import type { MonthlyProfitReport } from '../../types';
-import { formatCny, formatSignedCny } from '../sales/salesState';
+import { formatSignedCny } from '../sales/salesState';
 
 interface MonthlyProfitSummaryProps {
   profit?: MonthlyProfitReport;
@@ -12,26 +12,22 @@ function monthTitle(month: string): string {
   return match ? `${match[1]}年${Number(match[2])}月经营总结` : '月度经营总结';
 }
 
-function absoluteAmount(value: string | number | null | undefined): number {
-  return value == null || value === '' ? 0 : Math.abs(Number(value));
-}
-
 /** 月报只组合接口返回的已入账分类，不在浏览器推算账务事实。 */
 export default function MonthlyProfitSummary({ profit, profitError, month }: MonthlyProfitSummaryProps) {
   const operatingExpenses = profit
-    ? absoluteAmount(profit.salary_expense_cny)
-      + absoluteAmount(profit.rent_expense_cny)
-      + absoluteAmount(profit.utilities_expense_cny)
-      + absoluteAmount(profit.professional_expense_cny)
-      + absoluteAmount(profit.interest_expense_cny)
-      + absoluteAmount(profit.other_expense_cny)
+    ? Number(profit.salary_expense_cny)
+      + Number(profit.rent_expense_cny)
+      + Number(profit.utilities_expense_cny)
+      + Number(profit.professional_expense_cny)
+      + Number(profit.interest_expense_cny)
+      + Number(profit.other_expense_cny)
     : 0;
   const salesRevenue = profit
-    ? absoluteAmount(profit.sales_revenue_cny) + absoluteAmount(profit.customer_transport_revenue_cny)
+    ? -Number(profit.sales_revenue_cny) - Number(profit.customer_transport_revenue_cny)
     : 0;
   const transportCost = profit
-    ? absoluteAmount(profit.transport_expense_cny)
-      + absoluteAmount(profit.transport_settlement_expense_cny)
+    ? Number(profit.transport_expense_cny)
+      + Number(profit.transport_settlement_expense_cny ?? 0)
     : 0;
 
   return (
@@ -49,9 +45,9 @@ export default function MonthlyProfitSummary({ profit, profitError, month }: Mon
         <p className="px-5 py-8 text-center text-sm text-muted">加载中…</p>
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-5">
-          <Metric label="销售收入" value={formatCny(salesRevenue)} note="商品金额与客户承担的人肉费" />
-          <Metric label="商品成本" value={formatCny(absoluteAmount(profit.cost_of_goods_sold_cny))} note="已履约商品的库存成本" />
-          <Metric label="经营费用" value={formatCny(operatingExpenses)} note="工资、房租、专业服务、财务费用等" />
+          <Metric label="销售收入" value={formatSignedCny(salesRevenue)} note="商品金额与客户承担的人肉费" />
+          <Metric label="商品成本" value={formatSignedCny(profit.cost_of_goods_sold_cny)} note="已履约商品的库存成本" />
+          <Metric label="经营费用" value={formatSignedCny(operatingExpenses)} note="工资、房租、专业服务、财务费用等" />
           <Metric label="人肉成本" value={formatSignedCny(-transportCost)} note="实际人肉成本与运输结算" />
           <Metric label="本月净利润" value={formatSignedCny(profit.net_profit_cny)} note="含库存及对账调整" net />
         </div>

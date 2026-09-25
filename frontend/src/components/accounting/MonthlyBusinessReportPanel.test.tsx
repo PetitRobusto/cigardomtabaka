@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { MonthlyBusinessReport } from '../../types';
@@ -58,18 +58,49 @@ describe('经营月报', () => {
     expect(screen.queryByText('profit.sales_profit_cny')).toBeNull();
   });
 
-  it('展示运输费用、双环形图和三类经营贡献入口', () => {
+  it('费用构成默认收起，展开后展示明细及三类经营贡献入口', () => {
     renderReport();
 
-    expect(screen.getByText('运输（含打车）')).toBeTruthy();
+    expect(within(screen.getByRole('heading', { name: '成本构成' }).parentElement as HTMLElement).getByText('运输（含打车）')).toBeTruthy();
     expect(screen.queryByText('水电')).toBeNull();
     expect(screen.getByRole('img', { name: /成本合计环形图/ })).toBeTruthy();
+    const expenseSummary = screen.getByText('查看经营费用构成');
+    expect(expenseSummary.closest('details')?.open).toBe(false);
+    fireEvent.click(expenseSummary);
+    expect(expenseSummary.closest('details')?.open).toBe(true);
     expect(screen.getByRole('img', { name: /费用合计环形图/ })).toBeTruthy();
+    const overallSalaryColor = (within(screen.getByRole('heading', { name: '成本构成' }).parentElement as HTMLElement).getByText('工资').previousElementSibling as HTMLElement).style.backgroundColor;
+    const expenseSalaryColor = (within(expenseSummary.closest('details') as HTMLElement).getByText('工资').previousElementSibling as HTMLElement).style.backgroundColor;
+    expect(expenseSalaryColor).toBe(overallSalaryColor);
+    expect(screen.getAllByText('运输（含打车）')).toHaveLength(2);
     expect(screen.getByText('高希霸')).toBeTruthy();
     expect(screen.getByText('品牌贡献')).toBeTruthy();
     expect(screen.getByText('商品贡献')).toBeTruthy();
     expect(screen.getByText('客户贡献')).toBeTruthy();
     expect(screen.getByRole('link', { name: /查看完整经营贡献排行/ }).getAttribute('href')).toBe('/accounting/reports/contributions?month=2026-08');
+  });
+
+  it('成本构成直接包含经营费用大项，不重复计入费用总额', () => {
+    renderReport({
+      ...report,
+      profit: {
+        ...report.profit,
+        operating_expenses_cny: '60.00',
+        operating_expense_breakdown: {
+          salary_cny: '10.00', rent_cny: '10.00', transport_cny: '10.00',
+          professional_services_cny: '10.00', financial_cny: '10.00', other_cny: '10.00',
+        },
+      },
+    });
+
+    const costCard = screen.getByRole('heading', { name: '成本构成' }).parentElement as HTMLElement;
+    expect(within(costCard).getByRole('img', { name: '成本合计环形图，合计¥150.00' })).toBeTruthy();
+    for (const label of ['商品成本', '人肉成本', '工资', '房租', '运输（含打车）', '专业服务', '财务费用', '其他']) {
+      expect(within(costCard).getByText(label)).toBeTruthy();
+    }
+    expect(within(costCard).queryByText('经营费用')).toBeNull();
+    const swatches = [...costCard.querySelectorAll('span[style*="background-color"]')];
+    expect(new Set(swatches.map(swatch => swatch.getAttribute('style'))).size).toBe(8);
   });
 
   it('客户结构同时展示订单、客单价、复购覆盖与客户贡献', () => {
@@ -109,6 +140,7 @@ describe('经营月报', () => {
       },
     });
 
+    fireEvent.click(screen.getByText('查看经营费用构成'));
     expect(screen.getByRole('img', { name: '费用合计环形图，合计¥0.00' })).toBeTruthy();
     expect(screen.getByText(/本月包含成本冲正/)).toBeTruthy();
   });

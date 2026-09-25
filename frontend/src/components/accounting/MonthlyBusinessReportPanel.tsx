@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import type { MonthlyBusinessComparisonMetric, MonthlyBusinessReport } from '../../types';
 import { formatCny, formatSignedCny } from '../sales/salesState';
 import { DonutBreakdown } from './MonthlyReportCharts';
+import { REPORT_CHART_COLORS } from './monthlyReportColors';
 import { formatCostCny } from './monthlyReportFormat';
 
 interface Props {
@@ -46,14 +47,15 @@ export default function MonthlyBusinessReportPanel({ report, error, month, onRet
   }
   if (!report) return <MonthlyReportSkeleton />;
 
-  const expenseItems = Object.entries(report.profit.operating_expense_breakdown).map(([key, value]) => ({
+  const expenseItems = Object.entries(report.profit.operating_expense_breakdown).map(([key, value], index) => ({
     name: expenseLabels[key as keyof typeof expenseLabels],
     value: Number(value),
+    color: REPORT_CHART_COLORS[index + 2],
   }));
   const costItems = [
     { name: '商品成本', value: Number(report.profit.product_cost_cny) },
     { name: '人肉成本', value: Number(report.profit.human_cost_cny) },
-    { name: '经营费用', value: Number(report.profit.operating_expenses_cny) },
+    ...expenseItems,
   ];
   const hasCostReversals = [...costItems, ...expenseItems].some(item => item.value < 0);
   const hasAdjustments = Number(report.profit.inventory_adjustment_cny) !== 0
@@ -102,11 +104,16 @@ export default function MonthlyBusinessReportPanel({ report, error, month, onRet
       </div>
 
       <ReportSection title="成本结构" meta="库存调整与对账调整不计入常规成本">
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-4">
           <ReportCard title="成本构成"><DonutBreakdown items={costItems} totalLabel="成本合计" /></ReportCard>
-          <ReportCard title="经营费用构成">
-            <DonutBreakdown items={expenseItems} totalLabel="费用合计" />
-            <p className="mt-3 text-[11px] text-muted">运输包含打车、公共交通、差旅、配送、停车和燃油。</p>
+          <ReportCard>
+            <details>
+              <summary className="cursor-pointer font-display text-base font-semibold">查看经营费用构成</summary>
+              <div className="mt-4">
+                <DonutBreakdown items={expenseItems} totalLabel="费用合计" />
+                <p className="mt-3 text-[11px] text-muted">运输包含打车、公共交通、差旅、配送、停车和燃油。</p>
+              </div>
+            </details>
           </ReportCard>
         </div>
         {hasCostReversals && <p className="mt-2 text-[11px] text-muted">本月包含成本冲正；环形图仅展示冲正后仍为正的成本项。</p>}

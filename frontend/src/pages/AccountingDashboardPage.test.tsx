@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import AccountingDashboardPage from './AccountingDashboardPage';
+import { moscowBusinessMonth } from '../utils/businessDate';
 
 const api = vi.hoisted(() => ({
   fetchAccountingDashboard: vi.fn(), fetchAccountingAccounts: vi.fn(), fetchAccountingActions: vi.fn(),
@@ -33,7 +34,7 @@ describe('财务默认动作及刷新', () => {
     vi.clearAllMocks();
     const accounts = [{ id: 1, name: '公司人民币', currency: 'CNY', custodian_id: null, is_active: true }];
     api.fetchAccountingDashboard.mockResolvedValue({ day1_status: 'completed', requires_day1: false, accounts,
-      stats: { total_funds_cny: '100.00', inventory_book_cost_cny: '0.00', month_net_profit_cny: '0.00', accounts_receivable_cny: '0.00', pending_collection_cny: '45.00', pending_collection_order_count: 2 } });
+      stats: { total_funds_cny: '100.00', inventory_book_cost_cny: '0.00', month_net_profit_cny: '-25.00', accounts_receivable_cny: '0.00', pending_collection_cny: '45.00', pending_collection_order_count: 2 } });
     api.fetchAccountingAccounts.mockResolvedValue(accounts);
     api.fetchAccountingActions.mockResolvedValue({ purchases: [], dividends: [] });
     api.fetchAccountingSummary.mockResolvedValue({});
@@ -50,12 +51,16 @@ describe('财务默认动作及刷新', () => {
     expect(screen.getByText('待收金额')).toBeTruthy();
     expect(screen.getByText('¥45.00')).toBeTruthy();
     expect(screen.getByText('2 笔已确认未收款订单')).toBeTruthy();
+    const profitCard = screen.getByText('本月经营净利润').parentElement as HTMLElement;
+    expect(within(profitCard).getByText('-¥25.00')).toBeTruthy();
+    expect(within(profitCard).getByText(`当前业务月 ${moscowBusinessMonth()} · 含库存及对账调整`)).toBeTruthy();
     expect(screen.queryByText('待收订单')).toBeNull();
     expect(screen.getByRole('link', { name: '月度经营报告' }).getAttribute('href')).toBe('/accounting/reports/monthly');
     expect(screen.getByRole('button', { name: '记录费用', pressed: true })).toBeTruthy();
     const month = screen.getByLabelText('明细月份') as HTMLSelectElement;
     const chosenMonth = month.options[1].value;
     fireEvent.change(month, { target: { value: chosenMonth } });
+    expect(within(profitCard).getByText('-¥25.00')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('金额（CNY）'), { target: { value: '10.00' } });
     fireEvent.change(screen.getByLabelText('备注'), { target: { value: '保留输入' } });
     fireEvent.click(within(document.querySelector('[data-guide="accounting-actions-expense"]') as HTMLElement).getByRole('button', { name: '记录费用' }));

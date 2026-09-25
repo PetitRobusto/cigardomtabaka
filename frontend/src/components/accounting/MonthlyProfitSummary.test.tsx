@@ -29,4 +29,22 @@ describe('月度经营总结', () => {
     expect(html).toContain('-¥100.00');
     expect(html).toContain('¥450.00');
   });
+
+  it('退款和费用冲正保留符号，不误计为新增收入或成本', () => {
+    const reversed: MonthlyProfitReport = {
+      ...report,
+      sales_revenue_cny: '50.00', customer_transport_revenue_cny: '10.00',
+      cost_of_goods_sold_cny: '-20.00',
+      transport_expense_cny: '-30.00', transport_settlement_expense_cny: '10.00',
+      salary_expense_cny: '-50.00', rent_expense_cny: '10.00',
+      utilities_expense_cny: '0.00', professional_expense_cny: '0.00',
+      interest_expense_cny: '0.00', other_expense_cny: '0.00',
+    };
+    const html = renderToStaticMarkup(<MonthlyProfitSummary profit={reversed} month="2026-08" />);
+
+    expect(html).toMatch(/销售收入<\/p><p[^>]*>-¥60\.00<\/p>/);
+    expect(html).toMatch(/商品成本<\/p><p[^>]*>-¥20\.00<\/p>/);
+    expect(html).toMatch(/经营费用<\/p><p[^>]*>-¥40\.00<\/p>/);
+    expect(html).toMatch(/人肉成本<\/p><p[^>]*>¥20\.00<\/p>/);
+  });
 });

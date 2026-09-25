@@ -8,7 +8,7 @@ import AccountingPanel from '../components/sales/AccountingPanel';
 import AccountingActionCenter, { type AccountingActionKind } from '../components/accounting/AccountingActionCenter';
 import ExpenseDetails from '../components/accounting/ExpenseDetails';
 import ExchangeDetails from '../components/accounting/ExchangeDetails';
-import { formatCny } from '../components/sales/salesState';
+import { formatCny, formatSignedCny } from '../components/sales/salesState';
 import { dashboardDay1Action, dashboardRegionStates, dashboardStatDisplay } from './businessRoutes';
 import { moscowBusinessDate, moscowBusinessMonth, recentMoscowBusinessMonths } from '../utils/businessDate';
 import { DelayedAppSkeleton } from '../components/layout/AppSkeleton';
@@ -46,6 +46,8 @@ export default function AccountingDashboardPage() {
   };
   if (dashboard.isLoading) return <DelayedAppSkeleton path="/accounting" label="加载账务工作台…" />;
   const data = dashboard.data;
+  const monthNetProfit = data?.stats.month_net_profit_cny;
+  const profitMonth = data?.monthly_profit?.period_start.slice(0, 7) ?? moscowBusinessMonth();
   const regionStates = dashboardRegionStates({
     accounts: { isError: accounts.isError, hasData: Boolean(accounts.data) },
     summary: { isError: summary.isError, hasData: Boolean(summary.data) },
@@ -55,7 +57,7 @@ export default function AccountingDashboardPage() {
     <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">账务操作</p><h1 className="mt-1 font-display text-3xl font-semibold tracking-tight sm:text-4xl">账务工作台</h1><p className="mt-2 text-sm text-muted">记录费用、换汇、采购付款和对账。</p></div><div className="flex flex-wrap gap-2"><Link to="/accounting/reports/monthly" className="inline-flex items-center gap-1.5 rounded border border-gold/50 bg-[#FFFAF3] px-3 py-2 text-sm font-semibold text-accent hover:border-gold"><ChartPie className="h-4 w-4" />月度经营报告</Link><label className="text-xs font-semibold text-muted"><span className="sr-only">明细月份</span><select aria-label="明细月份" value={month} onChange={event => setMonth(event.target.value)} className="rounded border border-border bg-white px-3 py-2 text-sm font-normal text-fg hover:border-gold">{monthOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button type="button" onClick={refresh} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
     {dashboard.error && <div className="mb-5 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{apiErrorMessage(dashboard.error, '账务数据加载失败')}</div>}
     {data && <>
-      <section className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat label="总资产" value={moneyStat(data.stats.total_funds_cny)} note="资金账户账面成本 + 库存成本 + 在途采购 + 应收款" /><Stat label="库存成本" value={moneyStat(data.stats.inventory_book_cost_cny)} /><Stat label="人民币资金" value={moneyStat(data.stats.cny_funds_total)} /><Stat label="待收金额" value={moneyStat(data.stats.pending_collection_cny)} note={`${data.stats.pending_collection_order_count ?? 0} 笔已确认未收款订单`} /></section>
+      <section className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Stat label="总资产" value={moneyStat(data.stats.total_funds_cny)} note="资金账户账面成本 + 库存成本 + 在途采购 + 应收款" /><Stat label="库存成本" value={moneyStat(data.stats.inventory_book_cost_cny)} /><Stat label="人民币资金" value={moneyStat(data.stats.cny_funds_total)} /><Stat label="待收金额" value={moneyStat(data.stats.pending_collection_cny)} note={`${data.stats.pending_collection_order_count ?? 0} 笔已确认未收款订单`} /><Stat label="本月经营净利润" value={monthNetProfit == null ? '—' : formatSignedCny(monthNetProfit)} tone={monthNetProfit == null ? '' : Number(monthNetProfit) < 0 ? 'text-accent' : 'text-success'} note={`当前业务月 ${profitMonth} · 含库存及对账调整`} /></section>
       {!day1Completed ? <Day1Card status={data.day1_status} /> : <>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] lg:items-start">
           <AccountingActionCenter key={guideTourId || 'default'} accounts={accounts.data || data.accounts || []} summaryAccounts={data.accounts} actions={actions.data} businessDate={moscowBusinessDate()} actionsLoading={actions.isLoading} actionsError={actions.isError ? apiErrorMessage(actions.error, '账务动作列表加载失败') : undefined} onChanged={refresh} initialAction={initialAction} onOpenReconciliation={() => setReconciliationOpen(true)} />

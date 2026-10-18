@@ -58,7 +58,7 @@ def spa_index(request):
 urlpatterns = [
     # Resolve conventional icon URLs before the SPA catch-all.
     path('favicon.ico', RedirectView.as_view(
-        url=f'{settings.STATIC_URL}frontend/favicon-48.png', permanent=True,
+        url=f'{settings.STATIC_URL}frontend/favicon.ico', permanent=True,
     )),
     path('favicon.svg', RedirectView.as_view(
         url=f'{settings.STATIC_URL}frontend/favicon.svg', permanent=True,

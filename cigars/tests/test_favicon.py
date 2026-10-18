@@ -1,4 +1,6 @@
+from django.conf import settings
 from django.test import SimpleTestCase, override_settings
+from PIL import Image
 
 
 class FaviconTests(SimpleTestCase):
@@ -9,14 +11,14 @@ class FaviconTests(SimpleTestCase):
 
                 self.assertContains(
                     response,
-                    '<link rel="icon" type="image/png" sizes="48x48" '
-                    'href="/static/frontend/favicon-48.png">',
+                    '<link rel="icon" type="image/png" sizes="96x96" '
+                    'href="/static/frontend/favicon-96.png">',
                     html=True,
                 )
 
     def test_conventional_icon_urls_redirect_to_images_instead_of_spa(self):
         targets = {
-            '/favicon.ico': '/static/frontend/favicon-48.png',
+            '/favicon.ico': '/static/frontend/favicon.ico',
             '/favicon.svg': '/static/frontend/favicon.svg',
         }
         for source, target in targets.items():
@@ -25,3 +27,20 @@ class FaviconTests(SimpleTestCase):
                     self.client.get(source), target,
                     status_code=301, fetch_redirect_response=False,
                 )
+
+    def test_png_icons_have_transparent_background_and_fill_the_canvas(self):
+        for size in (48, 96):
+            with self.subTest(size=size):
+                path = settings.BASE_DIR / 'frontend' / 'public' / f'favicon-{size}.png'
+                with Image.open(path) as icon:
+                    self.assertEqual(icon.size, (size, size))
+                    alpha = icon.convert('RGBA').getchannel('A')
+                    minimum, maximum = alpha.getextrema()
+                    self.assertEqual(minimum, 0)
+                    self.assertGreaterEqual(maximum, 240)
+                    self.assertEqual(alpha.getpixel((0, 0)), 0)
+                    bounds = alpha.point(lambda value: 255 if value >= 32 else 0).getbbox()
+                    self.assertIsNotNone(bounds)
+                    left, top, right, bottom = bounds
+                    self.assertGreaterEqual(right - left, size * 0.9)
+                    self.assertGreaterEqual(bottom - top, size * 0.75)

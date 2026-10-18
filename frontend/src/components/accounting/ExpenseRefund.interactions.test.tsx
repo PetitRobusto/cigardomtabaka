@@ -31,6 +31,41 @@ function fill(dialog: HTMLElement, amount = '3000') {
 }
 
 describe('费用更多与退回', () => {
+  it('分类与明细分开展示，操作入口只有可见图标，详情沿用分类并能关闭', () => {
+    render(<ExpenseDetails month="2026-08" expenses={[expense]} accounts={accounts} onRefund={vi.fn()} />);
+    expect(screen.getByText('人员费用')).toBeTruthy();
+    expect(screen.getByText('工资')).toBeTruthy();
+    const trigger = screen.getByLabelText('费用 7 更多操作');
+    expect(trigger.textContent).toBe('');
+    expect(trigger.querySelector('svg')).toBeTruthy();
+    trigger.focus(); trigger.closest('details')!.open = true;
+    fireEvent.click(screen.getByRole('button', { name: '查看明细' }));
+    const dialog = screen.getByRole('dialog', { name: '费用详情' });
+    expect(within(dialog).getByText('人员费用').querySelector('svg')).toBeTruthy();
+    fireEvent.click(within(dialog).getAllByRole('button', { name: '关闭' })[0]);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('撤回弹窗保留原因与二次确认，取消不发请求', async () => {
+    const reverse = vi.fn().mockResolvedValue(undefined);
+    render(<ExpenseDetails month="2026-08" expenses={[expense]} onReverse={reverse} />);
+    const open = () => {
+      screen.getByLabelText('费用 7 更多操作').closest('details')!.open = true;
+      fireEvent.click(screen.getByRole('button', { name: '撤回记录' }));
+      return screen.getByRole('dialog', { name: '撤回费用记录' });
+    };
+    let dialog = open();
+    expect((within(dialog).getByRole('button', { name: '确认整笔撤回' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(within(dialog).getByRole('button', { name: '取消' }));
+    expect(reverse).not.toHaveBeenCalled();
+    dialog = open();
+    fireEvent.change(within(dialog).getByLabelText('撤回原因'), { target: { value: '原费用重复登记' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '确认整笔撤回' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(reverse).toHaveBeenCalledExactlyOnceWith(expense, '原费用重复登记');
+  });
+
   it('低频动作收进更多，取消恢复焦点和页面滚动', () => {
     render(<ExpenseDetails month="2026-08" expenses={[expense]} accounts={accounts} onRefund={vi.fn()} onReverse={vi.fn()} />);
     expect(screen.getByLabelText('费用 7 更多操作').closest('details')!.open).toBe(false);

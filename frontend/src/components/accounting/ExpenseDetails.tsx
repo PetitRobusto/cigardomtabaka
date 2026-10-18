@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { ArrowLeft, ArrowRight, Check, CornerDownLeft, MoreHorizontal, ReceiptText, Undo2, Wallet, X } from 'lucide-react';
 import type { AccountingExpense, AccountingExpenseRefund, ExpensePeriodSummary, ExpenseRefundPayload, FundAccount } from '../../types';
 import { apiErrorMessage } from '../../api';
 import { useDialogFocus } from '../../hooks/useDialogFocus';
 import { moscowBusinessDate } from '../../utils/businessDate';
 import { formatDecimalAmount } from '../../utils/decimalDisplay';
+import ExpenseCategoryBadge from './ExpenseCategoryBadge';
 
 interface ExpenseDetailsProps {
   month: string;
@@ -23,9 +25,17 @@ interface ExpenseDetailsProps {
 }
 
 type Mode = 'detail' | 'refund' | 'reverse';
-const buttonClass = 'min-h-11 whitespace-nowrap rounded border border-border px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50';
-const fieldClass = 'mt-1.5 min-h-11 w-full rounded border border-border bg-white px-3 py-2 text-base text-fg disabled:bg-cream';
+const buttonClass = 'expense-button';
+const fieldClass = 'expense-field';
 const money = (value: string, currency = 'CNY') => `${currency === 'CNY' ? '¥' : ''}${formatDecimalAmount(value, currency)}${currency === 'CNY' ? '' : ` ${currency}`}`;
+
+function expenseLabels(expense: AccountingExpense) {
+  const label = expense.subcategory_label || expense.category_label;
+  const separator = label.indexOf(' · ');
+  return separator >= 0
+    ? { category: label.slice(0, separator), detail: label.slice(separator + 3) }
+    : { category: expense.category_label || '其他', detail: label };
+}
 
 function cents(value: string): bigint | null {
   const match = /^(\d+)(?:\.(\d{1,8}))?$/.exec(value.trim());
@@ -53,7 +63,8 @@ function reversalDisabledReason(expense: AccountingExpense): string {
 function ExpenseStatus({ expense }: { expense: AccountingExpense }) {
   const label = expense.reversed ? '已撤回' : (cents(expense.refunded_amount || '0') ?? 0n) > 0n
     ? ((cents(remaining(expense)) ?? 0n) === 0n ? '全部退回' : '部分退回') : '';
-  return label ? <span className="inline-block rounded-full bg-[#F1ECE5] px-2 py-1 text-[11px] text-muted">{label}</span> : null;
+  const tone = expense.reversed ? 'reversed' : label === '全部退回' ? 'full' : 'partial';
+  return label ? <span className={`expense-status expense-status--${tone}`}>{label}</span> : null;
 }
 
 function ExpenseMore({ expense, onSelect, canRefund, canReverse }: {
@@ -74,11 +85,12 @@ function ExpenseMore({ expense, onSelect, canRefund, canReverse }: {
   return <details ref={ref} className="relative" onKeyDown={event => {
     if (event.key === 'Escape' && ref.current) { ref.current.open = false; ref.current.querySelector('summary')?.focus(); }
   }}>
-    <summary aria-label={`费用 ${expense.id} 更多操作`} className={`${buttonClass} flex cursor-pointer list-none items-center justify-center gap-1 bg-white [&::-webkit-details-marker]:hidden`}>⋯ <span>更多</span></summary>
-    <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-4 right-4 z-[60] rounded-md border border-border bg-white p-1 shadow-lg md:absolute md:bottom-full md:left-auto md:right-0 md:mb-1 md:w-56">
-      <button type="button" onClick={() => select('detail')} className="min-h-11 w-full rounded px-3 py-2 text-left text-sm hover:bg-cream">查看明细</button>
-      {canRefund && <><button type="button" disabled={!!refundReason} onClick={() => select('refund')} className="min-h-11 w-full rounded px-3 py-2 text-left text-sm hover:bg-cream disabled:opacity-50">登记退回</button>{refundReason && <p className="px-3 pb-2 text-xs text-muted">{refundReason}</p>}</>}
-      {canReverse && <div className="border-t border-border"><button type="button" disabled={!!reverseReason} onClick={() => select('reverse')} className="min-h-11 w-full rounded px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50 disabled:opacity-50">撤回记录</button>{reverseReason && <p className="px-3 pb-2 text-xs text-muted">{reverseReason}</p>}</div>}
+    <summary aria-label={`费用 ${expense.id} 更多操作`} title="费用操作" className="expense-icon-button list-none"><MoreHorizontal aria-hidden="true" size={16} strokeWidth={1.8} /></summary>
+    <div className="expense-menu">
+      <p className="expense-menu-label">{expenseLabels(expense).detail} · {expense.business_date}</p>
+      <button type="button" onClick={() => select('detail')} className="expense-menu-action"><ReceiptText aria-hidden="true" size={15} strokeWidth={1.8} />查看明细</button>
+      {canRefund && <><button type="button" disabled={!!refundReason} onClick={() => select('refund')} className="expense-menu-action"><CornerDownLeft aria-hidden="true" size={15} strokeWidth={1.8} />登记退回</button>{refundReason && <p className="expense-menu-reason">{refundReason}</p>}</>}
+      {canReverse && <div className="border-t border-border"><button type="button" disabled={!!reverseReason} onClick={() => select('reverse')} className="expense-menu-action expense-menu-danger"><Undo2 aria-hidden="true" size={15} strokeWidth={1.8} />撤回记录</button>{reverseReason && <p className="expense-menu-reason">{reverseReason}</p>}</div>}
     </div>
   </details>;
 }
@@ -93,30 +105,45 @@ export default function ExpenseDetails({ month, expenses = [], refunds = [], sum
     ...refunds.map(refund => ({ date: refund.business_date, id: `refund-${refund.id}`, expense: undefined, refund })),
   ].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
   const stats = summary ? [
-    ['费用支出', summary.spent_cny], ['费用退回', summary.refunded_cny],
-    ...(cents(summary.reversed_cny) ? [['撤回冲减', summary.reversed_cny]] : []), ['净费用', summary.net_cny],
-  ] : [['费用支出', fallbackTotal]];
-  return <section aria-labelledby="accounting-expense-details-title" className="mb-7 rounded-md border border-border bg-white shadow-sm">
-    <div className="border-b border-border px-4 py-4 sm:px-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 id="accounting-expense-details-title" className="font-display text-xl font-semibold">费用明细</h2><span className="text-xs text-muted">{month} · 按实际业务日期</span></div>
-      <p className="mt-1 text-xs text-muted">本月发生额与累计退回分开展示；历史费用可切换明细月份查找。</p>
-      <dl className="mt-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-x-8">{stats.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 break-all font-mono text-base font-semibold">{loading ? '…' : money(value)}</dd></div>)}</dl>
+    { label: '费用支出', value: summary.spent_cny, tone: 'spent', note: '本月发生额 · CNY 口径' },
+    { label: '费用退回', value: summary.refunded_cny, tone: 'refund', note: '本月实际到账退回' },
+    ...(cents(summary.reversed_cny) ? [{ label: '撤回冲减', value: summary.reversed_cny, tone: 'reversed', note: '原记录与冲正流水均保留' }] : []),
+    { label: '净费用', value: summary.net_cny, tone: 'net', note: '支出 − 退回 − 撤回冲减' },
+  ] : [{ label: '费用支出', value: fallbackTotal, tone: 'spent', note: '当前页账面合计 · CNY' }];
+  return <section aria-labelledby="accounting-expense-details-title" className="expense-ledger">
+    <dl aria-label="费用概览" className="expense-panel expense-overview">{stats.map(({ label, value, tone, note }) => <div key={label} className={`expense-stat expense-stat--${tone}`}><dt>{label}</dt><dd>{loading ? '…' : money(value)}</dd><small>{note}</small></div>)}</dl>
+    <div className="expense-panel">
+      <header className="expense-panel-head">
+        <div><h2 id="accounting-expense-details-title" className="expense-panel-title">费用明细</h2><p className="expense-caption">支出与退回按业务日期倒序 · 原币保留原始金额 · CNY 为人民币账面成本</p></div>
+        <span className="text-xs text-muted">{month} · 第 {page} 页</span>
+      </header>
+      {notice && <p role="status" className="expense-hint expense-hint--success m-4">{notice}</p>}
+      {error && <p role="alert" className="expense-hint expense-hint--danger m-4">{error}</p>}
+      {loading && <div role="status" className="p-5"><span className="sr-only">费用明细加载中…</span><div aria-hidden="true" className="space-y-5">{[0, 1, 2].map(index => <div key={index} className="flex animate-pulse items-center gap-5"><span className="h-3 w-16 rounded bg-[#F1ECE5]" /><span className="h-5 w-24 rounded bg-[#F1ECE5]" /><span className="h-3 flex-1 rounded bg-[#F1ECE5]" /></div>)}</div></div>}
+      {!loading && !error && <>
+        <div className="expense-table-head" aria-hidden="true"><span>日期</span><span>一级分类</span><span>费用明细</span><span className="text-right">原币金额</span><span className="text-right">CNY 账面</span><span>资金账户</span><span className="sr-only">操作</span></div>
+        <ul>{rows.map(({ id, date, expense, refund }) => {
+          const record = (expense || refund)!;
+          const labels = expense ? expenseLabels(expense) : null;
+          return <li key={id} className="expense-row">
+            <time dateTime={date} className="expense-row-date">{date.slice(5).replace('-', '/')}</time>
+            <div className="expense-row-category">{expense && labels ? <><ExpenseCategoryBadge label={labels.category} subcategory={expense.subcategory} /><ExpenseStatus expense={expense} /></> : <span className="expense-refund-badge"><CornerDownLeft aria-hidden="true" size={12} strokeWidth={1.8} />费用退回</span>}</div>
+            <div className="expense-row-description" title={expense?.subcategory_label}>
+              <p>{labels?.detail || `${refund?.expense_label || '费用'} · 退回`}</p>
+              {record.note && <p className="expense-caption whitespace-pre-wrap">{record.note}</p>}
+              {refund && <p className="expense-caption">原费用日期 {refund.expense_business_date}</p>}
+              {expense && (cents(expense.refunded_amount || '0') ?? 0n) > 0n && <p className="expense-caption">累计退回 {money(expense.refunded_amount!, expense.currency)}</p>}
+            </div>
+            <div className="expense-row-amounts"><p className={`expense-row-original${refund ? ' expense-money-refund' : ''}`}><span className="sr-only">原币金额 </span>{refund ? '−' : ''}{money(record.original_amount, record.currency)}</p>
+            <p className={`expense-row-cny${refund ? ' expense-money-refund' : expense?.reversed ? ' expense-money-reversed' : ''}`}><span className="sr-only">CNY 账面 </span>{refund ? '−' : ''}{money(record.amount_cny)}</p></div>
+            <p className="expense-row-account"><span className="sr-only">{refund ? '收款：' : '付款：'}</span>{record.fund_account_name}</p>
+            <div className="expense-row-actions">{expense ? <ExpenseMore expense={expense} canRefund={!!onRefund} canReverse={!!onReverse} onSelect={mode => { setNotice(''); setSelected({ id: expense.id, initial: expense, mode }); }} /> : <button type="button" className="expense-icon-button" aria-label="查看原费用" title="查看原费用" onClick={() => setSelected({ id: refund!.expense_id, mode: 'detail' })}><ReceiptText aria-hidden="true" size={16} strokeWidth={1.8} /></button>}</div>
+          </li>;
+        })}</ul>
+        {!rows.length && <div className="expense-empty"><span className="expense-empty-icon"><ReceiptText aria-hidden="true" size={20} strokeWidth={1.5} /></span><h3 className="font-display font-semibold">本月还没有已入账费用或退回记录</h3><p className="expense-caption">切换明细月份可查看历史费用。</p></div>}
+        {onPageChange && (page > 1 || nextPage != null) && <div className="expense-pagination"><button type="button" className={buttonClass} disabled={page <= 1} onClick={() => onPageChange(page - 1)}><ArrowLeft aria-hidden="true" size={14} />上一页</button><span className="text-xs text-muted">第 {page} 页</span><button type="button" className={buttonClass} disabled={nextPage == null} onClick={() => nextPage && onPageChange(nextPage)}>下一页<ArrowRight aria-hidden="true" size={14} /></button></div>}
+      </>}
     </div>
-    {notice && <p role="status" className="m-4 rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
-    {error && <p role="alert" className="m-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-    {loading && <p role="status" className="p-8 text-center text-sm text-muted">费用明细加载中…</p>}
-    {!loading && !error && <>
-      <div className="hidden grid-cols-[100px_minmax(0,1fr)_150px_minmax(100px,0.7fr)_104px] gap-4 border-b border-border bg-[#FFFDFA] px-5 py-3 text-xs text-muted md:grid" aria-hidden="true"><span>日期</span><span>费用明细</span><span className="text-right">金额</span><span>资金账户</span><span className="text-right">操作</span></div>
-      <ul className="divide-y divide-border">{rows.map(({ id, date, expense, refund }) => <li key={id} className="relative px-4 py-4 sm:px-5 md:grid md:grid-cols-[100px_minmax(0,1fr)_150px_minmax(100px,0.7fr)_104px] md:items-center md:gap-4">
-        <div className="mb-2 flex items-center justify-between gap-2 md:mb-0"><span className="font-mono text-xs text-muted">{date}</span><span className="md:hidden">{expense && <ExpenseStatus expense={expense} />}{refund && <span className="rounded-full bg-green-50 px-2 py-1 text-xs text-green-800">费用退回</span>}</span></div>
-        <div className="min-w-0 pr-24 md:pr-0"><p className="break-words text-sm font-semibold">{expense ? expense.subcategory_label || expense.category_label : `${refund?.expense_label || '费用'} · 退回`}</p><p className="mt-1 break-words text-xs text-muted">{expense?.note || refund?.note || '—'}</p>{expense && <div className="mt-1 hidden md:block"><ExpenseStatus expense={expense} /></div>}{refund && <p className="mt-1 text-xs text-muted">原费用日期 {refund.expense_business_date}</p>}</div>
-        <div className="mt-3 min-w-0 pr-24 md:mt-0 md:pr-0 md:text-right"><p className="break-all font-mono text-base font-semibold">{money((expense || refund)!.original_amount, (expense || refund)!.currency)}</p>{refund && <p className="text-xs text-green-800">资金增加 · 费用减少</p>}{expense && (cents(expense.refunded_amount || '0') ?? 0n) > 0n && <p className="mt-1 text-xs text-muted">累计退回 {money(expense.refunded_amount!, expense.currency)}</p>}{(expense || refund)!.currency !== 'CNY' && <p className="text-xs text-muted">账面 {money((expense || refund)!.amount_cny)}</p>}</div>
-        <p className="mt-2 min-w-0 break-words pr-24 text-xs text-muted md:mt-0 md:pr-0">{refund ? '收款：' : '付款：'}{(expense || refund)!.fund_account_name}</p>
-        <div className="absolute bottom-4 right-4 md:static md:justify-self-end">{expense ? <ExpenseMore expense={expense} canRefund={!!onRefund} canReverse={!!onReverse} onSelect={mode => { setNotice(''); setSelected({ id: expense.id, initial: expense, mode }); }} /> : <button type="button" className={buttonClass} onClick={() => setSelected({ id: refund!.expense_id, mode: 'detail' })}>查看原费用</button>}</div>
-      </li>)}</ul>
-      {!rows.length && <div className="px-5 py-10 text-center"><p className="font-semibold">本月还没有已入账费用或退回记录</p><p className="mt-1 text-xs text-muted">切换明细月份可查看历史费用。</p></div>}
-      {onPageChange && (page > 1 || nextPage != null) && <div className="flex items-center justify-between gap-3 border-t border-border p-4"><button type="button" className={buttonClass} disabled={page <= 1} onClick={() => onPageChange(page - 1)}>上一页</button><span className="text-xs text-muted">第 {page} 页</span><button type="button" className={buttonClass} disabled={nextPage == null} onClick={() => nextPage && onPageChange(nextPage)}>下一页</button></div>}
-    </>}
     {selected && <ExpenseDialog key={`${selected.id}-${selected.mode}`} id={selected.id} initial={selected.initial} mode={selected.mode} accounts={accounts} onLoad={onLoadExpense} onRefund={onRefund} onReverse={onReverse} onClose={() => setSelected(null)} onDone={message => { setSelected(null); setNotice(message); }} />}
   </section>;
 }
@@ -174,41 +201,62 @@ function ExpenseDialog({ id, initial, mode: initialMode, accounts, onLoad, onRef
     finally { inFlight.current = false; setBusy(false); }
   };
   const title = mode === 'detail' ? '费用详情' : mode === 'refund' ? '登记费用退回' : '撤回费用记录';
-  return createPortal(<div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 p-2 sm:items-center sm:p-4" onClick={event => { if (event.target === event.currentTarget && !busy) onClose(); }}>
-    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="expense-dialog-title" className="flex max-h-[calc(100dvh-1rem)] w-full min-w-0 max-w-lg flex-col overflow-hidden rounded-lg bg-white shadow-xl outline-none">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3"><h2 id="expense-dialog-title" className="font-display text-xl font-semibold">{title}</h2><button type="button" disabled={busy} onClick={onClose} className={buttonClass}>关闭</button></header>
-      <div className="min-h-0 overflow-y-auto overscroll-contain p-4 [overflow-wrap:anywhere]">
+  const TitleIcon = mode === 'detail' ? ReceiptText : mode === 'refund' ? CornerDownLeft : Undo2;
+  const labels = expense ? expenseLabels(expense) : null;
+  return createPortal(<div className="expense-modal-backdrop" onClick={event => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="expense-dialog-title" className="expense-modal">
+      <header className="expense-modal-head"><h2 id="expense-dialog-title" className="expense-modal-title"><TitleIcon aria-hidden="true" size={19} strokeWidth={1.6} />{title}</h2><button type="button" disabled={busy} onClick={onClose} className="expense-icon-button" aria-label="关闭"><X aria-hidden="true" size={18} strokeWidth={1.8} /></button></header>
+      <div className="expense-modal-body">
         {loading && <p role="status" className="mb-3 text-sm text-muted">正在核对原费用…</p>}
-        {loadError && <div role="alert" className="mb-3 text-sm text-red-700">{loadError}<button type="button" className={`${buttonClass} ml-2`} onClick={() => { setLoadError(''); setLoading(true); setReload(value => value + 1); }}>重试</button></div>}
-        {!expense && !loading && !loadError && <p role="alert">无法读取原费用，请关闭后重试。</p>}
-        {expense && <>
-          <div className="rounded border border-border bg-[#FFFDFA] p-3 text-sm"><p className="font-semibold">{expense.subcategory_label || expense.category_label}</p><p className="mt-1 text-xs text-muted">{expense.business_date} · {expense.fund_account_name}</p><p className="mt-1 text-xs text-muted">{expense.note || '无备注'}</p><dl className="mt-3 grid grid-cols-2 gap-3">{[
-            ['原费用', money(expense.original_amount, expense.currency)], ['累计退回', money(expense.refunded_amount || '0', expense.currency)],
-            ['剩余可退', money(remaining(expense), expense.currency)], ['净支出（CNY）', money(expense.net_amount_cny ?? expense.amount_cny)],
-          ].map(([label, value]) => <div key={label}><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 break-all font-mono">{value}</dd></div>)}</dl><div className="mt-2"><ExpenseStatus expense={expense} /></div></div>
+        {loadError && <div role="alert" className="expense-hint expense-hint--danger mb-3">{loadError}<button type="button" className={`${buttonClass} ml-2`} onClick={() => { setLoadError(''); setLoading(true); setReload(value => value + 1); }}>重试</button></div>}
+        {!expense && !loading && !loadError && <p role="alert" className="expense-hint expense-hint--danger">无法读取原费用，请关闭后重试。</p>}
+        {expense && labels && <>
+          <div className="expense-detail-summary">
+            <div className="flex flex-wrap items-center gap-2"><ExpenseCategoryBadge label={labels.category} subcategory={expense.subcategory} /><ExpenseStatus expense={expense} /></div>
+            <h3 className="mt-2 text-sm font-semibold">{labels.detail}</h3>
+            <p className="expense-caption"><time dateTime={expense.business_date}>{expense.business_date}</time> · {expense.fund_account_name}</p>
+            <p className="expense-caption whitespace-pre-wrap">{expense.note || '无备注'}</p>
+          </div>
+          <dl className="expense-detail-kv mt-1">{[
+            ['原费用', money(expense.original_amount, expense.currency)],
+            ['累计退回', money(expense.refunded_amount || '0', expense.currency)],
+            ['剩余可退', money(expense.reversed ? '0' : remaining(expense), expense.currency)],
+            ['净支出（CNY）', money(expense.reversed ? '0' : expense.net_amount_cny ?? expense.amount_cny)],
+          ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd className="font-mono">{value}</dd></div>)}</dl>
           {mode === 'detail' ? <>
-            <h3 className="mb-2 mt-5 font-semibold">退回记录</h3>
-            {expense.refunds?.length ? <ul className="divide-y divide-border">{expense.refunds.map(refund => <li key={refund.id} className="py-3 text-sm"><div className="flex flex-wrap justify-between gap-2"><span>{refund.business_date}</span><strong className="font-mono">{money(refund.original_amount, refund.currency)}</strong></div><p className="mt-1 text-xs text-muted">收款：{refund.fund_account_name}</p><p className="mt-1 text-xs text-muted">{refund.note}</p></li>)}</ul> : <p className="text-sm text-muted">暂无退回记录</p>}
-            {expense.reversed && <p className="mt-3 text-sm text-muted">整笔撤回日期：{expense.reversal_business_date}</p>}
-            {onRefund && <div className="mt-4"><button type="button" disabled={loading || !!loadError || !!refundDisabledReason(expense)} onClick={() => setMode('refund')} className={`${buttonClass} w-full`}>登记退回</button>{refundDisabledReason(expense) && <p className="mt-2 text-xs text-muted">{refundDisabledReason(expense)}</p>}</div>}
+            <h3 className="mb-1 mt-5 flex items-center gap-1.5 text-xs font-semibold text-muted"><CornerDownLeft aria-hidden="true" size={14} />退回记录</h3>
+            {expense.refunds?.length ? <ul className="expense-detail-history">{expense.refunds.map(refund => <li key={refund.id}>
+              <div className="flex flex-wrap justify-between gap-2"><time className="font-mono text-xs text-muted" dateTime={refund.business_date}>{refund.business_date}</time><strong className="font-mono font-semibold text-success">{money(refund.original_amount, refund.currency)}</strong></div>
+              <p className="expense-caption"><Wallet aria-hidden="true" size={12} className="mr-1 inline-block" />收款：{refund.fund_account_name}</p><p className="expense-caption whitespace-pre-wrap">{refund.note}</p>
+            </li>)}</ul> : <p className="expense-caption py-3">暂无退回记录</p>}
+            {expense.reversed && <p className="expense-hint mt-3">已整笔撤回冲回，不再计入净费用。整笔撤回日期：{expense.reversal_business_date}</p>}
+            {onRefund && refundDisabledReason(expense) && <p className="expense-caption mt-3">{refundDisabledReason(expense)}</p>}
           </> : <form id="expense-action-form" onSubmit={submit} className="mt-4 space-y-4">
-            {blocked && <p role="alert" className="rounded bg-cream p-3 text-sm">{blocked}</p>}
+            {blocked && <p role="alert" className="expense-hint">{blocked}</p>}
             <fieldset disabled={busy || loading || !!loadError || !!blocked} className="space-y-4">
               {mode === 'refund' && <>
-                <label className="block text-sm">本次退回金额（{expense.currency}）<input autoComplete="off" inputMode="decimal" required value={amount} onChange={event => setAmount(event.target.value)} className={fieldClass} placeholder="请输入实际收到的金额" /></label>
-                {overLimit && <p role="alert" className="text-sm text-red-700">不能超过剩余可退金额 {money(remaining(expense), expense.currency)}</p>}
-                <label className="block text-sm">实际到账日期<input type="date" required min={expense.business_date} value={businessDate} onChange={event => setBusinessDate(event.target.value)} className={fieldClass} /></label>
-                <label className="block text-sm">收款账户<select required value={accountId} onChange={event => setAccountId(event.target.value)} className={fieldClass}><option value="">请选择实际收款账户</option>{eligible.map(item => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</select></label>
-                {!eligible.length && <p role="alert" className="text-sm text-red-700">没有启用的同币种公司账户，暂时无法登记退回。</p>}
+                <label className="expense-field-label">本次退回金额（{expense.currency}）<input autoComplete="off" inputMode="decimal" required value={amount} onChange={event => setAmount(event.target.value)} className={`${fieldClass} font-mono`} placeholder="请输入实际收到的金额" /></label>
+                {overLimit && <p role="alert" className="expense-hint expense-hint--danger">不能超过剩余可退金额 {money(remaining(expense), expense.currency)}</p>}
+                <label className="expense-field-label">实际到账日期<input type="date" required min={expense.business_date} value={businessDate} onChange={event => setBusinessDate(event.target.value)} className={fieldClass} /></label>
+                <label className="expense-field-label">收款账户<select required value={accountId} onChange={event => setAccountId(event.target.value)} className={fieldClass}><option value="">请选择实际收款账户</option>{eligible.map(item => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</select></label>
+                {!eligible.length && <p role="alert" className="expense-hint expense-hint--danger">没有启用的同币种公司账户，暂时无法登记退回。</p>}
               </>}
-              <label className="block text-sm">{mode === 'refund' ? '退回原因' : '撤回原因'}<textarea required rows={3} value={note} onChange={event => setNote(event.target.value)} className={fieldClass} /></label>
+              <label className="expense-field-label">{mode === 'refund' ? '退回原因' : '撤回原因'}<textarea required rows={3} value={note} onChange={event => setNote(event.target.value)} className={fieldClass} /></label>
             </fieldset>
-            {mode === 'refund' ? <p className="rounded border border-border bg-[#FFFAF3] p-3 text-sm leading-6">{account && amountCents != null && amountCents > 0n ? `${account.name} 增加 ${money(amount, expense.currency)}。` : '请核对实际到账金额、日期和账户。'}{expense.currency === 'CNY' && amountCents != null && amountCents > 0n ? `本次冲减费用 ${money(amount)}。` : '按原费用的人民币账面成本冲减费用。'}原费用和退回记录均保留。</p> : <p className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">将整笔冲回 {money(expense.original_amount, expense.currency)} 至原付款账户，业务日期为 {moscowBusinessDate()}。仅用于原登记有误；实际收到部分退款请使用“登记退回”。</p>}
-            {error && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+            {mode === 'refund' ? <p className="expense-hint">{account && amountCents != null && amountCents > 0n ? `${account.name} 增加 ${money(amount, expense.currency)}。` : '请核对实际到账金额、日期和账户。'}{expense.currency === 'CNY' && amountCents != null && amountCents > 0n ? `本次冲减费用 ${money(amount)}。` : '按原费用的人民币账面成本冲减费用。'}原费用和退回记录均保留。</p> : <p className="expense-hint expense-hint--danger">将整笔冲回 {money(expense.original_amount, expense.currency)} 至原付款账户，业务日期为 {moscowBusinessDate()}。仅用于原登记有误；实际收到部分退款请使用“登记退回”。</p>}
+            {error && <p role="alert" className="expense-hint expense-hint--danger">{error}</p>}
           </form>}
         </>}
       </div>
-      {mode !== 'detail' && <footer className="flex shrink-0 gap-3 border-t border-border bg-[#FFFDF9] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3"><button type="button" disabled={busy} onClick={onClose} className={`${buttonClass} flex-1`}>取消</button><button type="submit" form="expense-action-form" disabled={busy || !valid} className={`${buttonClass} flex-[2] border-accent bg-accent text-white`}>{busy ? '入账中…' : mode === 'refund' ? '确认退回并入账' : '确认整笔撤回'}</button></footer>}
+      <footer className="expense-modal-foot">
+        {mode === 'detail' ? <>
+          <button type="button" onClick={onClose} className={buttonClass}>关闭</button>
+          {expense && onRefund && <button type="button" disabled={loading || !!loadError || !!refundDisabledReason(expense)} onClick={() => setMode('refund')} className={`${buttonClass} expense-button--danger`}><CornerDownLeft aria-hidden="true" size={14} />登记退回</button>}
+        </> : <>
+          <button type="button" disabled={busy} onClick={onClose} className={buttonClass}>取消</button>
+          <button type="submit" form="expense-action-form" disabled={busy || !valid} className={`${buttonClass} expense-button--danger`}><Check aria-hidden="true" size={14} />{busy ? '入账中…' : mode === 'refund' ? '确认退回并入账' : '确认整笔撤回'}</button>
+        </>}
+      </footer>
     </div>
   </div>, document.body);
 }

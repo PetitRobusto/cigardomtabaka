@@ -41,6 +41,10 @@ import {
   fetchInventoryAudit,
   returnSalesOrder,
   recordExpense,
+  recordFundReceipt,
+  fetchFundReceipts,
+  refundExpense,
+  fetchAccountingExpense,
   updateDividend,
   updatePurchaseOrder,
   updateSalesOrder,
@@ -54,6 +58,20 @@ function response<T>(data: T) {
 
 describe('accounting action API contracts', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it('人民币入账保留金额字符串，网络重试复用幂等键，支持分页读取', async () => {
+    const payload = { contributor_id: 7, fund_account_id: 1, amount_cny: '30000.00', business_date: businessDate, note: '' };
+    client.post.mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce({ data: { receipt: { id: 9 } } });
+    await expect(recordFundReceipt(payload)).rejects.toThrow('timeout');
+    await expect(recordFundReceipt(payload)).resolves.toEqual({ id: 9 });
+    expect(client.post.mock.calls[0]).toEqual(client.post.mock.calls[1]);
+    expect(client.post.mock.calls[0][0]).toBe('/accounting/fund-receipts/');
+    expect(client.post.mock.calls[0][1].amount_cny).toBe('30000.00');
+    expect(client.post.mock.calls[0][2].headers['Idempotency-Key']).toBeTruthy();
+    client.get.mockResolvedValueOnce({ data: { receipts: [], page: 2, next_page: null, contributors: [] } });
+    await fetchFundReceipts(2);
+    expect(client.get).toHaveBeenCalledWith('/accounting/fund-receipts/', { params: { page: 2 } });
+  });
 
   it('delegates CSRF to Axios so login token rotation is read per request', () => {
     expect(API_CLIENT_CONFIG).toMatchObject({
@@ -213,6 +231,19 @@ describe('accounting action API contracts', () => {
     expect(client.post).toHaveBeenCalledWith('/accounting/expenses/', {
       category: 'rent', amount: '88.00', fund_account_id: 11, business_date: businessDate, note: '八月房租',
     }, expect.objectContaining({ headers: { 'Idempotency-Key': expect.any(String) } }));
+  });
+
+  it('retries an expense refund with the same key and Decimal payload, and reads the original', async () => {
+    const payload = { amount: '3000.01', fund_account_id: 12, business_date: businessDate, note: '退回部分工资' };
+    client.post.mockRejectedValueOnce(new Error('network')).mockReturnValueOnce(response({ expense: { id: 41 } }));
+    await expect(refundExpense(41, payload)).rejects.toThrow('network');
+    await refundExpense(41, payload);
+    expect(client.post.mock.calls[0]).toEqual(client.post.mock.calls[1]);
+    expect(client.post).toHaveBeenLastCalledWith('/accounting/expenses/41/refund/', payload,
+      expect.objectContaining({ headers: { 'Idempotency-Key': expect.any(String) } }));
+    client.get.mockReturnValueOnce(response({ expense: { id: 41 } }));
+    await expect(fetchAccountingExpense(41)).resolves.toEqual({ id: 41 });
+    expect(client.get).toHaveBeenCalledWith('/accounting/expenses/41/');
   });
 
   it('uses dedicated idempotent endpoints for return, receipt reversal, adjustment reversal, and audit', async () => {

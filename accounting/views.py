@@ -16,7 +16,7 @@ from accounting.day1 import (
 from accounting.day1_serializers import serialize_day1_state
 from accounting.action_serializers import (
     serialize_dividend, serialize_expense, serialize_purchase_order,
-    serialize_dividend_round, serialize_dividend_payout,
+    serialize_dividend_round, serialize_dividend_payout, serialize_expense_refund,
 )
 from accounting.dividend_round_actions import (
     preview_dividend_round, confirm_dividend_round, record_dividend_payout,
@@ -25,7 +25,9 @@ from accounting.dividend_actions import (
     DividendActionError, confirm_dividend, create_dividend_draft,
     preview_dividend, update_dividend_draft,
 )
-from accounting.expense_actions import ExpenseActionError, record_expense, reverse_expense
+from accounting.expense_actions import ExpenseActionError, record_expense, reverse_expense, refund_expense
+from accounting.expense_reads import expense_queryset, expense_period
+from accounting.fund_receipts import record_fund_receipt, serialize_fund_receipt
 from accounting.purchase_actions import (
     PurchaseActionError, cancel_purchase_order, create_purchase_order,
     pay_purchase_order, receive_paid_purchase_order,
@@ -33,7 +35,7 @@ from accounting.purchase_actions import (
 )
 from accounting.models import (
     AccountReconciliation, Dividend, FundAccount, LedgerPosting,
-    LedgerTransaction, Expense, DividendRound, DividendPayout,
+    LedgerTransaction, Expense, DividendRound, DividendPayout, FundReceipt,
 )
 from accounting.selectors import (
     accounting_dashboard, accounting_summary, monthly_profit,
@@ -86,6 +88,9 @@ _ERROR_STATUS = {
     'reason_required': 400,
     'already_reversed': 409,
     'expense_not_found': 404,
+    'expense_has_refunds': 409,
+    'refund_exceeded': 409,
+    'refund_currency_mismatch': 400,
     'exchange_not_found': 404,
     'exchange_has_later_activity': 409,
     'exchange_reconciled_period': 409,
@@ -176,6 +181,37 @@ def _json_object(request):
     if not isinstance(payload, dict):
         raise ApiInputError('请求体必须是 JSON 对象')
     return payload
+
+
+@staff_json_required
+def fund_receipts(request):
+    try:
+        if request.method == 'GET':
+            raw_page = request.GET.get('page', '1')
+            if not raw_page.isdecimal() or len(raw_page) > 6 or int(raw_page) < 1:
+                raise ApiInputError('页码无效')
+            page, limit = int(raw_page), 20
+            rows = list(FundReceipt.objects.select_related('fund_account')[(page - 1) * limit:page * limit + 1])
+            return JsonResponse({
+                'receipts': [serialize_fund_receipt(row) for row in rows[:limit]],
+                'page': page, 'next_page': page + 1 if len(rows) > limit else None,
+                'contributors': [{'id': user.pk, 'name': user.get_full_name() or user.username}
+                                 for user in User.objects.filter(is_active=True).order_by('id')],
+            })
+        if request.method != 'POST':
+            return _json_error('请求方法不支持', status=405, code='method_not_allowed')
+        payload = _json_object(request)
+        receipt, created = record_fund_receipt(
+            contributor_id=_required_id(payload, 'contributor_id'),
+            fund_account_id=_required_id(payload, 'fund_account_id'),
+            amount_cny=_required_decimal_string(payload, 'amount_cny'),
+            business_date=_required_business_date(payload), operator=request.user,
+            idempotency_key=_idempotency_key(request), note=_optional_note(payload),
+            agent_source=payload.get('agent_source', ''),
+        )
+        return JsonResponse({'receipt': serialize_fund_receipt(receipt)}, status=201 if created else 200)
+    except (ApiInputError, LedgerError, Day1IncompleteError, InvalidOperation, ValueError) as error:
+        return error_response(error)
 
 
 def _idempotency_key(request):
@@ -946,7 +982,11 @@ def expense_action(request, expense_id=None, action=None):
                 raise ApiInputError('limit 必须是整数')
             if not 1 <= limit <= 500:
                 raise ApiInputError('limit 必须在1到500之间')
-            records = Expense.objects.select_related('fund_account', 'ledger_transaction', 'ledger_transaction__reversed_by').order_by('-business_date', '-id')
+            raw_page = request.GET.get('page', '1')
+            if not raw_page.isascii() or not raw_page.isdigit() or len(raw_page) > 9 or int(raw_page) < 1:
+                raise ApiInputError('页码无效')
+            page = int(raw_page)
+            month_start = next_month = None
             month = request.GET.get('month')
             if month:
                 try:
@@ -954,15 +994,31 @@ def expense_action(request, expense_id=None, action=None):
                 except ValueError as error:
                     raise ApiInputError('month 必须是 YYYY-MM') from error
                 next_month = date(month_start.year + (month_start.month == 12), 1 if month_start.month == 12 else month_start.month + 1, 1)
-                records = records.filter(business_date__gte=month_start, business_date__lt=next_month)
-            return JsonResponse({'expenses': [serialize_expense(row) for row in records[:limit]]})
+            return JsonResponse(expense_period(start=month_start, end=next_month, limit=limit, page=page))
         except (ApiInputError, ValueError) as error:
             return error_response(error)
     if expense_id is not None:
-        if action != 'reverse' or request.method != 'POST':
+        if action is None and request.method == 'GET':
+            expense = expense_queryset().filter(pk=expense_id).first()
+            if expense is None:
+                return _action_failure(ExpenseActionError('expense_not_found'))
+            return JsonResponse({'expense': serialize_expense(expense)})
+        if action not in ('reverse', 'refund') or request.method != 'POST':
             return JsonResponse({'error': '请求方法不支持', 'code': 'method_not_allowed', 'details': {}}, status=405)
         try:
             payload = _json_object(request)
+            if action == 'refund':
+                refund = refund_expense(
+                    expense_id=expense_id, amount=payload.get('amount'),
+                    fund_account_id=payload.get('fund_account_id'),
+                    business_date=_parse_iso_date(payload.get('business_date'), 'business_date'),
+                    operator=request.accounting_operator, idempotency_key=_idempotency_key(request),
+                    note=_optional_note(payload), agent_source=payload.get('agent_source', ''),
+                )
+                return JsonResponse({
+                    'refund': serialize_expense_refund(refund),
+                    'expense': serialize_expense(expense_queryset().get(pk=expense_id)),
+                }, status=201)
             expense = reverse_expense(
                 expense_id=expense_id,
                 business_date=_parse_iso_date(payload.get('business_date'), 'business_date'),

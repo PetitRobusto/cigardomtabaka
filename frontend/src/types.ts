@@ -1160,6 +1160,35 @@ export interface AccountingActionsResponse {
   dividends: DividendAction[];
 }
 
+export interface ExpenseRefundPayload {
+  amount: string;
+  fund_account_id: number;
+  business_date: string;
+  note: string;
+}
+
+export interface AccountingExpenseRefund {
+  id: number;
+  expense_id: number;
+  fund_account_id: number;
+  fund_account_name: string;
+  currency: string;
+  original_amount: string;
+  amount_cny: string;
+  business_date: string;
+  note: string;
+  expense_business_date?: string;
+  expense_note?: string;
+  expense_label?: string;
+}
+
+export interface ExpensePeriodSummary {
+  spent_cny: string;
+  refunded_cny: string;
+  reversed_cny: string;
+  net_cny: string;
+}
+
 export interface AccountingExpense {
   id: number;
   category: string;
@@ -1178,10 +1207,21 @@ export interface AccountingExpense {
   reversed: boolean;
   reversal_transaction_id: number | null;
   reversal_business_date: string | null;
+  refunded_amount?: string;
+  refunded_cny?: string;
+  remaining_refundable_amount?: string;
+  net_amount_cny?: string;
+  refunds?: AccountingExpenseRefund[];
 }
 
 export interface AccountingExpensesResponse {
   expenses: AccountingExpense[];
+  refunds?: AccountingExpenseRefund[];
+  summary?: ExpensePeriodSummary;
+  count?: number;
+  refund_count?: number;
+  page?: number;
+  next_page?: number | null;
 }
 
 
@@ -1297,4 +1337,27 @@ export interface DividendConfirmPayload {
   expected_version: number;
   warning_fingerprint: string;
   warning_ack: boolean;
+}
+export interface FundReceiptPayload {
+  contributor_id: number;
+  fund_account_id: number;
+  amount_cny: string;
+  business_date: string;
+  note: string;
+}
+
+export interface FundReceipt extends FundReceiptPayload {
+  id: number;
+  contributor_name: string;
+  fund_account_name: string;
+  operator_id: number;
+  agent_source: string;
+  ledger_transaction_id: number;
+}
+
+export interface FundReceiptsResponse {
+  receipts: FundReceipt[];
+  contributors: { id: number; name: string }[];
+  page: number;
+  next_page: number | null;
 }

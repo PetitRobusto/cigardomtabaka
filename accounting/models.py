@@ -366,6 +366,7 @@ class LedgerTransaction(models.Model):
         DAY1_OPENING = 'day1_opening', 'Day 1 期初资产'
         EXCHANGE = 'exchange', '换汇'
         TRANSFER = 'transfer', '同币种转账'
+        FUND_RECEIPT = 'fund_receipt', '人民币入账'
 
         SALES_SHIPMENT = 'sales_shipment', '销售出库'
         SALES_RECEIPT = 'sales_receipt', '销售收款'
@@ -374,6 +375,7 @@ class LedgerTransaction(models.Model):
         PURCHASE_PAYMENT = 'purchase_payment', '采购付款'
         PURCHASE_RECEIPT = 'purchase_receipt', '采购到货'
         EXPENSE = 'expense', '经营费用'
+        EXPENSE_REFUND = 'expense_refund', '费用退回'
         DIVIDEND = 'dividend', '分红'
         DIVIDEND_PAYOUT = 'dividend_payout', '分红领取'
         INVENTORY_ADJUSTMENT = 'inventory_adjustment', '库存调整'
@@ -432,6 +434,7 @@ class LedgerTransaction(models.Model):
 class LedgerPosting(models.Model):
     class Category(models.TextChoices):
         OPENING_CAPITAL = 'opening_capital', '期初投入资本'
+        CONTRIBUTED_CAPITAL = 'contributed_capital', '启用后投入资本'
         OPENING_RETAINED_EARNINGS = 'opening_retained_earnings', '期初未分配利润'
 
         ACCOUNTS_RECEIVABLE = 'accounts_receivable', '应收款'
@@ -691,6 +694,85 @@ class Expense(models.Model):
 
     def delete(self, *args, **kwargs):
         raise LedgerMutationError('已入账费用不可删除')
+
+
+class ExpenseRefundQuerySet(_FinalFactQuerySet):
+    _append_only = True
+
+    def get_or_create(self, defaults=None, **kwargs):
+        raise LedgerMutationError('费用退回只能通过受控命令创建')
+
+
+class ExpenseRefund(models.Model):
+    objects = ExpenseRefundQuerySet.as_manager()
+    expense = models.ForeignKey(Expense, on_delete=models.PROTECT, related_name='refunds')
+    fund_account = models.ForeignKey(FundAccount, on_delete=models.PROTECT)
+    original_amount = models.DecimalField(max_digits=22, decimal_places=8)
+    amount_cny = models.DecimalField(max_digits=22, decimal_places=2)
+    business_date = models.DateField()
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    agent_source = models.CharField(max_length=128, blank=True, default='')
+    ledger_transaction = models.OneToOneField(LedgerTransaction, on_delete=models.PROTECT)
+    idempotency_key = models.CharField(max_length=128, unique=True)
+    note = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        base_manager_name = 'objects'
+        ordering = ['business_date', 'id']
+        constraints = [models.CheckConstraint(
+            condition=Q(original_amount__gt=0, amount_cny__gte=0),
+            name='expense_refund_positive_amount',
+        )]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding or self.pk is not None or kwargs.get('force_update') or kwargs.get('update_fields'):
+            raise LedgerMutationError('已入账费用退回不可修改')
+        if not _scope_allows('expense_refund', 'accounting.ExpenseRefund', _concrete_fields(self, kwargs), self.operator):
+            raise LedgerMutationError('费用退回只能通过受控命令创建')
+        kwargs['force_insert'] = True
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise LedgerMutationError('已入账费用退回不可删除')
+
+
+class FundReceiptQuerySet(_FinalFactQuerySet):
+    _append_only = True
+
+    def get_or_create(self, defaults=None, **kwargs):
+        raise LedgerMutationError('人民币入账只能通过受控命令创建')
+
+
+class FundReceipt(models.Model):
+    objects = FundReceiptQuerySet.as_manager()
+    contributor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='fund_contributions')
+    contributor_name = models.CharField(max_length=320)
+    fund_account = models.ForeignKey(FundAccount, on_delete=models.PROTECT)
+    amount_cny = models.DecimalField(max_digits=20, decimal_places=2)
+    business_date = models.DateField()
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='recorded_fund_receipts')
+    agent_source = models.CharField(max_length=128, blank=True, default='')
+    ledger_transaction = models.OneToOneField(LedgerTransaction, on_delete=models.PROTECT)
+    idempotency_key = models.CharField(max_length=128, unique=True)
+    note = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        base_manager_name = 'objects'
+        ordering = ['-business_date', '-id']
+        constraints = [models.CheckConstraint(condition=Q(amount_cny__gt=0), name='fund_receipt_positive_amount')]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding or self.pk is not None or kwargs.get('force_update') or kwargs.get('update_fields'):
+            raise LedgerMutationError('已入账记录不可修改')
+        if not _scope_allows('fund_receipt', 'accounting.FundReceipt', _concrete_fields(self, kwargs), self.operator):
+            raise LedgerMutationError('人民币入账只能通过受控命令创建')
+        kwargs['force_insert'] = True
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise LedgerMutationError('已入账记录不可删除')
 
 
 class Dividend(models.Model):

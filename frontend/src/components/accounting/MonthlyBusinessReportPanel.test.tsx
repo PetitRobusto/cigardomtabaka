@@ -189,7 +189,8 @@ describe('经营月报', () => {
     });
 
     fireEvent.click(screen.getByText('查看经营费用构成'));
-    expect(screen.getByRole('img', { name: '费用合计环形图，合计¥0.00' })).toBeTruthy();
-    expect(screen.getByText(/本月包含成本冲正/)).toBeTruthy();
+    expect(screen.queryByRole('img', { name: /费用合计环形图/ })).toBeNull();
+    expect(screen.getByText('费用合计 -¥30.00')).toBeTruthy();
+    expect(screen.getByText(/本月包含费用退回或成本冲正/)).toBeTruthy();
   });
 });

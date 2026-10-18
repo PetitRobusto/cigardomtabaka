@@ -1,3 +1,4 @@
+import type { AccountingExpense, ExpenseRefundPayload, FundReceipt, FundReceiptPayload, FundReceiptsResponse } from './types';
 import { privnoteDeviceHeaders } from './api/privnoteAccess';
 import type { HistoryRange } from './types';
 import axios from 'axios';
@@ -188,6 +189,14 @@ export function clearDay1ValidationDetails(details: Record<string, string>, pref
 export const fetchAccountingAccounts = (): Promise<FundAccount[]> =>
   api.get('/accounting/accounts/').then(r => r.data.accounts || []);
 
+export const fetchFundReceipts = (page = 1): Promise<FundReceiptsResponse> =>
+  api.get('/accounting/fund-receipts/', { params: { page } }).then(r => r.data);
+
+export const recordFundReceipt = (payload: FundReceiptPayload): Promise<FundReceipt> =>
+  writeWithIdempotency<{ receipt: FundReceipt }>('record-fund-receipt', payload, config =>
+    api.post('/accounting/fund-receipts/', payload, config),
+  ).then(r => r.receipt);
+
 
 export const createAccountingAccount = (payload: { name: string; currency: string }): Promise<FundAccount> =>
   writeWithIdempotency<{ account: FundAccount }>('create-account', payload, config =>
@@ -223,8 +232,16 @@ export const confirmReconciliation = (id: number): Promise<Reconciliation> =>
 // Accounting action helpers.
 export const fetchAccountingActions = (): Promise<AccountingActionsResponse> =>
   api.get('/accounting/actions/').then(r => r.data);
-export const fetchAccountingExpenses = (month?: string): Promise<AccountingExpensesResponse> =>
-  api.get('/accounting/expenses/', { params: { month, limit: 100 } }).then(r => r.data);
+export const fetchAccountingExpenses = (month?: string, page = 1): Promise<AccountingExpensesResponse> =>
+  api.get('/accounting/expenses/', { params: { month, limit: 100, page } }).then(r => r.data);
+
+export const fetchAccountingExpense = (id: number): Promise<AccountingExpense> =>
+  api.get(`/accounting/expenses/${id}/`).then(r => r.data.expense);
+
+export const refundExpense = (id: number, payload: ExpenseRefundPayload): Promise<AccountingExpense> =>
+  writeWithIdempotency<{ expense: AccountingExpense }>(`refund-expense-${id}`, payload, config =>
+    api.post(`/accounting/expenses/${id}/refund/`, payload, config),
+  ).then(r => r.expense);
 
 export const fetchAccountingExchangeTransactions = (month?: string): Promise<AccountingTransaction[]> => {
   const year = month ? Number(month.slice(0, 4)) : NaN;

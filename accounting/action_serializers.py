@@ -119,7 +119,14 @@ def serialize_expense(expense):
     category_label = subcategory_label.split(' · ', 1)[0] if ' · ' in subcategory_label else category_labels.get(expense.category, expense.category)
     ledger = getattr(expense, 'ledger_transaction', None)
     reversal = getattr(ledger, 'reversed_by', None) if ledger is not None else None
+    refunds = list(expense.refunds.all())
+    refunded = sum((item.original_amount for item in refunds), Decimal('0.00'))
+    refunded_cny = sum((item.amount_cny for item in refunds), Decimal('0.00'))
     return _value({
+        'refunded_amount': refunded, 'refunded_cny': refunded_cny,
+        'remaining_refundable_amount': Decimal('0.00') if reversal else expense.original_amount - refunded,
+        'net_amount_cny': Decimal('0.00') if reversal else expense.amount_cny - refunded_cny,
+        'refunds': [serialize_expense_refund(item) for item in refunds],
         'id': expense.pk, 'category': expense.category,
         'category_label': category_label,
         'subcategory': expense.subcategory,
@@ -189,3 +196,15 @@ def serialize_dividend_round(round):
 def serialize_action(action):
     """Serialize a small actionable item without exposing mutable model state."""
     return _value(action)
+
+
+def serialize_expense_refund(refund):
+    return _value({
+        'id': refund.pk, 'expense_id': refund.expense_id,
+        'fund_account_id': refund.fund_account_id, 'fund_account_name': refund.fund_account.name,
+        'currency': refund.fund_account.currency, 'original_amount': refund.original_amount,
+        'amount_cny': refund.amount_cny, 'business_date': refund.business_date,
+        'note': refund.note, 'operator_id': refund.operator_id,
+        'agent_source': refund.agent_source, 'ledger_transaction_id': refund.ledger_transaction_id,
+        'created_at': refund.created_at,
+    })

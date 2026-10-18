@@ -6,7 +6,7 @@ from decimal import Decimal
 from django.db.models import Min, Q, Sum
 
 from accounting.business_time import moscow_business_date
-from accounting.models import Expense, LedgerPosting, LedgerTransaction
+from accounting.models import Expense, ExpenseRefund, LedgerPosting, LedgerTransaction
 from accounting.selectors import _operating_profit_facts, _sum_category
 from cigars.constants import BRAND_CN_MAP
 from cigars.models import (
@@ -97,6 +97,9 @@ def _transport_operating_expense(*, start, end):
     ).filter(
         Q(transaction_id__in=source_transaction_ids)
         | Q(transaction__source_type='ledger_reversal', transaction__source_id__in=source_ids)
+        | Q(transaction_id__in=ExpenseRefund.objects.filter(
+            expense__ledger_transaction_id__in=source_transaction_ids,
+        ).values('ledger_transaction_id'))
     )
     total = sum(postings.values_list('cny_amount', flat=True), Decimal('0.00'))
     return _money(total)
@@ -704,9 +707,9 @@ def _conclusions(report):
             ),
         })
     cost_rows = {
-        'profit.product_cost_cny': abs(profit['product_cost_cny']),
-        'profit.human_cost_cny': abs(profit['human_cost_cny']),
-        'profit.operating_expenses_cny': abs(profit['operating_expenses_cny']),
+        'profit.product_cost_cny': max(profit['product_cost_cny'], Decimal('0.00')),
+        'profit.human_cost_cny': max(profit['human_cost_cny'], Decimal('0.00')),
+        'profit.operating_expenses_cny': max(profit['operating_expenses_cny'], Decimal('0.00')),
     }
     if any(cost_rows.values()):
         largest_key = max(cost_rows, key=cost_rows.get)

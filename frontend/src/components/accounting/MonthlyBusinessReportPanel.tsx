@@ -146,7 +146,7 @@ export default function MonthlyBusinessReportPanel({ report, error, month, onRet
             </details>
           </ReportCard>
         </div>
-        {hasCostReversals && <p className="mt-2 text-[11px] text-muted">本月包含成本冲正；环形图仅展示冲正后仍为正的成本项。</p>}
+        {hasCostReversals && <p className="mt-2 text-[11px] text-muted">本月包含费用退回或成本冲正；负数表示净冲减，相关构成按有符号净额展示。</p>}
       </ReportSection>
 
       <ReportSection title="回款与占款">

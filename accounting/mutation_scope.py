@@ -17,6 +17,20 @@ class LedgerMutationScope:
 
 
 REASON_ALLOWED_FIELDS = {
+    'fund_receipt': {
+        'accounting.FundReceipt': frozenset({
+            'id', 'contributor', 'contributor_name', 'fund_account', 'amount_cny',
+            'business_date', 'operator', 'agent_source', 'ledger_transaction',
+            'idempotency_key', 'note', 'created_at',
+        }),
+    },
+    'expense_refund': {
+        'accounting.ExpenseRefund': frozenset({
+            'id', 'expense', 'fund_account', 'original_amount', 'amount_cny',
+            'business_date', 'operator', 'agent_source', 'ledger_transaction',
+            'idempotency_key', 'note', 'created_at',
+        }),
+    },
     'dividend_round': {
         'accounting.DividendRound': frozenset({
             'id', 'fact_fingerprint', 'status', 'total_cny', 'partner_a', 'partner_b',

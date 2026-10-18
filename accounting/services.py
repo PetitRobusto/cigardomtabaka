@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from accounting.models import (
     AccountReconciliation, FundAccount, LedgerPosting, LedgerSequence,
-    LedgerTransaction,
+    LedgerTransaction, ExpenseRefund,
 )
 from accounting.guards import require_day1_completed
 from accounting.selectors import account_snapshot
@@ -508,6 +508,11 @@ def _reverse_ledger_transaction(*, original_transaction, business_date, operator
         raise LedgerError('该账务交易不允许冲正')
     if business_date < original.business_date:
         raise LedgerError('冲正日期不能早于原交易日期', code='invalid_business_date')
+
+    if original.transaction_type == LedgerTransaction.TransactionType.EXPENSE and ExpenseRefund.objects.filter(
+        expense__ledger_transaction_id=original.pk,
+    ).exists():
+        raise LedgerError('已有费用退回，不能整笔撤回', code='expense_has_refunds')
 
     postings = [
         PostingInput(

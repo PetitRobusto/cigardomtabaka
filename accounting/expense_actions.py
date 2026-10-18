@@ -1,13 +1,13 @@
 """经营费用的受控入账动作。"""
 
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.db import transaction
 
 from accounting.mutation_scope import ledger_mutation_scope
 from accounting.models import (
-    Expense, FundAccount, LedgerPosting, LedgerTransaction,
+    Expense, ExpenseRefund, FundAccount, LedgerPosting, LedgerTransaction,
 )
 from accounting.guards import Day1IncompleteError, require_day1_completed as require_day1
 from accounting.services import (
@@ -29,7 +29,22 @@ class ExpenseActionError(Exception):
     """费用动作异常。"""
 
     def __init__(self, code, details=None):
-        super().__init__(code)
+        messages = {
+            'refund_exceeded': '退回金额超过剩余可退金额，请刷新原费用后重试',
+            'expense_has_refunds': '已有费用退回，不能整笔撤回',
+            'refund_currency_mismatch': '请选择与原费用相同币种的公司收款账户',
+            'already_reversed': '原费用已撤回，不能再次操作',
+            'reason_required': '请填写原因',
+            'invalid_amount': '请输入大于零的有效金额',
+            'invalid_money_precision': '金额最多保留两位小数，且不能超出范围',
+            'invalid_business_date': '业务日期无效，不能早于原费用日期',
+            'account_inactive': '资金账户已停用，请选择启用中的账户',
+            'account_not_found': '资金账户不存在',
+            'expense_not_found': '原费用不存在',
+            'idempotency_conflict': '操作编号或原记录不一致，请核实后重试',
+            'historical_replay_required': '外币账户已有后续流水，不能在之前补录；请核对实际到账日期',
+        }
+        super().__init__(messages.get(code, code))
         self.code = code
         self.details = details or {}
 
@@ -235,9 +250,10 @@ def reverse_expense(*, expense_id, business_date, operator, idempotency_key, rea
         raise ExpenseActionError('reason_required')
     with transaction.atomic():
         _acquire_sqlite_writer_gate()
-        expense = Expense.objects.select_for_update().select_related('ledger_transaction').filter(pk=expense_id).first()
+        expense = Expense.objects.select_related('ledger_transaction').filter(pk=expense_id).first()
         if expense is None:
             raise ExpenseActionError('expense_not_found')
+        expense.ledger_transaction = LedgerTransaction.objects.select_for_update().get(pk=expense.ledger_transaction_id)
         existing_reversal = LedgerTransaction.objects.filter(idempotency_key=key).first()
         if existing_reversal is not None:
             if expense.ledger_transaction.reversed_by_id != existing_reversal.pk:
@@ -261,6 +277,8 @@ def reverse_expense(*, expense_id, business_date, operator, idempotency_key, rea
             raise ExpenseActionError('idempotency_conflict')
         if original.reversed_by_id is not None:
             raise ExpenseActionError('already_reversed')
+        if expense.refunds.exists():
+            raise ExpenseActionError('expense_has_refunds')
         if business_date < expense.business_date:
             raise ExpenseActionError('invalid_business_date')
         try:
@@ -373,3 +391,112 @@ def record_expense(*, category, amount, fund_account_id, business_date,
         ):
             expense.save(force_insert=True)
         return expense
+
+
+@_retry_sqlite_locked
+def refund_expense(*, expense_id, amount, fund_account_id, business_date,
+                   operator, idempotency_key, note='', agent_source=''):
+    """追加实际费用退回；原交易行锁与整笔冲正共享。"""
+    key = _normalise_key(idempotency_key)
+    amount = _normalise_amount(amount)
+    account_id = _normalise_account_id(fund_account_id)
+    expense_id = _normalise_account_id(expense_id)
+    business_date = _normalise_business_date(business_date)
+    if not isinstance(note, str) or not note.strip():
+        raise ExpenseActionError('reason_required')
+    note = note.strip()
+    if not isinstance(agent_source, str) or len(agent_source) > 128:
+        raise ExpenseActionError('invalid_agent_source')
+    with transaction.atomic():
+        _acquire_sqlite_writer_gate()
+        expense = Expense.objects.select_related('fund_account').filter(pk=expense_id).first()
+        if expense is None:
+            raise ExpenseActionError('expense_not_found')
+        original = LedgerTransaction.objects.select_for_update().get(pk=expense.ledger_transaction_id)
+        expense.ledger_transaction = original
+        existing = ExpenseRefund.objects.select_related('fund_account', 'ledger_transaction').filter(idempotency_key=key).first()
+        if existing is not None:
+            if (existing.expense_id != expense_id or existing.original_amount != amount
+                    or existing.fund_account_id != account_id or existing.business_date != business_date
+                    or existing.operator_id != getattr(operator, 'pk', None)
+                    or existing.note != note or existing.agent_source != agent_source):
+                raise ExpenseActionError('idempotency_conflict')
+            _validate_refund_fact(existing, expense)
+            return existing
+        if LedgerTransaction.objects.filter(idempotency_key=key).exists():
+            raise ExpenseActionError('idempotency_conflict')
+        require_day1_completed()
+        try:
+            persisted_operator = _require_operator(operator)
+        except LedgerError as error:
+            raise ExpenseActionError('invalid_operator') from error
+        if not persisted_operator.is_active:
+            raise ExpenseActionError('invalid_operator')
+        _validate_replay_fact(expense, key=expense.idempotency_key)
+        if original.reversed_by_id is not None:
+            raise ExpenseActionError('already_reversed')
+        if business_date < expense.business_date:
+            raise ExpenseActionError('invalid_business_date')
+        previous = list(expense.refunds.all())
+        returned = sum((item.original_amount for item in previous), Decimal('0.00'))
+        returned_cost = sum((item.amount_cny for item in previous), Decimal('0.00'))
+        if returned + amount > expense.original_amount:
+            raise ExpenseActionError('refund_exceeded')
+        account = FundAccount.objects.select_for_update().filter(pk=account_id).first()
+        if account is None:
+            raise ExpenseActionError('account_not_found')
+        if not account.is_active:
+            raise ExpenseActionError('account_inactive')
+        if account.currency != expense.fund_account.currency:
+            raise ExpenseActionError('refund_currency_mismatch')
+        if account.currency != FundAccount.Currency.CNY and LedgerPosting.objects.filter(
+            account=account, transaction__status=LedgerTransaction.Status.POSTED,
+            transaction__business_date__gt=business_date,
+        ).exists():
+            raise ExpenseActionError('historical_replay_required')
+        cumulative_cost = (expense.amount_cny * (returned + amount) / expense.original_amount).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP,
+        )
+        cost = cumulative_cost - returned_cost
+        if cost < 0 or cumulative_cost > expense.amount_cny:
+            raise ExpenseActionError('idempotency_conflict')
+        try:
+            ledger = _post_transaction_once(
+                transaction_type=LedgerTransaction.TransactionType.EXPENSE_REFUND,
+                business_date=business_date, operator=persisted_operator,
+                idempotency_key=key, description=note,
+                source_type='expense_refund', source_id=key, _writer_gate=False,
+                postings=[
+                    PostingInput(account=account, currency=account.currency, amount=amount, cny_amount=cost),
+                    PostingInput(category=_CATEGORY_RULES[expense.category][1], currency='CNY', amount=-cost, cny_amount=-cost),
+                ],
+            )
+        except LedgerError as error:
+            raise ExpenseActionError(getattr(error, 'code', None) or 'ledger_error', {'message': str(error)}) from error
+        result = ExpenseRefund(
+            expense=expense, fund_account=account, original_amount=amount, amount_cny=cost,
+            business_date=business_date, operator=persisted_operator, note=note,
+            agent_source=agent_source, idempotency_key=key, ledger_transaction=ledger,
+        )
+        with ledger_mutation_scope(reason='expense_refund', model='accounting.ExpenseRefund', operator=persisted_operator):
+            result.save()
+        return result
+
+
+def _validate_refund_fact(refund, expense):
+    ledger = refund.ledger_transaction
+    if (ledger.status != LedgerTransaction.Status.POSTED or ledger.reversed_by_id is not None
+            or ledger.transaction_type != LedgerTransaction.TransactionType.EXPENSE_REFUND
+            or ledger.idempotency_key != refund.idempotency_key
+            or ledger.source_type != 'expense_refund' or ledger.source_id != refund.idempotency_key
+            or ledger.business_date != refund.business_date or ledger.operator_id != refund.operator_id
+            or ledger.description != refund.note or refund.amount_cny < 0):
+        raise ExpenseActionError('idempotency_conflict')
+    expected = [
+        (refund.fund_account_id, '', refund.fund_account.currency, refund.original_amount, refund.amount_cny),
+        (None, _CATEGORY_RULES[expense.category][1], 'CNY', -refund.amount_cny, -refund.amount_cny),
+    ]
+    actual = list(ledger.postings.values_list('account_id', 'category', 'currency', 'amount', 'cny_amount'))
+    order = lambda row: (row[0] is None, row[0] or 0, row[1])
+    if sorted(expected, key=order) != sorted(actual, key=order):
+        raise ExpenseActionError('idempotency_conflict')

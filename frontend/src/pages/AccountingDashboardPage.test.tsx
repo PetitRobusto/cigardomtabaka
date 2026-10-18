@@ -10,7 +10,7 @@ const api = vi.hoisted(() => ({
   fetchAccountingDashboard: vi.fn(), fetchAccountingAccounts: vi.fn(), fetchAccountingActions: vi.fn(),
   fetchAccountingSummary: vi.fn(), fetchMonthlyProfit: vi.fn(), fetchMonthlyBusinessReport: vi.fn(), fetchReconciliations: vi.fn(),
   fetchAccountingExpenses: vi.fn(), fetchAccountingExchangeTransactions: vi.fn(), recordExpense: vi.fn(),
-  exchangeToRub: vi.fn(), reverseExpense: vi.fn(), reverseExchange: vi.fn(), setMeta: vi.fn(),
+  exchangeToRub: vi.fn(), reverseExpense: vi.fn(), refundExpense: vi.fn(), fetchAccountingExpense: vi.fn(), reverseExchange: vi.fn(), setMeta: vi.fn(),
   apiErrorMessage: (error: Error) => error.message,
   parseAccountingApiError: (error: Error) => ({ code: 'unknown', message: error.message }),
 }));

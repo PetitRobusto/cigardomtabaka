@@ -65,7 +65,10 @@ def _sum_category(category, *, start=None, end=None, transaction_type=None):
     if end is not None:
         postings = postings.filter(transaction__business_date__lte=end)
     if transaction_type is not None:
-        postings = postings.filter(transaction__transaction_type=transaction_type)
+        if isinstance(transaction_type, (tuple, list)):
+            postings = postings.filter(transaction__transaction_type__in=transaction_type)
+        else:
+            postings = postings.filter(transaction__transaction_type=transaction_type)
     total = sum((row for row in postings.values_list('cny_amount', flat=True)), Decimal('0.00'))
     return total.quantize(Decimal('0.01'))
 
@@ -84,7 +87,7 @@ def _operating_profit_facts(*, start=None, end=None):
     transport_settlement_expense = _sum_category(
         LedgerPosting.Category.TRANSPORT_SETTLEMENT_EXPENSE,
         start=start, end=end,
-        transaction_type=LedgerTransaction.TransactionType.EXPENSE,
+        transaction_type=(LedgerTransaction.TransactionType.EXPENSE, LedgerTransaction.TransactionType.EXPENSE_REFUND),
     )
     expenses = {
         'salary_expense_cny': _sum_category(LedgerPosting.Category.SALARY_EXPENSE, start=start, end=end),

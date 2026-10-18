@@ -3,6 +3,7 @@ import { Pencil, Plus, X } from 'lucide-react';
 import { apiErrorMessage, createAccountingAccount, updateAccountingAccount } from '../../api';
 import type { AccountingSummaryFundAccount, FundAccount } from '../../types';
 import { formatCny, formatOriginalAmount } from '../sales/salesState';
+import FundReceiptAction from './FundReceiptAction';
 
 interface Props {
   accounts?: FundAccount[];
@@ -60,6 +61,7 @@ export default function FundAccountManager({ accounts = [], balances = [], accou
           <div className="flex items-center gap-3"><span className="font-mono text-sm">{amount}</span><button type="button" onClick={() => openEdit(account)} aria-label={`编辑${account.name}`} className="rounded p-1.5 text-muted hover:bg-accent-light hover:text-fg"><Pencil className="h-3.5 w-3.5" /></button></div>
         </div>;
       })}</div>}
+      <FundReceiptAction accounts={accounts} disabled={Boolean(accountsError)} onChanged={onChanged} />
       {formOpen && <div role="dialog" aria-modal="true" aria-labelledby="account-form-title" className="fixed inset-0 z-50 grid place-items-center bg-fg/30 p-4">
         <form onSubmit={submit} className="w-full max-w-md rounded-md border border-border bg-white shadow-lg">
           <div className="flex items-center justify-between border-b border-border px-5 py-4"><h2 id="account-form-title" className="font-display text-lg font-semibold">{editing ? '编辑资金账户' : '新建资金账户'}</h2><button type="button" aria-label="关闭账户表单" onClick={closeForm} className="text-muted"><X className="h-4 w-4" /></button></div>

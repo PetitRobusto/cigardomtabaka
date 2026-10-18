@@ -1,4 +1,5 @@
 import { Cell, Pie, PieChart, Tooltip } from 'recharts';
+import { formatSignedCny } from '../sales/salesState';
 import { formatCostCny } from './monthlyReportFormat';
 import { REPORT_CHART_COLORS } from './monthlyReportColors';
 
@@ -9,6 +10,10 @@ export interface DonutItem {
 }
 
 export function DonutBreakdown({ items, totalLabel }: { items: DonutItem[]; totalLabel: string }) {
+  if (items.some(item => item.value < 0)) {
+    const netTotal = items.reduce((sum, item) => sum + item.value, 0);
+    return <div className="space-y-2"><p className="text-xs text-muted">含退回或冲正，按净额展示。</p><dl>{items.map(item => <div key={item.name} className="flex justify-between gap-3 border-b border-dashed border-border py-2 text-sm"><dt>{item.name}</dt><dd className="font-mono">{formatSignedCny(item.value)}</dd></div>)}</dl><p className="text-right text-sm font-semibold">{totalLabel} {formatSignedCny(netTotal)}</p></div>;
+  }
   const chartItems = items.map((item, index) => ({
     ...item,
     value: Math.max(0, item.value) || 0,

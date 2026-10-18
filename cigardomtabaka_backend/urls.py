@@ -1,3 +1,5 @@
+import json
+
 from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
@@ -27,6 +29,11 @@ from privnote.views import (
 )
 
 
+SITE_DESCRIPTIONS = json.loads(
+    (settings.BASE_DIR / 'frontend' / 'seo-descriptions.json').read_text(encoding='utf-8')
+)
+
+
 def admin_login_redirect(request):
     if request.user.is_authenticated:
         if request.user.is_staff:
@@ -41,7 +48,11 @@ def admin_login_redirect(request):
 
 def spa_index(request):
     """Catch-all SPA entry point"""
-    return render(request, 'spa_index.html', {'debug': settings.DEBUG})
+    return render(request, 'spa_index.html', {
+        'debug': settings.DEBUG,
+        # The current page content is Chinese; translations are reserved for localized pages.
+        'site_description': SITE_DESCRIPTIONS['zh-CN'],
+    })
 
 
 urlpatterns = [

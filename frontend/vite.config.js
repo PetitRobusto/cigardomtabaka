@@ -1,9 +1,22 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import descriptions from "./seo-descriptions.json";
 
 // Build output → Django static/frontend/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: "default-seo-description",
+      transformIndexHtml() {
+        return [{
+          tag: "meta",
+          attrs: { name: "description", content: descriptions["zh-CN"] },
+          injectTo: "head",
+        }];
+      },
+    },
+  ],
   base: "/static/frontend/",
   build: {
     outDir: "../static/frontend",

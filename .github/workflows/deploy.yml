@@ -10,9 +10,17 @@ concurrency:
   group: deploy
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     environment: production
 
@@ -21,9 +29,35 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
+      - name: Download frontend from the successful CI run
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-${{ github.event.workflow_run.head_sha }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: frontend-artifact
+
+      - name: Verify frontend before transfer
+        env:
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: python3 deploy/frontend_artifact.py verify frontend-artifact "$DEPLOY_SHA"
+
+      - name: Stage frontend on VPS
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: frontend-artifact/frontend.tar.gz,frontend-artifact/metadata.json,deploy/frontend_artifact.py
+          target: /tmp/cigardomtabaka-frontend-${{ github.run_id }}-${{ github.run_attempt }}
+          strip_components: 1
+
       - name: Deploy to VPS
         env:
           DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+          DEPLOY_RUN_ID: ${{ github.run_id }}
+          DEPLOY_ATTEMPT: ${{ github.run_attempt }}
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -32,10 +66,15 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           timeout: 60s
           command_timeout: 10m
-          envs: DEPLOY_SHA
+          envs: DEPLOY_SHA,DEPLOY_RUN_ID,DEPLOY_ATTEMPT
           script: |
             set -e
             cd /opt/cigardomtabaka
+            ARTIFACT_DIR="/tmp/cigardomtabaka-frontend-${DEPLOY_RUN_ID}-${DEPLOY_ATTEMPT}"
+            trap 'rm -rf -- "$ARTIFACT_DIR"' EXIT
+
+            # Fail before changing code or database if this is not the verified build.
+            venv/bin/python "$ARTIFACT_DIR/frontend_artifact.py" verify "$ARTIFACT_DIR" "$DEPLOY_SHA"
 
             echo "=== git pull ==="
             git config --global --add safe.directory /opt/cigardomtabaka 2>/dev/null || true
@@ -79,11 +118,8 @@ jobs:
             sudo -u www-data test -w .
             sudo -u www-data sqlite3 -cmd ".timeout 5000" cigars.db "BEGIN IMMEDIATE; ROLLBACK;"
 
-            echo "=== frontend build ==="
-            cd frontend
-            npm ci
-            npm run build
-            cd ..
+            echo "=== install verified frontend ==="
+            python "$ARTIFACT_DIR/frontend_artifact.py" install "$ARTIFACT_DIR" "$DEPLOY_SHA" static/frontend
 
             echo "=== collectstatic ==="
             python manage.py collectstatic --noinput

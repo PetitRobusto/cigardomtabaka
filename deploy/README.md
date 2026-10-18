@@ -17,8 +17,17 @@
 push main → CI 全绿 → Deploy production → /opt/cigardomtabaka
 ```
 
-CI 会依次检查 Django、后端测试、前端 TypeScript、ESLint、Vitest 和 production build。任意一步失败都会阻止 production 部署。
-Deploy 固定使用触发本次成功 CI 的提交 SHA；如果 `main` 已前进，则跳过旧 CI 的部署，避免发布未经该次 CI 验证的代码。
+CI 并行运行普通后端测试、两组迁移测试和前端检查；各后端组内部保持单进程。
+前端 job 检查 TypeScript、ESLint、Vitest 并构建 production 产物。任意一组失败都会阻止 production 部署。
+原有 `test` required check 保留为三个后端分组的汇总门禁。
+
+Deploy 仅接受本仓库 `push/main` 的成功 CI，固定使用该 run 的提交 SHA 和前端 artifact；
+如果 `main` 已前进，则跳过旧 CI 的部署。
+前端完整目录（含 `.vite/manifest.json`）打包为 `frontend.tar.gz`，随附 commit 和 SHA-256 元数据，
+artifact 名为 `frontend-<commit SHA>`，保留 7 天。Deploy 按触发 CI 的 run ID 下载，
+在 runner 和 VPS 上校验提交、摘要、manifest 与引用资源，校验失败会在修改生产代码或数据库前退出。
+VPS 使用独立 run/attempt 暂存目录，安装时先验证并解包到同文件系统，替换失败恢复旧目录；
+安装成功后仍执行 `collectstatic`，不再在 VPS 上运行 `npm ci` 或前端构建。
 
 
 ## 二、GitHub Secrets
@@ -51,17 +60,10 @@ tail -f /var/log/nginx/access.log
 
 ## 四、手动部署
 
-```bash
-cd /opt/cigardomtabaka
-git pull origin main
-source venv/bin/activate
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py collectstatic --noinput
-cd frontend && npm ci && npm run build && cd ..
-sudo systemctl restart gunicorn
-sudo nginx -t && sudo systemctl reload nginx
-```
+优先在 GitHub Actions 中重新运行对应成功 CI 的 Deploy workflow，继续使用该 run 的准确 SHA 与 artifact。
+若 artifact 已过期，重新运行该提交的完整 CI 以产生新的已验证 artifact；不回退到服务器临时构建。
+旧提交不是当前 `main` 时仍会被过期检查拒绝；回滚应通过新的回滚提交并重新通过 CI。
+手动生产操作仍需明确授权，不能用 `git pull main` 替代准确 SHA 的验证门禁。
 
 ## 五、环境变量
 

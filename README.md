@@ -72,8 +72,9 @@ Vite 会将 `/api` 和 `/media` 代理到 `127.0.0.1:8000`，通常访问 <http:
 python manage.py check
 python manage.py makemigrations --check --dry-run
 python manage.py test cigars privnote accounting \
-  --settings=cigardomtabaka_backend.settings_test --parallel=2
-python -m pytest -q price_tracker/tests
+  cigardomtabaka_backend \
+  --settings=cigardomtabaka_backend.settings_test --parallel=1
+python -m pytest -q price_tracker/tests --nomigrations
 
 cd frontend
 npm run lint
@@ -82,6 +83,12 @@ npm run build
 ```
 
 开发时优先运行受影响测试；完整检查由 CI 在 PR 和 `main` 上执行。
+
+CI 把 Django 测试分为普通组（`--exclude-tag=migration`）、库存迁移组
+（`--tag=migration-inventory`）和其他迁移组（`--tag=migration-other`），
+三个 job 并行、各组内部串行。新增迁移测试需要同时标记 `migration` 和一个迁移分组；
+`CiPartitionTests` 检查所有测试恰好运行一次。普通组仍创建经过完整迁移的数据库，
+只有价格采集的行为测试使用 `--nomigrations`。
 
 ## 主要页面
 

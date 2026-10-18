@@ -6,7 +6,7 @@ import threading
 from django.db import (
     IntegrityError, OperationalError, close_old_connections, transaction,
 )
-from django.test import Client, TestCase, TransactionTestCase
+from django.test import Client, TestCase, TransactionTestCase, tag
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from unittest.mock import patch
@@ -632,6 +632,7 @@ class Day1ModelTest(TestCase):
         self.assertEqual(response.json()['batch_source'], 'opening')
 
 
+@tag('migration', 'migration-other')
 class Day1MigrationTest(TransactionTestCase):
     reset_sequences = True
 
@@ -699,6 +700,7 @@ class Day1MigrationTest(TransactionTestCase):
                 )
 
 
+@tag('migration', 'migration-other')
 class Day1DraftPayloadMigrationTest(TransactionTestCase):
     migrate_from = [('accounting', '0014_inventory_adjustment_transaction')]
     migrate_to = [('accounting', '0015_day1initialization_draft_payload')]

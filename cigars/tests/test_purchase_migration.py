@@ -5,9 +5,10 @@ from unittest.mock import patch
 
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, tag
 
 
+@tag('migration', 'migration-other')
 class PurchaseMigrationTest(TransactionTestCase):
     migrate_from = [("cigars", "0035_sales_order_transport_payer")]
     migrate_to = [("cigars", "0036_purchase_payment_state")]

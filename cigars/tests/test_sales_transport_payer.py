@@ -4,7 +4,7 @@ from django.db import IntegrityError, transaction
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TestCase
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, tag
 
 from cigars.models import Brand, Cigar, SalesOrder, User
 from cigars.services import OrderServiceError, create_sales_order_draft
@@ -124,6 +124,7 @@ class SalesTransportPayerTest(TestCase):
         self.assertIn('承担方', response.json()['error'])
 
 
+@tag('migration', 'migration-other')
 class SalesTransportPayerMigrationTest(TransactionTestCase):
     """Ensure upgrading existing orders preserves their original charge meaning."""
 

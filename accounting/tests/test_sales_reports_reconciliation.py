@@ -6,7 +6,7 @@ from django.db import connection, transaction, models
 from django.db import OperationalError
 from django.db.migrations.executor import MigrationExecutor
 from django.test import Client, TestCase
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, tag
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from django.core.exceptions import ValidationError
@@ -626,6 +626,7 @@ class SalesReportsAndReconciliationTest(TestCase):
         telegram_dispatch.assert_not_called()
 
 
+@tag('migration', 'migration-other')
 class AccountReconciliationIdempotencyMigrationTest(TransactionTestCase):
     migrate_from = [('accounting', '0007_accountreconciliation')]
     migrate_to = [('accounting', '0009_accountreconciliation_confirmer')]

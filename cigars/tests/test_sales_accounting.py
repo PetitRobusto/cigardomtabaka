@@ -6,7 +6,7 @@ from django.db import connection
 from django.db import IntegrityError, models, transaction
 from django.db.models.deletion import ProtectedError
 from django.db.migrations.executor import MigrationExecutor
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, tag
 from django.test import TestCase
 
 from accounting.models import FundAccount, LedgerTransaction
@@ -424,6 +424,7 @@ class SalesAccountingConstraintTest(SalesAccountingFixtureMixin, TestCase):
         )
         assert_rejected(SalesTransportCost, transport.pk, {'actual_cost_cny': Decimal('-0.01')})
 
+@tag('migration', 'migration-inventory')
 class PurchaseBatchCostPoolCapacityMigrationTest(
     PurchaseBatchInventoryMigrationFixture, TransactionTestCase
 ):
@@ -465,6 +466,7 @@ class PurchaseBatchCostPoolCapacityMigrationTest(
         )
         super().tearDown()
 
+@tag('migration', 'migration-inventory')
 class PurchaseBatchInventoryMigrationTest(
     PurchaseBatchInventoryMigrationFixture, TransactionTestCase
 ):
@@ -487,6 +489,7 @@ class PurchaseBatchInventoryMigrationTest(
         super().tearDown()
 
 
+@tag('migration', 'migration-inventory')
 class InconsistentReservedAllocationMigrationTest(
     PurchaseBatchInventoryMigrationFixture, TransactionTestCase
 ):
@@ -527,6 +530,7 @@ class InconsistentReservedAllocationMigrationTest(
         super().tearDown()
 
 
+@tag('migration', 'migration-inventory')
 class OffsetNegativeReservedAllocationMigrationTest(
     PurchaseBatchInventoryMigrationFixture, TransactionTestCase
 ):
@@ -575,6 +579,7 @@ class OffsetNegativeReservedAllocationMigrationTest(
         super().tearDown()
 
 
+@tag('migration', 'migration-inventory')
 class NegativeLegacyStockMigrationTest(
     PurchaseBatchInventoryMigrationFixture, TransactionTestCase
 ):
@@ -595,6 +600,7 @@ class NegativeLegacyStockMigrationTest(
         super().tearDown()
 
 
+@tag('migration', 'migration-inventory')
 class PurchaseBatchCostFactsMigrationTest(TransactionTestCase):
     migrate_from = [('cigars', '0026_purchase_batch_unit_cost_gte_zero')]
     migrate_to = [('cigars', '0027_purchase_batch_cost_facts')]
@@ -1130,6 +1136,7 @@ class PurchaseBatchPackagingModelTest(TestCase):
             (0, 5, 0, 4, 0, 3),
         )
 
+@tag('migration', 'migration-other')
 class PurchaseBatchPackagingMigrationTest(TransactionTestCase):
     def test_migration_backfills_available_first_box_and_stick_facts(self):
         executor = MigrationExecutor(connection)

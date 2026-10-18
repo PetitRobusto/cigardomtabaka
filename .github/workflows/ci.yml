@@ -6,9 +6,23 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
-  test:
+  backend:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: ordinary
+            selection: --exclude-tag=migration
+          - group: migration-inventory
+            selection: --tag=migration-inventory
+          - group: migration-other
+            selection: --tag=migration-other
+    name: backend (${{ matrix.group }})
 
     steps:
       - uses: actions/checkout@v4
@@ -30,6 +44,7 @@ jobs:
           python3 -m pip install -r requirements.txt
 
       - name: Check Django migrations
+        if: matrix.group == 'ordinary'
         env:
           DJANGO_DEBUG: "True"
           DJANGO_SECRET_KEY: ci-test-key
@@ -43,8 +58,9 @@ jobs:
           DJANGO_SECRET_KEY: ci-test-key
         run: |
           set +e
-          python3 manage.py test cigars privnote accounting \
+          python3 manage.py test cigars privnote accounting cigardomtabaka_backend \
             --settings=cigardomtabaka_backend.settings_test \
+            ${{ matrix.selection }} \
             --parallel=1 \
             --durations=20 \
             --timing \
@@ -52,15 +68,29 @@ jobs:
           test_status=${PIPESTATUS[0]}
           if [ "$test_status" -ne 0 ]; then
             annotation=$(tail -n 120 /tmp/backend-test-output.log | python3 -c 'import sys; value=sys.stdin.read()[-60000:]; print(value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))')
-            echo "::error file=.github/workflows/ci.yml,line=45,title=Backend tests failed::$annotation"
+            echo "::error title=Backend tests failed (${{ matrix.group }})::$annotation"
           fi
           exit "$test_status"
 
       - name: Run price tracker tests
+        if: matrix.group == 'ordinary'
         env:
           DJANGO_DEBUG: "True"
           DJANGO_SECRET_KEY: ci-test-key
-        run: python3 -m pytest -q price_tracker/tests
+        # This group tests ingestion/API behavior; real migrations run in every
+        # Django database setup and both dedicated migration groups above.
+        run: python3 -m pytest -q price_tracker/tests --nomigrations --durations=10
+
+  # Preserve the existing required check name while requiring every shard.
+  test:
+    if: always()
+    needs: backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every backend group to pass
+        env:
+          BACKEND_RESULT: ${{ needs.backend.result }}
+        run: test "$BACKEND_RESULT" = success
 
   frontend:
     runs-on: ubuntu-latest
@@ -72,12 +102,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: frontend/node_modules
-          key: node-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
         working-directory: frontend
@@ -94,3 +120,18 @@ jobs:
       - name: Build frontend with typecheck
         working-directory: frontend
         run: npm run build
+
+      - name: Package verified frontend
+        run: python3 deploy/frontend_artifact.py pack static/frontend frontend-artifact "$GITHUB_SHA"
+
+      - name: Upload frontend build
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-${{ github.sha }}
+          path: |
+            frontend-artifact/frontend.tar.gz
+            frontend-artifact/metadata.json
+          if-no-files-found: error
+          retention-days: 7
+          # Re-running the frontend job replaces this same-run, same-SHA build.
+          overwrite: true

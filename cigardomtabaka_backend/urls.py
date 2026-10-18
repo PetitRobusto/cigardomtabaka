@@ -3,6 +3,7 @@ from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import render, redirect
+from django.views.generic import RedirectView
 from urllib.parse import urlencode
 
 from cigars import views
@@ -44,6 +45,13 @@ def spa_index(request):
 
 
 urlpatterns = [
+    # Resolve conventional icon URLs before the SPA catch-all.
+    path('favicon.ico', RedirectView.as_view(
+        url=f'{settings.STATIC_URL}frontend/favicon-48.png', permanent=True,
+    )),
+    path('favicon.svg', RedirectView.as_view(
+        url=f'{settings.STATIC_URL}frontend/favicon.svg', permanent=True,
+    )),
     path('admin/login/', admin_login_redirect),
     path('admin/', admin.site.urls),
     # API endpoints

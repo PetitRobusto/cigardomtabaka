@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import calendar
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.db.models import Sum
 from accounting.business_time import moscow_business_date
@@ -247,6 +247,19 @@ def accounting_dashboard(*, as_of):
         (row['original_balance'] for row in accounts if row['currency'] == FundAccount.Currency.CNY),
         Decimal('0.00'),
     )
+    # Include balances in inactive accounts, as for total assets. This is the
+    # cost-weighted rate of RUB still held, not an average of exchange quotes.
+    rub_totals = LedgerPosting.objects.filter(
+        account__currency=FundAccount.Currency.RUB,
+        transaction__status=LedgerTransaction.Status.POSTED,
+        transaction__business_date__lte=as_of,
+    ).aggregate(balance=Sum('amount'), cost=Sum('cny_amount'))
+    rub_balance = rub_totals['balance'] or Decimal('0')
+    rub_cost = rub_totals['cost'] or Decimal('0')
+    rub_exchange_rate = (
+        (rub_balance / rub_cost).quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+        if rub_balance > 0 and rub_cost > 0 else None
+    )
     fund_accounts_book_cost = (
         LedgerPosting.objects.filter(
             account_id__isnull=False,
@@ -282,6 +295,7 @@ def accounting_dashboard(*, as_of):
         'stats': {
             'total_funds_cny': total_funds_cny,
             'cny_funds_total': cny_funds_total.quantize(Decimal('0.01')),
+            'rub_exchange_rate': rub_exchange_rate,
             'inventory_book_cost_cny': summary['inventory_remaining_cost_cny'],
             'purchase_in_transit_cny': summary['purchase_in_transit_cny'],
             'accounts_receivable_cny': summary['accounts_receivable_cny'],

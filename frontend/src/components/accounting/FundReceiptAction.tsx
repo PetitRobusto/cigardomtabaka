@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { apiErrorMessage, fetchFundReceipts, recordFundReceipt } from '../../api';
 import type { FundAccount, FundReceiptPayload, FundReceiptsResponse } from '../../types';
@@ -31,35 +31,56 @@ export default function FundReceiptAction({ accounts, disabled = false, onChange
   }, [open, history, page, requestKey]);
 
   const completed = () => {
-    setOpen(false); setHistory(true); setPage(1); setRevision(value => value + 1);
+    setOpen(false); setHistory(false); setPage(1); setRevision(value => value + 1);
     setNotice('人民币已入账，可继续换汇和采购付款。');
     try { onChanged(); } catch { setNotice('人民币已入账，请刷新页面查看余额。'); }
   };
   const ready = !loading && !error && Boolean(data);
   return <div className="border-t border-border p-4">
-    <div inert={open}>
+    <div inert={open || history}>
       <div className="flex flex-wrap gap-2">
         <button type="button" className={buttonClass} disabled={disabled} onClick={() => { setNotice(''); setOpen(true); }}>人民币入账</button>
-        <button type="button" className={`${buttonClass} text-muted`} aria-expanded={history} onClick={() => setHistory(value => !value)}>{history ? '收起入账记录' : '查看入账记录'}</button>
+        <button type="button" className={`${buttonClass} text-muted`} aria-haspopup="dialog" aria-expanded={history} onClick={() => { setPage(1); setHistory(true); }}>查看入账记录</button>
       </div>
       {notice && <p role="status" className="mt-3 text-sm text-success">{notice}</p>}
-      {history && <div className="mt-3 space-y-3">
-        {loading && <p className="text-sm text-muted">加载中…</p>}
-        {error && <p role="alert" className="text-sm text-red-700">{error} <button className={buttonClass} onClick={() => setRevision(value => value + 1)}>重试</button></p>}
-        {ready && <>
-          {data!.receipts.length === 0 && <p className="text-sm text-muted">暂无人民币入账记录</p>}
-          {data!.receipts.map(receipt => <article key={receipt.id} className="rounded border border-border bg-cream p-3 text-sm">
-            <div className="flex flex-wrap justify-between gap-2"><strong className="break-all">{receipt.contributor_name}</strong><span className="font-mono text-success">+{formatCny(receipt.amount_cny)}</span></div>
-            <p className="mt-1 break-all text-xs text-muted">{receipt.business_date} · {receipt.fund_account_name} · 流水 #{receipt.ledger_transaction_id}</p>
-            {receipt.note && <p className="mt-2 whitespace-pre-wrap break-words">{receipt.note}</p>}
-          </article>)}
-          <div className="flex items-center justify-between gap-2"><button className={buttonClass} disabled={page === 1} onClick={() => setPage(value => value - 1)}>上一页</button><span className="text-xs text-muted">第 {page} 页</span><button className={buttonClass} disabled={!data!.next_page} onClick={() => setPage(data!.next_page!)}>下一页</button></div>
-        </>}
-      </div>}
     </div>
+    {history && <ReceiptHistoryDialog onClose={() => setHistory(false)}>
+      {loading && <p className="text-sm text-muted">加载中…</p>}
+      {error && <p role="alert" className="text-sm text-red-700">{error} <button className={buttonClass} onClick={() => setRevision(value => value + 1)}>重试</button></p>}
+      {ready && <>
+        {data!.receipts.length === 0 && <p className="text-sm text-muted">暂无人民币入账记录</p>}
+        {data!.receipts.map(receipt => <article key={receipt.id} className="rounded border border-border bg-cream p-3 text-sm">
+          <div className="flex flex-wrap justify-between gap-2"><strong className="break-all">{receipt.contributor_name}</strong><span className="font-mono text-success">+{formatCny(receipt.amount_cny)}</span></div>
+          <p className="mt-1 break-all text-xs text-muted">{receipt.business_date} · {receipt.fund_account_name} · 流水 #{receipt.ledger_transaction_id}</p>
+          {receipt.note && <p className="mt-2 whitespace-pre-wrap break-words">{receipt.note}</p>}
+        </article>)}
+        <div className="flex items-center justify-between gap-2"><button className={buttonClass} disabled={page === 1} onClick={() => setPage(value => value - 1)}>上一页</button><span className="text-xs text-muted">第 {page} 页</span><button className={buttonClass} disabled={!data!.next_page} onClick={() => setPage(data!.next_page!)}>下一页</button></div>
+      </>}
+    </ReceiptHistoryDialog>}
     {open && <ReceiptDialog accounts={accounts} contributors={ready ? data!.contributors : []} loading={loading} loadError={error}
       retry={() => setRevision(value => value + 1)} onClose={() => setOpen(false)} onDone={completed} />}
   </div>;
+}
+
+function ReceiptHistoryDialog({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  const dialogRef = useDialogFocus(onClose, false);
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, []);
+
+  return createPortal(<div className="fixed inset-0 z-[70] flex items-end justify-center bg-fg/40 sm:items-center sm:p-4"
+    onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="fund-receipt-history-title"
+      className="flex max-h-[100dvh] w-full max-w-2xl flex-col rounded-t-lg border border-border bg-white shadow-xl outline-none sm:max-h-[90dvh] sm:rounded-lg">
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <h2 id="fund-receipt-history-title" className="font-display text-lg font-semibold">入账记录</h2>
+        <button type="button" className={buttonClass} onClick={onClose} aria-label="关闭入账记录">关闭</button>
+      </header>
+      <div className="min-h-0 space-y-3 overflow-y-auto p-4">{children}</div>
+    </div>
+  </div>, document.body);
 }
 
 function ReceiptDialog({ accounts, contributors, loading, loadError, retry, onClose, onDone }: {

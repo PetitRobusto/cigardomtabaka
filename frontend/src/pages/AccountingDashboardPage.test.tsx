@@ -34,7 +34,7 @@ describe('财务默认动作及刷新', () => {
     vi.clearAllMocks();
     const accounts = [{ id: 1, name: '公司人民币', currency: 'CNY', custodian_id: null, is_active: true }];
     api.fetchAccountingDashboard.mockResolvedValue({ day1_status: 'completed', requires_day1: false, accounts,
-      stats: { total_funds_cny: '100.00', inventory_book_cost_cny: '0.00', month_net_profit_cny: '-25.00', accounts_receivable_cny: '0.00', pending_collection_cny: '45.00', pending_collection_order_count: 2 } });
+      stats: { total_funds_cny: '100.00', rub_exchange_rate: '13.0000', inventory_book_cost_cny: '0.00', month_net_profit_cny: '-25.00', accounts_receivable_cny: '0.00', pending_collection_cny: '45.00', pending_collection_order_count: 2 } });
     api.fetchAccountingAccounts.mockResolvedValue(accounts);
     api.fetchAccountingActions.mockResolvedValue({ purchases: [], dividends: [] });
     api.fetchAccountingSummary.mockResolvedValue({});
@@ -51,6 +51,9 @@ describe('财务默认动作及刷新', () => {
     expect(screen.getByText('待收金额')).toBeTruthy();
     expect(screen.getByText('¥45.00')).toBeTruthy();
     expect(screen.getByText('2 笔已确认未收款订单')).toBeTruthy();
+    const rubCard = screen.getByText('综合卢布汇率').parentElement as HTMLElement;
+    expect(within(rubCard).getByText('13')).toBeTruthy();
+    expect(within(rubCard).getByText('RUB / CNY · 当前卢布余额 ÷ 人民币账面成本')).toBeTruthy();
     const profitCard = screen.getByText('本月经营净利润').parentElement as HTMLElement;
     expect(within(profitCard).getByText('-¥25.00')).toBeTruthy();
     expect(within(profitCard).getByText(`当前业务月 ${moscowBusinessMonth()} · 含库存及对账调整`)).toBeTruthy();
@@ -60,6 +63,7 @@ describe('财务默认动作及刷新', () => {
     const month = screen.getByLabelText('明细月份') as HTMLSelectElement;
     const chosenMonth = month.options[1].value;
     fireEvent.change(month, { target: { value: chosenMonth } });
+    expect(within(rubCard).getByText('13')).toBeTruthy();
     expect(within(profitCard).getByText('-¥25.00')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('金额（CNY）'), { target: { value: '10.00' } });
     fireEvent.change(screen.getByLabelText('备注'), { target: { value: '保留输入' } });
@@ -75,5 +79,9 @@ describe('财务默认动作及刷新', () => {
     fireEvent.click(screen.getByRole('button', { name: '启动换汇引导' }));
     await waitFor(() => expect(screen.getByRole('button', { name: '换汇', pressed: true })).toBeTruthy());
     expect(document.querySelector('[data-guide="accounting-actions-exchange"]')).toBeTruthy();
+    api.fetchAccountingDashboard.mockResolvedValueOnce({ ...client.getQueryData<object>(['accounting-dashboard']),
+      stats: { rub_exchange_rate: null } });
+    fireEvent.click(screen.getByRole('button', { name: '刷新' }));
+    await within(rubCard).findByText('—');
   });
 });

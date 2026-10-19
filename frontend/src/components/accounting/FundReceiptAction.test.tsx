@@ -71,6 +71,8 @@ describe('人民币入账', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(changed).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('status').textContent).toContain('可继续换汇');
+    expect(screen.queryByText('第 1 页')).toBeNull();
+    expect(screen.getByRole('button', { name: '查看入账记录' }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it('加载失败可重试，提交失败保留确认内容，返回修改保留输入', async () => {
@@ -93,14 +95,41 @@ describe('人民币入账', () => {
     expect(vi.mocked(recordFundReceipt).mock.calls[0]).toEqual(vi.mocked(recordFundReceipt).mock.calls[1]);
   });
 
-  it('历史记录支持分页并显示资金流水编号', async () => {
+  it('历史弹窗默认隐藏，支持分页、关闭及焦点恢复', async () => {
     vi.mocked(fetchFundReceipts).mockResolvedValueOnce({ ...response, next_page: 2 });
     render(<FundReceiptAction accounts={accounts} onChanged={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '查看入账记录' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(fetchFundReceipts).not.toHaveBeenCalled();
+    const trigger = screen.getByRole('button', { name: '查看入账记录' });
+    trigger.focus(); fireEvent.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: '入账记录' });
+    expect(document.body.style.overflow).toBe('hidden');
     await screen.findByText('第 1 页');
     vi.mocked(fetchFundReceipts).mockResolvedValueOnce({ ...response, page: 2, receipts: [{ id: 1, contributor_id: 7, contributor_name: '投入人甲', fund_account_id: 1, fund_account_name: '公司人民币', amount_cny: '30000.00', business_date: '2026-08-12', note: '买货', operator_id: 1, agent_source: '', ledger_transaction_id: 22 }] });
     fireEvent.click(screen.getByRole('button', { name: '下一页' }));
-    await screen.findByText(/流水 #22/);
+    await within(dialog).findByText(/流水 #22/);
     expect(fetchFundReceipts).toHaveBeenLastCalledWith(2);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByText(/流水 #22/)).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    expect(document.body.style.overflow).not.toBe('hidden');
+    fireEvent.click(trigger);
+    await screen.findByText('第 1 页');
+    expect(fetchFundReceipts).toHaveBeenLastCalledWith(1);
+    fireEvent.click(screen.getByRole('button', { name: '关闭入账记录' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('历史弹窗加载失败可重试，点击遮罩关闭', async () => {
+    vi.mocked(fetchFundReceipts).mockRejectedValueOnce(new Error('记录加载失败'));
+    render(<FundReceiptAction accounts={accounts} onChanged={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: '查看入账记录' }));
+    const dialog = screen.getByRole('dialog', { name: '入账记录' });
+    await within(dialog).findByRole('alert');
+    fireEvent.click(within(dialog).getByRole('button', { name: '重试' }));
+    await within(dialog).findByText('暂无人民币入账记录');
+    fireEvent.mouseDown(dialog.parentElement!);
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

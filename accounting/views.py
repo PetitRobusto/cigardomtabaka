@@ -399,6 +399,7 @@ def dashboard(request):
             'stats': {
                 'total_funds_cny': None,
                 'cny_funds_total': None,
+                'rub_exchange_rate': None,
                 'inventory_book_cost_cny': None,
                 'purchase_in_transit_cny': None,
                 'accounts_receivable_cny': None,

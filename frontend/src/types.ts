@@ -888,6 +888,7 @@ export interface MonthlyBusinessReport {
 export interface AccountingDashboardStats {
   total_funds_cny: string | null;
   cny_funds_total: string | null;
+  rub_exchange_rate: string | null;
   inventory_book_cost_cny: string | null;
   purchase_in_transit_cny: string | null;
   accounts_receivable_cny: string | null;

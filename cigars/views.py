@@ -109,7 +109,7 @@ def api_brand_list(request):
     """GET /api/brands/"""
     brands = list(Brand.objects.all().order_by('english_name'))
     cigar_counts = {}
-    for row in Cigar.objects.filter(parent__isnull=True).values('brand').annotate(n=Count('id')):
+    for row in Cigar.objects.filter(parent__isnull=True, deleted_at__isnull=True).values('brand').annotate(n=Count('id')):
         cigar_counts[row['brand']] = row['n']
 
     brand_by_cat = {}
@@ -141,8 +141,9 @@ def api_brand_list(request):
 
 def api_brand_detail(request, slug):
     """GET /api/brands/<slug>/"""
-    brand = Brand.objects.get(slug=slug)
-    all_cigars = Cigar.objects.filter(brand=brand.english_name)\
+    from django.shortcuts import get_object_or_404
+    brand = get_object_or_404(Brand, slug=slug)
+    all_cigars = Cigar.objects.filter(brand=brand.english_name, deleted_at__isnull=True)\
         .order_by('english_name')\
         .prefetch_related('images')
 
@@ -172,10 +173,8 @@ def api_brand_detail(request, slug):
         all_parents.extend(v)
 
     parent_children = {}
-    for c in all_parents:
-        children = list(Cigar.objects.filter(parent=c).order_by('release_type', 'english_name'))
-        if children:
-            parent_children[c.id] = children
+    for child in Cigar.objects.filter(parent_id__in=[c.id for c in all_parents], deleted_at__isnull=True).order_by('release_type', 'english_name').prefetch_related('images'):
+        parent_children.setdefault(child.parent_id, []).append(child)
 
     def _serialize_cigar(c):
         primary = c.primary_image
@@ -245,7 +244,8 @@ def api_cigar_detail(request, cigar_id):
     """GET /api/cigars/<id>/"""
     import json
     from cigars.packaging import declared_box_sizes
-    cigar = Cigar.objects.get(id=cigar_id)
+    from django.shortcuts import get_object_or_404
+    cigar = get_object_or_404(Cigar, id=cigar_id, deleted_at__isnull=True)
     brand = Brand.objects.filter(english_name=cigar.brand).first()
 
     packagings = []
@@ -275,9 +275,9 @@ def api_cigar_detail(request, cigar_id):
             'is_primary': img.is_primary,
         })
 
-    related = list(Cigar.objects.filter(brand=cigar.brand).exclude(id=cigar_id).order_by('?')[:8])
-    children = list(Cigar.objects.filter(parent=cigar).order_by('release_type', 'english_name'))
-    brand_cigar_count = Cigar.objects.filter(brand=cigar.brand, parent__isnull=True).count() if brand else 0
+    related = list(Cigar.objects.filter(brand=cigar.brand, deleted_at__isnull=True).exclude(id=cigar_id).order_by('english_name', 'id')[:8])
+    children = list(Cigar.objects.filter(parent=cigar, deleted_at__isnull=True).order_by('release_type', 'english_name'))
+    brand_cigar_count = Cigar.objects.filter(brand=cigar.brand, parent__isnull=True, deleted_at__isnull=True).count() if brand else 0
 
     return JsonResponse({
         'cigar': {

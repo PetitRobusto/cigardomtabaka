@@ -40,6 +40,7 @@ urlpatterns = [
     path('expenses/<int:expense_id>/reverse/', views.expense_action, {'action': 'reverse'}, name='expense_action_reverse'),
     path('dividends/', views.dividend_action, name='dividend_action_collection'),
     path('dividend-rounds/', views.dividend_round_action, name='dividend_rounds'),
+    path('dividend-rounds/record/', views.dividend_round_action, {'action': 'record'}, name='paid_dividend_record'),
     path('dividend-rounds/preview/', views.dividend_round_action, {'action': 'preview'}, name='dividend_round_preview'),
     path('dividend-rounds/confirm/', views.dividend_round_action, {'action': 'confirm'}, name='dividend_round_confirm'),
     path('dividend-rounds/<int:round_id>/payouts/', views.dividend_round_action, {'action': 'payout'}, name='dividend_round_payout'),

@@ -64,6 +64,7 @@ export default function AccountingActionCenter({
   onOpenReconciliation,
 }: AccountingActionCenterProps) {
   const [activeAction, setActiveAction] = useState<AccountingActionKind>(initialAction);
+  const [dividendOpened, setDividendOpened] = useState(initialAction === 'dividend');
   const isLoading = actionsLoading ?? loading;
   const actionPurchases = actions?.purchases ?? purchases;
   const listError = actionErrorMessage(actionsError ?? error);
@@ -92,7 +93,7 @@ export default function AccountingActionCenter({
     exchange: <ExchangeAction accounts={accounts} businessDate={businessDate} submit={submitExchange} />,
     purchase: <PurchaseAction purchases={actionPurchases} rubAccounts={accounts} businessDate={businessDate} onChanged={onChanged} />,
     expense: <ExpenseAction accounts={accounts} businessDate={businessDate} submit={submitExpense} />,
-    dividend: <DividendRoundsAction accounts={accounts} businessDate={businessDate} onChanged={onChanged} />,
+    dividend: null,
   }[activeAction];
 
   return (
@@ -112,13 +113,16 @@ export default function AccountingActionCenter({
         </div>
       </div>
       <div aria-label="账务操作" className="flex overflow-x-auto border-y border-border px-2 sm:px-5">
-        {actionButtons.map(({ id, label, Icon, count }) => <button key={id} type="button" aria-pressed={activeAction === id} onClick={() => setActiveAction(id)} className={`inline-flex min-w-fit items-center gap-2 border-b-2 px-4 py-3 text-sm ${activeAction === id ? 'border-accent font-semibold text-accent' : 'border-transparent text-muted hover:bg-[#FFFCF9] hover:text-fg'}`}><Icon className="h-4 w-4" />{label}{count > 0 && <span className="min-w-5 rounded-full bg-accent-light px-1.5 py-0.5 text-center text-[10px] font-bold text-accent">{count}</span>}</button>)}
+        {actionButtons.map(({ id, label, Icon, count }) => <button key={id} type="button" aria-pressed={activeAction === id} onClick={() => { if (id === 'dividend') setDividendOpened(true); setActiveAction(id); }} className={`inline-flex min-w-fit items-center gap-2 border-b-2 px-4 py-3 text-sm ${activeAction === id ? 'border-accent font-semibold text-accent' : 'border-transparent text-muted hover:bg-[#FFFCF9] hover:text-fg'}`}><Icon className="h-4 w-4" />{label}{count > 0 && <span className="min-w-5 rounded-full bg-accent-light px-1.5 py-0.5 text-center text-[10px] font-bold text-accent">{count}</span>}</button>)}
         <button data-guide="accounting-reconciliation-open" type="button" onClick={onOpenReconciliation} className="inline-flex min-w-fit items-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm text-muted hover:bg-[#FFFCF9] hover:text-fg"><ClipboardCheck className="h-4 w-4" />账户对账</button>
       </div>
       <div className="bg-[#FFFDFA] p-4 sm:p-5">
         {isLoading && <p role="status" className="mb-4 rounded border border-border bg-white px-4 py-3 text-sm text-muted">正在加载待处理账务动作…</p>}
         {listError && <p role="alert" className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{listError}</p>}
-        <div role="region" aria-live="polite">{actionPanel}</div>
+        <div role="region" aria-live="polite">{actionPanel}
+          {/* 切换操作不能丢失尚未确认结果的分红请求及其幂等重试状态。 */}
+          {dividendOpened && <div hidden={activeAction !== 'dividend'}><DividendRoundsAction accounts={accounts} businessDate={businessDate} onChanged={onChanged} /></div>}
+        </div>
       </div>
     </section>
   );

@@ -20,6 +20,7 @@ vi.mock('../components/sales/AccountingPanel', () => ({ default: () => null }));
 vi.mock('../components/accounting/MonthlyBusinessReportPanel', () => ({ default: () => null }));
 vi.mock('../components/accounting/ExpenseDetails', () => ({ default: () => null }));
 vi.mock('../components/accounting/ExchangeDetails', () => ({ default: () => null }));
+vi.mock('../components/accounting/DividendDetails', () => ({ default: ({ month }: { month: string }) => <p>分红明细月份 {month}</p> }));
 vi.mock('../components/accounting/PurchaseAction', () => ({ default: () => null }));
 vi.mock('../components/accounting/DividendRoundsAction', () => ({ default: () => <p>新分红轮次</p> }));
 afterEach(cleanup);
@@ -63,6 +64,7 @@ describe('财务默认动作及刷新', () => {
     const month = screen.getByLabelText('明细月份') as HTMLSelectElement;
     const chosenMonth = month.options[1].value;
     fireEvent.change(month, { target: { value: chosenMonth } });
+    expect(screen.getByText(`分红明细月份 ${chosenMonth}`)).toBeTruthy();
     expect(within(rubCard).getByText('13')).toBeTruthy();
     expect(within(profitCard).getByText('-¥25.00')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('金额（CNY）'), { target: { value: '10.00' } });

@@ -8,6 +8,7 @@ import AccountingPanel from '../components/sales/AccountingPanel';
 import AccountingActionCenter, { type AccountingActionKind } from '../components/accounting/AccountingActionCenter';
 import ExpenseDetails from '../components/accounting/ExpenseDetails';
 import ExchangeDetails from '../components/accounting/ExchangeDetails';
+import DividendDetails from '../components/accounting/DividendDetails';
 import { formatCny, formatSignedCny } from '../components/sales/salesState';
 import { dashboardDay1Action, dashboardRegionStates, dashboardStatDisplay } from './businessRoutes';
 import { moscowBusinessDate, moscowBusinessMonth, recentMoscowBusinessMonths } from '../utils/businessDate';
@@ -82,6 +83,7 @@ export default function AccountingDashboardPage() {
           onPageChange={setExpensePage} onLoadExpense={fetchAccountingExpense}
           onRefund={async (expense, payload) => { const updated = await refundExpense(expense.id, payload); refresh(); return updated; }} loading={expenses.isLoading} error={expenses.isError ? apiErrorMessage(expenses.error, '费用明细加载失败') : undefined} onReverse={async (expense, reason) => { await reverseExpense(expense.id, { business_date: moscowBusinessDate(), note: reason }); refresh(); }} />
         <ExchangeDetails month={month} transactions={exchangeTransactions.data} accounts={accounts.data || data.accounts || []} loading={exchangeTransactions.isLoading} error={exchangeTransactions.isError ? apiErrorMessage(exchangeTransactions.error, '换汇明细加载失败') : undefined} onReverse={async (exchange, businessDate, reason) => { await reverseExchange(exchange.id, { business_date: businessDate, note: reason }); refresh(); }} />
+        <DividendDetails key={month} month={month} accounts={accounts.data || data.accounts || []} businessDate={moscowBusinessDate()} onChanged={refresh} />
         </>}</>}
   </div>;
 }

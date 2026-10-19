@@ -1117,6 +1117,12 @@ export interface DividendRoundConfirmPayload extends DividendRoundPayload {
   warning_ack: boolean;
 }
 
+export interface PaidDividendPayload extends DividendRoundPayload {
+  fund_account_id: number;
+  warning_fingerprint?: string;
+  warning_ack?: boolean;
+}
+
 export interface DividendPayoutPayload {
   recipient_id: number;
   fund_account_id: number;
@@ -1154,6 +1160,7 @@ export interface DividendRoundsResponse {
   count: number;
   next_page: number | null;
   legacy_dividends: DividendAction[];
+  defaults?: { partner_a_id: number | null; partner_b_id: number | null; fund_account_id: number | null };
 }
 
 export interface AccountingActionsResponse {

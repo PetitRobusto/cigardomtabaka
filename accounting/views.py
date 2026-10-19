@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.db import IntegrityError, OperationalError, transaction
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from django.http import JsonResponse
 
 from accounting.business_time import moscow_business_date
@@ -19,7 +19,7 @@ from accounting.action_serializers import (
     serialize_dividend_round, serialize_dividend_payout, serialize_expense_refund,
 )
 from accounting.dividend_round_actions import (
-    preview_dividend_round, confirm_dividend_round, record_dividend_payout,
+    preview_dividend_round, confirm_dividend_round, record_dividend_payout, record_paid_dividend,
 )
 from accounting.dividend_actions import (
     DividendActionError, confirm_dividend, create_dividend_draft,
@@ -782,7 +782,7 @@ _DIVIDEND_ROUND_MESSAGES = {
     'invalid_recipient': '领取人必须是启用用户，并属于该分红轮次',
     'payout_exceeded': '领取金额超过该人的剩余待领金额',
     'warning_stale': '利润或预览请求已变化，请重新预览后确认',
-    'warning_required': '请先预览，并明确确认利润不足警告',
+    'warning_required': '请核实并明确确认未分配利润不足的提示',
     'invalid_business_date': '业务日期无效；领取不能早于分配日期',
     'invalid_amount': '请输入大于零的有效人民币金额',
     'invalid_money_precision': '人民币金额最多保留两位小数，且不能超出范围',
@@ -814,13 +814,35 @@ def dividend_round_action(request, round_id=None, action=None):
                 raise ApiInputError('页码无效')
             page = int(raw_page)
             rows = _rounds_queryset()
+            legacy = Dividend.objects.order_by('-id')
+            month = request.GET.get('month')
+            if month is not None:
+                try:
+                    if len(month) != 7:
+                        raise ValueError
+                    start = date.fromisoformat(f'{month}-01')
+                    end = date(start.year + (start.month == 12), 1 if start.month == 12 else start.month + 1, 1)
+                except ValueError as error:
+                    raise ApiInputError('月份无效') from error
+                paid_in_month = DividendPayout.objects.filter(business_date__gte=start, business_date__lt=end)
+                rows = rows.filter(Q(business_date__gte=start, business_date__lt=end)
+                                   | Q(pk__in=paid_in_month.values('round_id')))
+                legacy = legacy.filter(business_date__gte=start, business_date__lt=end)
+            latest = _rounds_queryset().order_by('-id').first()
+            latest_payouts = list(latest.payouts.all()) if latest else []
+            account_ids = {p.fund_account_id for p in latest_payouts}
             count = rows.count()
             return JsonResponse({
                 'rounds': [serialize_dividend_round(row) for row in rows[(page - 1) * 20:page * 20]],
                 'count': count, 'next_page': page + 1 if page * 20 < count else None,
                 'recipients': [{'id': user.pk, 'name': user.get_full_name() or user.username}
                                for user in User.objects.filter(is_active=True).order_by('id')],
-                'legacy_dividends': [serialize_dividend(row) for row in Dividend.objects.order_by('-id')[:50]],
+                'legacy_dividends': [serialize_dividend(row) for row in legacy[:50]],
+                'defaults': {
+                    'partner_a_id': latest.partner_a_id if latest else None,
+                    'partner_b_id': latest.partner_b_id if latest else None,
+                    'fund_account_id': next(iter(account_ids)) if len(account_ids) == 1 else None,
+                },
             })
         payload = _json_object(request)
         common = {
@@ -832,6 +854,14 @@ def dividend_round_action(request, round_id=None, action=None):
         }
         if action == 'preview':
             return JsonResponse({'preview': preview_dividend_round(operator=request.accounting_operator, **common)})
+        if action == 'record':
+            round = record_paid_dividend(
+                operator=request.accounting_operator, idempotency_key=_idempotency_key(request),
+                fund_account_id=payload.get('fund_account_id'),
+                warning_fingerprint=payload.get('warning_fingerprint', ''),
+                warning_ack=payload.get('warning_ack', False), **common,
+            )
+            return JsonResponse({'round': serialize_dividend_round(_rounds_queryset().get(pk=round.pk))}, status=201)
         if action == 'confirm':
             round = confirm_dividend_round(
                 operator=request.accounting_operator, idempotency_key=_idempotency_key(request),

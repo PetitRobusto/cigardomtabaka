@@ -82,13 +82,13 @@ const accountingExpenseSteps: readonly ContextTourStep[] = [
 ];
 
 const accountingDividendSteps: readonly ContextTourStep[] = [
-  { id: 'accounting-actions-dividend', title: '开始处理分红', description: '每轮选择两位启用用户，各分 50%；先确认分配，实际领取另行记账。', target: '[data-guide="accounting-actions-dividend"]', route: '/accounting' },
+  { id: 'accounting-actions-dividend', title: '开始处理分红', description: '记录已经实际支付的分红，两位合伙人各分 50%，一次保存同步扣减公司账户余额。', target: '[data-guide="accounting-actions-dividend"]', route: '/accounting' },
   { id: 'accounting-dividend-total', title: '填写分红总额', description: '总额须为正且能按分精确平分。利润不足会提示警告，必须明确确认后才能继续。', target: '[data-guide="accounting-dividend-total"]', route: '/accounting', waitForTarget: true },
   { id: 'accounting-dividend-date', title: '填写分红日期', description: '使用实际分红业务日期。', target: '[data-guide="accounting-dividend-date"]', route: '/accounting', waitForTarget: true },
-  { id: 'accounting-dividend-partner-a', title: '选择领取人 1', description: '选择本轮第一位启用系统用户，确认后锁定。', target: '[data-guide="accounting-dividend-partner-a"]', route: '/accounting', waitForTarget: true },
+  { id: 'accounting-dividend-partner-a', title: '选择领取人 1', description: '沿用上次的合伙人，也可选择另一位启用用户。', target: '[data-guide="accounting-dividend-partner-a"]', route: '/accounting', waitForTarget: true },
   { id: 'accounting-dividend-partner-b', title: '选择领取人 2', description: '选择另一位不同的用户，金额自动精确平分。', target: '[data-guide="accounting-dividend-partner-b"]', route: '/accounting', waitForTarget: true },
-  { id: 'accounting-dividend-preview', title: '预览分红', description: '预览会显示可分配利润和本次金额，确认数据仍是当前版本。', target: '[data-guide="accounting-dividend-preview"]', route: '/accounting', waitForTarget: true },
-  { id: 'accounting-dividend-confirm', title: '确认分红分配', description: '弹窗核对两人、各 50% 金额和利润。确认只形成待付分红，不付现金；随后通过轮次上的记录领取按钮分别付款。', target: '[data-guide="accounting-dividend-confirm"]', route: '/accounting', waitForTarget: true },
+  { id: 'accounting-dividend-account', title: '选择付款账户', description: '选择实际支付分红的公司人民币账户。保存仅登记已发生的付款，不发起转账。', target: '[data-guide="accounting-dividend-account"]', route: '/accounting', waitForTarget: true },
+  { id: 'accounting-dividend-save', title: '保存已支付分红', description: '核对后一次保存，只有利润不足才额外确认。记录在下方分红明细表格按月展示，可展开付款详情。', target: '[data-guide="accounting-dividend-save"]', route: '/accounting', waitForTarget: true },
 ];
 
 const accountingReconciliationSteps: readonly ContextTourStep[] = [

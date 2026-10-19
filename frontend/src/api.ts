@@ -13,7 +13,7 @@ import type {
   Day1State,
 } from './types';
 import { writeWithIdempotency, acquireIdempotencyKey, isRetryableWriteError, releaseIdempotencyKey } from './api/idempotency';
-import type { DividendRound, DividendRoundsResponse, DividendRoundPayload, DividendRoundConfirmPayload, DividendPayoutPayload, DividendPayout } from './types';
+import type { DividendRound, DividendRoundsResponse, DividendRoundPayload, DividendRoundConfirmPayload, DividendPayoutPayload, DividendPayout, PaidDividendPayload } from './types';
 
 import type { AccountingActionsResponse, InventoryPurchaseDirectory, PurchaseAction, PurchaseActionCreatePayload, PurchaseActionUpdatePayload, PurchasePayPayload, PurchaseReceivePayload, PurchaseCancelPayload, PurchaseSupplier, ExpenseActionPayload, AccountingExpensesResponse, AccountingTransaction, AccountingTransactionsResponse, DividendAction, DividendPreview, DividendCreatePayload, DividendUpdatePayload, DividendConfirmPayload, AccountingApiError } from './types';
 function getCSRFToken(): string {
@@ -404,8 +404,13 @@ export function parseAccountingApiError(error: unknown): AccountingApiError {
   };
 }
 
-export const fetchDividendRounds = (page = 1): Promise<DividendRoundsResponse> =>
-  api.get('/accounting/dividend-rounds/', { params: { page } }).then(r => r.data);
+export const fetchDividendRounds = (page = 1, month?: string): Promise<DividendRoundsResponse> =>
+  api.get('/accounting/dividend-rounds/', { params: { page, ...(month ? { month } : {}) } }).then(r => r.data);
+
+export const recordPaidDividend = (payload: PaidDividendPayload): Promise<DividendRound> =>
+  writeWithIdempotency<{ round: DividendRound }>('record-paid-dividend', payload, config =>
+    api.post('/accounting/dividend-rounds/record/', payload, config),
+  ).then(r => r.round);
 
 export const previewDividendRound = (payload: DividendRoundPayload): Promise<DividendPreview> =>
   api.post('/accounting/dividend-rounds/preview/', payload).then(r => r.data.preview);

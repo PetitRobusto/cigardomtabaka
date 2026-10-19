@@ -19,11 +19,11 @@ describe('BrandLoader', () => {
     expect(logo.classList.contains('cdt-loader__motion-logo--ready')).toBe(true);
   });
 
-  it('shows the store without claiming an unheld credential', () => {
+  it('pairs the specialist mark with the loading status', () => {
     render(<BrandLoader />);
 
-    expect(screen.queryByRole('img', { name: 'Habanos Specialist' })).toBeNull();
-    expect(screen.getByRole('status').textContent).toContain('莫斯科雪茄门店');
+    expect(screen.getByRole('img', { name: 'Habanos Specialist' })).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('莫斯科持证雪茄服务商');
     expect(document.querySelectorAll('.cdt-loading-dots i')).toHaveLength(3);
   });
 

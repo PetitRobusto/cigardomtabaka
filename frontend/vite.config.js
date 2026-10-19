@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import descriptions from "./seo-descriptions.json";
 
 // Build output → Django static/frontend/
-export default defineConfig(({ isSsrBuild }) => ({
+export default defineConfig({
   plugins: [
     react(),
     {
@@ -24,7 +24,7 @@ export default defineConfig(({ isSsrBuild }) => ({
     manifest: true,
     rollupOptions: {
       output: {
-        entryFileNames: isSsrBuild ? "[name].js" : "assets/[name]-[hash].js",
+        entryFileNames: "assets/[name]-[hash].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash].[ext]",
       },
@@ -39,4 +39,4 @@ export default defineConfig(({ isSsrBuild }) => ({
       "/p": "http://127.0.0.1:8000",
     },
   },
-}));
+});

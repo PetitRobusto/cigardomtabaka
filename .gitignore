@@ -23,8 +23,6 @@ private_payment_media/
 static/price-tracker/assets/
 static/price-tracker/.vite/
 frontend/dist/
-frontend/.seo-build/
-/.seo-rendered/
 
 # Node
 node_modules/

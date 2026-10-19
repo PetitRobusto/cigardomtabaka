@@ -1,8 +1,10 @@
+import json
+
 from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
-from django.shortcuts import redirect
+from django.shortcuts import render, redirect
 from django.views.generic import RedirectView
 from urllib.parse import urlencode
 
@@ -12,7 +14,6 @@ from cigars import sales_api
 from cigars import inventory_api
 from cigars.auth_views import api_login, api_logout, api_me
 from cigars.guide_views import guide_status, guide_complete, guide_replay
-from .seo_views import spa_entry, robots, sitemap
 from privnote.access import access_notes, access_detail, access_event
 from privnote.views import (
     api_privnote, create as privnote_create,
@@ -25,6 +26,11 @@ from privnote.views import (
     search_customers as privnote_search_customers,
     list_quote_products as privnote_quote_products,
     upload_image as privnote_upload_image,
+)
+
+
+SITE_DESCRIPTIONS = json.loads(
+    (settings.BASE_DIR / 'frontend' / 'seo-descriptions.json').read_text(encoding='utf-8')
 )
 
 
@@ -41,12 +47,15 @@ def admin_login_redirect(request):
 
 
 def spa_index(request):
-    return spa_entry(request)
+    """Catch-all SPA entry point"""
+    return render(request, 'spa_index.html', {
+        'debug': settings.DEBUG,
+        # The current page content is Chinese; translations are reserved for localized pages.
+        'site_description': SITE_DESCRIPTIONS['zh-CN'],
+    })
 
 
 urlpatterns = [
-    path('robots.txt', robots, name='robots'),
-    path('sitemap.xml', sitemap, name='sitemap'),
     # Resolve conventional icon URLs before the SPA catch-all.
     path('favicon.ico', RedirectView.as_view(
         url=f'{settings.STATIC_URL}frontend/favicon.ico', permanent=True,

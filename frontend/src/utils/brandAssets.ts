@@ -1,5 +1,5 @@
 const base = import.meta.env.BASE_URL;
-const moduleOrigin = import.meta.env.PROD ? 'null' : new URL(import.meta.url).origin;
+const moduleOrigin = new URL(import.meta.url).origin;
 
 // During Django + Vite HMR, the document and JS module have different origins.
 // Resolve public assets against the module host in-browser, and keep a relative
@@ -15,3 +15,7 @@ export const brandMotionLogoUrl = moduleOrigin === 'null'
 export const brandDockLogoUrl = moduleOrigin === 'null'
   ? `${base}logo-motion.webp`
   : new URL(`${base}logo-motion.webp`, moduleOrigin).href;
+
+export const habanosSpecialistLogoUrl = moduleOrigin === 'null'
+  ? `${base}habanos-specialist.png`
+  : new URL(`${base}habanos-specialist.png`, moduleOrigin).href;

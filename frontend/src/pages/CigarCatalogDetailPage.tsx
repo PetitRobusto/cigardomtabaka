@@ -8,8 +8,6 @@ import { ErrorState } from '../components/shared/ErrorState';
 import { EmptyState } from '../components/shared/EmptyState';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { generateCigarSlugFromParts } from '../utils/slug';
-import { CatalogNotice } from '../components/public/StoreContent';
-import { site } from '../seo/metadata';
 
 export default function CigarCatalogDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -89,7 +87,6 @@ export default function CigarCatalogDetailPage() {
             {cigar.english_name}
           </p>
         )}
-        {site.models.find(item => item.brand === cigar.brand && item.english_name === cigar.english_name)?.note && <p className="mb-4 max-w-3xl text-sm leading-7">{site.models.find(item => item.brand === cigar.brand && item.english_name === cigar.english_name)?.note}</p>}
         <div className="flex flex-wrap items-center gap-2">
           {isCuban && (
             <span className="text-xs px-2.5 py-1 rounded border border-accent text-accent font-medium">
@@ -108,8 +105,6 @@ export default function CigarCatalogDetailPage() {
           )}
         </div>
       </section>
-
-      <CatalogNotice />
 
       {/* Hero Image */}
       {heroImage && (

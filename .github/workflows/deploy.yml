@@ -118,11 +118,8 @@ jobs:
             sudo -u www-data test -w .
             sudo -u www-data sqlite3 -cmd ".timeout 5000" cigars.db "BEGIN IMMEDIATE; ROLLBACK;"
 
-            echo "=== verify candidate SEO build against production catalogue ==="
-            sudo -u www-data env DJANGO_DEBUG=False venv/bin/python manage.py check_public_seo --artifact-dir "$ARTIFACT_DIR" --commit "$DEPLOY_SHA"
-
             echo "=== install verified frontend ==="
-            python "$ARTIFACT_DIR/frontend_artifact.py" install "$ARTIFACT_DIR" "$DEPLOY_SHA" static/frontend --seo-destination .seo-rendered
+            python "$ARTIFACT_DIR/frontend_artifact.py" install "$ARTIFACT_DIR" "$DEPLOY_SHA" static/frontend
 
             echo "=== collectstatic ==="
             python manage.py collectstatic --noinput
@@ -132,16 +129,5 @@ jobs:
 
             echo "=== reload nginx ==="
             sudo nginx -t && sudo systemctl reload nginx
-
-            echo "=== verify public SEO responses ==="
-            for attempt in 1 2 3; do
-              if sudo -u www-data env DJANGO_DEBUG=False venv/bin/python manage.py check_public_seo --public-origin https://cigardomtabaka.com; then
-                break
-              fi
-              if [ "$attempt" -eq 3 ]; then
-                exit 1
-              fi
-              sleep 2
-            done
 
             echo "=== deploy done ==="

@@ -1,8 +1,9 @@
 import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createRoot, hydrateRoot } from 'react-dom/client';
+import { QueryClient, QueryClientProvider, hydrate } from '@tanstack/react-query';
 import App from './App';
 import './styles/globals.css';
+import { useAuthStore } from './store/authStore';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -17,10 +18,18 @@ const queryClient = new QueryClient({
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
 
-createRoot(rootEl).render(
+const initialState = document.getElementById('cdt-public-state');
+if (initialState?.textContent) {
+  hydrate(queryClient, JSON.parse(initialState.textContent));
+  useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: false });
+}
+
+const app = (
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <App />
     </QueryClientProvider>
-  </StrictMode>,
+  </StrictMode>
 );
+if (initialState) hydrateRoot(rootEl, app);
+else createRoot(rootEl).render(app);

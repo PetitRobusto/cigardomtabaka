@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { brandMotionLogoUrl, habanosSpecialistLogoUrl } from '../../utils/brandAssets';
+import { brandMotionLogoUrl } from '../../utils/brandAssets';
 
 interface BrandLoaderProps {
   fullScreen?: boolean;
@@ -8,7 +8,7 @@ interface BrandLoaderProps {
 
 export function BrandLoader({
   fullScreen = false,
-  text = '莫斯科持证雪茄服务商',
+  text = '莫斯科雪茄门店',
 }: BrandLoaderProps) {
   const [logoReady, setLogoReady] = useState(false);
   const [slowText, setSlowText] = useState<string | null>(null);
@@ -38,13 +38,6 @@ export function BrandLoader({
           onLoad={() => setLogoReady(true)}
         />
         <div className="cdt-loader__status" role="status" aria-live="polite">
-          <img
-            className="cdt-loader__specialist"
-            src={habanosSpecialistLogoUrl}
-            alt="Habanos Specialist"
-            width="173"
-            height="216"
-          />
           <span className="cdt-loader__status-copy">
             <span>{status}</span>
             <span className="cdt-loading-dots" aria-hidden="true"><i /><i /><i /></span>

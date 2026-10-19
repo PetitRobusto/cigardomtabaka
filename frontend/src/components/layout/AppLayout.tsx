@@ -1,8 +1,7 @@
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useEffect } from 'react';
 import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { useAuthStore } from '../../store/authStore';
-import { usePageMetaContext } from '../../contexts/usePageMetaContext';
 import Breadcrumb from './Breadcrumb';
 import {
   LayoutGrid, Package, TrendingUp, Link2, LogIn, LogOut, Menu, X,
@@ -13,7 +12,9 @@ import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { mobileNavItems } from './mobileNav';
 import { BrandLoader } from '../shared/BrandLoader';
-import { brandDockLogoUrl, brandLogoUrl, habanosSpecialistLogoUrl } from '../../utils/brandAssets';
+import { brandDockLogoUrl, brandLogoUrl } from '../../utils/brandAssets';
+import { localeContacts, localeForPath, localeHome, publicPath, site } from '../../seo/metadata';
+import { LanguageLinks, OpeningHours } from '../public/StoreContent';
 import { isAppNavPathActive } from './appSections';
 
 const GuideController = lazy(() => import('../../features/guides/GuideController'));
@@ -29,24 +30,20 @@ interface NavItem {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading, logout } = useAuthStore();
   const location = useLocation();
-  const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { meta } = usePageMetaContext();
+  const locale = localeForPath(location.pathname);
+  const copy = site.locales[locale];
 
   useEffect(() => {
     useAuthStore.getState().checkAuth();
   }, []);
 
-  useEffect(() => {
-    if (meta.title) {
-      document.title = meta.title;
-    }
-  }, [meta.title]);
 
   // 显式导航契约让内部与外部入口共用安全的渲染分支。
   const navItems: NavItem[] = [
-    { to: '/', label: '品牌', icon: LayoutGrid, public: true },
+    { to: localeHome(locale), label: locale === 'zh-CN' ? '品牌' : locale === 'ru' ? 'Каталог' : 'Catalogue', icon: LayoutGrid, public: true },
+    { to: localeContacts(locale), label: copy.contacts, icon: MapPin, public: true },
     ...(user?.is_staff ? [
       { to: '/inventory', label: '库存', icon: Package },
       { to: '/sales', label: '订单', icon: CircleDollarSign },
@@ -57,12 +54,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     ] : []),
   ];
 
-  const isActive = (path: string) => isAppNavPathActive(location.pathname, path);
+  const isActive = (path: string) => path === localeContacts(locale)
+    ? location.pathname === path
+    : path === localeHome(locale)
+      ? publicPath(location.pathname) && location.pathname !== localeContacts(locale)
+      : isAppNavPathActive(location.pathname, path);
   const desktopTap = reduceMotion ? undefined : { scale: 0.98 };
   const mobileTap = reduceMotion ? undefined : { scale: 0.96 };
   const indicatorTransition = reduceMotion ? { duration: 0 } : { duration: 0.2, ease: [0.3, 0.7, 0.3, 1] as const };
 
-  if (isLoading) {
+  if (isLoading && !publicPath(location.pathname)) {
     return <BrandLoader fullScreen />;
   }
 
@@ -74,15 +75,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex items-center gap-3">
-              <img
+              <Link to={localeHome(locale)} aria-label="CigarDomTabaka"><img
                 src={brandDockLogoUrl}
                 alt="CigarDomTabaka"
                 data-startup-logo-target
                 width="45"
                 height="45"
                 className="w-[45px] h-[45px] cursor-pointer object-contain"
-                onClick={() => navigate('/')}
-              />
+              /></Link>
               <span className="font-display text-lg font-semibold text-fg tracking-tight hidden sm:inline">
                 CigarDomTabaka
               </span>
@@ -153,7 +153,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-accent hover:bg-accent-light transition-colors"
                 >
                   <LogIn className="w-4 h-4" />
-                  <span>登录</span>
+                  <span>{copy.login}</span>
                 </NavLink>
               )}
 
@@ -168,6 +168,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </button>
             </div>
           </div>
+          <div className="flex justify-end pb-3"><LanguageLinks /></div>
         </div>
 
         {/* Mobile Nav */}
@@ -225,7 +226,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   CigarDomTabaka
                 </div>
                 <div className="text-[13px] text-muted italic font-display mt-1">
-                  Премиум сигары · Прямые поставки из Москвы
+                  {copy.home}
                 </div>
               </div>
             </div>
@@ -234,36 +235,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-7">
               <div className="flex items-center gap-2 text-[13px] text-fg">
                 <MapPin className="w-[15px] h-[15px] text-accent shrink-0" />
-                <span>Москва, Молодёжная ул. 3</span>
+                <span lang="ru">{site.address}</span>
               </div>
               <div className="flex items-center gap-2 text-[13px] text-fg">
                 <Phone className="w-[15px] h-[15px] text-accent shrink-0" />
-                <span>+7 929 638-48-78</span>
+                <a href={site.phoneHref}>{site.phone}</a>
               </div>
               <div className="flex items-center gap-2 text-[13px] text-fg">
                 <MessageCircle className="w-[15px] h-[15px] text-accent shrink-0" />
-                <span>WeChat: cigardomtabaka</span>
+                <span>WeChat: {site.wechat}</span>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-4 border-b border-border py-6 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <img
-                src={habanosSpecialistLogoUrl}
-                alt="Habanos Specialist"
-                width="173"
-                height="216"
-                loading="lazy"
-                decoding="async"
-                className="h-[70px] w-[56px] shrink-0 object-contain"
-              />
-              <div className="max-w-2xl">
-                <div className="font-display text-base font-semibold tracking-wide text-fg">莫斯科持证雪茄服务商</div>
-                <p className="mt-1 text-xs font-semibold tracking-[0.14em] text-accent">专业门店资质</p>
-              </div>
-            </div>
-            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">Certificated Retailer</span>
+          <div className="flex flex-wrap items-start justify-between gap-5 border-b border-border py-5">
+            <div><p className="mb-1 text-xs font-semibold text-muted">{copy.hoursTitle}</p><OpeningHours locale={locale} /></div>
+            <Link to={localeContacts(locale)} className="inline-flex min-h-11 items-center text-sm text-accent">{copy.contacts}</Link>
           </div>
 
           {/* Bottom row */}
@@ -293,7 +280,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <LayoutGroup id="mobile-app-navigation">
         <nav aria-label="移动应用导航" className="md:hidden fixed bottom-0 left-0 right-0 bg-cream/95 backdrop-blur-sm border-t border-border z-50">
           <div className="flex items-center justify-around h-14">
-            {mobileNavItems(Boolean(user?.is_staff)).map((item) => item.kind === 'menu' ? (
+            {mobileNavItems(Boolean(user?.is_staff), locale).map((item) => item.kind === 'menu' ? (
               <button key={item.label} type="button" onClick={() => setMobileMenuOpen(true)} className="flex w-full h-full items-center justify-center text-[10px] font-medium text-muted" aria-label="打开导航菜单">
                 <motion.span whileTap={mobileTap} transition={{ duration: 0.09 }} className="flex flex-col items-center justify-center gap-0.5">
                   <Menu className="w-5 h-5" />
@@ -313,7 +300,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
       </LayoutGroup>
-      <Suspense fallback={null}><GuideController /></Suspense>
+      {user?.is_staff && <Suspense fallback={null}><GuideController /></Suspense>}
     </div>
   );
 }

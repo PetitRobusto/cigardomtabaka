@@ -1,0 +1,234 @@
+[
+  {
+    "path": "/",
+    "locale": "zh-CN",
+    "kind": "home",
+    "title": "莫斯科古巴雪茄与中文服务 · CigarDomTabaka",
+    "description": "CigarDomTabaka（莫斯科烟草之家）位于莫斯科。浏览高希霸 Cohiba、蒙特 Montecristo、帕特加斯 Partagás 和千里达 Trinidad 雪茄目录，查询型号、尺寸与盒规，查看营业时间和中文联系方式。",
+    "alternates": {
+      "zh-CN": "/",
+      "ru": "/ru/",
+      "en": "/en/"
+    }
+  },
+  {
+    "path": "/contacts",
+    "locale": "zh-CN",
+    "kind": "contacts",
+    "title": "到店与联系 · CigarDomTabaka",
+    "description": "CigarDomTabaka 莫斯科门店地址、营业时间、电话与微信。周一至周六 10:00–18:00，周日 13:00–18:00，莫斯科当地时间。",
+    "alternates": {
+      "zh-CN": "/contacts",
+      "ru": "/ru/contacts",
+      "en": "/en/contacts"
+    }
+  },
+  {
+    "path": "/brand/cohiba",
+    "locale": "zh-CN",
+    "kind": "brand",
+    "title": "高希霸 Cohiba 雪茄系列与型号资料 · CigarDomTabaka",
+    "description": "高希霸 Cohiba 的目录包含经典系列、Siglo 世纪系列、Maduro 与 Behike 等型号。可按长度、环径、盒规和发行类型查阅。世纪六号与罗布图的尺寸不同；相同名称的特别发行也应分别核对。",
+    "brandSlug": "cohiba",
+    "alternates": {
+      "zh-CN": "/brand/cohiba",
+      "ru": "/ru/brand/cohiba",
+      "en": "/en/brand/cohiba"
+    }
+  },
+  {
+    "path": "/brand/montecristo",
+    "locale": "zh-CN",
+    "kind": "brand",
+    "title": "蒙特 Montecristo 雪茄系列与型号资料 · CigarDomTabaka",
+    "description": "蒙特 Montecristo 目录收录常规型号及特别发行。No. 2 等型号的原文名称、工厂型号、长度、环径与盒规可在详情页核对；名称相近不代表规格相同。",
+    "brandSlug": "montecristo",
+    "alternates": {
+      "zh-CN": "/brand/montecristo"
+    }
+  },
+  {
+    "path": "/brand/partagas",
+    "locale": "zh-CN",
+    "kind": "brand",
+    "title": "帕特加斯 Partagás 雪茄系列与型号资料 · CigarDomTabaka",
+    "description": "帕特加斯 Partagás 的 Serie D、Serie E 与 Serie P 等型号可按具体规格查阅。以 D 系列 4 号为例，应将品牌、系列编号及包装共同核对，避免只凭简称判断。",
+    "brandSlug": "partagas",
+    "alternates": {
+      "zh-CN": "/brand/partagas"
+    }
+  },
+  {
+    "path": "/brand/trinidad",
+    "locale": "zh-CN",
+    "kind": "brand",
+    "title": "千里达 Trinidad 雪茄系列与型号资料 · CigarDomTabaka",
+    "description": "千里达 Trinidad 的 Vigia、Reyes 与 Fundadores 等型号具有不同尺寸。目录保留原文名称与中文名称，方便核对型号、环径及常规或特别发行。",
+    "brandSlug": "trinidad",
+    "alternates": {
+      "zh-CN": "/brand/trinidad"
+    }
+  },
+  {
+    "path": "/ru/",
+    "locale": "ru",
+    "kind": "home",
+    "title": "Кубинские сигары в Москве · CigarDomTabaka",
+    "description": "CigarDomTabaka — сигарный магазин в Москве. Каталог кубинских сигар Cohiba, Montecristo, Partagás и Trinidad: форматы и размеры. Адрес, часы работы и контакты магазина.",
+    "alternates": {
+      "zh-CN": "/",
+      "ru": "/ru/",
+      "en": "/en/"
+    }
+  },
+  {
+    "path": "/ru/contacts",
+    "locale": "ru",
+    "kind": "contacts",
+    "title": "Адрес и контакты · CigarDomTabaka",
+    "description": "Контакты CigarDomTabaka: Москва, Молодёжная ул. 3. Пн–Сб 10:00–18:00, Вс 13:00–18:00 по московскому времени. Телефон и WeChat.",
+    "alternates": {
+      "zh-CN": "/contacts",
+      "ru": "/ru/contacts",
+      "en": "/en/contacts"
+    }
+  },
+  {
+    "path": "/ru/brand/cohiba",
+    "locale": "ru",
+    "kind": "brand",
+    "title": "Сигары Cohiba в Москве — серии и форматы · CigarDomTabaka",
+    "description": "Cohiba (Коиба, также Кохиба) — кубинская марка сигар. В каталоге представлены модели классической линии, Siglo, Maduro и Behike. Сравнивайте длину, кольцевой калибр и упаковку; специальные выпуски следует отличать от одноимённых регулярных моделей.",
+    "brandSlug": "cohiba",
+    "alternates": {
+      "zh-CN": "/brand/cohiba",
+      "ru": "/ru/brand/cohiba",
+      "en": "/en/brand/cohiba"
+    }
+  },
+  {
+    "path": "/en/",
+    "locale": "en",
+    "kind": "home",
+    "title": "Cuban cigars in Moscow · CigarDomTabaka",
+    "description": "CigarDomTabaka is a cigar shop in Moscow. Explore Cuban cigar brands including Cohiba, Montecristo, Partagás and Trinidad, with model specifications, opening hours and contact details.",
+    "alternates": {
+      "zh-CN": "/",
+      "ru": "/ru/",
+      "en": "/en/"
+    }
+  },
+  {
+    "path": "/en/contacts",
+    "locale": "en",
+    "kind": "contacts",
+    "title": "Visit and contact · CigarDomTabaka",
+    "description": "Visit CigarDomTabaka at Москва, Молодёжная ул. 3. Monday–Saturday 10:00–18:00, Sunday 13:00–18:00, Moscow time. Phone and WeChat contact details.",
+    "alternates": {
+      "zh-CN": "/contacts",
+      "ru": "/ru/contacts",
+      "en": "/en/contacts"
+    }
+  },
+  {
+    "path": "/en/brand/cohiba",
+    "locale": "en",
+    "kind": "brand",
+    "title": "Cohiba cigars in Moscow — models and formats · CigarDomTabaka",
+    "description": "Cohiba is a Cuban cigar brand with classic, Siglo, Maduro and Behike models. Compare length, ring gauge and packaging in the catalogue. Special releases and regular models with similar names should be checked separately.",
+    "brandSlug": "cohiba",
+    "alternates": {
+      "zh-CN": "/brand/cohiba",
+      "ru": "/ru/brand/cohiba",
+      "en": "/en/brand/cohiba"
+    }
+  },
+  {
+    "path": "/cigar/95/cohiba-robustos",
+    "locale": "zh-CN",
+    "kind": "cigar",
+    "title": "Cohiba 罗布图 Robustos 雪茄规格 · CigarDomTabaka",
+    "description": "高希霸罗布图也常按原文 Cohiba Robustos 查询。可与世纪六号对照长度和环径，具体包装见下方盒规资料。",
+    "cigarId": 95,
+    "alternates": {
+      "zh-CN": "/cigar/95/cohiba-robustos"
+    }
+  },
+  {
+    "path": "/cigar/97/cohiba-siglo-ii",
+    "locale": "zh-CN",
+    "kind": "cigar",
+    "title": "Cohiba 世纪 2 号 Siglo II 雪茄规格 · CigarDomTabaka",
+    "description": "高希霸世纪二号，目录名称为世纪 2 号。Siglo II 与 Siglo VI 是不同型号，核对时请同时查看罗马数字及尺寸。",
+    "cigarId": 97,
+    "alternates": {
+      "zh-CN": "/cigar/97/cohiba-siglo-ii"
+    }
+  },
+  {
+    "path": "/cigar/101/cohiba-siglo-vi",
+    "locale": "zh-CN",
+    "kind": "cigar",
+    "title": "Cohiba 世纪 6 号 Siglo VI 雪茄规格 · CigarDomTabaka",
+    "description": "高希霸世纪六号，目录名称为世纪 6 号，原文 Cohiba Siglo VI。可结合长度、环径及盒规区分其他世纪系列型号。",
+    "cigarId": 101,
+    "alternates": {
+      "zh-CN": "/cigar/101/cohiba-siglo-vi"
+    }
+  },
+  {
+    "path": "/cigar/109/cohiba-medio-siglo",
+    "locale": "zh-CN",
+    "kind": "cigar",
+    "title": "Cohiba 半世纪 Medio Siglo 雪茄规格 · CigarDomTabaka",
+    "description": "高希霸半世纪的原文名称为 Cohiba Medio Siglo。它与 Siglo 世纪系列编号型号分别建档，具体尺寸和包装应按本页核对。",
+    "cigarId": 109,
+    "alternates": {
+      "zh-CN": "/cigar/109/cohiba-medio-siglo"
+    }
+  },
+  {
+    "path": "/cigar/105/cohiba-bhk-52",
+    "locale": "zh-CN",
+    "kind": "cigar",
+    "title": "Cohiba 贝伊可 52 BHK 52 雪茄规格 · CigarDomTabaka",
+    "description": "高希霸 Behike 52 在目录中使用 BHK 52 名称。52 是型号名称的一部分；不要与 BHK 54、56 或其他特别发行混淆。",
+    "cigarId": 105,
+    "alternates": {
+      "zh-CN": "/cigar/105/cohiba-bhk-52"
+    }
+  },
+  {
+    "path": "/cigar/529/montecristo-montecristo-no2",
+    "locale": "zh-CN",
+    "kind": "cigar",
+    "title": "Montecristo 蒙特 2 号 Montecristo No.2 雪茄规格 · CigarDomTabaka",
+    "description": "蒙特二号常使用 Montecristo No. 2 名称查询。核对完整型号、长度、环径和盒规，避免与 Petit No. 2 混淆。",
+    "cigarId": 529,
+    "alternates": {
+      "zh-CN": "/cigar/529/montecristo-montecristo-no2"
+    }
+  },
+  {
+    "path": "/cigar/606/partagas-serie-d-no4",
+    "locale": "zh-CN",
+    "kind": "cigar",
+    "title": "Partagás D系列 4号 Serie D No.4 雪茄规格 · CigarDomTabaka",
+    "description": "帕特加斯 D4 的原文名称为 Partagás Serie D No.4。D 系列编号不同，尺寸也可能不同，请按完整型号及包装核对。",
+    "cigarId": 606,
+    "alternates": {
+      "zh-CN": "/cigar/606/partagas-serie-d-no4"
+    }
+  },
+  {
+    "path": "/cigar/1143/trinidad-vigia",
+    "locale": "zh-CN",
+    "kind": "cigar",
+    "title": "Trinidad 暗礁 Vigia 雪茄规格 · CigarDomTabaka",
+    "description": "千里达 Vigía 在当前目录中使用 Vigia 名称。可结合原文、长度、环径与盒规识别，中文名称以目录展示为准。",
+    "cigarId": 1143,
+    "alternates": {
+      "zh-CN": "/cigar/1143/trinidad-vigia"
+    }
+  }
+]

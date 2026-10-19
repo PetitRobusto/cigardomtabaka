@@ -3,6 +3,7 @@ from django.test import SimpleTestCase, override_settings
 from PIL import Image
 
 
+@override_settings(SEO_BUILD_DIR='/tmp/cdt-missing-favicon-build')
 class FaviconTests(SimpleTestCase):
     def test_homepage_declares_png_icon_without_javascript(self):
         for debug in (False, True):

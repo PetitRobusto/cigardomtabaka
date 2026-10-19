@@ -9,11 +9,16 @@ import { decideStaffRoute } from './utils/routeGuard';
 import { BUSINESS_STAFF_PATHS, resolveBusinessRoute } from './pages/businessRoutes';
 import { useAuthStore } from './store/authStore';
 import { BrandLoader } from './components/shared/BrandLoader';
+import { PageMetadata } from './seo/PageMetadata';
+import { publicPath } from './seo/metadata';
+import { ContactPage } from './components/public/StoreContent';
 
 // Route components stay out of the startup bundle until their URL is rendered.
 const BrandListPage = lazy(() => import('./pages/BrandListPage'));
 const BrandDetailPage = lazy(() => import('./pages/BrandDetailPage'));
 const CigarCatalogDetailPage = lazy(() => import('./pages/CigarCatalogDetailPage'));
+const LocalizedPublicPage = lazy(() => import('./pages/LocalizedPublicPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 // Inventory & Auth
 const InventoryPage = lazy(() => import('./pages/InventoryWorkbenchPage'));
@@ -82,29 +87,14 @@ function AnimatedRoutes() {
     }
   }, [section]);
 
-  return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={section}
-        initial={{ opacity: 1 }}
-        animate={{ opacity: 1 }}
-        exit={reduceMotion
-          ? { opacity: 1, transition: { duration: 0 } }
-          : { opacity: 0, transition: { duration: 0.08, ease: 'easeOut' } }}
-        style={{ position: 'relative' }}
-      >
-        <Suspense fallback={<DelayedAppSkeleton path={location.pathname} />}>
-          <motion.div
-            initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 4 }}
-            animate={reduceMotion
-              ? { opacity: 1, transition: { duration: 0 } }
-              : { opacity: 1, y: 0, transition: { opacity: { duration: 0.15, ease: 'easeOut' }, y: { duration: 0.15, ease: [0.2, 0, 0, 1] } } }}
-          >
+  const routes = (
             <Routes location={location}>
           {/* Catalog */}
           <Route path="/" element={<BrandListPage />} />
           <Route path="/brand/:slug" element={<BrandDetailPage />} />
           <Route path="/cigar/:id/:slug?" element={<CigarCatalogDetailPage />} />
+          <Route path="/contacts" element={<ContactPage />} />
+          {['/ru/', '/ru/contacts', '/ru/brand/cohiba', '/en/', '/en/contacts', '/en/brand/cohiba'].map(path => <Route key={path} path={path} element={<LocalizedPublicPage />} />)}
 
           {/* Inventory */}
           <Route path={BUSINESS_STAFF_PATHS.inventory} element={<InventoryPage />} />
@@ -131,7 +121,32 @@ function AnimatedRoutes() {
 
           {/* Auth */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="*" element={<NotFoundPage />} />
             </Routes>
+  );
+  if (publicPath(location.pathname)) {
+    return <div style={{ position: 'relative' }}><Suspense fallback={<DelayedAppSkeleton path={location.pathname} />}><div>{routes}</div></Suspense></div>;
+  }
+
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={section}
+        initial={{ opacity: 1 }}
+        animate={{ opacity: 1 }}
+        exit={reduceMotion
+          ? { opacity: 1, transition: { duration: 0 } }
+          : { opacity: 0, transition: { duration: 0.08, ease: 'easeOut' } }}
+        style={{ position: 'relative' }}
+      >
+        <Suspense fallback={<DelayedAppSkeleton path={location.pathname} />}>
+          <motion.div
+            initial={publicPath(location.pathname) ? false : reduceMotion ? { opacity: 1 } : { opacity: 0, y: 4 }}
+            animate={reduceMotion
+              ? { opacity: 1, transition: { duration: 0 } }
+              : { opacity: 1, y: 0, transition: { opacity: { duration: 0.15, ease: 'easeOut' }, y: { duration: 0.15, ease: [0.2, 0, 0, 1] } } }}
+          >
+            {routes}
           </motion.div>
         </Suspense>
       </motion.div>
@@ -139,10 +154,10 @@ function AnimatedRoutes() {
   );
 }
 
-export default function App() {
+export function AppRoutes() {
   return (
-    <BrowserRouter>
       <PageMetaProvider>
+        <PageMetadata />
         <StartupLoaderHandoff />
         <Routes>
           {/* Routes without AppLayout keep a full-screen initial fallback. */}
@@ -159,6 +174,9 @@ export default function App() {
           />
         </Routes>
       </PageMetaProvider>
-    </BrowserRouter>
   );
+}
+
+export default function App() {
+  return <BrowserRouter><AppRoutes /></BrowserRouter>;
 }

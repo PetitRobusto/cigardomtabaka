@@ -122,7 +122,7 @@ jobs:
         run: npm run build
 
       - name: Package verified frontend
-        run: python3 deploy/frontend_artifact.py pack static/frontend frontend-artifact "$GITHUB_SHA"
+        run: python3 deploy/frontend_artifact.py pack static/frontend frontend-artifact "$GITHUB_SHA" --seo-source .seo-rendered
 
       - name: Upload frontend build
         uses: actions/upload-artifact@v4

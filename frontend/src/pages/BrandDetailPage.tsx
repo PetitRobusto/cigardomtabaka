@@ -9,6 +9,7 @@ import { EmptyState } from '../components/shared/EmptyState';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { generateCigarSlugFromParts } from '../utils/slug';
 import type { CigarSummary } from '../types';
+import { BrandEditorial } from '../components/public/StoreContent';
 
 const FILTER_OPTIONS = [
   { key: 'all', label: '全部' },
@@ -125,6 +126,7 @@ export default function BrandDetailPage() {
         </div>
       </div>
 
+      <BrandEditorial slug={brand.slug} />
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
         <div className="relative max-w-xs w-full">

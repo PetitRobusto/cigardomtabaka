@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run typecheck && vite build",
+    "build": "npm run typecheck && vite build && vite build --ssr src/entry-server.tsx --outDir .seo-build && node scripts/prerender.mjs",
     "lint": "eslint . --max-warnings 0",
     "preview": "vite preview",
     "test": "vitest",

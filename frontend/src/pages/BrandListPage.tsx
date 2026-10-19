@@ -8,6 +8,7 @@ import { ErrorState } from '../components/shared/ErrorState';
 import { EmptyState } from '../components/shared/EmptyState';
 import { usePageMeta } from '../hooks/usePageMeta';
 import type { BrandItem } from '../types';
+import { StoreIntroduction, CatalogNotice } from '../components/public/StoreContent';
 
 export default function BrandListPage() {
   const [search, setSearch] = useState('');
@@ -38,10 +39,11 @@ export default function BrandListPage() {
 
   return (
     <div data-guide="overview">
+      <StoreIntroduction />
       {/* Page Header */}
         <div data-guide="overview-stats" className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
         <div>
-          <h1 className="font-display text-[32px] font-semibold text-fg tracking-tight leading-tight">古巴雪茄目录</h1>
+          <h2 className="font-display text-[28px] font-semibold text-fg tracking-tight leading-tight">古巴雪茄目录</h2>
           <p className="text-[13px] text-muted mt-1 uppercase tracking-[0.08em]">{data.total_brands} 个品牌 · 完整收录</p>
         </div>
         <div className="relative max-w-xs w-full">
@@ -56,6 +58,7 @@ export default function BrandListPage() {
         </div>
       </div>
 
+      <CatalogNotice />
       {/* Sections */}
       {filteredSections.length === 0 ? (
         <EmptyState title="未找到匹配品牌" description="请尝试其他搜索词" />

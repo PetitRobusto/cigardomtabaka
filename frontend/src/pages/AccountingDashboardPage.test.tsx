@@ -20,6 +20,7 @@ vi.mock('../components/sales/AccountingPanel', () => ({ default: () => null }));
 vi.mock('../components/accounting/MonthlyBusinessReportPanel', () => ({ default: () => null }));
 vi.mock('../components/accounting/ExpenseDetails', () => ({ default: () => null }));
 vi.mock('../components/accounting/ExchangeDetails', () => ({ default: () => null }));
+vi.mock('../components/accounting/DividendSummaryCard', () => ({ default: () => <p>全部分红总览</p> }));
 vi.mock('../components/accounting/DividendDetails', () => ({ default: ({ month }: { month: string }) => <p>分红明细月份 {month}</p> }));
 vi.mock('../components/accounting/PurchaseAction', () => ({ default: () => null }));
 vi.mock('../components/accounting/DividendRoundsAction', () => ({ default: () => <p>新分红轮次</p> }));

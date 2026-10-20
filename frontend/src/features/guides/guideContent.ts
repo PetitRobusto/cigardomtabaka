@@ -146,7 +146,7 @@ export const MANUAL_CHAPTERS: readonly ManualChapter[] = [
       guidedSection('accounting-actions-expense', '记录日常费用', '工资一般从人民币账户出，房租水电一般从卢布账户出——以实际付款的账户为准，填好日期和备注。费用记在费用里，不要混进销售订单。'),
       guidedSection('accounting-reconciliation', '完成对账', '在 /accounting 的对账区逐个账户核对：系统余额和实际余额对不对得上。有差异就查明原因、处理掉，并写清说明。'),
       guidedSection('accounting-profit-month', '查看月度经营报告', '进入独立月报页选择月份，再逐项核对销售收入、商品成本、实际人肉成本、日常费用、回款和库存。退款和冲正会算进实际发生的月份。'),
-      guidedSection('accounting-actions-dividend', '合伙人分红', '填写已实际支付的总额、日期、公司人民币付款账户及两位合伙人，各分 50%，一次保存同步扣减现金和未分配利润。下方分红明细按月查看，历史未领完的分红仍可继续登记领取。'),
+      guidedSection('accounting-actions-dividend', '合伙人分红', '在独立弹窗填写个人实领金额、日期、公司人民币付款账户及两位合伙人，自动建立另一人的同额份额。撤回取消填写，确认入账后账户只扣实际领取金额。上方分红总览显示累计已领、待领，下方明细按月查看和继续登记领取。'),
     ],
   },
 

@@ -63,8 +63,16 @@ export default function AccountingActionCenter({
   initialAction = 'expense',
   onOpenReconciliation,
 }: AccountingActionCenterProps) {
-  const [activeAction, setActiveAction] = useState<AccountingActionKind>(initialAction);
+  const [activeAction, setActiveAction] = useState<AccountingActionKind>(initialAction === 'dividend' ? 'expense' : initialAction);
+  const [dividendOpen, setDividendOpen] = useState(initialAction === 'dividend');
   const [dividendOpened, setDividendOpened] = useState(initialAction === 'dividend');
+  const [previousInitialAction, setPreviousInitialAction] = useState(initialAction);
+  // A guide can change the selected action without remounting an in-flight dividend.
+  if (previousInitialAction !== initialAction) {
+    setPreviousInitialAction(initialAction);
+    if (initialAction === 'dividend') { setDividendOpened(true); setDividendOpen(true); }
+    else setActiveAction(initialAction);
+  }
   const isLoading = actionsLoading ?? loading;
   const actionPurchases = actions?.purchases ?? purchases;
   const listError = actionErrorMessage(actionsError ?? error);
@@ -113,7 +121,7 @@ export default function AccountingActionCenter({
         </div>
       </div>
       <div aria-label="账务操作" className="flex overflow-x-auto border-y border-border px-2 sm:px-5">
-        {actionButtons.map(({ id, label, Icon, count }) => <button key={id} type="button" aria-pressed={activeAction === id} onClick={() => { if (id === 'dividend') setDividendOpened(true); setActiveAction(id); }} className={`inline-flex min-w-fit items-center gap-2 border-b-2 px-4 py-3 text-sm ${activeAction === id ? 'border-accent font-semibold text-accent' : 'border-transparent text-muted hover:bg-[#FFFCF9] hover:text-fg'}`}><Icon className="h-4 w-4" />{label}{count > 0 && <span className="min-w-5 rounded-full bg-accent-light px-1.5 py-0.5 text-center text-[10px] font-bold text-accent">{count}</span>}</button>)}
+        {actionButtons.map(({ id, label, Icon, count }) => <button key={id} type="button" aria-pressed={id === 'dividend' ? dividendOpen : activeAction === id} aria-haspopup={id === 'dividend' ? 'dialog' : undefined} onClick={() => { if (id === 'dividend') { setDividendOpened(true); setDividendOpen(true); } else setActiveAction(id); }} className={`inline-flex min-w-fit items-center gap-2 border-b-2 px-4 py-3 text-sm ${(id === 'dividend' ? dividendOpen : activeAction === id) ? 'border-accent font-semibold text-accent' : 'border-transparent text-muted hover:bg-[#FFFCF9] hover:text-fg'}`}><Icon className="h-4 w-4" />{label}{count > 0 && <span className="min-w-5 rounded-full bg-accent-light px-1.5 py-0.5 text-center text-[10px] font-bold text-accent">{count}</span>}</button>)}
         <button data-guide="accounting-reconciliation-open" type="button" onClick={onOpenReconciliation} className="inline-flex min-w-fit items-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm text-muted hover:bg-[#FFFCF9] hover:text-fg"><ClipboardCheck className="h-4 w-4" />账户对账</button>
       </div>
       <div className="bg-[#FFFDFA] p-4 sm:p-5">
@@ -121,7 +129,7 @@ export default function AccountingActionCenter({
         {listError && <p role="alert" className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{listError}</p>}
         <div role="region" aria-live="polite">{actionPanel}
           {/* 切换操作不能丢失尚未确认结果的分红请求及其幂等重试状态。 */}
-          {dividendOpened && <div hidden={activeAction !== 'dividend'}><DividendRoundsAction accounts={accounts} businessDate={businessDate} onChanged={onChanged} /></div>}
+          {dividendOpened && <DividendRoundsAction open={dividendOpen} onClose={() => setDividendOpen(false)} accounts={accounts} businessDate={businessDate} onChanged={onChanged} />}
         </div>
       </div>
     </section>

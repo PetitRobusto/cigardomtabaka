@@ -7,6 +7,7 @@ from django.db.models import Prefetch, Q
 from django.http import JsonResponse
 
 from accounting.business_time import moscow_business_date
+from accounting.dividend_reads import dividend_summary
 from accounting.decorators import staff_json_required
 from accounting.guards import Day1IncompleteError
 from accounting.day1 import (
@@ -834,6 +835,7 @@ def dividend_round_action(request, round_id=None, action=None):
             account_ids = {p.fund_account_id for p in latest_payouts}
             count = rows.count()
             return JsonResponse({
+                'summary': dividend_summary(),
                 'rounds': [serialize_dividend_round(row) for row in rows[(page - 1) * 20:page * 20]],
                 'count': count, 'next_page': page + 1 if page * 20 < count else None,
                 'recipients': [{'id': user.pk, 'name': user.get_full_name() or user.username}

@@ -1156,7 +1156,15 @@ export interface DividendRound {
   payouts: DividendPayout[];
 }
 
+export interface DividendSummary {
+  partners: DividendRound['partners'];
+  allocated_cny: string;
+  paid_cny: string;
+  pending_cny: string;
+}
+
 export interface DividendRoundsResponse {
+  summary?: DividendSummary;
   rounds: DividendRound[];
   recipients: { id: number; name: string }[];
   count: number;

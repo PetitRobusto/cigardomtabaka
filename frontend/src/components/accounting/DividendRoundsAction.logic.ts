@@ -21,6 +21,6 @@ export function personalDividendAmounts(amount: string, bothPaid: boolean) {
   };
 }
 
-export const dividendInputClass = 'mt-1 block w-full rounded border border-border bg-white p-2 text-sm disabled:bg-cream';
+export const dividendInputClass = 'mt-1 block min-h-11 w-full rounded border border-border bg-white p-2 text-sm disabled:bg-cream';
 export const dividendButtonClass = 'min-h-11 rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors enabled:hover:bg-accent-hover disabled:opacity-50';
 export const dividendSecondaryClass = 'min-h-11 rounded border border-border bg-white px-3 py-2 text-sm disabled:opacity-50';

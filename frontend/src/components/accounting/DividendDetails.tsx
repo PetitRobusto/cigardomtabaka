@@ -29,11 +29,11 @@ export default function DividendDetails({ month, accounts, businessDate, onChang
         <div className="text-right text-xs text-muted">记录数 <strong className="ml-1 font-mono text-sm text-fg">{query.isPending ? '…' : query.data?.count ?? '—'}</strong> 笔</div>
       </div>
       {notice && <p role="status" className="px-5 pt-3 text-sm text-success">{notice}</p>}
-      {query.error && <p role="alert" className="m-5 text-sm text-red-700">{parseAccountingApiError(query.error).message}<button type="button" onClick={() => void query.refetch()} className={dividendSecondaryClass}>重新加载</button></p>}
+      {query.error && <p role="alert" className="m-5 text-sm text-accent">{parseAccountingApiError(query.error).message}<button type="button" onClick={() => void query.refetch()} className={dividendSecondaryClass}>重新加载</button></p>}
       {query.isPending ? <p role="status" className="px-5 py-8 text-center text-sm text-muted">分红明细加载中…</p> : !query.error && query.data?.rounds.length === 0 ? <p className="px-5 py-8 text-center text-sm text-muted">{month} 暂无分红记录</p> : !query.error && <>
         <p className="px-5 pt-2 text-xs text-muted sm:hidden">可横向滑动查看完整表格</p>
         <div className="overflow-x-auto"><table aria-label="分红明细" className="w-full min-w-[900px] text-left text-sm">
-          <thead className="border-b border-border bg-[#FFFDFA] text-[11px] text-muted"><tr>{['分配日期', '分红总额', '合伙人 1', '合伙人 2', '付款账户', '备注', '支付状态', '详情'].map((label, index) => <th key={label} className={`whitespace-nowrap px-4 py-2.5 font-semibold ${index === 1 ? 'text-right' : ''}`}>{label}</th>)}</tr></thead>
+          <thead className="border-b border-border bg-[#FFFDFA] text-[11px] text-muted"><tr>{['分配日期', '总分配', '合伙人 1', '合伙人 2', '付款账户', '备注', '支付状态', '详情'].map((label, index) => <th key={label} className={`whitespace-nowrap px-4 py-2.5 font-semibold ${index === 1 ? 'text-right' : ''}`}>{label}</th>)}</tr></thead>
           <tbody>{query.data?.rounds.map(round => {
             const pending = dividendCents(round.pending_cny) ?? 0n;
             const partial = pending > 0n && pending < (dividendCents(round.total_cny) ?? 0n);
@@ -43,7 +43,9 @@ export default function DividendDetails({ month, accounts, businessDate, onChang
               <tr className="border-b border-border hover:bg-[#FFFCF9]">
                 <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{round.business_date}</td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right font-mono text-xs font-semibold">{money(round.total_cny)}</td>
-                {round.partners.map(partner => <td key={partner.id} className="whitespace-nowrap px-4 py-2.5 text-xs"><span className="text-muted">{partner.name}</span> <span className="font-mono">{money(partner.allocated_cny)}</span></td>)}
+                {round.partners.map(partner => <td key={partner.id} className="whitespace-nowrap px-4 py-2.5 text-xs"><span>{partner.name}</span><dl className="mt-1 flex gap-3">{[
+                  ['应分', partner.allocated_cny], ['已领', partner.paid_cny], ['待领', partner.pending_cny],
+                ].map(([label, value]) => <div key={label}><dt className="text-[10px] text-muted">{label}</dt><dd className={`text-right font-mono ${label === '待领' && (dividendCents(value) ?? 0n) > 0n ? 'text-[#A75B27]' : ''}`}>{money(value)}</dd></div>)}</dl></td>)}
                 <td className="px-4 py-2.5 text-xs">{accountNames.join('、') || '尚未付款'}</td>
                 <td className="max-w-40 truncate px-4 py-2.5 text-xs text-muted" title={round.note}>{round.note || '—'}</td>
                 <td className="px-4 py-2.5"><span className={`whitespace-nowrap rounded-full px-2 py-1 text-[11px] ${pending === 0n ? 'bg-[#E9F1EB] text-[#3D6B4F]' : partial ? 'bg-[#EAF0F4] text-[#466681]' : 'bg-[#F9EEE6] text-[#A75B27]'}`}>{status}</span></td>

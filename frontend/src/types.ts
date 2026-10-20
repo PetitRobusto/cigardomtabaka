@@ -1119,6 +1119,8 @@ export interface DividendRoundConfirmPayload extends DividendRoundPayload {
 
 export interface PaidDividendPayload extends DividendRoundPayload {
   fund_account_id: number;
+  partner_a_paid_cny?: string;
+  partner_b_paid_cny?: string;
   warning_fingerprint?: string;
   warning_ack?: boolean;
 }

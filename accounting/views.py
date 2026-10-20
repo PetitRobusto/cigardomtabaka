@@ -785,6 +785,7 @@ _DIVIDEND_ROUND_MESSAGES = {
     'warning_required': '请核实并明确确认未分配利润不足的提示',
     'invalid_business_date': '业务日期无效；领取不能早于分配日期',
     'invalid_amount': '请输入大于零的有效人民币金额',
+    'invalid_paid_amounts': '请同时填写两人的实领金额，可为零且不能超过各自应分，至少一人已领取',
     'invalid_money_precision': '人民币金额最多保留两位小数，且不能超出范围',
     'insufficient_balance': '公司付款账户余额不足',
     'currency_rule': '分红领取只能使用人民币公司账户',
@@ -855,11 +856,12 @@ def dividend_round_action(request, round_id=None, action=None):
         if action == 'preview':
             return JsonResponse({'preview': preview_dividend_round(operator=request.accounting_operator, **common)})
         if action == 'record':
+            paid_amounts = {name: payload[name] for name in ('partner_a_paid_cny', 'partner_b_paid_cny') if name in payload}
             round = record_paid_dividend(
                 operator=request.accounting_operator, idempotency_key=_idempotency_key(request),
                 fund_account_id=payload.get('fund_account_id'),
                 warning_fingerprint=payload.get('warning_fingerprint', ''),
-                warning_ack=payload.get('warning_ack', False), **common,
+                warning_ack=payload.get('warning_ack', False), **common, **paid_amounts,
             )
             return JsonResponse({'round': serialize_dividend_round(_rounds_queryset().get(pk=round.pk))}, status=201)
         if action == 'confirm':

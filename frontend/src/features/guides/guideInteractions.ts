@@ -82,11 +82,11 @@ const accountingExpenseSteps: readonly ContextTourStep[] = [
 ];
 
 const accountingDividendSteps: readonly ContextTourStep[] = [
-  { id: 'accounting-actions-dividend', title: '开始处理分红', description: '记录已经实际支付的分红，两位合伙人各分 50%，一次保存同步扣减公司账户余额。', target: '[data-guide="accounting-actions-dividend"]', route: '/accounting' },
-  { id: 'accounting-dividend-total', title: '填写分红总额', description: '总额须为正且能按分精确平分。利润不足会提示警告，必须明确确认后才能继续。', target: '[data-guide="accounting-dividend-total"]', route: '/accounting', waitForTarget: true },
+  { id: 'accounting-actions-dividend', title: '开始处理分红', description: '记录谁实际领了多少钱，自动为另一位合伙人建立同额份额。已有分红的补领请从下方明细进入。', target: '[data-guide="accounting-actions-dividend"]', route: '/accounting' },
+  { id: 'accounting-dividend-total', title: '填写个人实领金额', description: '例如个人领 5000，自动分配两人共 10000，另一人待领 5000。账户只扣实际领取金额，待领资金仍可用于经营。', target: '[data-guide="accounting-dividend-total"]', route: '/accounting', waitForTarget: true },
   { id: 'accounting-dividend-date', title: '填写分红日期', description: '使用实际分红业务日期。', target: '[data-guide="accounting-dividend-date"]', route: '/accounting', waitForTarget: true },
-  { id: 'accounting-dividend-partner-a', title: '选择领取人 1', description: '沿用上次的合伙人，也可选择另一位启用用户。', target: '[data-guide="accounting-dividend-partner-a"]', route: '/accounting', waitForTarget: true },
-  { id: 'accounting-dividend-partner-b', title: '选择领取人 2', description: '选择另一位不同的用户，金额自动精确平分。', target: '[data-guide="accounting-dividend-partner-b"]', route: '/accounting', waitForTarget: true },
+  { id: 'accounting-dividend-partner-a', title: '选择本次领取人', description: '选择这笔钱的实际领取人。', target: '[data-guide="accounting-dividend-partner-a"]', route: '/accounting', waitForTarget: true },
+  { id: 'accounting-dividend-partner-b', title: '确认另一位合伙人', description: '自动建立同额待领份额。只有两位启用用户时自动匹配另一人；另一人确实也已领取时才勾选同额已领取。', target: '[data-guide="accounting-dividend-partner-b"]', route: '/accounting', waitForTarget: true },
   { id: 'accounting-dividend-account', title: '选择付款账户', description: '选择实际支付分红的公司人民币账户。保存仅登记已发生的付款，不发起转账。', target: '[data-guide="accounting-dividend-account"]', route: '/accounting', waitForTarget: true },
   { id: 'accounting-dividend-save', title: '保存已支付分红', description: '核对后一次保存，只有利润不足才额外确认。记录在下方分红明细表格按月展示，可展开付款详情。', target: '[data-guide="accounting-dividend-save"]', route: '/accounting', waitForTarget: true },
 ];

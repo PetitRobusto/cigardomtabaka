@@ -121,7 +121,8 @@ describe('一次登记已支付分红', () => {
     await waitFor(() => expect(api.recordPaidDividend).toHaveBeenCalledExactlyOnceWith({
       ...payload, total_cny: '10000.00', partner_a_paid_cny: '5000.00',
     }));
-    expect(screen.getByRole('status').textContent).toContain('账户扣款 5000.00 CNY，待领 5000.00 CNY');
+    expect((await screen.findByRole('status')).textContent).toContain('账户扣款 5000.00 CNY，待领 5000.00 CNY');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
   it('另一人也已领时扣两人金额，下一次重新默认为仅一人领取', async () => {
     mount(); await fill();
@@ -166,7 +167,7 @@ describe('一次登记已支付分红', () => {
     fireEvent.click(screen.getByRole('button', { name: '确认入账' }));
     await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
     expect(api.recordPaidDividend).toHaveBeenCalledExactlyOnceWith(payload);
-    expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: '分红' }));
     expect((screen.getByLabelText('个人实领金额（CNY）') as HTMLInputElement).value).toBe('');
     expect((screen.getByLabelText('本次领取人') as HTMLSelectElement).value).toBe('1');

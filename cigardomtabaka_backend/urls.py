@@ -5,7 +5,7 @@ from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import render, redirect
-from django.views.generic import RedirectView
+from django.views.generic import RedirectView, TemplateView
 from urllib.parse import urlencode
 
 from cigars import views
@@ -56,6 +56,9 @@ def spa_index(request):
 
 
 urlpatterns = [
+    path('yandex_b944c5e69a8995a8.html', TemplateView.as_view(
+        template_name='yandex_b944c5e69a8995a8.html',
+    ), name='yandex_verification'),
     # Resolve conventional icon URLs before the SPA catch-all.
     path('favicon.ico', RedirectView.as_view(
         url=f'{settings.STATIC_URL}frontend/favicon.ico', permanent=True,

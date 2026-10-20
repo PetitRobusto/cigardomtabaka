@@ -17,7 +17,8 @@ test("user can checkout with valid cart", async () => {
 Characteristics:
 
 - Tests behavior users/callers care about
-- Uses public API only
+- Exercises actions through public APIs or business commands
+- Checks persisted business facts when they are part of the contract
 - Survives internal refactors
 - Describes WHAT, not HOW
 - One logical assertion per test
@@ -42,20 +43,28 @@ Red flags:
 - Asserting on call counts/order
 - Test breaks when refactoring without behavior change
 - Test name describes HOW not WHAT
-- Verifying through external means instead of interface
+- Asserting incidental storage structure unrelated to the business contract
 
 ```typescript
-// BAD: Bypasses interface to verify
+// Less useful when retrievability is the entire contract:
 test("createUser saves to database", async () => {
   await createUser({ name: "Alice" });
   const row = await db.query("SELECT * FROM users WHERE name = ?", ["Alice"]);
   expect(row).toBeDefined();
 });
 
-// GOOD: Verifies through interface
+// Prefer the public read interface for that contract:
 test("createUser makes user retrievable", async () => {
   const user = await createUser({ name: "Alice" });
   const retrieved = await getUser(user.id);
   expect(retrieved.name).toBe("Alice");
 });
 ```
+
+## Persistence and failure paths
+
+Database assertions are appropriate when persistence itself is a business guarantee. For example, call the stock confirmation command, then verify in an isolated test database that it created the expected stock movement and audit record. Retry with the same idempotency key and verify that no duplicate movement appears.
+
+For insufficient stock, call that same command and assert rejection with no new movement, no partial ledger writes, and unchanged stock. Do not pre-write the expected movement or mock the transaction being tested.
+
+Use domain facts and totals in assertions; avoid incidental primary-key values, private helper calls, or query counts unless those are an explicit contract.

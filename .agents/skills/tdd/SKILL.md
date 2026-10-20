@@ -1,6 +1,6 @@
 ---
 name: tdd
-description: Test-driven development with red-green-refactor loop. Use when user wants to build features or fix bugs using TDD, mentions "red-green-refactor", wants integration tests, or asks for test-first development.
+description: Use the red-green-refactor loop when the user requests TDD or test-first development. Also useful for regression fixes where reproducing the failure first clarifies the behavior. Adding integration tests alone does not require adopting the entire workflow.
 ---
 
 # Test-Driven Development
@@ -11,7 +11,9 @@ description: Test-driven development with red-green-refactor loop. Use when user
 
 **Good tests** are integration-style: they exercise real code paths through public APIs. They describe _what_ the system does, not _how_ it does it. A good test reads like a specification - "user can checkout with valid cart" tells you exactly what capability exists. These tests survive refactors because they don't care about internal structure.
 
-**Bad tests** are coupled to implementation. They mock internal collaborators, test private methods, or verify through external means (like querying a database directly instead of using the interface). The warning sign: your test breaks when you refactor, but behavior hasn't changed. If you rename an internal function and tests fail, those tests were testing implementation, not behavior.
+**Bad tests** are coupled to implementation. They mock internal collaborators or test private methods without verifying a meaningful contract. The warning sign: your test breaks when you refactor, but behavior hasn't changed.
+
+**Persisted business facts are observable behavior.** Exercise writes through the business command or public API, then inspect the test database when needed to verify inventory movements, ledger entries, audit records, idempotency, or rollback. Do not bypass the command under test by writing the expected result directly. Prefer a real isolated test database for these checks; never use production data.
 
 See [tests.md](tests.md) for examples and [mocking.md](mocking.md) for mocking guidelines.
 
@@ -46,18 +48,13 @@ RIGHT (vertical):
 
 When exploring the codebase, use the project's domain glossary so that test names and interface vocabulary match the project's language, and respect ADRs in the area you're touching.
 
-Before writing any code:
+Read repository instructions and reuse requirements and decisions already established in the session. Identify the interface under test and briefly list its important behaviors. Proceed when these are clear; do not require separate approval of interfaces, tests, or a plan.
 
-- [ ] Confirm with user what interface changes are needed
-- [ ] Confirm with user which behaviors to test (prioritize)
-- [ ] Identify opportunities for [deep modules](deep-modules.md) (small interface, deep implementation)
-- [ ] Design interfaces for [testability](interface-design.md)
-- [ ] List the behaviors to test (not implementation steps)
-- [ ] Get user approval on the plan
+Resolve questions from the code first. Ask only when a missing business decision changes expected behavior, or an action needs authorization under repository rules. Existing authorization persists.
 
-Ask: "What should the public interface look like? Which behaviors are most important to test?"
+Scale preparation to risk. A small regression fix needs a reproducing test, not a formal design. For money, inventory, order state, permissions, or idempotency, cover the relevant invariants, success paths, and failure or rollback paths. Follow repository branching and review requirements.
 
-**You can't test everything.** Confirm with the user exactly which behaviors matter most. Focus testing effort on critical paths and complex logic, not every possible edge case.
+Use [deep modules](deep-modules.md) and [testability](interface-design.md) guidance only when an interface change is actually needed; do not expand the task into an architecture refactor.
 
 ### 2. Tracer Bullet
 
@@ -102,7 +99,7 @@ After all tests pass, look for [refactor candidates](refactoring.md):
 
 ```
 [ ] Test describes behavior, not implementation
-[ ] Test uses public interface only
+[ ] Actions use the business/public interface; assertions verify observable results or persisted business facts
 [ ] Test would survive internal refactor
 [ ] Code is minimal for this test
 [ ] No speculative features added

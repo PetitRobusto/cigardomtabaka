@@ -1,6 +1,6 @@
 # UI Prototype
 
-Generate **several radically different UI variations** on a single route, switchable from a floating bottom bar. The user flips between variants in the browser, picks one (or steals bits from each), then throws the rest away.
+Compare structurally different UI approaches in the repository's designated preview environment. Use the route-based workflow below only when direct application prototyping is permitted.
 
 If the question is about logic/state rather than what something looks like — wrong branch. Use [LOGIC.md](LOGIC.md).
 
@@ -10,6 +10,16 @@ If the question is about logic/state rather than what something looks like — w
 - "I want to see a few options for this dashboard before committing."
 - "Try a different layout for the settings screen."
 - Any time the user would otherwise spend a day picking between three vague mockups in their head.
+
+## Preview workflow
+
+- Read repository instructions before editing React. For CigarDomTabaka, preview new UI, layout, colors, and visual direction in the existing `CigarDomTabaka` project (slug `cigardomtabaka`) using Open Design Cloud or Local Codex.
+- Read the project's existing design and `brand-spec.md` through the exposed MCP tools. Use a separate conversation/run for each design; follow the tool's brief and generation workflow.
+- Only registered, exposed MCP tools may access that design workspace. If unavailable, report the blocker and request that the tools be enabled. Do not use daemon HTTP requests or direct React variants as a bypass.
+- Deliver the design preview first. Continue into React only after the required preview and when implementation is within the user's request. Reuse an existing chosen design instead of restarting exploration.
+- Pure functionality, types, copy, and clearly specified small fixes can be edited directly under repository rules and do not require generating visual alternatives.
+
+The route-based instructions that follow apply only after these requirements are satisfied, or in repositories without a separate preview requirement.
 
 ## Two sub-shapes — strongly prefer sub-shape A
 
@@ -87,7 +97,7 @@ Behaviour:
 - Clicking an arrow updates the URL search param (use the framework's router — `router.replace` on Next, `navigate` on React Router, etc) so the variant is shareable and reload-stable.
 - Keyboard: `←` and `→` arrow keys also cycle. Don't intercept arrow keys when an `<input>`, `<textarea>`, or `[contenteditable]` is focused.
 - Visually distinct from the page (e.g. high-contrast pill, subtle shadow) so it's obviously not part of the design being evaluated.
-- Hidden in production builds — gate on `process.env.NODE_ENV !== 'production'` or an equivalent check, so a stray prototype merge can't ship the bar to users.
+- Exclude the entire prototype route or variant selection, as well as the switcher, from production using the project's build convention. Hiding only the bar must not leave a `?variant=` parameter able to activate prototype content.
 
 Put the switcher in a single shared component so both sub-shapes can reuse it. Locate it wherever shared UI lives in the project.
 
@@ -97,7 +107,9 @@ Surface the URL (and the `?variant=` keys). The user will flip through whenever 
 
 ### 6. Capture the answer and clean up
 
-Once a variant has won, write down which one and why (commit message, ADR, issue, or a `NOTES.md` next to the prototype if running AFK and the user hasn't responded yet). Then:
+Once a variant has won, write down which one and why using the repository's documentation conventions. If no choice has been made, record the unresolved alternatives without inventing a winner.
+
+If the task was preview-only, deliver the preview and findings and stop. For authorized implementation, add the required behavior tests, error handling, and review before integrating the selected design:
 
 - **Sub-shape A** — delete the losing variants and the switcher; fold the winner into the existing page.
 - **Sub-shape B** — promote the winning variant to a real route, delete the throwaway route and the switcher.

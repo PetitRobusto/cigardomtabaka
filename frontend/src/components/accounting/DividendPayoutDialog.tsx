@@ -10,7 +10,7 @@ export function DividendDialog({ title, busy, onClose, children }: {
 }) {
   const ref = useDialogFocus(onClose, busy);
   return <div role="presentation" className="fixed inset-0 z-50 grid place-items-center bg-fg/50 p-3 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onClose(); }}>
-    <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="dividend-dialog-title" className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-5 shadow-2xl outline-none">
+    <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="dividend-dialog-title" className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-5 shadow-lg outline-none">
       <h2 id="dividend-dialog-title" className="mb-4 font-display text-xl font-semibold">{title}</h2><div className="space-y-4">{children}</div>
     </div>
   </div>;
@@ -50,7 +50,7 @@ export default function DividendPayoutDialog({ round, accounts, businessDate, on
         ['公司付款账户', confirmation.account], ['实际支付日期', confirmation.payload.business_date], ['备注', confirmation.payload.note || '—'],
       ].map(([label, value]) => <div key={label} className="flex justify-between gap-3"><dt className="text-muted">{label}</dt><dd className="whitespace-pre-wrap break-words text-right">{value}</dd></div>)}</dl>
       <p className="text-sm text-muted">登记已发生的付款，扣减公司账户余额与待领金额，不再扣减利润。</p>
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="text-sm text-accent">{error}</p>}
       {uncertain && <p className="text-sm text-muted">结果尚未确认，请重试本次记录，避免重复登记。</p>}
       <footer className="flex justify-end gap-2"><button disabled={busy || uncertain} onClick={() => { setError(''); setConfirmation(null); }} className={dividendSecondaryClass}>返回修改</button><button disabled={busy} onClick={() => void save()} className={dividendButtonClass}>{busy ? '保存中…' : uncertain ? '重试本次领取' : '确认记录领取'}</button></footer>
     </> : <form onSubmit={event => { event.preventDefault(); prepare(); }} className="space-y-3">
@@ -60,7 +60,7 @@ export default function DividendPayoutDialog({ round, accounts, businessDate, on
       <label className="block text-sm">领取金额（CNY）<input inputMode="decimal" value={input.amount} onChange={event => setInput({ ...input, amount: event.target.value })} className={dividendInputClass} /></label>
       <label className="block text-sm">实际支付日期<input type="date" min={round.business_date} value={input.date} onChange={event => setInput({ ...input, date: event.target.value })} className={dividendInputClass} /></label>
       <label className="block text-sm">领取备注<textarea value={input.note} onChange={event => setInput({ ...input, note: event.target.value })} className={dividendInputClass} /></label>
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="text-sm text-accent">{error}</p>}
       <footer className="flex justify-end gap-2"><button type="button" onClick={onClose} className={dividendSecondaryClass}>取消</button><button type="submit" className={dividendButtonClass}>核对领取</button></footer>
     </form>}
   </DividendDialog>;

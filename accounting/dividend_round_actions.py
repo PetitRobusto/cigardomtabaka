@@ -215,19 +215,32 @@ def record_dividend_payout(*, round_id, recipient_id, fund_account_id, amount_cn
 @_retry_sqlite_locked
 def record_paid_dividend(*, operator, idempotency_key, fund_account_id,
                          warning_ack=False, warning_fingerprint='', **payload):
-    """一次登记已支付分红；分配、两人领取及其流水全部成功或全部回滚。"""
+    """一次确认分配并登记实际领取；未领份额不扣现金，也不冻结资金。"""
     key = _key(idempotency_key)
+    paid_fields = ('partner_a_paid_cny', 'partner_b_paid_cny')
+    explicit_paid = {name: payload.pop(name) for name in paid_fields if name in payload}
     body = _round_input(**payload)
+    total = Decimal(body['total_cny'])
+    amounts = [total / 2, total / 2]
+    if explicit_paid:
+        if len(explicit_paid) != 2:
+            raise DividendActionError('invalid_paid_amounts')
+        amounts = [_money(explicit_paid[name], name) for name in paid_fields]
+        if any(amount < 0 or amount > total / 2 for amount in amounts) or sum(amounts) <= 0:
+            raise DividendActionError('invalid_paid_amounts')
     account_id = _positive_integer(fund_account_id, 'account_not_found')
     if type(warning_ack) is not bool or not isinstance(warning_fingerprint, str):
         raise DividendActionError('warning_required')
     request = {**body, 'fund_account_id': account_id}
+    if explicit_paid:
+        # 旧请求不增加字段，保留已入账全额登记的请求指纹。
+        request.update(zip(paid_fields, map(str, amounts)))
     fingerprint = _fingerprint({
         'action_type': 'paid_dividend', **request, 'operator_id': _operator_id(operator),
         'warning_ack': warning_ack, 'warning_fingerprint': warning_fingerprint,
     })
     payout_keys = [f'paid-dividend:{side}:{_fingerprint({"key": key})}' for side in ('a', 'b')]
-    total = Decimal(body['total_cny'])
+    expected_keys = {key for key, amount in zip(payout_keys, amounts) if amount > 0}
     with transaction.atomic():
         _acquire_sqlite_writer_gate()
         existing = DividendRound.objects.select_for_update().filter(idempotency_key=key).first()
@@ -236,7 +249,11 @@ def record_paid_dividend(*, operator, idempotency_key, fund_account_id,
             if existing.request_fingerprint != fingerprint:
                 raise DividendActionError('idempotency_conflict')
             # 已完成动作必须完整存在，不能在重放时补造缺失的领取事实。
-            if set(existing.payouts.values_list('idempotency_key', flat=True)) != set(payout_keys):
+            # 后续独立补领不属于本次动作；本次派生子键仍须完整且不能多出零元侧。
+            actual_keys = set(existing.payouts.filter(
+                idempotency_key__in=payout_keys,
+            ).values_list('idempotency_key', flat=True))
+            if actual_keys != expected_keys:
                 raise DividendActionError('idempotency_conflict')
             ledger = _post(fact_type='dividend_round', key=key, body=body,
                            operator=operator, postings=_round_postings(total))
@@ -257,7 +274,7 @@ def record_paid_dividend(*, operator, idempotency_key, fund_account_id,
             if account.currency != 'CNY':
                 raise DividendActionError('currency_rule')
             try:
-                _outflow_cny_cost(account, total)
+                _outflow_cny_cost(account, sum(amounts))
             except LedgerError as error:
                 raise DividendActionError('insufficient_balance') from error
             preview = _preview(request, operator)
@@ -275,10 +292,12 @@ def record_paid_dividend(*, operator, idempotency_key, fund_account_id,
                 warning_fingerprint=preview['warning_fingerprint'], warning_ack=warning_ack,
                 warning_retained_earnings_cny=Decimal(preview['retained_earnings_cny']),
             ), 'dividend_round')
-        for recipient, payout_key in zip((body['partner_a_id'], body['partner_b_id']), payout_keys):
+        for recipient, payout_key, amount in zip((body['partner_a_id'], body['partner_b_id']), payout_keys, amounts):
+            if amount == 0:
+                continue
             record_dividend_payout(
                 round_id=round.pk, recipient_id=recipient, fund_account_id=account_id,
-                amount_cny=total / 2, business_date=body['business_date'], operator=operator,
+                amount_cny=amount, business_date=body['business_date'], operator=operator,
                 idempotency_key=payout_key, note=body['note'], agent_source=body['agent_source'],
             )
         return round

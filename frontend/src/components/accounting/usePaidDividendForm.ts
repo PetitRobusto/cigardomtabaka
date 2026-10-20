@@ -31,7 +31,7 @@ export function usePaidDividendForm(accounts: FundAccount[], businessDate: strin
     && cnyAccounts.some(item => String(item.id) === account));
 
   const save = async (payload: PaidDividendPayload) => {
-    if (inFlight.current) return;
+    if (inFlight.current) return false;
     inFlight.current = true; setBusy(true); setError(''); setNotice('');
     try { await recordPaidDividend(payload); }
     catch (failure) {
@@ -45,7 +45,7 @@ export function usePaidDividendForm(accounts: FundAccount[], businessDate: strin
         // 不确定请求结果时，冻结完整原请求；重试复用同一幂等键。
         setAttempt(current => ({ payload, warning: current?.warning, uncertain: true }));
       } else { setAttempt(null); }
-      inFlight.current = false; setBusy(false); return;
+      inFlight.current = false; setBusy(false); return false;
     }
     setAttempt(null);
     setInput({ amount: '', bothPaid: false, a: String(payload.partner_a_id), b: String(payload.partner_b_id), account: String(payload.fund_account_id), date: payload.business_date, note: '' });
@@ -55,16 +55,23 @@ export function usePaidDividendForm(accounts: FundAccount[], businessDate: strin
     inFlight.current = false; setBusy(false);
     void client.invalidateQueries({ queryKey: ['dividend-rounds'] });
     try { onChanged?.(); } catch { setNotice('记账成功；页面刷新失败，请点击重新加载。'); }
+    return true;
   };
 
-  const submit = () => {
-    if (!valid || !amounts || attempt) return;
-    void save({ total_cny: amounts.total, partner_a_id: Number(a), partner_b_id: Number(b),
+  const submit = async () => {
+    if (!valid || !amounts || attempt) return false;
+    return save({ total_cny: amounts.total, partner_a_id: Number(a), partner_b_id: Number(b),
       partner_a_paid_cny: amounts.individual, partner_b_paid_cny: amounts.otherPaid,
       fund_account_id: Number(account), business_date: input.date, note: input.note });
   };
   return { query, recipients, cnyAccounts, input: { ...input, a, b, account }, setInput,
     attempt, busy, error, notice, amounts, valid, submit, save,
+    discard: () => {
+      if (inFlight.current || attempt?.uncertain) return false;
+      setInput({ amount: '', bothPaid: false, a: undefined, b: undefined, account: undefined, date: businessDate, note: '' });
+      setAttempt(null); setError('');
+      return true;
+    },
     cancelWarning: () => { if (!inFlight.current && !attempt?.uncertain) { setAttempt(null); setError(''); } },
   };
 }

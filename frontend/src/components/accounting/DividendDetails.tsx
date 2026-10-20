@@ -32,8 +32,8 @@ export default function DividendDetails({ month, accounts, businessDate, onChang
       {query.error && <p role="alert" className="m-5 text-sm text-accent">{parseAccountingApiError(query.error).message}<button type="button" onClick={() => void query.refetch()} className={dividendSecondaryClass}>重新加载</button></p>}
       {query.isPending ? <p role="status" className="px-5 py-8 text-center text-sm text-muted">分红明细加载中…</p> : !query.error && query.data?.rounds.length === 0 ? <p className="px-5 py-8 text-center text-sm text-muted">{month} 暂无分红记录</p> : !query.error && <>
         <p className="px-5 pt-2 text-xs text-muted sm:hidden">可横向滑动查看完整表格</p>
-        <div className="overflow-x-auto"><table aria-label="分红明细" className="w-full min-w-[900px] text-left text-sm">
-          <thead className="border-b border-border bg-[#FFFDFA] text-[11px] text-muted"><tr>{['分配日期', '总分配', '合伙人 1', '合伙人 2', '付款账户', '备注', '支付状态', '详情'].map((label, index) => <th key={label} className={`whitespace-nowrap px-4 py-2.5 font-semibold ${index === 1 ? 'text-right' : ''}`}>{label}</th>)}</tr></thead>
+        <div className="overflow-x-auto"><table aria-label="分红明细" className="w-full min-w-[740px] text-left text-sm">
+          <thead className="border-b border-border bg-[#FFFDFA] text-[11px] text-muted"><tr>{['分配日期', '总分配', '合伙人', '付款账户', '备注', '支付状态', '详情'].map((label, index) => <th key={label} className={`whitespace-nowrap px-4 py-2.5 font-semibold ${index === 1 ? 'text-right' : ''}`}>{label}</th>)}</tr></thead>
           <tbody>{query.data?.rounds.map(round => {
             const pending = dividendCents(round.pending_cny) ?? 0n;
             const partial = pending > 0n && pending < (dividendCents(round.total_cny) ?? 0n);
@@ -43,20 +43,18 @@ export default function DividendDetails({ month, accounts, businessDate, onChang
               <tr className="border-b border-border hover:bg-[#FFFCF9]">
                 <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">{round.business_date}</td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right font-mono text-xs font-semibold">{money(round.total_cny)}</td>
-                {round.partners.map(partner => <td key={partner.id} className="whitespace-nowrap px-4 py-2.5 text-xs"><span>{partner.name}</span><dl className="mt-1 flex gap-3">{[
-                  ['应分', partner.allocated_cny], ['已领', partner.paid_cny], ['待领', partner.pending_cny],
-                ].map(([label, value]) => <div key={label}><dt className="text-[10px] text-muted">{label}</dt><dd className={`text-right font-mono ${label === '待领' && (dividendCents(value) ?? 0n) > 0n ? 'text-[#A75B27]' : ''}`}>{money(value)}</dd></div>)}</dl></td>)}
+                <td className="px-4 py-2.5 text-xs">{round.partners.map(partner => partner.name).join('、')}</td>
                 <td className="px-4 py-2.5 text-xs">{accountNames.join('、') || '尚未付款'}</td>
                 <td className="max-w-40 truncate px-4 py-2.5 text-xs text-muted" title={round.note}>{round.note || '—'}</td>
                 <td className="px-4 py-2.5"><span className={`whitespace-nowrap rounded-full px-2 py-1 text-[11px] ${pending === 0n ? 'bg-[#E9F1EB] text-[#3D6B4F]' : partial ? 'bg-[#EAF0F4] text-[#466681]' : 'bg-[#F9EEE6] text-[#A75B27]'}`}>{status}</span></td>
                 <td className="px-4 py-2.5"><button type="button" aria-expanded={expanded === round.id} onClick={() => setExpanded(expanded === round.id ? null : round.id)} className="whitespace-nowrap text-xs font-semibold text-accent hover:underline">{expanded === round.id ? '收起详情' : '查看详情'}</button></td>
               </tr>
-              {expanded === round.id && <tr className="border-b border-border bg-[#FFFDFA]"><td colSpan={8} className="px-4 py-3">
+              {expanded === round.id && <tr className="border-b border-border bg-[#FFFDFA]"><td colSpan={7} className="px-4 py-3">
                 <div className="rounded border border-dashed border-border p-3 text-xs">
                   <h3 className="mb-2 font-semibold text-muted">付款详情</h3>
                   {round.note && <p className="mb-3 whitespace-pre-wrap break-words text-muted">{round.note}</p>}
                   {round.payouts.length === 0 ? <p className="text-muted">尚无实际付款记录</p> : <ul className="space-y-2">{round.payouts.map(item => <li key={item.id} className="flex flex-wrap justify-between gap-2 border-b border-dashed border-border pb-2 last:border-0"><span>{item.recipient_name} · <span className="font-mono">{item.business_date}</span> · {item.fund_account_name}{item.note && <span className="ml-2 whitespace-pre-wrap break-words text-muted">{item.note}</span>}</span><strong className="font-mono">{money(item.amount_cny)}</strong></li>)}</ul>}
-                  {pending > 0n && <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="text-muted">{round.partners.map(partner => `${partner.name} 待领 ${money(partner.pending_cny)}`).join(' · ')}</p><button type="button" onClick={() => setPayout(round)} className={dividendSecondaryClass}>继续登记领取</button></div>}
+                  {pending > 0n && <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="text-muted">补领只扣实际付款与本次待领，不再分配利润。</p><button type="button" onClick={() => setPayout(round)} className={dividendSecondaryClass}>继续登记领取</button></div>}
                 </div>
               </td></tr>}
             </Fragment>;

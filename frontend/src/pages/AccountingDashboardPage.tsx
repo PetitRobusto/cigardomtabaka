@@ -8,6 +8,7 @@ import AccountingPanel from '../components/sales/AccountingPanel';
 import AccountingActionCenter, { type AccountingActionKind } from '../components/accounting/AccountingActionCenter';
 import ExpenseDetails from '../components/accounting/ExpenseDetails';
 import ExchangeDetails from '../components/accounting/ExchangeDetails';
+import DividendSummaryCard from '../components/accounting/DividendSummaryCard';
 import DividendDetails from '../components/accounting/DividendDetails';
 import { formatCny, formatSignedCny } from '../components/sales/salesState';
 import { dashboardDay1Action, dashboardRegionStates, dashboardStatDisplay } from './businessRoutes';
@@ -65,8 +66,9 @@ export default function AccountingDashboardPage() {
       <section className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6"><Stat label="总资产" value={moneyStat(data.stats.total_funds_cny)} note="资金账户账面成本 + 库存成本 + 在途采购 + 应收款" /><Stat label="库存成本" value={moneyStat(data.stats.inventory_book_cost_cny)} /><Stat label="人民币资金" value={moneyStat(data.stats.cny_funds_total)} /><Stat label="综合卢布汇率" value={rubRate} note="RUB / CNY · 当前卢布余额 ÷ 人民币账面成本" /><Stat label="待收金额" value={moneyStat(data.stats.pending_collection_cny)} note={`${data.stats.pending_collection_order_count ?? 0} 笔已确认未收款订单`} /><Stat label="本月经营净利润" value={monthNetProfit == null ? '—' : formatSignedCny(monthNetProfit)} tone={monthNetProfit == null ? '' : Number(monthNetProfit) < 0 ? 'text-accent' : 'text-success'} note={`当前业务月 ${profitMonth} · 含库存及对账调整`} /></section>
       {!day1Completed ? <Day1Card status={data.day1_status} /> : <>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] lg:items-start">
-          <AccountingActionCenter key={guideTourId || 'default'} accounts={accounts.data || data.accounts || []} summaryAccounts={data.accounts} actions={actions.data} businessDate={moscowBusinessDate()} actionsLoading={actions.isLoading} actionsError={actions.isError ? apiErrorMessage(actions.error, '账务动作列表加载失败') : undefined} onChanged={refresh} initialAction={initialAction} onOpenReconciliation={() => setReconciliationOpen(true)} />
+          <AccountingActionCenter accounts={accounts.data || data.accounts || []} summaryAccounts={data.accounts} actions={actions.data} businessDate={moscowBusinessDate()} actionsLoading={actions.isLoading} actionsError={actions.isError ? apiErrorMessage(actions.error, '账务动作列表加载失败') : undefined} onChanged={refresh} initialAction={initialAction} onOpenReconciliation={() => setReconciliationOpen(true)} />
         <AccountingPanel
+      beforeReconciliation={<DividendSummaryCard />}
       accounts={regionStates.accounts === 'ready' ? accounts.data : undefined}
       summary={regionStates.summary === 'ready' ? summary.data : undefined}
       reconciliations={regionStates.reconciliation === 'ready' ? reconciliations.data : undefined}

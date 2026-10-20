@@ -1,19 +1,33 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 import { parseAccountingApiError, recordDividendPayout } from '../../api';
 import { isRetryableWriteError } from '../../api/idempotency';
 import type { DividendPayoutPayload, DividendRound, FundAccount } from '../../types';
 import { useDialogFocus } from '../../hooks/useDialogFocus';
 import { dividendCents, dividendMoney, dividendInputClass, dividendButtonClass, dividendSecondaryClass } from './DividendRoundsAction.logic';
 
-export function DividendDialog({ title, busy, onClose, children }: {
-  title: string; busy: boolean; onClose: () => void; children: ReactNode;
+export function DividendDialog({ title, busy, onClose, children, entry = false, focusKey }: {
+  title: string; busy: boolean; onClose: () => void; children: ReactNode; entry?: boolean; focusKey?: string;
 }) {
   const ref = useDialogFocus(onClose, busy);
-  return <div role="presentation" className="fixed inset-0 z-50 grid place-items-center bg-fg/50 p-3 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onClose(); }}>
-    <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="dividend-dialog-title" className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-5 shadow-lg outline-none">
-      <h2 id="dividend-dialog-title" className="mb-4 font-display text-xl font-semibold">{title}</h2><div className="space-y-4">{children}</div>
+  const titleId = useId();
+  // Replacing the entry form or warning removes its focused control.
+  useEffect(() => { ref.current?.focus(); }, [ref, title, focusKey]);
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, []);
+  return createPortal(<div role="presentation" className="fixed inset-0 z-50 grid place-items-center bg-fg/50 p-3 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+    <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} className={`flex max-h-[calc(100dvh-24px)] w-full flex-col overflow-hidden rounded-lg bg-white text-fg shadow-lg outline-none ${entry ? 'max-w-[640px]' : 'max-w-lg'}`}>
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-3">
+        <h2 id={titleId} className="font-display text-xl font-semibold">{title}</h2>
+        <button type="button" aria-label="关闭分红弹窗" disabled={busy} onClick={onClose} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border text-muted hover:border-gold hover:text-fg disabled:opacity-50"><X className="h-4 w-4" /></button>
+      </header>
+      <div className={entry ? 'flex min-h-0 flex-col' : 'space-y-4 overflow-y-auto p-5'}>{children}</div>
     </div>
-  </div>;
+  </div>, document.body);
 }
 
 export default function DividendPayoutDialog({ round, accounts, businessDate, onClose, onSaved }: {

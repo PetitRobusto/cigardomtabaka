@@ -2,7 +2,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import DividendRoundsAction from './DividendRoundsAction';
 import DividendDetails from './DividendDetails';
 import AccountingActionCenter from './AccountingActionCenter';
 import { dividendCents, personalDividendAmounts } from './DividendRoundsAction.logic';
@@ -36,7 +35,7 @@ function mount(details = false, onChanged = vi.fn()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 300000 } } });
   const view = render(<QueryClientProvider client={client}>{details
     ? <DividendDetails month="2026-10" accounts={accounts} businessDate="2026-10-19" onChanged={onChanged} />
-    : <DividendRoundsAction accounts={accounts} businessDate="2026-10-19" onChanged={onChanged} />}</QueryClientProvider>);
+    : <AccountingActionCenter initialAction="dividend" accounts={accounts} businessDate="2026-10-19" onChanged={onChanged} />}</QueryClientProvider>);
   return { ...view, client, onChanged };
 }
 async function fill() {
@@ -45,6 +44,61 @@ async function fill() {
 }
 
 describe('一次登记已支付分红', () => {
+  it('撤回只清空草稿，重新打开保留背景表单且不发记账请求', async () => {
+    mount(); await fill();
+    fireEvent.change(screen.getByLabelText('备注（选填）'), { target: { value: '不保存' } });
+    fireEvent.click(screen.getByLabelText('另一位合伙人也已领取同额分红'));
+    fireEvent.click(screen.getByRole('button', { name: '撤回' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByText('费用表单')).toBeTruthy();
+    expect(document.body.style.overflow).toBe('');
+    const launcher = screen.getByRole('button', { name: '分红' });
+    launcher.focus(); fireEvent.click(launcher);
+    expect((screen.getByLabelText('个人实领金额（CNY）') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('备注（选填）') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('另一位合伙人也已领取同额分红') as HTMLInputElement).checked).toBe(false);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(launcher);
+    fireEvent.click(launcher);
+    fireEvent.mouseDown(screen.getByRole('presentation'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(launcher);
+    fireEvent.click(screen.getByRole('button', { name: '关闭分红弹窗' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(api.recordPaidDividend).not.toHaveBeenCalled();
+    expect(api.recordDividendPayout).not.toHaveBeenCalled();
+  });
+  it('利润警告可返回修改或撤回整个填写，不再次提交', async () => {
+    api.recordPaidDividend.mockRejectedValue({ code: 'warning_required', message: '利润不足', details: warning });
+    mount(); await fill(); screen.getByRole('button', { name: '确认入账' }).focus(); fireEvent.click(screen.getByRole('button', { name: '确认入账' }));
+    await screen.findByRole('heading', { name: '未分配利润不足' });
+    fireEvent.click(screen.getByRole('button', { name: '返回修改' }));
+    expect((screen.getByLabelText('个人实领金额（CNY）') as HTMLInputElement).value).toBe('50.01');
+    fireEvent.click(screen.getByRole('button', { name: '确认入账' }));
+    await screen.findByRole('heading', { name: '未分配利润不足' });
+    fireEvent.click(screen.getByRole('button', { name: '撤回' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(api.recordPaidDividend).toHaveBeenCalledTimes(2);
+  });
+  it('引导切换或关闭不卸载在途分红，仍可用原请求重试', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = (action: 'dividend' | 'expense') => <QueryClientProvider client={client}><AccountingActionCenter accounts={accounts} businessDate="2026-10-19" initialAction={action} /></QueryClientProvider>;
+    const mounted = render(view('expense'));
+    mounted.rerender(view('dividend'));
+    await fill();
+    let fail: (error: Error) => void = () => undefined;
+    api.recordPaidDividend.mockImplementationOnce(() => new Promise((_, reject) => { fail = reject; }));
+    fireEvent.click(screen.getByRole('button', { name: '确认入账' }));
+    mounted.rerender(view('expense'));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect((screen.getByRole('button', { name: '撤回' }) as HTMLButtonElement).disabled).toBe(true);
+    fail(new Error('响应丢失'));
+    await screen.findByRole('button', { name: '重试本次记录' });
+    fireEvent.click(screen.getByRole('button', { name: '重试本次记录' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(api.recordPaidDividend.mock.calls[1]).toEqual(api.recordPaidDividend.mock.calls[0]);
+  });
   it('个人金额精确翻倍，只有勾选另一人也领取才增加实际扣款', () => {
     expect(personalDividendAmounts('5000', false)).toEqual({
       individual: '5000.00', total: '10000.00', paid: '5000.00', pending: '5000.00', otherPaid: '0.00',
@@ -63,7 +117,7 @@ describe('一次登记已支付分红', () => {
     expect((screen.getByLabelText('另一位合伙人也已领取同额分红') as HTMLInputElement).checked).toBe(false);
     expect(screen.getByText(/待领资金不冻结/)).toBeTruthy();
     expect(screen.getByRole('link', { name: '查看分红明细' }).getAttribute('href')).toBe('#dividend-details');
-    fireEvent.click(screen.getByRole('button', { name: '保存分红' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认入账' }));
     await waitFor(() => expect(api.recordPaidDividend).toHaveBeenCalledExactlyOnceWith({
       ...payload, total_cny: '10000.00', partner_a_paid_cny: '5000.00',
     }));
@@ -72,10 +126,12 @@ describe('一次登记已支付分红', () => {
   it('另一人也已领时扣两人金额，下一次重新默认为仅一人领取', async () => {
     mount(); await fill();
     fireEvent.click(screen.getByLabelText('另一位合伙人也已领取同额分红'));
-    fireEvent.click(screen.getByRole('button', { name: '保存分红' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认入账' }));
     await waitFor(() => expect(api.recordPaidDividend).toHaveBeenCalledExactlyOnceWith({
       ...payload, partner_b_paid_cny: '50.01',
     }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: '分红' }));
     expect((screen.getByLabelText('另一位合伙人也已领取同额分红') as HTMLInputElement).checked).toBe(false);
     expect(screen.getByRole('status').textContent).toContain('账户扣款 100.02 CNY，待领 0.00 CNY');
   });
@@ -83,7 +139,7 @@ describe('一次登记已支付分红', () => {
     mount(); await fill();
     fireEvent.change(screen.getByLabelText('本次领取人'), { target: { value: '2' } });
     expect((screen.getByLabelText('另一位合伙人') as HTMLSelectElement).value).toBe('1');
-    fireEvent.click(screen.getByRole('button', { name: '保存分红' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认入账' }));
     await waitFor(() => expect(api.recordPaidDividend).toHaveBeenCalledExactlyOnceWith({
       ...payload, partner_a_id: 2, partner_b_id: 1,
     }));
@@ -93,7 +149,7 @@ describe('一次登记已支付分红', () => {
     mount(); await fill();
     fireEvent.change(screen.getByLabelText('本次领取人'), { target: { value: '2' } });
     expect((screen.getByLabelText('另一位合伙人') as HTMLSelectElement).value).toBe('');
-    expect((screen.getByRole('button', { name: '保存分红' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: '确认入账' }) as HTMLButtonElement).disabled).toBe(true);
     expect(api.recordPaidDividend).not.toHaveBeenCalled();
   });
   it('人民币按分精确平分', () => {
@@ -107,28 +163,32 @@ describe('一次登记已支付分红', () => {
     expect(screen.queryByText('停用账户')).toBeNull();
     expect(screen.queryByText('卢布')).toBeNull();
     expect(screen.queryByRole('table')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: '保存分红' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认入账' }));
     await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
     expect(api.recordPaidDividend).toHaveBeenCalledExactlyOnceWith(payload);
     expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '分红' }));
     expect((screen.getByLabelText('个人实领金额（CNY）') as HTMLInputElement).value).toBe('');
     expect((screen.getByLabelText('本次领取人') as HTMLSelectElement).value).toBe('1');
     expect(screen.getByRole('status').textContent).toContain('已记录');
   });
   it('超利润只显示警告，明确确认后重试；变化后的警告重新确认', async () => {
     api.recordPaidDividend.mockRejectedValueOnce({ code: 'warning_required', message: '利润不足', details: warning });
-    mount(); await fill(); fireEvent.click(screen.getByRole('button', { name: '保存分红' }));
-    const dialog = await screen.findByRole('dialog');
+    mount(); await fill(); screen.getByRole('button', { name: '确认入账' }).focus(); fireEvent.click(screen.getByRole('button', { name: '确认入账' }));
+    await screen.findByRole('heading', { name: '未分配利润不足' });
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    const dialog = screen.getByRole('dialog');
+    expect(document.activeElement).toBe(dialog);
     expect(within(dialog).getByText('本次账户扣款')).toBeTruthy();
     expect(within(dialog).getByText('待领合计')).toBeTruthy();
-    const confirm = within(dialog).getByRole('button', { name: '确认保存分红' });
+    const confirm = within(dialog).getByRole('button', { name: '确认入账' });
     expect((confirm as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(within(dialog).getByRole('checkbox'));
     api.recordPaidDividend.mockRejectedValueOnce({ code: 'warning_stale', message: '利润已变化', details: { ...warning, warning_fingerprint: 'preview-2' } });
     fireEvent.click(confirm);
     await waitFor(() => expect((within(screen.getByRole('dialog')).getByRole('checkbox') as HTMLInputElement).checked).toBe(false));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('checkbox'));
-    fireEvent.click(screen.getByRole('button', { name: '确认保存分红' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认入账' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(api.recordPaidDividend.mock.calls[2][0]).toEqual({ ...payload, warning_ack: true, warning_fingerprint: 'preview-2' });
   });
@@ -136,12 +196,19 @@ describe('一次登记已支付分红', () => {
     let fail: (value: unknown) => void = () => undefined;
     api.recordPaidDividend.mockImplementationOnce(() => new Promise((_, reject) => { fail = reject; }));
     mount(); await fill();
-    const save = screen.getByRole('button', { name: '保存分红' });
+    const save = screen.getByRole('button', { name: '确认入账' });
     fireEvent.click(save); fireEvent.click(save);
     expect(api.recordPaidDividend).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: '撤回' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.getByRole('dialog')).toBeTruthy();
     fail(new Error('网络中断'));
     await screen.findByRole('button', { name: '重试本次记录' });
     expect((screen.getByLabelText('另一位合伙人也已领取同额分红') as HTMLInputElement).closest('fieldset')?.disabled).toBe(true);
+    expect((screen.getByRole('button', { name: '撤回' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.mouseDown(screen.getByRole('presentation'));
+    expect(screen.getByRole('dialog')).toBeTruthy();
     fireEvent.click(await screen.findByRole('button', { name: '重试本次记录' }));
     await waitFor(() => expect(api.recordPaidDividend).toHaveBeenCalledTimes(2));
     expect(api.recordPaidDividend.mock.calls[0]).toEqual(api.recordPaidDividend.mock.calls[1]);
@@ -149,10 +216,10 @@ describe('一次登记已支付分红', () => {
   it('确定性余额不足允许修改，刷新失败不重复记账', async () => {
     api.recordPaidDividend.mockRejectedValueOnce({ isAxiosError: true, response: { status: 409 }, code: 'insufficient_balance', message: '余额不足' });
     mount(false, vi.fn(() => { throw new Error('refresh'); })); await fill();
-    fireEvent.click(screen.getByRole('button', { name: '保存分红' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认入账' }));
     await screen.findByText('余额不足');
-    expect((screen.getByRole('button', { name: '保存分红' }) as HTMLButtonElement).disabled).toBe(false);
-    fireEvent.click(screen.getByRole('button', { name: '保存分红' }));
+    expect((screen.getByRole('button', { name: '确认入账' }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: '确认入账' }));
     await screen.findByText(/记账成功.*刷新失败/);
     expect(api.recordPaidDividend).toHaveBeenCalledTimes(2);
   });
@@ -163,20 +230,24 @@ describe('一次登记已支付分红', () => {
     expect((screen.getByLabelText('本次领取人') as HTMLSelectElement).value).toBe('');
     expect((screen.getByLabelText('公司付款账户') as HTMLSelectElement).value).toBe('');
   });
-  it('切换操作页签保留在途请求和警告确认后的原请求重试', async () => {
+  it('警告确认后提交中及结果不确定时不能撤回，重试保留原请求', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<QueryClientProvider client={client}><AccountingActionCenter accounts={accounts} businessDate="2026-10-19" initialAction="dividend" /></QueryClientProvider>);
     api.recordPaidDividend.mockRejectedValueOnce({ code: 'warning_required', message: '利润不足', details: warning });
-    await fill(); fireEvent.click(screen.getByRole('button', { name: '保存分红' }));
-    await screen.findByRole('dialog'); fireEvent.click(within(screen.getByRole('dialog')).getByRole('checkbox'));
+    await fill(); fireEvent.click(screen.getByRole('button', { name: '确认入账' }));
+    await screen.findByRole('heading', { name: '未分配利润不足' }); fireEvent.click(within(screen.getByRole('dialog')).getByRole('checkbox'));
     let fail: (error: Error) => void = () => undefined;
     api.recordPaidDividend.mockImplementationOnce(() => new Promise((_, reject) => { fail = reject; }));
-    fireEvent.click(screen.getByRole('button', { name: '确认保存分红' }));
-    fireEvent.click(screen.getByRole('button', { name: '记录费用' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认入账' }));
+    fireEvent.click(screen.getByRole('button', { name: '撤回' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
     fail(new Error('响应丢失'));
     await waitFor(() => expect(screen.getByText('响应丢失')).toBeTruthy());
-    fireEvent.click(screen.getByRole('button', { name: '分红' }));
-    expect((screen.getByLabelText('个人实领金额（CNY）') as HTMLInputElement).closest('fieldset')?.disabled).toBe(true);
+    expect((screen.getByRole('button', { name: '撤回' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.mouseDown(screen.getByRole('presentation'));
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: '重试本次记录' }));
     await waitFor(() => expect(api.recordPaidDividend).toHaveBeenCalledTimes(3));
     expect(api.recordPaidDividend.mock.calls[2]).toEqual(api.recordPaidDividend.mock.calls[1]);

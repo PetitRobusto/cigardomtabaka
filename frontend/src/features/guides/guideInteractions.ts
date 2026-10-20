@@ -88,7 +88,7 @@ const accountingDividendSteps: readonly ContextTourStep[] = [
   { id: 'accounting-dividend-partner-a', title: '选择本次领取人', description: '选择这笔钱的实际领取人。', target: '[data-guide="accounting-dividend-partner-a"]', route: '/accounting', waitForTarget: true },
   { id: 'accounting-dividend-partner-b', title: '确认另一位合伙人', description: '自动建立同额待领份额。只有两位启用用户时自动匹配另一人；另一人确实也已领取时才勾选同额已领取。', target: '[data-guide="accounting-dividend-partner-b"]', route: '/accounting', waitForTarget: true },
   { id: 'accounting-dividend-account', title: '选择付款账户', description: '选择实际支付分红的公司人民币账户。保存仅登记已发生的付款，不发起转账。', target: '[data-guide="accounting-dividend-account"]', route: '/accounting', waitForTarget: true },
-  { id: 'accounting-dividend-save', title: '保存已支付分红', description: '核对后一次保存，只有利润不足才额外确认。记录在下方分红明细表格按月展示，可展开付款详情。', target: '[data-guide="accounting-dividend-save"]', route: '/accounting', waitForTarget: true },
+  { id: 'accounting-dividend-save', title: '确认分红入账', description: '核对后点击确认入账，撤回只取消本次填写。利润不足须额外确认，入账后弹窗关闭并刷新总览与明细。', target: '[data-guide="accounting-dividend-save"]', route: '/accounting', waitForTarget: true },
 ];
 
 const accountingReconciliationSteps: readonly ContextTourStep[] = [

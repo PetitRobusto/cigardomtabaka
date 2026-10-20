@@ -220,6 +220,48 @@ class DividendRoundTests(TestCase):
                 self.confirm(key='rollback-round')
         self.assertEqual(LedgerTransaction.objects.count(), count)
 
+    def test_summary_is_global_exact_and_keeps_inactive_partner(self):
+        first = self.confirm()
+        self.payout(first, amount_cny='10.01')
+        self.payout(first, key='summary-oct', amount_cny='20.00', business_date=date(2026, 10, 1))
+        self.payout(first, key='summary-b', recipient_id=self.b.pk, amount_cny='5.00')
+        for index in range(20):
+            # Swap roles to prove totals belong to a person, not an A/B slot.
+            self.confirm(key=f'summary-{index}', total_cny='0.02', partner_a_id=self.b.pk,
+                         partner_b_id=self.a.pk, business_date=date(2026, 10, 2))
+        self.b.is_active = False
+        self.b.save(update_fields=['is_active'])
+        self.client.force_login(self.operator)
+        count = LedgerTransaction.objects.count()
+        expected = {
+            'allocated_cny': '100.42', 'paid_cny': '35.01', 'pending_cny': '65.41',
+            'partners': [
+                {'id': self.a.pk, 'name': self.a.username, 'allocated_cny': '50.21', 'paid_cny': '30.01', 'pending_cny': '20.20'},
+                {'id': self.b.pk, 'name': self.b.username, 'allocated_cny': '50.21', 'paid_cny': '5.00', 'pending_cny': '45.21'},
+            ],
+        }
+        for params in ({}, {'page': 2}, {'month': '2026-09'}, {'month': '2026-08'}):
+            with self.subTest(params=params):
+                response = self.client.get('/api/accounting/dividend-rounds/', params)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()['summary'], expected)
+        self.assertEqual(LedgerTransaction.objects.count(), count)
+
+    def test_summary_empty_and_refresh_after_payout(self):
+        self.client.force_login(self.operator)
+        url = '/api/accounting/dividend-rounds/'
+        self.assertEqual(self.client.get(url).json()['summary'], {
+            'partners': [], 'allocated_cny': '0.00', 'paid_cny': '0.00', 'pending_cny': '0.00',
+        })
+        round = self.confirm()
+        self.assertEqual(self.client.get(url).json()['summary']['pending_cny'], '100.02')
+        self.payout(round, amount_cny='50.01')
+        self.payout(round, key='summary-paid-b', recipient_id=self.b.pk, amount_cny='50.01')
+        summary = self.client.get(url).json()['summary']
+        self.assertEqual(summary['pending_cny'], '0.00')
+        self.assertEqual(summary['paid_cny'], '100.02')
+        self.assertEqual(summary['allocated_cny'], '100.02')
+
     def test_api_auth_methods_envelopes_and_pagination(self):
         url = '/api/accounting/dividend-rounds/'
         self.assertEqual(self.client.get(url).status_code, 403)

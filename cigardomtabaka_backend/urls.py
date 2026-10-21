@@ -56,6 +56,9 @@ def spa_index(request):
 
 
 urlpatterns = [
+    path('robots.txt', TemplateView.as_view(
+        template_name='robots.txt', content_type='text/plain; charset=utf-8',
+    ), name='robots'),
     path('yandex_b944c5e69a8995a8.html', TemplateView.as_view(
         template_name='yandex_b944c5e69a8995a8.html',
     ), name='yandex_verification'),

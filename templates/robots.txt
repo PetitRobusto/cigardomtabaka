@@ -1,0 +1,11 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /api/
+Disallow: /privnote
+Disallow: /p/
+Disallow: /login
+Disallow: /inventory
+Disallow: /sales
+Disallow: /accounting
+Disallow: /reports/
+Disallow: /help

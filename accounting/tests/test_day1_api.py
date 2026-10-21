@@ -213,6 +213,9 @@ class Day1ApiTest(TestCase):
         self.assertEqual(response.json()['day1_status'], 'not_started')
         self.assertEqual(response.json()['stats'], {
             'total_funds_cny': None,
+            'customer_prepayments_cny': None,
+            'dividend_payable_cny': None,
+            'net_assets_cny': None,
             'cny_funds_total': None,
             'rub_exchange_rate': None,
             'inventory_book_cost_cny': None,
@@ -238,6 +241,9 @@ class Day1ApiTest(TestCase):
         self.assertEqual(data['day1_status'], 'completed')
         self.assertEqual(data['stats'], {
             'total_funds_cny': '607.50',
+            'customer_prepayments_cny': '0.00',
+            'dividend_payable_cny': '0.00',
+            'net_assets_cny': '607.50',
             'cny_funds_total': '100.00',
             'rub_exchange_rate': '12.0000',
             'inventory_book_cost_cny': '337.50',

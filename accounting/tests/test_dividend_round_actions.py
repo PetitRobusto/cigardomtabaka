@@ -16,7 +16,7 @@ from accounting.models import (
     LedgerMutationError, LedgerPosting, LedgerTransaction,
 )
 from accounting.mutation_scope import ledger_mutation_scope
-from accounting.selectors import account_snapshot, monthly_profit, retained_earnings
+from accounting.selectors import account_snapshot, accounting_dashboard, monthly_profit, retained_earnings
 from accounting.services import LedgerError, PostingInput, post_transaction, record_opening_balance
 from cigars.models import User
 
@@ -71,13 +71,22 @@ class DividendRoundTests(TestCase):
         retained = retained_earnings(as_of=self.day)
         round = self.confirm()
         self.assertEqual(account_snapshot(self.account), before)
+        stats = accounting_dashboard(as_of=self.day)['stats']
+        self.assertEqual(stats['net_assets_cny'], Decimal('899.98'))
+        self.assertEqual(stats['dividend_payable_cny'], Decimal('100.02'))
         self.assertEqual(monthly_profit(month=self.day)['net_profit_cny'], profit)
         self.assertEqual(retained_earnings(as_of=self.day), retained - Decimal('100.02'))
         self.assertEqual(set(round.ledger_transaction.postings.values_list('category', flat=True)),
                          {'dividend_distribution', 'dividend_payable'})
         self.payout(round, amount_cny='20.01')
+        stats = accounting_dashboard(as_of=self.day)['stats']
+        self.assertEqual(stats['net_assets_cny'], Decimal('899.98'))
+        self.assertEqual(stats['dividend_payable_cny'], Decimal('80.01'))
         self.payout(round, key='payout-a2', amount_cny='30.00', business_date=date(2026, 9, 15))
         self.payout(round, key='payout-b1', recipient_id=self.b.pk, amount_cny='50.01', business_date=date(2026, 9, 16))
+        stats = accounting_dashboard(as_of=date(2026, 9, 16))['stats']
+        self.assertEqual(stats['net_assets_cny'], Decimal('899.98'))
+        self.assertEqual(stats['dividend_payable_cny'], 0)
         self.assertEqual(retained_earnings(as_of=date(2026, 9, 16)), retained - Decimal('100.02'))
         self.assertEqual(monthly_profit(month=self.day)['net_profit_cny'], profit)
         from accounting.action_serializers import serialize_dividend_round
@@ -109,8 +118,11 @@ class DividendRoundTests(TestCase):
 
     def test_insufficient_and_foreign_account(self):
         round = self.confirm(total_cny='4000.00')
+        before = accounting_dashboard(as_of=self.day)['stats']
+        self.assertEqual(before['net_assets_cny'], Decimal('-3000'))
         with self.assertRaisesRegex(DividendActionError, 'insufficient_balance'):
             self.payout(round, amount_cny='1000.01')
+        self.assertEqual(accounting_dashboard(as_of=self.day)['stats'], before)
         foreign = FundAccount.objects.create(name='卢布公司', currency='RUB', creation_idempotency_key='round-rub')
         with self.assertRaisesRegex(DividendActionError, 'currency_rule'):
             self.payout(round, fund_account_id=foreign.pk)

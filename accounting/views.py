@@ -403,6 +403,9 @@ def dashboard(request):
             'day1_status': status,
             'stats': {
                 'total_funds_cny': None,
+                'customer_prepayments_cny': None,
+                'dividend_payable_cny': None,
+                'net_assets_cny': None,
                 'cny_funds_total': None,
                 'rub_exchange_rate': None,
                 'inventory_book_cost_cny': None,

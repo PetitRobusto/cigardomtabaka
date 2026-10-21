@@ -310,6 +310,28 @@ class Task9BackendFixesTest(TestCase):
         self.assertEqual(after_draft['stats']['total_funds_cny'], before['stats']['total_funds_cny'])
         self.assertEqual(after_confirmation['stats']['total_funds_cny'], before['stats']['total_funds_cny'])
 
+    def test_net_assets_liabilities_use_posted_business_date_and_include_inactive_cash(self):
+        self.complete_day1()
+        account = self.account('预收人民币', 'CNY', 'net-assets-cny')
+        record_opening_balance(account, '100', '100', LedgerPosting.Category.OPENING_CAPITAL, self.business_date, self.operator, 'net-assets-open')
+        for day, amount, key in [(self.business_date, Decimal('20'), 'today'), (self.business_date + timedelta(days=1), Decimal('30'), 'tomorrow')]:
+            post_transaction(
+                transaction_type='sales_receipt', business_date=day, operator=self.operator, idempotency_key=f'net-assets-{key}',
+                postings=[PostingInput(account=account, currency='CNY', amount=amount, cny_amount=amount),
+                          PostingInput(category='customer_prepayments', currency='CNY', amount=-amount, cny_amount=-amount)],
+            )
+        draft = LedgerTransaction.objects.create(transaction_type='sales_receipt', business_date=self.business_date, operator=self.operator)
+        LedgerPosting.objects.create(transaction=draft, account=account, currency='CNY', amount='99', cny_amount='99')
+        LedgerPosting.objects.create(transaction=draft, category='customer_prepayments', currency='CNY', amount='-99', cny_amount='-99')
+        account.is_active = False
+        account.save(update_fields=['is_active'])
+        for day, prepaid in [(self.business_date, Decimal('20')), (self.business_date + timedelta(days=1), Decimal('50'))]:
+            with self.subTest(day=day):
+                stats = accounting_dashboard(as_of=day)['stats']
+                self.assertEqual(stats['customer_prepayments_cny'], prepaid)
+                self.assertEqual(stats['total_funds_cny'], Decimal('100') + prepaid)
+                self.assertEqual(stats['net_assets_cny'], Decimal('100'))
+
     def test_dashboard_pending_collection_is_distinct_from_accounting_receivable(self):
         self.complete_day1()
         rows = [

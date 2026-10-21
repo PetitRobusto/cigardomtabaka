@@ -8,12 +8,13 @@ from accounting.models import Day1Initialization, FundAccount, LedgerPosting
 from accounting.purchase_actions import (create_purchase_order, update_purchase_order_draft,
     cancel_purchase_order, pay_purchase_order, receive_paid_purchase_order,
     reverse_received_purchase_order, PurchaseActionError)
-from accounting.services import record_opening_balance
+from accounting.services import record_opening_balance, exchange_to_rub
+from accounting.selectors import accounting_dashboard
 from cigars.models import Cigar, Supplier, User, StockMovement, StockAllocation
 from cigars.services import (create_sales_order_draft, confirm_sales_order,
     cancel_confirmed_sales_order, serialize_sales_order, OrderServiceError)
 from cigars.preorders import prepare_sales_preorder, source_options
-from cigars.sales_accounting import receive_sales_order_payment, ship_sales_order, return_sales_order, refund_sales_order_payment
+from cigars.sales_accounting import receive_sales_order_payment, ship_sales_order, return_sales_order, refund_sales_order_payment, withdraw_sales_order_payment
 
 
 class PurchasePreorderTest(TestCase):
@@ -92,6 +93,68 @@ class PurchasePreorderTest(TestCase):
         self.assertEqual(sum(LedgerPosting.objects.filter(category='customer_prepayments').values_list('cny_amount', flat=True)), 0)
         self.assertEqual(sum(LedgerPosting.objects.filter(category='accounts_receivable').values_list('cny_amount', flat=True)), 0)
         self.assertEqual(StockMovement.objects.count(), count + 1)
+
+    def test_net_assets_prepaid_exchange_arrival_ship_tail_return_and_refund(self):
+        record_opening_balance(self.cny, Decimal('100'), Decimal('100'), LedgerPosting.Category.OPENING_CAPITAL, self.day, self.operator, self.key())
+        other = FundAccount.objects.create(name='另一人民币账户', currency='CNY', creation_idempotency_key=self.key())
+        source = self.source()
+        order = self.confirm(self.draft(source))
+
+        def stats(expected_net, expected_prepaid):
+            value = accounting_dashboard(as_of=self.day)['stats']
+            self.assertEqual(value['net_assets_cny'], Decimal(expected_net))
+            self.assertEqual(value['customer_prepayments_cny'], Decimal(expected_prepaid))
+            return value
+
+        stats('1100', '0')
+        key = self.key()
+        for _ in range(2):
+            receive_sales_order_payment(order_id=order.pk, amount_cny='20', fund_account=self.cny, business_date=self.day, operator=self.operator, idempotency_key=key)
+            stats('1100', '20')
+        receive_sales_order_payment(order_id=order.pk, amount_cny='10', fund_account=other, business_date=self.day, operator=self.operator, idempotency_key=self.key())
+        before = stats('1100', '30')
+        with self.assertRaises(OrderServiceError):
+            self.receive(order, 31)
+        self.assertEqual(accounting_dashboard(as_of=self.day)['stats'], before)
+        with self.assertRaises(OrderServiceError):
+            ship_sales_order(order_id=order.pk, business_date=self.day, operator=self.operator, idempotency_key=self.key())
+        self.assertEqual(accounting_dashboard(as_of=self.day)['stats'], before)
+        exchange_to_rub(self.cny, self.rub, Decimal('10'), Decimal('120'), self.day, self.operator, self.key())
+        stats('1100', '30')
+        pay_purchase_order(purchase_order_id=source.pk, rub_account_id=self.rub.pk, business_date=self.day, operator=self.operator, idempotency_key=self.key())
+        self.assertEqual(stats('1100', '30')['purchase_in_transit_cny'], Decimal('100'))
+        receive_paid_purchase_order(purchase_order_id=source.pk, business_date=self.day, operator=self.operator, idempotency_key=self.key())
+        value = stats('1100', '30')
+        self.assertEqual(value['purchase_in_transit_cny'], 0)
+        self.assertEqual(value['inventory_book_cost_cny'], Decimal('100'))
+        self.assertEqual(value['month_net_profit_cny'], 0)
+        ship_sales_order(order_id=order.pk, business_date=self.day, operator=self.operator, idempotency_key=self.key())
+        self.assertEqual(stats('1140', '0')['accounts_receivable_cny'], Decimal('30'))
+        self.receive(order, 30)
+        stats('1140', '0')
+        return_sales_order(order_id=order.pk, business_date=self.day, operator=self.operator, idempotency_key=self.key(), reason='整单退货')
+        self.assertEqual(stats('1100', '30')['accounts_receivable_cny'], Decimal('-30'))
+        refund_key = self.key()
+        for _ in range(2):
+            refund_sales_order_payment(order_id=order.pk, business_date=self.day, operator=self.operator, idempotency_key=refund_key)
+            self.assertEqual(stats('1100', '0')['accounts_receivable_cny'], 0)
+
+    def test_net_assets_cancelled_preorder_keeps_liability_until_refund(self):
+        order = self.confirm(self.draft(self.source()))
+        self.receive(order, 20)
+        withdraw_sales_order_payment(order_id=order.pk, business_date=self.day, operator=self.operator, idempotency_key=self.key(), reason='收款录入有误')
+        value = accounting_dashboard(as_of=self.day)['stats']
+        self.assertEqual(value['customer_prepayments_cny'], 0)
+        self.assertEqual(value['net_assets_cny'], Decimal('1000'))
+        self.receive(order, 60)
+        cancel_confirmed_sales_order(sales_order_id=order.pk, operator=self.operator)
+        value = accounting_dashboard(as_of=self.day)['stats']
+        self.assertEqual(value['customer_prepayments_cny'], Decimal('60'))
+        self.assertEqual(value['net_assets_cny'], Decimal('1000'))
+        refund_sales_order_payment(order_id=order.pk, business_date=self.day, operator=self.operator, idempotency_key=self.key())
+        value = accounting_dashboard(as_of=self.day)['stats']
+        self.assertEqual(value['customer_prepayments_cny'], 0)
+        self.assertEqual(value['net_assets_cny'], Decimal('1000'))
 
     def test_arrival_reserves_before_picking_and_inventory_cost_stays_on_hand(self):
         source = self.source(10, 25)

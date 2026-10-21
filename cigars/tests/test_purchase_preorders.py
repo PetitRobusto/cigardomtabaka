@@ -398,11 +398,18 @@ class PurchasePreorderTest(TestCase):
         self.assertEqual((order.fulfillment_status, order.payment_status), ('returned', 'refunded'))
 
     def test_web_permissions_idempotency_source_and_prepare(self):
+        self.cigar.brand = 'Partagás'
+        self.cigar.save(update_fields=['brand'])
         source = self.source()
         self.assertEqual(self.client.get(f'/api/sales/preorder-sources/{source.pk}/').status_code, 403)
         self.client.force_login(self.operator)
         response = self.client.get(f'/api/sales/preorder-sources/{source.pk}/')
         self.assertEqual(response.status_code, 200)
+        item = response.json()['items'][0]
+        self.assertEqual(item['cigar_name'], '预售雪茄')
+        self.assertEqual(item['cigar_brand'], 'Partagás')
+        self.assertEqual(item['cigar_brand_cn'], '帕特加斯')
+        self.assertEqual(item['cigar_english_name'], 'Preorder Cigar')
         order = self.confirm(self.draft(source))
         self.arrive(source)
         url=f'/api/sales/orders/{order.pk}/prepare-preorder/'

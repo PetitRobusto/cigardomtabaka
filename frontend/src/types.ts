@@ -749,6 +749,9 @@ export interface PreorderSource {
   items: {
     cigar_id: number;
     cigar_name: string;
+    cigar_brand: string;
+    cigar_brand_cn: string;
+    cigar_english_name: string;
     sale_unit: 'box' | 'stick';
     box_size: number | null;
     purchase_quantity: number;

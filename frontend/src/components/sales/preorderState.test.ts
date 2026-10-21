@@ -5,8 +5,8 @@ import type { PreorderSource, SalesOrder, SalesOrderItem } from '../../types';
 const source: PreorderSource = {
   purchase_order_id: 5, order_number: 'PO-000005', status: 'draft', can_create: true,
   items: [
-    { cigar_id: 1, cigar_name: '25支装', sale_unit: 'box', box_size: 25, purchase_quantity: 250, committed_quantity: 200, remaining_quantity: 50 },
-    { cigar_id: 1, cigar_name: '10支装', sale_unit: 'box', box_size: 10, purchase_quantity: 20, committed_quantity: 0, remaining_quantity: 20 },
+    { cigar_id: 1, cigar_brand: '', cigar_brand_cn: '', cigar_english_name: '', cigar_name: '25支装', sale_unit: 'box', box_size: 25, purchase_quantity: 250, committed_quantity: 200, remaining_quantity: 50 },
+    { cigar_id: 1, cigar_brand: '', cigar_brand_cn: '', cigar_english_name: '', cigar_name: '10支装', sale_unit: 'box', box_size: 10, purchase_quantity: 20, committed_quantity: 0, remaining_quantity: 20 },
   ],
 };
 describe('preorder input', () => {

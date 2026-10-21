@@ -6,7 +6,8 @@ import type { PreorderSource, SalesOrder, SalesOrderPayload } from '../../types'
 import PaymentDialog from '../privnote/PaymentDialog';
 import { CustomerAutocomplete, type CustomerSelection } from '../search';
 import { formatCny, validateMoneyInput } from './salesState';
-import { preorderItems, preorderUnitQuantity, type PreorderSelection } from './preorderState';
+import { preorderItems, preorderProductName, preorderUnitQuantity, type PreorderSelection } from './preorderState';
+import PreorderProductSearch from './PreorderProductSearch';
 
 export default function PreorderOrderModal({ purchaseId, onClose, onCreated }: {
   purchaseId: number; onClose: () => void; onCreated: (order: SalesOrder) => void;
@@ -64,11 +65,14 @@ function PreorderForm({ source, busy, error, onSave, onClose }: {
       {(error || validation) && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error || validation}</p>}
       {!source.can_create && <p role="alert" className="text-sm text-accent">这张采购单当前不能创建预售单。</p>}
       <CustomerAutocomplete value={customer} onChange={setCustomer} disabled={busy} />
+      <PreorderProductSearch source={source} rows={rows} disabled={busy} onSelect={index => update(index, { selected: true })} />
+      {!rows.some(row => row.selected) && <p className="text-xs text-muted">搜索并添加采购商品后，填写本次预售数量和售价。</p>}
       {source.items.map((item, index) => {
+        if (!rows[index].selected) return null;
         const unit = item.sale_unit === 'box' ? '盒' : '支';
         const remaining = preorderUnitQuantity(item, item.remaining_quantity);
         return <section key={`${item.cigar_id}-${item.sale_unit}-${item.box_size}`} className="rounded border border-border p-3">
-          <label className="flex items-start gap-2 text-sm font-semibold"><input type="checkbox" checked={rows[index].selected} disabled={!source.can_create || !remaining || busy} onChange={event => update(index, { selected: event.target.checked })} className="mt-1 h-4 w-4 shrink-0 accent-accent" /><span>{item.cigar_name}{item.sale_unit === 'box' ? ` · ${item.box_size} 支/盒` : ' · 散支'}</span></label>
+          <div className="flex items-start justify-between gap-2 text-sm font-semibold"><span>{preorderProductName(item)}{item.sale_unit === 'box' ? ` · ${item.box_size} 支/盒` : ' · 散支'}</span><button type="button" disabled={busy} aria-label={`移除 ${preorderProductName(item)} ${item.box_size || '散支'}`} onClick={() => update(index, { selected: false })} className="text-xs font-normal text-muted hover:text-accent">移除</button></div>
           <p className="my-2 text-xs leading-relaxed text-muted">采购 {preorderUnitQuantity(item, item.purchase_quantity)} {unit} · 已确认预售 {preorderUnitQuantity(item, item.committed_quantity)} {unit} · 剩余可预售 {remaining} {unit}</p>
           <div className="grid grid-cols-2 gap-3">
             <label className="text-xs text-muted">本次预售（{unit}）<input aria-label={`${item.cigar_name} ${item.box_size || '散支'} 数量`} type="number" min="1" max={remaining} step="1" value={rows[index].quantity} disabled={!rows[index].selected} onChange={event => update(index, { quantity: event.target.value })} className="mt-1.5 w-full min-w-0 rounded border border-border px-3 py-2 text-sm text-fg disabled:bg-cream" /></label>

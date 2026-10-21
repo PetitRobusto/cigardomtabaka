@@ -10,6 +10,7 @@ from accounting.guards import require_day1_completed
 from accounting.models import Day1Initialization, LedgerTransaction
 from accounting.services import _acquire_sqlite_writer_gate, _retry_sqlite_locked
 from .audit import AgentContext
+from .constants import BRAND_CN_MAP
 from .models import InventoryAdjustmentLine, OrderEvent, PurchaseBatch, PurchaseOrder, SalesOrder, SalesOrderItem, StockAllocation
 from .services import OrderServiceError, _require_operator, _record_order_event
 
@@ -98,12 +99,14 @@ def guard_purchase_change(order, *, rows=None, cancelling=False, reversing=False
 def source_options(order):
     capacity = purchase_capacity(order)
     used = commitments(order.pk)
-    names = {item.cigar_id: item.cigar.name or item.cigar.english_name
+    cigars = {item.cigar_id: item.cigar
              for item in order.items.select_related('cigar').all()}
     return {
         'purchase_order_id': order.pk, 'order_number': order.order_number, 'status': order.status,
         'can_create': order.deleted_at is None and order.status in ['draft', 'in_transit'],
-        'items': [dict(cigar_id=key[0], cigar_name=names[key[0]], sale_unit=key[1], box_size=key[2],
+        'items': [dict(cigar_id=key[0], cigar_name=cigars[key[0]].name or cigars[key[0]].english_name,
+                       cigar_brand=cigars[key[0]].brand, cigar_brand_cn=BRAND_CN_MAP.get(cigars[key[0]].brand, ''),
+                       cigar_english_name=cigars[key[0]].english_name, sale_unit=key[1], box_size=key[2],
                        purchase_quantity=quantity, committed_quantity=used.get(key, 0),
                        remaining_quantity=max(0, quantity - used.get(key, 0)))
                   for key, quantity in capacity.items()],

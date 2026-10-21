@@ -7,6 +7,11 @@ export interface PreorderSelection {
   unitPrice: string;
 }
 
+export function preorderProductName(item: PreorderSource['items'][number]) {
+  const brand = item.cigar_brand_cn || item.cigar_brand;
+  return brand && !item.cigar_name.startsWith(brand) ? `${brand} ${item.cigar_name}` : item.cigar_name;
+}
+
 /** 类型标签只表达预售身份，履约进度交给状态标签。 */
 export function salesPreorderLabel(order: SalesOrder): string | null {
   const items = order.items || [];

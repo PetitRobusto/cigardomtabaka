@@ -115,7 +115,7 @@ def _purchase_error_status(code):
         return 404
     if code in {
         'invalid_state', 'idempotency_conflict', 'packaging_review_required',
-        'version_conflict', 'day1_incomplete', 'receipt_already_used',
+        'version_conflict', 'day1_incomplete', 'receipt_already_used', 'preorder_commitment_conflict',
     }:
         return 409
     return 400
@@ -123,7 +123,7 @@ def _purchase_error_status(code):
 
 def _purchase_error_body(exc):
     return {
-        'error': '供应商不存在' if exc.code == 'supplier_not_found' else exc.code,
+        'error': '供应商不存在' if exc.code == 'supplier_not_found' else exc.details.get('message', exc.code),
         'code': exc.code,
         'details': exc.details,
     }
@@ -674,6 +674,23 @@ def ship_sales_order_command(request):
         return _sales_order_response(order)
 
     return _idempotent_command(request, 'ship_sales_order', handler, canonical_action=True)
+
+
+@csrf_exempt
+@staff_required
+def prepare_sales_preorder_command(request):
+    from .preorders import prepare_sales_preorder
+    if request.method != 'POST':
+        return _json_response({'error': 'Method not allowed'}, status=405)
+
+    def handler(body, operator, context):
+        return _sales_order_response(prepare_sales_preorder(
+            order_id=body.get('sales_order_id'), operator=operator,
+            business_date=_required_business_date(body), note=_sales_note(body),
+            idempotency_key=context.idempotency_key, agent_context=context,
+        ))
+
+    return _idempotent_command(request, 'prepare_sales_preorder', handler, canonical_action=True)
 
 
 @csrf_exempt

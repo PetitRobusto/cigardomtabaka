@@ -43,6 +43,7 @@ import { formatShanghaiDateTime } from "../../utils/businessDate";
 import PaymentRequestModal from "./PaymentRequestModal";
 import PaymentDialog from "../privnote/PaymentDialog";
 import SalesOrderStatusTags from "./SalesOrderStatusTags";
+import { salesPreorderLabel } from "./preorderState";
 
 function publicPrivnoteUrl(value: string): string {
   if (typeof window === "undefined") return value;
@@ -127,7 +128,8 @@ export default function SalesOrderWorkbench({
               onClick={() => {
                 onSelect(order.id);
               }}
-              className={`block w-full border-b border-border px-4 py-3 text-left last:border-0 hover:bg-[#FFFCF9] ${selected?.id === order.id ? "border-l-[3px] border-l-accent bg-[#FFFCF4]" : ""}`}
+              aria-current={selected?.id === order.id ? 'true' : undefined}
+              className={`block w-full border-b border-border px-4 py-3 text-left last:border-0 hover:bg-[#FFFCF9] ${selected?.id === order.id ? "border-l-[3px] border-l-accent bg-[#FFFCF4]" : salesPreorderLabel(order) ? "bg-[#FFFCF4]" : ""}`}
             >
               <span className="flex items-baseline justify-between gap-2">
                 <span className="font-mono text-[11px] font-semibold">
@@ -140,6 +142,7 @@ export default function SalesOrderWorkbench({
               <strong className="mt-1 block truncate text-sm">
                 {order.customer_name || "散客"}
               </strong>
+              {salesPreorderLabel(order) && <span className="mt-1.5 block"><PreorderTag order={order} /></span>}
               <span className="mt-2 flex items-center justify-between gap-2 text-[10px] text-muted">
                 <span>
                   {formatShanghaiDateTime(order.created_at).slice(0, 10)}
@@ -194,6 +197,7 @@ export default function SalesOrderWorkbench({
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-1.5 text-[11px]">
+                  <PreorderTag order={selected} />
                   <SalesOrderStatusTags order={selected} />
                 </div>
               </div>
@@ -229,6 +233,11 @@ export default function SalesOrderWorkbench({
       </section>
     </div>
   );
+}
+
+function PreorderTag({ order }: { order: SalesOrder }) {
+  const label = salesPreorderLabel(order);
+  return label ? <span className="inline-flex items-center rounded-full bg-[#F5E8D8] px-2 py-0.5 text-[11px] font-semibold text-gold">{label}</span> : null;
 }
 
 function DetailSection({
@@ -338,6 +347,10 @@ function Items({ order }: { order: SalesOrder }) {
                   {item.cigar_brand_cn || item.cigar_brand || "未标注品牌"}
                 </span>
                 <strong className="mt-0.5 block">{item.cigar_name}</strong>
+                {item.fulfillment_type === 'preorder' && <div className="mt-1 space-y-1 text-[11px]">
+                  <span className="inline-flex rounded-full bg-[#F5E8D8] px-2 py-0.5 font-semibold text-gold">预售 · {order.fulfillment_status === 'shipped' ? '已出库' : order.fulfillment_status === 'returned' ? '已退货' : order.fulfillment_status === 'cancelled' ? '已取消' : order.fulfillment_status === 'draft' ? '草稿' : item.preorder_reserved || item.preorder_prepared ? '已预留 · 待出库' : '待到货 / 待预留'}</span>
+                  <span className="block text-muted">{item.source_purchase_order_number ? `来源采购单 ${item.source_purchase_order_number}` : '历史预售 · 未关联采购来源'}</span>
+                </div>}
               </td>
               <td className="px-3 py-3 text-right">
                 {item.sale_unit === "box" ? item.sale_quantity : item.quantity}{" "}
@@ -355,7 +368,7 @@ function Items({ order }: { order: SalesOrder }) {
                       return `#${allocation.batch_id} × ${allocation.quantity}（${status}${amount}）`;
                     },
                   )
-                  .join("，") || "确认订单后分配"}
+                  .join("，") || (item.fulfillment_type === 'preorder' ? '到货时自动预留' : "确认订单后分配")}
               </td>
               <td className="px-3 py-3 text-right font-mono">
                 <span className="block">{cost.totalCost === null ? "—" : formatCny(cost.totalCost)}</span>
@@ -705,7 +718,7 @@ function Timeline({ order, accounts }: { order: SalesOrder; accounts: FundAccoun
     },
     order.confirmed_at && {
       label: "订单确认", date: order.confirmed_at,
-      detail: `${itemSummary || "无商品明细"} · ${order.items.some(item => item.fulfillment_type === 'in_stock') ? "现货已预留" : "预售待备货"}`,
+      detail: `${itemSummary || "无商品明细"} · ${order.items.some(item => item.fulfillment_type === 'in_stock') ? "现货已预留" : "预售订单已确认"}`,
     },
     ...receipts.flatMap(receipt => [
       {
@@ -726,6 +739,14 @@ function Timeline({ order, accounts }: { order: SalesOrder; accounts: FundAccoun
       label: "订单出库", date: order.sales_shipment.business_date,
       detail: `${itemSummary} · 出库成本 ${formatCny(order.sales_shipment.fifo_cost_cny)}`,
     },
+    order.preorder_preparation && {
+      label: "预售备货", date: order.preorder_preparation.business_date,
+      detail: order.items.filter(item => order.preorder_preparation?.item_ids.includes(item.id)).map(item => `${item.cigar_name} × ${item.quantity} 支${item.source_purchase_order_number ? ` · 来源 ${item.source_purchase_order_number}` : ''} · ${item.allocations.map(allocation => `批次 #${allocation.batch_id} × ${allocation.quantity} 支`).join('、')}`).join('；'),
+    },
+    ...(order.preorder_reservations || []).map(reservation => ({
+      label: '预售自动预留', date: reservation.business_date,
+      detail: order.items.filter(item => reservation.item_ids.includes(item.id)).map(item => `${item.cigar_name} × ${item.quantity} 支 · ${item.source_purchase_order_number || '预售'} · 已从可售库存预留`).join('；'),
+    })),
     order.sales_transport_cost && {
       label: "登记人肉成本", date: order.sales_transport_cost.business_date,
       detail: `实际成本 ${formatCny(order.sales_transport_cost.actual_cost_cny)} · 付款账户：${accountName(order.sales_transport_cost.fund_account_id)}`,
@@ -794,7 +815,7 @@ function OrderActions({
   const [error, setError] = useState("");
   const selectedAccountId = selectActiveCnyAccountId(allAccounts, accountId);
   const actions = Array.isArray(order.available_actions)
-    ? order.available_actions
+    ? order.available_actions.filter(action => action !== "prepare_preorder")
     : [];
   const needsBusinessDate = [
     "ship",
@@ -927,7 +948,7 @@ function OrderActions({
             <div className="space-y-3 p-5">
               {action === "confirm" && <ConfirmSummary order={order} />}
               {[
-                "ship",
+                            "ship",
                 "receive",
                 "refund",
                 "return",
@@ -1041,7 +1062,7 @@ function ConfirmSummary({ order }: { order: SalesOrder }) {
   return (
     <div className="space-y-3 rounded border border-blue-200 bg-blue-50/50 p-3 text-xs">
       <p className="font-semibold text-blue-900">
-        确认后会预留现货库存，订单进入待履约状态。
+        {order.items.some(item => item.fulfillment_type === 'preorder') ? '确认后占用来源采购的预售额度；预售商品到货时自动预留，随后可直接确认出库；现货明细立即预留。' : '确认后会预留现货库存，订单进入待履约状态。'}
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
         <div>

@@ -355,6 +355,22 @@ def reserve_order_item(*, order, item, operator, context, note=""):
     """按包装形态和 FIFO 预留一条现货销售明细。"""
     if item.fulfillment_type != SalesOrderItem.FulfillmentType.IN_STOCK:
         raise InventoryError("预售明细不能预留现货库存")
+    return _reserve_sales_item(order=order, item=item, operator=operator, context=context, note=note)
+
+
+@_retry_sqlite_locked
+@transaction.atomic
+def reserve_preorder_item(*, order, item, operator, context, note=""):
+    """显式备货入口；确认预售不调用此动作。"""
+    if item.fulfillment_type != SalesOrderItem.FulfillmentType.PREORDER or order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED:
+        raise InventoryError("只有已确认预售明细可以备货")
+    _acquire_sqlite_writer_gate()
+    if item.allocations.exists():
+        raise InventoryError("预售明细已有库存分配，不能重复备货")
+    return _reserve_sales_item(order=order, item=item, operator=operator, context=context, note=note)
+
+
+def _reserve_sales_item(*, order, item, operator, context, note):
     _acquire_sqlite_writer_gate()
     with inventory_mutation_scope(
         action="reserve", operator=operator,
@@ -434,8 +450,6 @@ def ship_order(*, order, operator, context, note=""):
         _capability=_INVENTORY_WRITE_CAPABILITY,
     ):
         for item in items:
-            if item.fulfillment_type == SalesOrderItem.FulfillmentType.PREORDER:
-                raise InventoryError("预售明细不能通过现货出库")
             allocations = list(
                 StockAllocation.objects.select_for_update()
                 .filter(sales_order_item=item)

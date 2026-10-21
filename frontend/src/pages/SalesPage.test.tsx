@@ -18,6 +18,14 @@ vi.mock('../components/sales/SalesOrderWorkbench', () => ({ default: ({ selected
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe('销售动作后的查询刷新', () => {
+  it('从采购预售入口跳转后自动选中新单，日期不隐藏目标订单', async () => {
+    mocks.fetchSalesOrderList.mockResolvedValue({ results: [{ id: 19, items: [], fulfillment_status: 'draft', available_actions: [], amount_due_cny: 3000 }] });
+    mocks.fetchAccountingAccounts.mockResolvedValue([]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/sales?order=19']}><SalesPage /></MemoryRouter></QueryClientProvider>);
+    expect(await screen.findByText('选中 19')).toBeTruthy();
+    expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ q: 'SO-000019', date_from: undefined, date_to: undefined }));
+  });
   it.each([
     ['2026-10-21T00:00:00Z', '2026-09-01', '2026-09-30'],
     ['2026-01-15T00:00:00Z', '2025-12-01', '2025-12-31'],

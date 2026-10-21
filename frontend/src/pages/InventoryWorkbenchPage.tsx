@@ -132,7 +132,7 @@ function InventoryStats({ data }: { data: InventoryResponse }) {
   const cells = [
     { label: '库存品牌', value: String(stats.brand_count), note: '当前有货品牌' },
     { label: '库存款式', value: String(stats.cigar_count), note: '按雪茄款式合并' },
-    { label: '现货总量', value: wholeNumber(stats.total_qty) + ' 支', note: '包含整盒与单支' },
+    { label: '可售现货', value: wholeNumber(stats.total_qty) + ' 支', note: '包含整盒与单支' },
     { label: '库存账面成本', value: '¥ ' + wholeNumber(stats.total_cost), note: '按实际采购批次汇总', accent: true },
   ];
   return (
@@ -194,7 +194,7 @@ function InventoryList({ cigars }: { cigars: InventoryItem[] }) {
     <>
       <div data-guide="inventory-table" className="hidden">
         <table className="w-full min-w-[720px] text-sm">
-          <thead><tr className="bg-[#F5EFE8] text-xs text-muted"><th className="px-4 py-3 text-left font-medium">品牌与款式</th><th className="w-24 px-4 py-3 text-right font-medium">现货</th><th className="w-28 px-4 py-3 text-right font-medium">成本均价</th><th className="w-28 px-4 py-3 text-right font-medium">总成本</th><th className="w-28 px-4 py-3 text-right font-medium">最近入库</th></tr></thead>
+          <thead><tr className="bg-[#F5EFE8] text-xs text-muted"><th className="px-4 py-3 text-left font-medium">品牌与款式</th><th className="w-24 px-4 py-3 text-right font-medium">可售</th><th className="w-28 px-4 py-3 text-right font-medium">成本均价</th><th className="w-28 px-4 py-3 text-right font-medium">总成本</th><th className="w-28 px-4 py-3 text-right font-medium">最近入库</th></tr></thead>
           <tbody className="divide-y divide-border">
             {groups.map(([brand, items]) => <InventoryBrandGroup key={brand} items={items} logoUrl={logoFor(items)} brandName={nameFor(items)} />)}
           </tbody>
@@ -203,10 +203,18 @@ function InventoryList({ cigars }: { cigars: InventoryItem[] }) {
       </div>
 
       <div className="grid gap-3 bg-cream p-3 sm:grid-cols-2">
-        {groups.map(([brand, items]) => <section key={brand} className="overflow-hidden rounded-md border border-border bg-white shadow-sm"><BrandHeading brandName={nameFor(items)} logoUrl={logoFor(items)} count={items.length} /><div className="divide-y divide-border">{items.map(cigar => <article key={cigar.id} className="flex items-start justify-between gap-3 p-4 transition-colors hover:bg-[#FFFAF6]"><div className="min-w-0"><div className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-fg"><span>{cigar.name || cigar.english_name}</span>{cigar.release_type_cn && <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] font-semibold text-accent">{cigar.release_type_cn}</span>}</div>{cigar.english_name && cigar.english_name !== cigar.name && <p className="mt-1 truncate text-[11px] text-muted" title={cigar.english_name}>{cigar.english_name}</p>}<p className="mt-3 text-[11px] text-muted">均价 <strong className="font-mono font-medium text-fg">¥ {cigar.avg_cost.toFixed(2)}</strong><span className="mx-2 text-border">·</span>最近入库 <strong className="font-medium text-fg">{shortDate(cigar.latest_date)}</strong></p></div><div className="shrink-0 text-right font-mono"><p className="text-sm font-semibold text-accent">{wholeNumber(cigar.total_stock)} 支</p><p className="mt-1 text-xs text-muted">¥ {wholeNumber(cigar.total_cost)}</p></div></article>)}</div></section>)}
+        {groups.map(([brand, items]) => <section key={brand} className="overflow-hidden rounded-md border border-border bg-white shadow-sm"><BrandHeading brandName={nameFor(items)} logoUrl={logoFor(items)} count={items.length} /><div className="divide-y divide-border">{items.map(cigar => <article key={cigar.id} className="flex items-start justify-between gap-3 p-4 transition-colors hover:bg-[#FFFAF6]"><div className="min-w-0"><div className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-fg"><span>{cigar.name || cigar.english_name}</span>{cigar.release_type_cn && <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] font-semibold text-accent">{cigar.release_type_cn}</span>}</div>{cigar.english_name && cigar.english_name !== cigar.name && <p className="mt-1 truncate text-[11px] text-muted" title={cigar.english_name}>{cigar.english_name}</p>}<InventoryReservationSummary item={cigar} /><p className="mt-3 text-[11px] text-muted">均价 <strong className="font-mono font-medium text-fg">¥ {cigar.avg_cost.toFixed(2)}</strong><span className="mx-2 text-border">·</span>最近入库 <strong className="font-medium text-fg">{shortDate(cigar.latest_date)}</strong></p></div><div className="shrink-0 text-right font-mono"><p className="text-sm font-semibold text-accent">可售 {wholeNumber(cigar.total_stock)} 支</p><p className="mt-1 text-xs text-muted">¥ {wholeNumber(cigar.total_cost)}</p></div></article>)}</div></section>)}
       </div>
     </>
   );
+}
+
+function InventoryReservationSummary({ item }: { item: InventoryItem }) {
+  if (item.on_hand_quantity == null) return null;
+  return <p className="mt-2 text-[11px] font-normal leading-relaxed text-muted">
+    在库 {wholeNumber(item.on_hand_quantity)} 支 · 已预留 {wholeNumber(item.reserved_quantity || 0)} 支
+    {Boolean((item.preorder_waiting_quantity || 0) + (item.preorder_prepared_quantity || 0)) && <span className="mt-1 block text-accent">已预购 {wholeNumber((item.preorder_waiting_quantity || 0) + (item.preorder_prepared_quantity || 0))} 支 · 待出库</span>}
+  </p>;
 }
 
 function BrandHeading({ brandName, logoUrl, count }: { brandName: string; logoUrl: string | null; count: number }) {
@@ -216,7 +224,7 @@ function BrandHeading({ brandName, logoUrl, count }: { brandName: string; logoUr
 function InventoryBrandGroup({ items, logoUrl, brandName }: { items: InventoryItem[]; logoUrl: string | null; brandName: string }) {
   return <>
     <tr className="bg-[#FFFDFA]"><td colSpan={5} className="px-4 py-3"><BrandHeading brandName={brandName} logoUrl={logoUrl} count={items.length} /></td></tr>
-    {items.map(cigar => <tr key={cigar.id} className="transition-colors hover:bg-[#FFFAF6]"><td className="px-4 py-3 pl-8"><div className="flex items-center gap-2 font-medium text-fg"><span>{cigar.name}</span>{cigar.release_type_cn && <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent">{cigar.release_type_cn}</span>}</div></td><td className="px-4 py-3 text-right font-mono font-semibold text-accent">{wholeNumber(cigar.total_stock)} 支</td><td className="px-4 py-3 text-right font-mono">¥ {cigar.avg_cost.toFixed(2)}</td><td className="px-4 py-3 text-right font-mono">¥ {wholeNumber(cigar.total_cost)}</td><td className="px-4 py-3 text-right text-xs text-muted">{shortDate(cigar.latest_date)}</td></tr>)}
+    {items.map(cigar => <tr key={cigar.id} className="transition-colors hover:bg-[#FFFAF6]"><td className="px-4 py-3 pl-8"><div className="flex items-center gap-2 font-medium text-fg"><span>{cigar.name}</span>{cigar.release_type_cn && <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent">{cigar.release_type_cn}</span>}</div></td><td className="px-4 py-3 text-right font-mono font-semibold text-accent">{wholeNumber(cigar.total_stock)} 支<InventoryReservationSummary item={cigar} /></td><td className="px-4 py-3 text-right font-mono">¥ {cigar.avg_cost.toFixed(2)}</td><td className="px-4 py-3 text-right font-mono">¥ {wholeNumber(cigar.total_cost)}</td><td className="px-4 py-3 text-right text-xs text-muted">{shortDate(cigar.latest_date)}</td></tr>)}
   </>;
 }
 

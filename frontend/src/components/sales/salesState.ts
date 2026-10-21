@@ -235,6 +235,7 @@ export function actionLabel(action: string): string {
       confirm: "确认订单",
       cancel: "取消订单",
       ship: "出库",
+      prepare_preorder: "备货",
       receive: "收款",
       withdraw_receipt: "撤回收款",
       refund: "退款",

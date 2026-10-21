@@ -1258,6 +1258,10 @@ class SalesOrderItem(models.Model):
         '履约类型', max_length=20, choices=FulfillmentType.choices,
         default=FulfillmentType.IN_STOCK,
     )
+    source_purchase_order = models.ForeignKey(
+        PurchaseOrder, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='preorder_sales_items', verbose_name='预售来源采购单',
+    )
 
     sale_unit = models.CharField('销售单位', max_length=10, choices=SaleUnit.choices, blank=True, default='')
     sale_quantity = models.IntegerField('销售数量', null=True, blank=True)

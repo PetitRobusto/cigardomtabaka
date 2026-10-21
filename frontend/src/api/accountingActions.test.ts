@@ -16,6 +16,7 @@ vi.mock('axios', () => ({
 
 import {
   API_CLIENT_CONFIG,
+  apiErrorMessage,
   cancelPurchaseOrder,
   confirmReconciliation,
   confirmSalesOrder,
@@ -58,6 +59,16 @@ function response<T>(data: T) {
 
 describe('accounting action API contracts', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it('余额不足显示中文并兼容旧接口，不改写其他错误', () => {
+    const expected = '账户余额不足，请先补充余额或选择其他付款账户';
+    for (const data of [{ code: 'insufficient_balance', error: 'insufficient_balance' }, { error: 'insufficient_balance' }]) {
+      expect(apiErrorMessage({ isAxiosError: true, response: { data } })).toBe(expected);
+      expect(parseAccountingApiError({ isAxiosError: true, response: { data } }).message).toBe(expected);
+    }
+    expect(apiErrorMessage(new Error('insufficient_balance'))).toBe(expected);
+    expect(apiErrorMessage({ isAxiosError: true, response: { data: { error: '业务日期无效' } } })).toBe('业务日期无效');
+  });
 
   it('人民币入账保留金额字符串，网络重试复用幂等键，支持分页读取', async () => {
     const payload = { contributor_id: 7, fund_account_id: 1, amount_cny: '30000.00', business_date: businessDate, note: '' };
@@ -311,7 +322,7 @@ describe('accounting action API contracts', () => {
     expect(parseAccountingApiError({
       isAxiosError: true,
       response: { status: 409, data: { error: '余额不足', code: 'insufficient_balance', details: { account_id: '11' } } },
-    })).toEqual({ code: 'insufficient_balance', message: '余额不足', details: { account_id: '11' }, status: 409 });
+    })).toEqual({ code: 'insufficient_balance', message: '账户余额不足，请先补充余额或选择其他付款账户', details: { account_id: '11' }, status: 409 });
     expect(parseAccountingApiError(new Error('网络失败'))).toMatchObject({ code: 'unknown', message: '网络失败' });
   });
 

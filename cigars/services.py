@@ -107,6 +107,15 @@ def _to_positive_int(raw, field_name):
     return value
 
 
+def _source_purchase_id(raw):
+    if raw in (None, ""):
+        return None
+    value = _to_positive_int(raw, "预售来源采购单ID")
+    if isinstance(raw, bool) or value > 9223372036854775807 or str(value) != str(raw).strip():
+        raise OrderServiceError("预售来源采购单ID必须是正整数")
+    return value
+
+
 def _to_int(raw, field_name):
     try:
         return int(raw)
@@ -211,6 +220,9 @@ def serialize_sales_order(order):
         order_items = order._prefetched_objects_cache['items']
     else:
         order_items = order.items.select_related('cigar').prefetch_related('allocations__purchase_batch').all()
+    order_items = list(order_items)
+    preorder_events = list(order.events.filter(command_name__in=['prepare_sales_preorder', 'reserve_sales_preorder']).order_by('id')) if any(item.fulfillment_type == 'preorder' for item in order_items) else []
+    preparation = next((event for event in reversed(preorder_events) if event.command_name == 'prepare_sales_preorder'), None)
     for item in order_items:
         if hasattr(item, '_prefetched_objects_cache') and 'allocations' in item._prefetched_objects_cache:
             item_allocations = item._prefetched_objects_cache['allocations']
@@ -247,6 +259,10 @@ def serialize_sales_order(order):
             'cost': _decimal_to_json(item.cost),
             'profit': _decimal_to_json(item.profit),
             'fulfillment_type': item.fulfillment_type,
+            'source_purchase_order_id': item.source_purchase_order_id,
+            'source_purchase_order_number': f'PO-{item.source_purchase_order_id:06d}' if item.source_purchase_order_id else None,
+            'preorder_reserved': bool(allocations) and all(a['status'] in ('reserved', 'fulfilled') for a in allocations) and sum(a['quantity'] for a in allocations) == item.quantity,
+            'preorder_prepared': preparation is not None and item.pk in preparation.metadata.get('item_ids', []),
             'allocations': allocations,
         })
     receipt_history = _sales_receipt_history(order)
@@ -289,6 +305,13 @@ def serialize_sales_order(order):
         'items': items,
         'payment_notes': _serialize_payment_notes(order),
         'payment_review': _serialize_payment_review(order),
+        'preorder_preparation': ({
+            'id': preparation.pk,
+            'business_date': preparation.metadata.get('business_date'),
+            'item_ids': preparation.metadata.get('item_ids', []),
+        } if preparation else None),
+        'preorder_reservations': [{'id': event.pk, 'business_date': event.metadata.get('business_date'),
+            'item_ids': event.metadata.get('item_ids', [])} for event in preorder_events if event.command_name == 'reserve_sales_preorder'],
         'sales_shipment': ({
             'id': order.sales_shipment.id,
             'business_date': order.sales_shipment.business_date.isoformat(),
@@ -344,7 +367,12 @@ def _sales_order_available_actions(order):
     if order.fulfillment_status == SalesOrder.FulfillmentStatus.DRAFT:
         actions.extend(['confirm', 'cancel'])
     if order.fulfillment_status == SalesOrder.FulfillmentStatus.CONFIRMED:
-        actions.append('ship')
+        preorders = [item for item in order.items.all() if item.fulfillment_type == SalesOrderItem.FulfillmentType.PREORDER]
+        if all(item.source_purchase_order_id is None or (
+            item.source_purchase_order.status == PurchaseOrder.Status.RECEIVED
+            and item.source_purchase_order.deleted_at is None
+        ) for item in preorders):
+            actions.append('ship')
         if order.payment_status in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PARTIAL):
             actions.append('receive')
         if (
@@ -474,6 +502,7 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
     """创建可编辑的销售草稿，不预留库存。"""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="create_sales_order_draft")
+    _acquire_sqlite_writer_gate()
     if not isinstance(items, list) or not items:
         raise OrderServiceError("至少需要一个商品")
 
@@ -531,9 +560,12 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
             unit_cost=Decimal("0.00"), revenue=revenue, cost=Decimal("0.00"), profit=Decimal("0.00"),
             fulfillment_type=fulfillment_type, sale_unit=sale_unit,
             sale_quantity=sale_quantity, box_size=box_size,
+            source_purchase_order_id=_source_purchase_id(raw_item.get("source_purchase_order_id")),
         )
         goods_amount += revenue
 
+    from .preorders import validate_sources
+    validate_sources(list(order.items.all()))
     goods_amount = goods_amount.quantize(MONEY_PLACES)
     order.goods_amount_cny = goods_amount
     order.customer_transport_fee_cny = transport_fee
@@ -565,6 +597,7 @@ def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, 
     """整体替换未锁定、未收款草稿的业务快照。"""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="update_sales_order_draft")
+    _acquire_sqlite_writer_gate()
     order = SalesOrder.objects.select_for_update().get(id=_to_positive_int(sales_order_id, "销售单ID"))
     if (order.fulfillment_status != SalesOrder.FulfillmentStatus.DRAFT or
             order.payment_status != SalesOrder.PaymentStatus.UNPAID or order.locked):
@@ -601,21 +634,24 @@ def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, 
             quantity = _to_positive_int(raw_item.get("quantity"), f"第{idx}个商品数量")
             sale_quantity, box_size = quantity, None
         revenue = (sale_unit_price * sale_quantity).quantize(MONEY_PLACES)
-        snapshots.append((cigar, quantity, sale_unit, sale_quantity, box_size, sale_unit_price, revenue, fulfillment_type))
+        snapshots.append((cigar, quantity, sale_unit, sale_quantity, box_size, sale_unit_price, revenue, fulfillment_type, _source_purchase_id(raw_item.get("source_purchase_order_id"))))
 
     customer_obj = customer or _get_customer(customer_id)
     if customer_obj and not customer_name:
         customer_name = customer_obj.name
     order.items.all().delete()
     goods_amount = Decimal("0.00")
-    for cigar, quantity, sale_unit, sale_quantity, box_size, sale_unit_price, revenue, fulfillment_type in snapshots:
+    for cigar, quantity, sale_unit, sale_quantity, box_size, sale_unit_price, revenue, fulfillment_type, source_purchase_order_id in snapshots:
         SalesOrderItem.objects.create(
             sales_order=order, cigar=cigar, quantity=quantity,
             unit_price=sale_unit_price,
             unit_cost=Decimal("0.00"), revenue=revenue, cost=Decimal("0.00"), profit=Decimal("0.00"),
             fulfillment_type=fulfillment_type, sale_unit=sale_unit, sale_quantity=sale_quantity, box_size=box_size,
+            source_purchase_order_id=source_purchase_order_id,
         )
         goods_amount += revenue
+    from .preorders import validate_sources
+    validate_sources(list(order.items.all()), allow_received=True)
     order.customer, order.customer_name = customer_obj, customer_name or ""
     order.payment_method_id = _to_positive_int(payment_method_id, "收款方式ID") if payment_method_id not in (None, "") else None
     order.payment_manual, order.note = payment_manual or {}, note or ""
@@ -658,6 +694,8 @@ def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note=""
         raise OrderServiceError("当前订单不能确认")
     total_cost = Decimal("0.00")
     items = list(order.items.select_for_update().select_related("cigar").order_by("id"))
+    from .preorders import validate_sources
+    validate_sources(items, confirming=True, allow_received=True, sales_order_id=order.pk)
     for item in items:
         if item.fulfillment_type == SalesOrderItem.FulfillmentType.PREORDER:
             item_cost = Decimal("0.00")
@@ -683,6 +721,9 @@ def confirm_sales_order(*, sales_order_id, operator, agent_context=None, note=""
         order.note = note
     order.save()
     _record_order_event(order, operator=operator, context=context, note=note, metadata=_sales_event_metadata(order, business_date))
+    from .preorders import reserve_arrived_items
+    reserve_arrived_items(order=order, items=items, business_date=business_date or moscow_business_date(),
+        operator=operator, context=replace(context, command_name='reserve_sales_preorder'), note='确认预售时来源已到货，自动预留')
     if items and all(item.fulfillment_type == SalesOrderItem.FulfillmentType.IN_STOCK for item in items):
         from internal_notifications.business import schedule_order_notification
         schedule_order_notification("waiting_shipment", order, operator, items=items)

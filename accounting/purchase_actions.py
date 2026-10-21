@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from dataclasses import replace
 from decimal import Decimal, DecimalException, InvalidOperation, ROUND_HALF_UP
 import hashlib
 import json
@@ -704,6 +705,7 @@ def update_purchase_order_draft(*, purchase_order_id, items, expected_version,
                 raise PurchaseActionError(
                     'supplier_not_found', {'supplier_id': requested_supplier_id}
                 )
+        _guard_preorder_commitments(order, rows=normalized)
         # 草稿明细不是库存或会计事实，可在父单锁定且仍为草稿时整体替换。
         models.QuerySet.delete(PurchaseOrderItem.objects.filter(purchase_order=order))
         for row in normalized:
@@ -792,6 +794,7 @@ def cancel_purchase_order(*, purchase_order_id, operator, idempotency_key,
             raise PurchaseActionError('version_conflict', {
                 'expected_version': expected_version, 'actual_version': order.version,
             })
+        _guard_preorder_commitments(order, cancelling=True)
         order.status = PurchaseOrder.Status.CANCELLED
         order.paid_cny_cost = Decimal('0.00')
         order.paid_at = None
@@ -1008,7 +1011,6 @@ def _receipt_replay_facts(*, order, transaction_obj, key, business_date, operato
             batch.cigar_id == item.cigar_id
             and batch.quantity == quantity
             and batch.original_cost_cny == actual
-            and batch.sold_cost_cny == Decimal('0.00')
             and batch.unit_cost_cny == unit_cost
             and packaging_valid
             and len(movements_by_batch.get(batch.pk, [])) == 1
@@ -1016,9 +1018,6 @@ def _receipt_replay_facts(*, order, transaction_obj, key, business_date, operato
         if transaction_obj.reversed_by_id is None:
             state_valid = (
                 batch.reversed_at is None
-                and batch.remaining == quantity
-                and batch.physical_remaining == quantity
-                and batch.remaining_cost_cny == actual
                 and item.actual_cost_cny == actual
             )
         else:
@@ -1041,6 +1040,9 @@ def _receipt_replay_facts(*, order, transaction_obj, key, business_date, operato
             and movement.note == (note or '')
         ):
             return False
+    from cigars.inventory_audit import audit_batch_facts
+    if not audit_batch_facts(batches).ok:
+        return False
     return True
 
 
@@ -1294,6 +1296,13 @@ def receive_paid_purchase_order(*, purchase_order_id, business_date, operator,
             order.arrival_idempotency_key = key
             order.legacy_received = False
             order.save(update_fields=['status', 'arrival_idempotency_key', 'legacy_received'])
+        from cigars.preorders import reserve_purchase_preorders
+        from cigars.services import OrderServiceError
+        try:
+            reserve_purchase_preorders(purchase_order=order, business_date=business_date,
+                operator=operator, context=replace(context, idempotency_key=key))
+        except OrderServiceError as exc:
+            raise PurchaseActionError('preorder_commitment_conflict', {'message': str(exc)}) from exc
         return batches
 
 
@@ -1338,6 +1347,7 @@ def reverse_received_purchase_order(*, purchase_order_id, business_date, operato
         operator = _validate_operator(operator)
         if order.status != PurchaseOrder.Status.RECEIVED:
             raise PurchaseActionError('invalid_state', {'status': order.status})
+        _guard_preorder_commitments(order, reversing=True)
         original = LedgerTransaction.objects.select_for_update().filter(
             transaction_type=LedgerTransaction.TransactionType.PURCHASE_RECEIPT,
             source_type='purchase_order', source_id=str(order.pk),
@@ -1370,3 +1380,12 @@ def reverse_received_purchase_order(*, purchase_order_id, business_date, operato
             order.legacy_received = False
             order.save(update_fields=['status', 'arrival_idempotency_key', 'legacy_received'])
         return batches
+
+
+def _guard_preorder_commitments(order, **kwargs):
+    from cigars.preorders import guard_purchase_change
+    from cigars.services import OrderServiceError
+    try:
+        guard_purchase_change(order, **kwargs)
+    except OrderServiceError as exc:
+        raise PurchaseActionError('preorder_commitment_conflict', {'message': str(exc)}) from exc

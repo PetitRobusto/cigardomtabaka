@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from .models import (
     InventoryAdjustmentAction,
+    InventoryAdjustmentLine,
     PurchaseBatch,
     PurchaseOrder,
     SalesReturn,
@@ -938,6 +939,47 @@ def _audit_sales_returns(issues):
             issues, 'SALES_RETURN_FACT_MISSING',
             f'已退货销售单 {order_id} 缺少退货事实', order_id=order_id,
         )
+
+
+def audit_batch_facts(batches):
+    """只核对指定批次的数量、包装、成本守恒及分配/流水，供入库重放使用。"""
+    batches = list(batches)
+    ids = [batch.pk for batch in batches]
+    issues = []
+    allocations = list(StockAllocation.objects.filter(purchase_batch_id__in=ids).select_related('purchase_batch', 'sales_order_item', 'sales_order_item__sales_order'))
+    movements = list(StockMovement.objects.filter(purchase_batch_id__in=ids).select_related('purchase_batch', 'sales_order_item', 'sales_order'))
+    reserved = defaultdict(list)
+    sold_costs = defaultdict(Decimal)
+    adjustment_costs = defaultdict(Decimal)
+    positive_costs = defaultdict(Decimal)
+    positive_quantities = defaultdict(int)
+    movements_by_batch = defaultdict(list)
+    for allocation in allocations:
+        _audit_allocation(issues, allocation, reserved)
+        if allocation.status == StockAllocation.Status.FULFILLED:
+            sold_costs[allocation.purchase_batch_id] += allocation.fulfilled_cost_cny or Decimal('0')
+    # 成本守恒本身不能证明成本有业务依据；核对尚未撤销的逐批调整事实。
+    for line in InventoryAdjustmentLine.objects.filter(purchase_batch_id__in=ids, action__reversed_at__isnull=True):
+        if line.quantity_delta > 0:
+            positive_costs[line.purchase_batch_id] += line.cost_delta_cny
+            positive_quantities[line.purchase_batch_id] += line.quantity_delta
+        else:
+            adjustment_costs[line.purchase_batch_id] -= line.cost_delta_cny
+    for movement in movements:
+        movements_by_batch[movement.purchase_batch_id].append(movement)
+        _audit_movement(issues, movement)
+    for batch in batches:
+        _audit_batch(issues, batch, reserved, movements_by_batch)
+        if batch.sold_cost_cny != sold_costs[batch.pk]:
+            _issue(issues, 'BATCH_SOLD_COST_FACT_MISMATCH',
+                   f'批次 {batch.pk} 的已售成本与有效出库分配不一致', batch_id=batch.pk)
+        if (batch.adjustment_cost_cny != adjustment_costs[batch.pk]
+                or batch.positive_adjustment_cost_cny != positive_costs[batch.pk]
+                or batch.positive_adjustment_quantity != positive_quantities[batch.pk]):
+            _issue(issues, 'BATCH_ADJUSTMENT_COST_FACT_MISMATCH',
+                   f'批次 {batch.pk} 的调整成本或数量与有效调整事实不一致', batch_id=batch.pk)
+    _audit_movement_pairs(issues, movements, allocations)
+    return InventoryAuditResult(issues=tuple(issues))
 
 
 def audit_inventory():

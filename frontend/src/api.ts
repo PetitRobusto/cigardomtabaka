@@ -32,10 +32,13 @@ export const API_CLIENT_CONFIG = {
 const api = axios.create(API_CLIENT_CONFIG);
 
 export function apiErrorMessage(error: unknown, fallback = '操作失败，请稍后重试'): string {
+  const insufficientBalance = '账户余额不足，请先补充余额或选择其他付款账户';
   if (axios.isAxiosError(error)) {
     const message = error.response?.data?.error;
+    if (error.response?.data?.code === 'insufficient_balance' || message === 'insufficient_balance') return insufficientBalance;
     if (typeof message === 'string' && message) return message;
   }
+  if (error instanceof Error && error.message === 'insufficient_balance') return insufficientBalance;
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
@@ -139,6 +142,8 @@ const salesAction = (id: number, action: string, payload: Record<string, unknown
 export const confirmSalesOrder = (id: number): Promise<SalesOrder> => salesAction(id, 'confirm');
 export const cancelSalesOrder = (id: number): Promise<SalesOrder> => salesAction(id, 'cancel');
 export const shipSalesOrder = (id: number, business_date: string): Promise<SalesOrder> => salesAction(id, 'ship', { business_date });
+export const prepareSalesPreorder = (id: number, business_date: string): Promise<SalesOrder> => salesAction(id, 'prepare-preorder', { business_date });
+export const fetchPreorderSource = (id: number): Promise<import('./types').PreorderSource> => api.get(`/sales/preorder-sources/${id}/`).then(response => response.data);
 export const receiveSalesOrder = (id: number, payload: { amount_cny: string; fund_account_id: number; business_date: string }): Promise<SalesOrder> => salesAction(id, 'receive', payload);
 export const withdrawSalesOrderReceipt = (id: number, payload: { business_date: string; reason: string; sales_receipt_id?: number }): Promise<SalesOrder> => salesAction(id, 'withdraw-receipt', payload);
 export const refundSalesOrder = (id: number, business_date: string): Promise<SalesOrder> => salesAction(id, 'refund', { business_date });
@@ -393,14 +398,16 @@ export function parseAccountingApiError(error: unknown): AccountingApiError {
       ? data.details as Record<string, unknown> : undefined;
     return {
       code: typeof data?.code === 'string' && data.code ? data.code : 'unknown',
-      message: typeof data?.error === 'string' && data.error ? data.error : '账务动作失败，请稍后重试',
+      message: data?.code === 'insufficient_balance' || data?.error === 'insufficient_balance'
+        ? apiErrorMessage(error)
+        : typeof data?.error === 'string' && data.error ? data.error : '账务动作失败，请稍后重试',
       ...(details ? { details } : {}),
       ...(typeof response?.status === 'number' ? { status: response.status } : {}),
     };
   }
   return {
     code: 'unknown',
-    message: error instanceof Error && error.message ? error.message : '账务动作失败，请稍后重试',
+    message: apiErrorMessage(error, '账务动作失败，请稍后重试'),
   };
 }
 

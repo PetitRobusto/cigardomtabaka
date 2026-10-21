@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import PreorderOrderModal from '../components/sales/PreorderOrderModal';
 import {
   Ban,
   ChevronLeft,
@@ -228,6 +230,8 @@ function toPayloadItems(items: DraftItem[]): PurchaseActionItem[] {
 export default function InventoryPurchasesPage() {
   const { setMeta } = usePageMeta();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [preorderPurchaseId, setPreorderPurchaseId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -277,6 +281,10 @@ export default function InventoryPurchasesPage() {
     queryClient.invalidateQueries({ queryKey: ['inventory-purchases'] });
     queryClient.invalidateQueries({ queryKey: ['inventory-purchase'] });
     queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    // 到货会同时预留关联预售；不能继续使用五分钟内的旧订单快照。
+    queryClient.invalidateQueries({ queryKey: ['sales-orders'] });
+    queryClient.invalidateQueries({ queryKey: ['sales-customer'] });
+    queryClient.invalidateQueries({ queryKey: ['preorder-source'] });
     queryClient.invalidateQueries({ queryKey: ['accounting-dashboard'] });
     queryClient.invalidateQueries({ queryKey: ['accounting-accounts'] });
     queryClient.invalidateQueries({ queryKey: ['accounting-summary'] });
@@ -428,10 +436,16 @@ export default function InventoryPurchasesPage() {
           onCancel={() => openModal({ kind: 'cancel', purchase: selected, note: '' })}
           onToggleMore={() => setMoreOpen(open => !open)}
           onReverse={() => openModal({ kind: 'reverse', purchase: selected, businessDate: today(), note: '' })}
+          onPreorder={() => setPreorderPurchaseId(selected.id)}
         /> : <EmptySelection />}
       </section>
     </div>}
 
+    {preorderPurchaseId !== null && <PreorderOrderModal purchaseId={preorderPurchaseId} onClose={() => setPreorderPurchaseId(null)} onCreated={order => {
+      queryClient.invalidateQueries({ queryKey: ['sales-orders'] });
+      setPreorderPurchaseId(null);
+      navigate(`/sales?order=${order.id}`);
+    }} />}
     {modal && <ModalFrame editor={modal.kind === 'editor'} onClose={() => !saving && setModal(null)}>
       {modal.kind === 'editor' && <DraftEditor
         draft={modal.draft}
@@ -543,6 +557,7 @@ function PurchaseDetail({
   onCancel,
   onToggleMore,
   onReverse,
+  onPreorder,
 }: {
   purchase: PurchaseAction;
   moreOpen: boolean;
@@ -553,6 +568,7 @@ function PurchaseDetail({
   onCancel: () => void;
   onToggleMore: () => void;
   onReverse: () => void;
+  onPreorder: () => void;
 }) {
   const batchCount = purchase.items.reduce((sum, item) => sum + (item.batches?.length || 0), 0);
   const actionMenu = purchaseActionMenu(purchase.status);
@@ -562,7 +578,7 @@ function PurchaseDetail({
     <header className="border-b border-border bg-[#FFFDF9] px-4 py-4 sm:px-5">
       <button type="button" onClick={onBack} className="mb-3 inline-flex items-center gap-1 rounded border border-border bg-white px-2.5 py-1.5 text-xs font-semibold text-muted hover:border-gold lg:hidden"><ChevronLeft className="h-3.5 w-3.5" />返回列表</button>
       <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-display text-xl font-semibold">{purchase.order_number || `采购单 #${purchase.id}`}</h2><p className="mt-1 text-xs text-muted">{purchase.supplier_name ? `${purchase.supplier_name} · ` : ''}业务日期 {purchase.business_date || '待补'} · {purchase.status === 'draft' ? '草稿 · 可稍后补全' : purchase.status === 'in_transit' ? '已付款 · 待到货' : purchase.status === 'received' ? '已到货入库' : '已取消'}</p></div><StatusPill status={purchase.status} /></div>
-      <div className="mt-3 flex flex-wrap items-center gap-2">{action}</div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">{action}{['draft', 'in_transit'].includes(purchase.status) && <button type="button" onClick={onPreorder} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-xs font-semibold hover:border-gold"><Plus className="h-3.5 w-3.5" />创建预售单</button>}</div>
     </header>
     <DetailInfo purchase={purchase} />
     <DetailItems purchase={purchase} />

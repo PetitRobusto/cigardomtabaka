@@ -342,19 +342,22 @@ def api_inventory(request):
         return JsonResponse({'error': 'Forbidden'}, status=403)
 
     stock_data = {}
-    batches = PurchaseBatch.objects.filter(remaining__gt=0).values(
+    batches = PurchaseBatch.objects.filter(physical_remaining__gt=0, reversed_at__isnull=True).values(
         'cigar_id'
     ).annotate(
         total_stock=Sum('remaining'),
-        total_cost=Sum(F('remaining') * F('unit_cost_cny')),
+        on_hand_quantity=Sum('physical_remaining'),
+        total_cost=Sum('remaining_cost_cny'),
         latest_date=Max('purchased_at'),
     )
 
     for row in batches:
         stock_data[row['cigar_id']] = {
             'total_stock': row['total_stock'],
+            'on_hand_quantity': row['on_hand_quantity'],
+            'reserved_quantity': row['on_hand_quantity'] - row['total_stock'],
             'total_cost': row['total_cost'],
-            'avg_cost': (row['total_cost'] / row['total_stock']) if row['total_stock'] else 0,
+            'avg_cost': (row['total_cost'] / row['on_hand_quantity']) if row['on_hand_quantity'] else 0,
             'latest_date': row['latest_date'].isoformat() if row['latest_date'] else None,
         }
 
@@ -364,6 +367,8 @@ def api_inventory(request):
         for brand in Brand.objects.filter(english_name__in={c.brand for c in cigars})
     }
 
+    from .preorders import inventory_preorder_quantities
+    preorder_quantities = inventory_preorder_quantities()
     result = []
     for c in cigars:
         sd = stock_data[c.id]
@@ -378,6 +383,9 @@ def api_inventory(request):
             'release_type_cn': c.release_type_cn,
             'release_type': c.release_type,
             'total_stock': sd['total_stock'],
+            'on_hand_quantity': sd['on_hand_quantity'],
+            'reserved_quantity': sd['reserved_quantity'],
+            **preorder_quantities.get(c.id, {'preorder_waiting_quantity': 0, 'preorder_prepared_quantity': 0}),
             'total_cost': decimal_to_number(sd['total_cost']),
             'avg_cost': decimal_to_number(sd['avg_cost']),
             'latest_date': sd['latest_date'],

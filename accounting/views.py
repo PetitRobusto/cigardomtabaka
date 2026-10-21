@@ -99,6 +99,7 @@ _ERROR_STATUS = {
     'missing_payment': 409,
     'already_received': 409,
     'receipt_already_used': 409,
+    'preorder_commitment_conflict': 409,
     'ledger_error': 409,
     'supplier_not_found': 404,
     'cigar_not_found': 404,
@@ -130,8 +131,11 @@ def error_response(error, *, default_status=400):
     if details is None:
         details = {}
     status = _ERROR_STATUS.get(code, default_status)
+    message = details.get('message', str(error)) if code == 'preorder_commitment_conflict' else str(error)
+    if code == 'insufficient_balance':
+        message = '账户余额不足，请先补充余额或选择其他付款账户'
     return JsonResponse(
-        {'error': str(error), 'code': code, 'details': _json_value(details)},
+        {'error': message, 'code': code, 'details': _json_value(details)},
         status=status,
     )
 

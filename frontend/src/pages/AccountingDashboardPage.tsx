@@ -43,6 +43,13 @@ export default function AccountingDashboardPage() {
     queryClient.invalidateQueries({ queryKey: ['reconciliations'] });
 
     queryClient.invalidateQueries({ queryKey: ['accounting-actions'] });
+    // 账务工作台也可确认采购到货，同步更新库存与关联预售。
+    queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    queryClient.invalidateQueries({ queryKey: ['inventory-purchases'] });
+    queryClient.invalidateQueries({ queryKey: ['inventory-purchase'] });
+    queryClient.invalidateQueries({ queryKey: ['sales-orders'] });
+    queryClient.invalidateQueries({ queryKey: ['sales-customer'] });
+    queryClient.invalidateQueries({ queryKey: ['preorder-source'] });
     queryClient.invalidateQueries({ queryKey: ['dividend-rounds'] });
     queryClient.invalidateQueries({ queryKey: ['accounting-expenses'] });
     queryClient.invalidateQueries({ queryKey: ['monthly-business-report'] });

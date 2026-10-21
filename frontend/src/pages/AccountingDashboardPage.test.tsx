@@ -48,6 +48,8 @@ describe('财务默认动作及刷新', () => {
     api.recordExpense.mockResolvedValue({ id: 3 });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 300000 } } });
     client.setQueryData(['dividend-rounds', 2], { old: true });
+    const purchaseRelatedKeys = [['sales-orders', 'confirmed'], ['sales-customer', 1], ['inventory'], ['inventory-purchases'], ['inventory-purchase', 9], ['preorder-source', 9]];
+    for (const key of purchaseRelatedKeys) client.setQueryData(key, { old: true });
     render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/accounting']}><GuideNavigation /><AccountingDashboardPage /></MemoryRouter></QueryClientProvider>);
     await screen.findByRole('heading', { name: '记录经营费用' });
     expect(screen.getByText('待收金额')).toBeTruthy();
@@ -79,6 +81,7 @@ describe('财务默认动作及刷新', () => {
     expect(screen.getByDisplayValue('保留输入')).toBeTruthy();
     expect(screen.getByDisplayValue('10.00')).toBeTruthy();
     expect(client.getQueryState(['dividend-rounds', 2])?.isInvalidated).toBe(true);
+    for (const key of purchaseRelatedKeys) expect(client.getQueryState(key)?.isInvalidated).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: '启动换汇引导' }));
     await waitFor(() => expect(screen.getByRole('button', { name: '换汇', pressed: true })).toBeTruthy());
     expect(document.querySelector('[data-guide="accounting-actions-exchange"]')).toBeTruthy();

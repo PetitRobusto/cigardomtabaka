@@ -234,10 +234,16 @@ def ship_sales_order(*, order_id, business_date, operator, idempotency_key, note
     if not items:
         raise OrderServiceError("销售单没有明细")
 
+    if order.events.filter(command_name='prepare_sales_preorder', metadata__business_date__gt=business_date.isoformat()).exists():
+        raise OrderServiceError('出库日期不能早于预售备货日期')
+
     # Agent 入口传完整上下文；网页入口沿用默认上下文。
     context = agent_context or AgentContext(
         command_name="ship_sales_order", idempotency_key=idempotency_key,
     )
+    from .preorders import reserve_preorders_for_shipment
+    reserve_preorders_for_shipment(order=order, items=items, business_date=business_date,
+        operator=operator, context=context)
     try:
         shipment = inventory_module.ship_order(
             order=order, operator=operator, context=context, note=note,

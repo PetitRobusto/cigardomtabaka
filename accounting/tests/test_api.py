@@ -249,6 +249,7 @@ class AccountingApiPermissionTest(TestCase):
         }, content_type='application/json', HTTP_IDEMPOTENCY_KEY='exchange-errors-insufficient')
         self.assertEqual(insufficient.status_code, 409)
         self.assertEqual(insufficient.json()['code'], 'insufficient_balance')
+        self.assertEqual(insufficient.json()['error'], '账户余额不足，请先补充余额或选择其他付款账户')
         currency = self.client.post('/api/accounting/exchanges/', data={
             'source_account_id': rub.pk, 'rub_account_id': rub_target.pk, 'source_amount': '1.00', 'rub_amount': '12.00', 'business_date': '2026-08-14',
         }, content_type='application/json', HTTP_IDEMPOTENCY_KEY='exchange-errors-currency')

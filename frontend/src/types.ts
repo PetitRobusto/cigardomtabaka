@@ -311,6 +311,10 @@ export interface InventoryItem {
   release_type_cn: string | null;
   release_type: string | null;
   total_stock: number;
+  on_hand_quantity?: number;
+  reserved_quantity?: number;
+  preorder_waiting_quantity?: number;
+  preorder_prepared_quantity?: number;
   total_cost: number;
   avg_cost: number;
   latest_date: string | null;
@@ -644,6 +648,10 @@ export interface SalesOrderItem {
   cost: number;
   profit: number;
   fulfillment_type: string;
+  source_purchase_order_id?: number | null;
+  source_purchase_order_number?: string | null;
+  preorder_prepared?: boolean;
+  preorder_reserved?: boolean;
   allocations: { id: number; batch_id: number; quantity: number; status: string; unit_cost_cny?: number | string; cost_cny?: number | string }[];
 }
 
@@ -694,6 +702,8 @@ export interface SalesOrder {
     review_note: string;
   } | null;
   sales_shipment: { id: number; business_date: string; fifo_cost_cny: number } | null;
+  preorder_preparation?: { id: number; business_date: string; item_ids: number[] } | null;
+  preorder_reservations?: { id: number; business_date: string; item_ids: number[] }[];
   sales_receipt: { id: number; amount_cny: number; business_date: string; fund_account_id: number } | null;
   sales_receipts?: {
     id: number;
@@ -721,7 +731,7 @@ export interface SalesOrderListResponse {
 }
 
 export interface SalesOrderPayload {
-  items: { cigar_id: number; sale_unit: string; quantity: number; unit_price: string; sale_quantity?: number; box_size?: number }[];
+  items: { cigar_id: number; sale_unit: string; quantity: number; unit_price: string; sale_quantity?: number; box_size?: number; fulfillment_type?: 'in_stock' | 'preorder'; source_purchase_order_id?: number }[];
   customer_id?: number | null;
   customer_name?: string;
   payment_method_id?: number | null;
@@ -729,6 +739,22 @@ export interface SalesOrderPayload {
   customer_transport_fee_cny?: string;
   transport_payer?: 'customer' | 'company';
   note?: string;
+}
+
+export interface PreorderSource {
+  purchase_order_id: number;
+  order_number: string;
+  status: string;
+  can_create: boolean;
+  items: {
+    cigar_id: number;
+    cigar_name: string;
+    sale_unit: 'box' | 'stick';
+    box_size: number | null;
+    purchase_quantity: number;
+    committed_quantity: number;
+    remaining_quantity: number;
+  }[];
 }
 
 export interface FundAccount {

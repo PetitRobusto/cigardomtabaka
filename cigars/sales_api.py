@@ -504,8 +504,6 @@ def sales_order_confirm(request, order_id):
     method_error = _method(request, {"POST"})
     if method_error:
         return method_error
-    if _get_order(order_id) is None:
-        return _error("销售单不存在", 404)
 
     def handler(body, operator, context):
         return _response(confirm_sales_order(
@@ -522,8 +520,6 @@ def sales_order_cancel(request, order_id):
     method_error = _method(request, {"POST"})
     if method_error:
         return method_error
-    if _get_order(order_id) is None:
-        return _error("销售单不存在", 404)
 
     def handler(body, operator, context):
         return _response(cancel_confirmed_sales_order(
@@ -596,6 +592,29 @@ def sales_order_ship(request, order_id):
         order_id=order_id, business_date=_business_date(body), operator=operator,
         idempotency_key=context.idempotency_key, note=_optional_note(body),
     ))
+
+
+def sales_order_prepare_preorder(request, order_id):
+    from .preorders import prepare_sales_preorder
+    return _action(request, order_id, "prepare_sales_preorder", lambda body, operator, context: prepare_sales_preorder(
+        order_id=order_id, business_date=_business_date(body), operator=operator,
+        idempotency_key=context.idempotency_key, note=_optional_note(body), agent_context=context,
+    ))
+
+
+def sales_preorder_source(request, purchase_id):
+    from .models import PurchaseOrder
+    from .preorders import source_options
+    denied = _denied(request)
+    if denied:
+        return denied
+    method_error = _method(request, {"GET"})
+    if method_error:
+        return method_error
+    source = PurchaseOrder.objects.filter(pk=purchase_id, deleted_at__isnull=True).first()
+    if source is None:
+        return _error('采购单不存在', 404)
+    return _json(source_options(source))
 
 
 def sales_order_receive(request, order_id):

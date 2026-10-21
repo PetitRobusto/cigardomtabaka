@@ -16,6 +16,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 
+from cigars.receipt_totals import received_amount, remaining_amount
 from cigars.models import Brand, Cigar, CigarPrice, Customer, IdempotencyRecord, PurchaseBatch, SalesOrder, User
 from accounting.models import FundAccount
 from accounting.services import _acquire_sqlite_writer_gate, _retry_sqlite_locked
@@ -95,7 +96,7 @@ def _payment_public_data(note):
     data['payment_flow'] = {
         # A direct formal receipt is as authoritative as accepting an uploaded
         # proof: keep the customer on a safe terminal confirmation page.
-        'status': 'accepted' if officially_paid else (latest.status if latest else 'active'),
+        'status': 'accepted' if officially_paid else (latest.status if latest and latest.status in ('pending', 'needs_more') else 'partial' if note.sales_order.payment_status == SalesOrder.PaymentStatus.PARTIAL else 'active'),
         'review_note': latest.review_note if latest and latest.status == PaymentSubmission.Status.NEEDS_MORE else '',
         'submitted_at': latest.submitted_at.isoformat() if latest else None,
     }
@@ -239,7 +240,7 @@ def create(request):
                 SalesOrder.FulfillmentStatus.CONFIRMED,
                 SalesOrder.FulfillmentStatus.SHIPPED,
             )
-            or order.payment_status != SalesOrder.PaymentStatus.UNPAID
+            or order.payment_status not in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PARTIAL)
         ):
             return JsonResponse({'error': '只有已确认或已出库且未收款的销售单才能创建收款单'}, status=400)
 
@@ -506,10 +507,10 @@ def list_payment_orders(request):
                 SalesOrder.FulfillmentStatus.CONFIRMED,
                 SalesOrder.FulfillmentStatus.SHIPPED,
             ),
-            payment_status=SalesOrder.PaymentStatus.UNPAID,
+            payment_status__in=(SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PARTIAL),
         )
         .select_related('customer')
-        .prefetch_related('items__cigar')
+        .prefetch_related('items__cigar', 'sales_receipts')
         .order_by('-created_at', '-id')
     )
     data = []
@@ -528,6 +529,8 @@ def list_payment_orders(request):
                 'phone': order.customer.phone,
             } if order.customer_id else None),
             'amount_due_cny': decimal_to_number(order.amount_due_cny),
+            'received_amount_cny': decimal_to_number(received_amount(order)),
+            'remaining_amount_cny': decimal_to_number(remaining_amount(order)),
             'items': [{
                 'id': item.id,
                 'cigar_name': item.cigar.name or item.cigar.english_name,
@@ -626,7 +629,7 @@ def api_privnote(request, token):
                 SalesOrder.FulfillmentStatus.SHIPPED,
             )
             or (
-                order.payment_status != SalesOrder.PaymentStatus.UNPAID
+                order.payment_status not in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PARTIAL)
                 and not _payment_v2(note)
             )
         ):
@@ -783,7 +786,7 @@ def payment_image(request, token, image_id):
     content_type = 'application/octet-stream'
     order = note.sales_order
     if order and (
-        order.payment_status != SalesOrder.PaymentStatus.UNPAID
+        order.payment_status not in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PARTIAL)
         or order.fulfillment_status not in (
             SalesOrder.FulfillmentStatus.CONFIRMED,
             SalesOrder.FulfillmentStatus.SHIPPED,

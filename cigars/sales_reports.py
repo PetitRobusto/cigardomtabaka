@@ -2,25 +2,25 @@
 
 from decimal import Decimal
 
-from django.db.models import Count, Sum
+from django.db.models import Sum, Count, OuterRef, Subquery, DecimalField, Value
+from django.db.models.functions import Coalesce
 
-from cigars.models import SalesOrder
+from cigars.models import SalesOrder, SalesReceipt
 
 
 def pending_collection_summary():
     """汇总所有已经确认生效、但尚未收款的销售订单。"""
-    totals = SalesOrder.objects.filter(
+    orders = SalesOrder.objects.filter(
         deleted_at__isnull=True,
         fulfillment_status__in=(
             SalesOrder.FulfillmentStatus.CONFIRMED,
             SalesOrder.FulfillmentStatus.SHIPPED,
         ),
-        payment_status=SalesOrder.PaymentStatus.UNPAID,
-    ).aggregate(
-        order_count=Count('id'),
-        amount_cny=Sum('amount_due_cny'),
+        payment_status__in=(SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PARTIAL),
     )
-    return {
-        'order_count': totals['order_count'] or 0,
-        'amount_cny': (totals['amount_cny'] or Decimal('0.00')).quantize(Decimal('0.01')),
-    }
+    receipts = SalesReceipt.objects.filter(sales_order_id=OuterRef('pk'), reversed_at__isnull=True).order_by().values('sales_order_id').annotate(total=Sum('amount_cny')).values('total')
+    money = DecimalField(max_digits=14, decimal_places=2)
+    totals = orders.annotate(_received_cny=Coalesce(Subquery(receipts, output_field=money), Value(Decimal('0.00')), output_field=money)).aggregate(
+        count=Count('id'), due=Sum('amount_due_cny'), received=Sum('_received_cny'),
+    )
+    return {'order_count': totals['count'], 'amount_cny': ((totals['due'] or Decimal('0.00')) - (totals['received'] or Decimal('0.00'))).quantize(Decimal('0.01'))}

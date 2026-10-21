@@ -55,8 +55,8 @@ export default function PaymentView({ data, token = '', onZoom, onSubmitted, pre
   const submissionKey = useRef('');
   const flow = submittedData === data ? 'pending' : data.payment_flow?.status || 'active';
   const supportsEvidence = preview || Boolean(data.payment_flow);
-  const canSubmit = flow === 'active' || flow === 'needs_more';
-  const status = { active: '待付款', pending: '等待核实', needs_more: '需补充', accepted: '已收款', closed: '已关闭' }[flow];
+  const canSubmit = flow === 'active' || flow === 'partial' || flow === 'needs_more';
+  const status = { active: '待付款', partial: '部分到账', pending: '等待核实', needs_more: '需补充', accepted: '已收款', closed: '已关闭' }[flow];
   const chooseFiles = (incoming: File[]) => {
     if (inFlight.current) return;
     if (files.length + incoming.length > 5) { setSubmitError('最多上传 5 张付款凭证，请先移除多余图片'); return; }
@@ -84,7 +84,7 @@ export default function PaymentView({ data, token = '', onZoom, onSubmitted, pre
     <section className="rounded-lg border border-border bg-white p-5">
       <div className="flex items-center justify-between gap-3"><h1 className="font-display text-lg font-semibold">订单付款</h1><span className={`rounded-full px-3 py-1 text-xs font-semibold ${flow === 'accepted' ? 'bg-green-50 text-green-800' : flow === 'pending' || flow === 'needs_more' ? 'bg-orange-50 text-orange-800' : 'bg-accent-light text-muted'}`}>{status}</span></div>
       {data.customer_name && <p className="mt-2 text-sm text-muted">{data.customer_name}</p>}
-      <div className="mt-5 flex items-baseline justify-between gap-3"><span className="text-sm text-muted">{flow === 'accepted' ? '已收金额' : '应付总额'}</span><strong className="font-mono text-3xl font-semibold text-accent">{formatCny(data.grand_total)}</strong></div>
+      <div className="mt-5 flex items-baseline justify-between gap-3"><span className="text-sm text-muted">{flow === 'accepted' ? '已收金额' : '剩余待付'}</span><strong className="font-mono text-3xl font-semibold text-accent">{formatCny(flow === 'accepted' ? (data.received_amount_cny ?? data.grand_total) : (data.remaining_amount_cny ?? data.grand_total))}</strong></div><p className="mt-2 text-xs text-muted">订单总额 {formatCny(data.grand_total)} · 已收 {formatCny(data.received_amount_cny ?? 0)}</p>
       <details className="mt-4 border-t border-border pt-3"><summary className="cursor-pointer text-xs font-semibold text-muted">查看订单明细 · {data.items.length} 项商品</summary><div className="mt-2 divide-y divide-border">
         {data.items.map((item, index) => <div key={index} className="flex justify-between gap-3 py-3 text-sm"><div className="min-w-0"><strong>{item.name}</strong><p className="mt-1 text-xs text-muted">{item.sale_unit === 'box' ? `${item.sale_quantity ?? item.quantity} 盒 · ${item.box_size ?? '—'} 支/盒` : `${item.sale_quantity ?? item.quantity} 支`}</p></div><span className="shrink-0 font-mono">{formatCny(item.subtotal)}</span></div>)}
         {data.extra_fees?.map((fee, index) => <div key={index} className="flex justify-between gap-3 py-2 text-xs text-muted"><span>{fee.name}</span><span className="font-mono">{formatCny(fee.amount)}</span></div>)}

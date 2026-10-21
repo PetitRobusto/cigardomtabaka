@@ -238,7 +238,7 @@ class SalesAccountingModelTestsMixin(SalesAccountingFixtureMixin):
                 amount_cny=Decimal('120.00'),
                 fund_account=self.cny_account,
                 business_date=date(2026, 8, 11),
-                ledger_transaction=self.ledger_transaction('sales_receipt', 'receipt-order-duplicate'),
+                ledger_transaction=receipt.ledger_transaction,
                 operator=self.operator,
             )
 

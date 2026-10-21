@@ -432,12 +432,14 @@ export interface PaymentData {
   extra_fees: { name: string; amount: number }[];
   extra_total: number;
   grand_total: number;
+  received_amount_cny?: number;
+  remaining_amount_cny?: number;
   payment_methods: PaymentMethod[];
   customer_name: string;
   remark: string;
   images?: RemarkImage[];
   payment_flow?: {
-    status: 'active' | 'pending' | 'needs_more' | 'accepted' | 'closed';
+    status: 'active' | 'partial' | 'pending' | 'needs_more' | 'accepted' | 'closed';
     review_note: string;
     submitted_at: string | null;
   };
@@ -621,6 +623,8 @@ export interface PaymentOrder {
   customer_name: string;
   customer?: { name: string } | null;
   amount_due_cny: number;
+  received_amount_cny?: number;
+  remaining_amount_cny?: number;
   items: PaymentOrderItem[];
 }
 
@@ -649,7 +653,7 @@ export interface SalesOrder {
   status: string;
   display_status: string;
   fulfillment_status: 'draft' | 'confirmed' | 'shipped' | 'cancelled' | 'returned' | string;
-  payment_status: 'unpaid' | 'paid' | 'refund_pending' | 'refunded' | string;
+  payment_status: 'unpaid' | 'partial' | 'paid' | 'refund_pending' | 'refunded' | string;
   customer_id: number | null;
   customer_name: string;
   customer?: { id: number; name: string; phone: string; remark?: string; deleted_at: string | null } | null;
@@ -657,6 +661,8 @@ export interface SalesOrder {
   customer_transport_fee_cny: number;
   transport_payer: 'customer' | 'company';
   amount_due_cny: number;
+  received_amount_cny?: number;
+  remaining_amount_cny?: number;
   total_revenue: number;
   total_cost: number;
   total_profit: number;
@@ -698,7 +704,7 @@ export interface SalesOrder {
     reversal_business_date: string | null;
     reversal_reason: string;
   }[];
-  sales_refund: { id: number; amount_cny: number; business_date: string; fund_account_id: number } | null;
+  sales_refund: { id: number; amount_cny: number; business_date: string; fund_account_id: number | null; accounts?: { fund_account_id: number; amount_cny: number }[] } | null;
   sales_return?: { id: number; amount_cny: number; fifo_cost_cny: number; business_date: string; reason: string } | null;
   sales_transport_cost: { id: number; actual_cost_cny: number; business_date: string; fund_account_id: number } | null;
   available_actions: string[];

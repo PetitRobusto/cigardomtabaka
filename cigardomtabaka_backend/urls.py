@@ -6,7 +6,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import render, redirect
 from django.views.generic import RedirectView, TemplateView
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from cigars import views
 from cigars import agent_api
@@ -48,8 +48,12 @@ def admin_login_redirect(request):
 
 def spa_index(request):
     """Catch-all SPA entry point"""
+    dev_host = urlsplit(request.build_absolute_uri()).hostname or 'localhost'
+    if ':' in dev_host:
+        dev_host = f'[{dev_host}]'
     return render(request, 'spa_index.html', {
         'debug': settings.DEBUG,
+        'vite_origin': f'{request.scheme}://{dev_host}:5173',
         # The current page content is Chinese; translations are reserved for localized pages.
         'site_description': SITE_DESCRIPTIONS['zh-CN'],
     })

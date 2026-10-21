@@ -40,7 +40,7 @@ export default function PaymentRequestModal({
   };
   const data: PaymentData = {
     mode: "payment", customer_name: order.customer_name, total: Number(order.goods_amount_cny),
-    grand_total: Number(order.amount_due_cny), extra_total: Number(order.customer_transport_fee_cny),
+    grand_total: Number(order.amount_due_cny), received_amount_cny: order.received_amount_cny, remaining_amount_cny: order.remaining_amount_cny, extra_total: Number(order.customer_transport_fee_cny),
     extra_fees: Number(order.customer_transport_fee_cny) ? [{ name: "人肉费", amount: Number(order.customer_transport_fee_cny) }] : [],
     items: order.items.map(item => ({ name: item.cigar_name, english_name: "", vitola: "", thumb_url: "",
       quantity: item.quantity, sale_quantity: item.sale_quantity, sale_unit: item.sale_unit, box_size: item.box_size,
@@ -75,10 +75,10 @@ export default function PaymentRequestModal({
       </div>}
       {!url && <footer className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-[#FFFDFA] px-5 py-4"><button type="button" onClick={onClose} disabled={busy} className="rounded border border-border px-4 py-2 text-sm">取消</button><button type="button" onClick={onSubmit} disabled={busy} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "创建中…" : "创建并生成链接"}</button></footer>}
     </div>
-    {previewOpen && <PaymentDialog title="客户页面预览" narrow onClose={() => setPreviewOpen(false)}>
+    {previewOpen && <PaymentDialog title="客户页面预览" width="xl" onClose={() => setPreviewOpen(false)}>
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-white p-4"><div><h2 className="font-semibold">客户页面预览</h2><p className="mt-1 text-xs text-muted">仅预览 · 不创建链接或提交凭证</p></div><button type="button" aria-label="关闭客户预览" onClick={() => setPreviewOpen(false)} className="rounded border border-border p-2"><X size={16} /></button></header>
       <div className="mx-auto max-w-[460px] bg-cream p-4">{customerPage}</div>
     </PaymentDialog>}
-    {zoomedQr && <PaymentDialog title="收款二维码" narrow onClose={() => setZoomedQr(null)}><div className="p-4"><button type="button" aria-label="关闭二维码" onClick={() => setZoomedQr(null)} className="mb-3 ml-auto block rounded border border-border p-2"><X size={16} /></button><img src={zoomedQr} alt="收款二维码" className="mx-auto max-h-[70dvh] max-w-full object-contain" /></div></PaymentDialog>}
+    {zoomedQr && <PaymentDialog title="收款二维码" width="xl" onClose={() => setZoomedQr(null)}><div className="p-4"><button type="button" aria-label="关闭二维码" onClick={() => setZoomedQr(null)} className="mb-3 ml-auto block rounded border border-border p-2"><X size={16} /></button><img src={zoomedQr} alt="收款二维码" className="mx-auto max-h-[70dvh] max-w-full object-contain" /></div></PaymentDialog>}
   </PaymentDialog>;
 }

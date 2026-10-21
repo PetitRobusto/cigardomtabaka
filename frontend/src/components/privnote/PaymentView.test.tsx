@@ -88,6 +88,15 @@ it('刷新后展示最新核实状态，已核实和已关闭均不再展示收�
   }
 });
 
+it('部分到账显示剩余应付并允许继续提交凭证', () => {
+  const screen = render(<PaymentView data={{ ...data, received_amount_cny: 40, remaining_amount_cny: 80, payment_flow: { status: 'partial', review_note: '', submitted_at: null } }} onZoom={vi.fn()} />);
+  expect(screen.getByText('部分到账')).toBeTruthy();
+  expect(screen.getByText('剩余待付')).toBeTruthy();
+  expect(screen.getByText(/80\.00/)).toBeTruthy();
+  expect(screen.queryByText('付款已确认，感谢')).toBeNull();
+  expect(screen.getByRole('button', { name: '提交凭证，等待核实' })).toBeTruthy();
+});
+
 it('历史链接保留收款信息，明确提示通过商家提交凭证', () => {
   const screen = render(<PaymentView data={{ ...data, payment_flow: undefined }} onZoom={vi.fn()} />);
   expect(screen.getByRole('img', { name: '收款二维码' })).toBeTruthy();

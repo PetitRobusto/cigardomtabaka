@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+from .receipt_totals import received_amount, remaining_amount
+
 from dataclasses import replace
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -158,7 +160,7 @@ def _serialize_payment_notes(order):
             sales_order=order, note_type=Privnote.NoteType.PAYMENT,
         ).order_by('-created_at', '-id')
     can_pay = (
-        order.payment_status == SalesOrder.PaymentStatus.UNPAID
+        order.payment_status in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PARTIAL)
         and order.fulfillment_status in (
             SalesOrder.FulfillmentStatus.CONFIRMED,
             SalesOrder.FulfillmentStatus.SHIPPED,
@@ -249,7 +251,7 @@ def serialize_sales_order(order):
         })
     receipt_history = _sales_receipt_history(order)
     active_receipt = next(
-        (receipt for receipt in receipt_history if receipt.reversed_at is None), None,
+        (receipt for receipt in reversed(receipt_history) if receipt.reversed_at is None), None,
     )
     return {
         'id': order.id,
@@ -271,6 +273,8 @@ def serialize_sales_order(order):
         'customer_transport_fee_cny': _decimal_to_json(order.customer_transport_fee_cny),
         'transport_payer': order.transport_payer,
         'amount_due_cny': _decimal_to_json(order.amount_due_cny),
+        'received_amount_cny': _decimal_to_json(received_amount(order)),
+        'remaining_amount_cny': _decimal_to_json(remaining_amount(order)),
         'total_revenue': _decimal_to_json(order.total_revenue),
         'total_cost': _decimal_to_json(order.total_cost),
         'total_profit': _decimal_to_json(order.total_profit),
@@ -313,6 +317,10 @@ def serialize_sales_order(order):
             'amount_cny': _decimal_to_json(order.sales_refund.amount_cny),
             'business_date': order.sales_refund.business_date.isoformat(),
             'fund_account_id': order.sales_refund.fund_account_id,
+            'accounts': [{
+                'fund_account_id': posting.account_id,
+                'amount_cny': _decimal_to_json(-posting.amount),
+            } for posting in order.sales_refund.ledger_transaction.postings.all() if posting.account_id],
         } if hasattr(order, 'sales_refund') else None),
         'sales_return': ({
             'id': order.sales_return.id,
@@ -337,17 +345,17 @@ def _sales_order_available_actions(order):
         actions.extend(['confirm', 'cancel'])
     if order.fulfillment_status == SalesOrder.FulfillmentStatus.CONFIRMED:
         actions.append('ship')
-        if order.payment_status == SalesOrder.PaymentStatus.UNPAID:
+        if order.payment_status in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PARTIAL):
             actions.append('receive')
-        elif (
-            order.payment_status == SalesOrder.PaymentStatus.PAID
+        if (
+            order.payment_status in (SalesOrder.PaymentStatus.PAID, SalesOrder.PaymentStatus.PARTIAL)
             and any(receipt.reversed_at is None for receipt in _sales_receipt_history(order))
         ):
             actions.append('withdraw_receipt')
         actions.append('cancel')
     if order.fulfillment_status == SalesOrder.FulfillmentStatus.SHIPPED:
         actions.append('return')
-        if order.payment_status == SalesOrder.PaymentStatus.UNPAID:
+        if order.payment_status in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PARTIAL):
             actions.append('receive')
         if not hasattr(order, 'sales_transport_cost'):
             actions.append('transport_cost')
@@ -716,7 +724,7 @@ def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None
     require_day1_completed()
     if order.fulfillment_status != SalesOrder.FulfillmentStatus.CONFIRMED:
         raise OrderServiceError("当前订单不能取消")
-    if order.payment_status not in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PAID):
+    if order.payment_status not in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PARTIAL, SalesOrder.PaymentStatus.PAID):
         raise OrderServiceError("当前付款状态不能取消")
     if StockAllocation.objects.filter(
         sales_order_item__sales_order=order,
@@ -733,7 +741,7 @@ def cancel_confirmed_sales_order(*, sales_order_id, operator, agent_context=None
     except inventory_module.InventoryError as error:
         raise OrderServiceError(str(error), details=error.details) from error
     order.fulfillment_status = SalesOrder.FulfillmentStatus.CANCELLED
-    order.payment_status = (SalesOrder.PaymentStatus.REFUND_PENDING if order.payment_status == SalesOrder.PaymentStatus.PAID else SalesOrder.PaymentStatus.UNPAID)
+    order.payment_status = (SalesOrder.PaymentStatus.REFUND_PENDING if order.payment_status in (SalesOrder.PaymentStatus.PAID, SalesOrder.PaymentStatus.PARTIAL) else SalesOrder.PaymentStatus.UNPAID)
     order.status, order.cancelled_at = "cancelled", now
     if note:
         order.note = note

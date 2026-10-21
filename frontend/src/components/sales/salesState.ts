@@ -37,6 +37,7 @@ export interface SalesOrderSummaryInput {
   fulfillment_status: SalesStatus;
   payment_status: SalesStatus;
   amount_due_cny: number | string | null | undefined;
+  remaining_amount_cny?: number | string;
 }
 
 export interface SalesOrderStateInput {
@@ -98,12 +99,12 @@ export function summarizeSalesOrders(
     const paymentSummary =
       active && payment === "paid"
         ? summary.paid
-        : active && payment === "unpaid"
+        : active && ["unpaid", "partial"].includes(payment)
           ? summary.unpaid
           : undefined;
     if (paymentSummary) {
       paymentSummary.count += 1;
-      paymentSummary.amount += amount;
+      paymentSummary.amount += paymentSummary === summary.unpaid ? amountOf(order.remaining_amount_cny ?? order.amount_due_cny) : amount;
     }
   }
   return summary;
@@ -141,6 +142,7 @@ export function statusLabel(status: string): string {
       shipped: "已出库",
       cancelled: "已取消",
       unpaid: "待收款",
+      partial: "部分收款",
       paid: "已收款",
       refund_pending: "待退款",
       refunded: "已退款",
@@ -187,7 +189,8 @@ export function orderDisplayStatus(
   const payment =
     order.payment_status === "paid"
       ? "已收款"
-      : order.payment_status === "unpaid"
+      : order.payment_status === "partial" ? "部分收款"
+      : ["unpaid", "partial"].includes(order.payment_status)
         ? "待收款"
         : statusLabel(order.payment_status);
   if (order.fulfillment_status === "draft") return fulfillment;
@@ -197,12 +200,12 @@ export function orderDisplayStatus(
 export function availableActions(order: SalesOrderStateInput): string[] {
   if (order.fulfillment_status === "draft") return ["confirm", "cancel"];
   if (order.fulfillment_status === "confirmed") {
-    return order.payment_status === "unpaid"
+    return ["unpaid", "partial"].includes(order.payment_status)
       ? ["ship", "receive", "cancel"]
       : ["ship", "cancel"];
   }
   if (order.fulfillment_status === "shipped") {
-    return order.payment_status === "unpaid"
+    return ["unpaid", "partial"].includes(order.payment_status)
       ? ["return", "receive", "transport_cost"]
       : ["return", "transport_cost"];
   }
@@ -219,11 +222,11 @@ export function availableActions(order: SalesOrderStateInput): string[] {
   return [];
 }
 
-export function receiveAmountMatchesDue(
+export function receiveAmountWithinRemaining(
   value: string,
   amountDue: number | string,
 ): boolean {
-  return validateMoneyInput(value) && Number(value) === Number(amountDue);
+  return validatePositiveMoneyInput(value) && Number(value) <= Number(amountDue);
 }
 
 export function actionLabel(action: string): string {

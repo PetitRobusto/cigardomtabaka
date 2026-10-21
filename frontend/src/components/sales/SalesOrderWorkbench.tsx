@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CircleDollarSign,
   PackageCheck,
@@ -28,7 +28,7 @@ import {
   actionLabel,
   actionNeedsFundAccount,
   formatCny,
-  receiveAmountMatchesDue,
+  receiveAmountWithinRemaining,
   statusLabel,
   validatePositiveMoneyInput,
 } from "./salesState";
@@ -221,7 +221,7 @@ export default function SalesOrderWorkbench({
                 <Facts order={selected} accounts={allAccounts} />
               </DetailSection>
               <DetailSection title="时间线">
-                <Timeline order={selected} />
+                <Timeline order={selected} accounts={allAccounts} />
               </DetailSection>
             </div>
           </>
@@ -298,7 +298,7 @@ function Overview({
             value={statusLabel(order.fulfillment_status)}
           />
           <Info label="付款状态" value={statusLabel(order.payment_status)} />
-          <Info label="应收金额" value={formatCny(order.amount_due_cny)} />
+          <Info label="应收金额" value={formatCny(order.amount_due_cny)} /><Info label="累计已收" value={formatCny(order.received_amount_cny ?? 0)} /><Info label="剩余待收" value={formatCny(order.remaining_amount_cny ?? order.amount_due_cny)} />
           <Info
             label={financial.profitLabel}
             value={financial.contributionProfit === null ? "—" : formatCny(financial.contributionProfit)}
@@ -385,9 +385,8 @@ function ReceiptPanel({
   const activeNoteUrl = activeNote ? publicPrivnoteUrl(activeNote.url) : "";
   const review = order.payment_review;
   const canCreateLink =
-    !receipt &&
     !activeNote &&
-    order.payment_status === "unpaid" &&
+    ["unpaid", "partial"].includes(order.payment_status) &&
     ["confirmed", "shipped"].includes(order.fulfillment_status);
   const [open, setOpen] = useState(false);
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
@@ -464,19 +463,19 @@ function ReceiptPanel({
       setBusy(false);
     }
   };
-  if (receipt)
+  if (receipt && !["unpaid", "partial"].includes(order.payment_status))
     return (
       <div className="grid gap-3 rounded border border-green-200 bg-green-50/40 p-4 text-sm sm:grid-cols-4">
         <div>
-          <span className="block text-xs text-muted">收款记录编号</span>
+          <span className="block text-xs text-muted">最近收款记录</span>
           <strong className="mt-1 block font-mono">
             RC-{String(receipt.id).padStart(6, "0")}
           </strong>
         </div>
         <div>
-          <span className="block text-xs text-muted">已收金额</span>
+          <span className="block text-xs text-muted">累计已收</span>
           <strong className="mt-1 block font-mono text-green-800">
-            {formatCny(receipt.amount_cny)}
+            {formatCny(order.received_amount_cny ?? receipt.amount_cny)}
           </strong>
         </div>
         <div>
@@ -520,7 +519,7 @@ function ReceiptPanel({
         <div>
           <div className="flex items-center gap-2"><strong className="block text-fg">{review?.status === "pending" ? "客户已提交凭证，等待人工核实" : review?.status === "needs_more" ? "等待客户补充凭证" : "收款进度"}</strong><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${review ? "bg-orange-50 text-orange-800" : "bg-blue-50 text-blue-800"}`}>{review?.status === "pending" ? "待核实" : review?.status === "needs_more" ? "需补充" : activeNote ? "链接有效" : "待创建"}</span></div>
           <span className="mt-1 block text-xs text-muted">
-            应收 {formatCny(order.amount_due_cny)} · 截图提交不代表已到账，确认后才生成正式收款记录。
+            应收 {formatCny(order.amount_due_cny)} · 已收 {formatCny(order.received_amount_cny ?? 0)} · 待收 {formatCny(order.remaining_amount_cny ?? order.amount_due_cny)} · 截图提交不代表已到账，确认后才生成正式收款记录。
           </span>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -552,19 +551,26 @@ function ReceiptPanel({
         password={password} setPassword={setPassword} remark={remark} setRemark={setRemark} busy={busy} error={error}
         url={url} copied={copied} onCopy={() => { void copyText(url).then(setCopied); }} onClose={() => setOpen(false)} onSubmit={createLink}
       />}
-      {reviewOpen && <PaymentReviewModal order={order} onClose={() => setReviewOpen(false)} onChanged={onChanged} />}
+      {reviewOpen && <PaymentReviewModal order={order} accounts={cnyAccounts} onClose={() => setReviewOpen(false)} onChanged={onChanged} />}
     </div>
   );
 }
 
-function PaymentReviewModal({ order, onClose, onChanged }: { order: SalesOrder; onClose: () => void; onChanged: () => void }) {
+function PaymentReviewModal({ order, accounts, onClose, onChanged }: { order: SalesOrder; accounts: FundAccount[]; onClose: () => void; onChanged: () => void }) {
   const [submissions, setSubmissions] = useState<PaymentSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [reviewNote, setReviewNote] = useState("");
   const [businessDate, setBusinessDate] = useState(salesOrderActionBusinessDate());
+  const [amount, setAmount] = useState('');
+  const [accountId, setAccountId] = useState<number | null>(null);
+  const [confirmReceipt, setConfirmReceipt] = useState(false);
+  const inFlight = useRef(false);
+  const remaining = order.remaining_amount_cny ?? order.amount_due_cny;
   const current = submissions.find(item => item.status === "pending") || null;
+  const selectedAccountId = accountId ?? current?.fund_account_id ?? 0;
+  const validAmount = receiveAmountWithinRemaining(amount, remaining);
   const load = () => { setLoading(true); fetchPaymentSubmissions(order.id).then(setSubmissions).catch(requestError => setError(apiErrorMessage(requestError, "付款凭证加载失败"))).finally(() => setLoading(false)); };
   useEffect(() => {
     let cancelled = false;
@@ -574,9 +580,9 @@ function PaymentReviewModal({ order, onClose, onChanged }: { order: SalesOrder; 
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [order.id]);
-  const accept = async () => { if (!current || !businessDate) return; setBusy(true); setError(""); try { await acceptPaymentSubmission(order.id, current.id, businessDate); onChanged(); onClose(); } catch (requestError) { setError(apiErrorMessage(requestError, "确认到账失败")); } finally { setBusy(false); } };
+  const accept = async () => { if (!current || !businessDate || !validAmount || inFlight.current) return; inFlight.current = true; setBusy(true); setError(""); try { await acceptPaymentSubmission(order.id, current.id, businessDate, amount, selectedAccountId); onChanged(); onClose(); } catch (requestError) { setError(apiErrorMessage(requestError, "确认到账失败")); } finally { inFlight.current = false; setBusy(false); } };
   const needsMore = async () => { if (!current) return; if (!reviewNote.trim()) { setError("请填写客户可见的补充说明"); return; } setBusy(true); setError(""); try { await requestMorePaymentEvidence(order.id, current.id, reviewNote.trim()); load(); onChanged(); } catch (requestError) { setError(apiErrorMessage(requestError, "发送补充要求失败")); } finally { setBusy(false); } };
-  return <PaymentDialog title="核实付款凭证" onClose={onClose} busy={busy}><div className="max-h-[100dvh] w-full overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:max-w-3xl sm:rounded-lg"><header className="sticky top-0 z-10 flex justify-between border-b border-border bg-[#FFFDFA] px-5 py-4"><div><h3 className="font-display text-xl font-semibold">核实收款</h3><p className="mt-1 text-xs text-muted">{order.order_number} · 应收 {formatCny(order.amount_due_cny)} · 确认到账会生成正式收款，履约状态不变。</p></div><button type="button" onClick={onClose} className="rounded border border-border p-1.5 text-muted"><X className="h-4 w-4" /></button></header><div className="space-y-4 p-5">{loading ? <p className="text-sm text-muted">加载付款凭证…</p> : !current ? <p className="rounded border border-border bg-[#FFFDFA] p-4 text-sm text-muted">当前没有待核实的付款凭证。</p> : <><div className="grid gap-3 rounded border border-border bg-[#FFFDFA] p-4 text-xs sm:grid-cols-3"><div><span className="block text-muted">应收金额</span><strong className="mt-1 block font-mono text-base">{formatCny(current.amount_cny)}</strong></div><div><span className="block text-muted">入账账户 ID</span><strong className="mt-1 block">#{current.fund_account_id}</strong></div><div><span className="block text-muted">提交时间</span><strong className="mt-1 block">{current.submitted_at ? formatShanghaiDateTime(current.submitted_at) : "—"}</strong></div></div><div><h4 className="text-xs font-bold uppercase tracking-wide text-muted">付款凭证</h4><div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">{current.attachments?.map(attachment => <a key={attachment.id} href={paymentSubmissionAttachmentUrl(order.id, current.id, attachment.id)} target="_blank" rel="noreferrer" className="overflow-hidden rounded border border-border bg-[#FFFDFA] hover:border-gold"><img src={paymentSubmissionAttachmentUrl(order.id, current.id, attachment.id)} alt={attachment.name} className="aspect-square w-full object-cover" /><span className="block truncate p-2 text-[11px] text-muted">{attachment.name}</span></a>)}</div></div><div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-muted">业务日期<input type="date" value={businessDate} onChange={event => setBusinessDate(event.target.value)} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg" /></label><label className="text-xs font-semibold text-muted">需补充说明（客户可见）<textarea value={reviewNote} onChange={event => setReviewNote(event.target.value)} rows={2} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg" placeholder="例如：请补充含付款账户尾号的完整回单" /></label></div></>}</div>{error && <p className="mx-5 mb-0 rounded border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</p>}<footer className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-[#FFFDFA] px-5 py-4"><button type="button" onClick={onClose} className="rounded border border-border px-4 py-2 text-sm">关闭</button>{current && <><button type="button" onClick={needsMore} disabled={busy} className="rounded border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">需补充凭证</button><button type="button" onClick={accept} disabled={busy || !businessDate} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "处理中…" : "确认到账"}</button></>}</footer></div></PaymentDialog>;
+  return <><PaymentDialog title="核实付款凭证" width="3xl" onClose={onClose} busy={busy}><div className="w-full bg-white"><header className="sticky top-0 z-10 flex justify-between border-b border-border bg-[#FFFDFA] px-5 py-4"><div><h3 className="font-display text-xl font-semibold">核实收款</h3><p className="mt-1 text-xs text-muted">{order.order_number} · 应收 {formatCny(order.amount_due_cny)} · 确认到账会生成正式收款，履约状态不变。</p></div><button type="button" onClick={onClose} className="rounded border border-border p-1.5 text-muted"><X className="h-4 w-4" /></button></header><div className="space-y-4 p-5">{loading ? <p className="text-sm text-muted">加载付款凭证…</p> : !current ? <p className="rounded border border-border bg-[#FFFDFA] p-4 text-sm text-muted">当前没有待核实的付款凭证。</p> : <><div className="grid gap-3 rounded border border-border bg-[#FFFDFA] p-4 text-xs sm:grid-cols-3"><div><span className="block text-muted">应收金额</span><strong className="mt-1 block font-mono text-base">{formatCny(order.amount_due_cny)}</strong><span className="mt-1 block">已收 {formatCny(order.received_amount_cny ?? 0)} · 待收 {formatCny(remaining)}</span></div><div><span className="block text-muted">入账账户 ID</span><strong className="mt-1 block">#{current.fund_account_id}</strong></div><div><span className="block text-muted">提交时间</span><strong className="mt-1 block">{current.submitted_at ? formatShanghaiDateTime(current.submitted_at) : "—"}</strong></div></div><div><h4 className="text-xs font-bold uppercase tracking-wide text-muted">付款凭证</h4><div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">{current.attachments?.map(attachment => <a key={attachment.id} href={paymentSubmissionAttachmentUrl(order.id, current.id, attachment.id)} target="_blank" rel="noreferrer" className="overflow-hidden rounded border border-border bg-[#FFFDFA] hover:border-gold"><img src={paymentSubmissionAttachmentUrl(order.id, current.id, attachment.id)} alt={attachment.name} className="aspect-square w-full object-cover" /><span className="block truncate p-2 text-[11px] text-muted">{attachment.name}</span></a>)}</div></div><div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-muted">本次实收金额<input type="number" min="0.01" max={remaining} step="0.01" value={amount} onChange={event => setAmount(event.target.value)} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg" placeholder="核实实际到账金额" /></label><label className="text-xs font-semibold text-muted">到账账户<select value={selectedAccountId} onChange={event => setAccountId(Number(event.target.value))} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg"><option value={0}>请选择到账账户</option>{accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label><label className="text-xs font-semibold text-muted">业务日期<input type="date" value={businessDate} onChange={event => setBusinessDate(event.target.value)} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg" /></label><label className="text-xs font-semibold text-muted">需补充说明（客户可见）<textarea value={reviewNote} onChange={event => setReviewNote(event.target.value)} rows={2} className="mt-1.5 w-full rounded border border-border px-3 py-2 text-sm text-fg" placeholder="例如：请补充含付款账户尾号的完整回单" /></label></div></>}</div>{error && <p className="mx-5 mb-0 rounded border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</p>}<footer className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-[#FFFDFA] px-5 py-4"><button type="button" onClick={onClose} className="rounded border border-border px-4 py-2 text-sm">关闭</button>{current && <><button type="button" onClick={needsMore} disabled={busy} className="rounded border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">需补充凭证</button><button type="button" onClick={() => setConfirmReceipt(true)} disabled={busy || !businessDate || !validAmount || !accounts.some(account => account.id === selectedAccountId)} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "处理中…" : "确认到账"}</button></>}</footer></div></PaymentDialog>{confirmReceipt && <ReceiptConfirmation order={order} amount={amount} date={businessDate} accountName={accounts.find(account => account.id === selectedAccountId)?.name || ''} busy={busy} onBack={() => setConfirmReceipt(false)} onConfirm={accept} error={error} />}</>;
 }
 
 function Amounts({ order }: { order: SalesOrder }) {
@@ -636,6 +642,7 @@ function Facts({ order, accounts }: { order: SalesOrder; accounts: FundAccount[]
       id: order.sales_refund.id,
       amount: order.sales_refund.amount_cny,
       date: order.sales_refund.business_date,
+      detail: order.sales_refund.accounts?.map(item => `${accountName(item.fund_account_id)} · ${formatCny(item.amount_cny)}`).join("；"),
     },
     order.sales_return && {
       type: "SalesReturn · 退货",
@@ -666,7 +673,7 @@ function Facts({ order, accounts }: { order: SalesOrder; accounts: FundAccount[]
     <div className="grid gap-3 xl:grid-cols-2">
       {facts.map((fact) => (
         <div
-          key={fact.type}
+          key={`${fact.type}-${fact.id}`}
           className="rounded border border-border border-l-4 border-l-gold bg-[#FFFDFA] p-4"
         >
           <span className="text-[10px] font-bold uppercase tracking-wide text-muted">
@@ -685,55 +692,74 @@ function Facts({ order, accounts }: { order: SalesOrder; accounts: FundAccount[]
   );
 }
 
-function Timeline({ order }: { order: SalesOrder }) {
+function Timeline({ order, accounts }: { order: SalesOrder; accounts: FundAccount[] }) {
+  const accountName = (id: number) => accounts.find(account => account.id === id)?.name || `账户 #${id}`;
+  const itemSummary = order.items.map(item => `${item.cigar_name} × ${item.quantity} 支`).join("；");
+  const receipts = order.sales_receipts || (order.sales_receipt ? [{
+    ...order.sales_receipt, reversed_at: null, reversal_business_date: null, reversal_reason: "",
+  }] : []);
   const events = [
-    order.created_at && { label: "销售单创建", date: order.created_at },
-    order.confirmed_at && {
-      label: "订单确认并预留库存",
-      date: order.confirmed_at,
+    order.created_at && {
+      label: "销售单创建", date: order.created_at,
+      detail: `客户：${order.customer_name || "未填写"} · 当前订单应收 ${formatCny(order.amount_due_cny)}`,
     },
-    ...(order.sales_receipts || (order.sales_receipt ? [{
-      ...order.sales_receipt,
-      reversed_at: null,
-      reversal_business_date: null,
-      reversal_reason: "",
-    }] : [])).flatMap((receipt) => [
-      { label: `登记收款记录 #${receipt.id}`, date: receipt.business_date },
+    order.confirmed_at && {
+      label: "订单确认", date: order.confirmed_at,
+      detail: `${itemSummary || "无商品明细"} · ${order.items.some(item => item.fulfillment_type === 'in_stock') ? "现货已预留" : "预售待备货"}`,
+    },
+    ...receipts.flatMap(receipt => [
+      {
+        label: `登记收款记录 #${receipt.id}`, date: receipt.business_date,
+        detail: `实收 ${formatCny(receipt.amount_cny)} · 到账账户：${accountName(receipt.fund_account_id)}`,
+      },
       receipt.reversed_at && {
-        label: `撤回收款记录 #${receipt.id} · ${receipt.reversal_reason}`,
-        date: receipt.reversal_business_date || receipt.reversed_at,
+        label: `撤回收款记录 #${receipt.id}`, date: receipt.reversal_business_date || receipt.reversed_at,
+        detail: `撤回 ${formatCny(receipt.amount_cny)} · 原账户：${accountName(receipt.fund_account_id)} · 原因：${receipt.reversal_reason || "未填写"}`,
       },
     ]),
+    order.payment_review && {
+      label: order.payment_review.status === 'pending' ? "付款凭证待核实" : "付款凭证待补充",
+      date: order.payment_review.submitted_at,
+      detail: `凭证 #${order.payment_review.id} · 尚未确认到账${order.payment_review.review_note ? ` · ${order.payment_review.review_note}` : ''}`,
+    },
     order.sales_shipment && {
-      label: "生成 SalesShipment 出库事实",
-      date: order.sales_shipment.business_date,
+      label: "订单出库", date: order.sales_shipment.business_date,
+      detail: `${itemSummary} · 出库成本 ${formatCny(order.sales_shipment.fifo_cost_cny)}`,
     },
     order.sales_transport_cost && {
-      label: "登记 SalesTransportCost",
-      date: order.sales_transport_cost.business_date,
+      label: "登记人肉成本", date: order.sales_transport_cost.business_date,
+      detail: `实际成本 ${formatCny(order.sales_transport_cost.actual_cost_cny)} · 付款账户：${accountName(order.sales_transport_cost.fund_account_id)}`,
     },
     order.sales_return && {
-      label: "生成 SalesReturn 退货事实",
-      date: order.sales_return.business_date,
+      label: "订单退货", date: order.sales_return.business_date,
+      detail: `退货金额 ${formatCny(order.sales_return.amount_cny)} · 回库成本 ${formatCny(order.sales_return.fifo_cost_cny)} · 原因：${order.sales_return.reason || "未填写"}`,
     },
     order.sales_refund && {
-      label: "生成 SalesRefund 退款事实",
-      date: order.sales_refund.business_date,
+      label: "订单退款", date: order.sales_refund.business_date,
+      detail: `退款 ${formatCny(order.sales_refund.amount_cny)} · ${(order.sales_refund.accounts?.length
+        ? order.sales_refund.accounts.map(item => `${accountName(item.fund_account_id)} ${formatCny(item.amount_cny)}`).join("；")
+        : order.sales_refund.fund_account_id ? accountName(order.sales_refund.fund_account_id) : "账户明细未提供")}`,
     },
-    order.cancelled_at && { label: "订单取消", date: order.cancelled_at },
-  ].filter(Boolean) as { label: string; date: string }[];
+    order.cancelled_at && { label: "订单取消", date: order.cancelled_at, detail: "订单履约已取消；收款和退款以各自流水为准。" },
+  ].filter(Boolean) as { label: string; date: string; detail: string }[];
+  // Historical facts expose business dates, not a reliable within-day sequence.
+  const days = new Map<string, typeof events>();
+  for (const event of events) {
+    const day = formatShanghaiDateTime(event.date).slice(0, 10);
+    days.set(day, [...(days.get(day) || []), event]);
+  }
   return (
-    <ol className="space-y-0">
-      {events.map((event, index) => (
-        <li
-          key={`${event.label}-${index}`}
-          className="relative border-l border-border pb-5 pl-5 last:pb-0"
-        >
+    <ol aria-label="订单时间线" className="space-y-0">
+      {[...days].sort(([a], [b]) => a.localeCompare(b)).map(([day, dayEvents]) => (
+        <li key={day} className="relative border-l border-border pb-5 pl-5 last:pb-0">
           <span className="absolute -left-1 top-1 h-2 w-2 rounded-full bg-accent" />
-          <strong className="block text-sm">{event.label}</strong>
-          <span className="mt-1 block font-mono text-[11px] text-muted">
-            {formatShanghaiDateTime(event.date)}
-          </span>
+          <strong className="block font-mono text-sm">{day}</strong>
+          {dayEvents.length > 1 && <p className="mt-1 text-[11px] text-muted">同日记录，未按实际先后排序</p>}
+          {dayEvents.map((event, index) => <div key={`${event.label}-${index}`} className="mt-3">
+            <strong className="block text-sm">{event.label}</strong>
+            <p className="mt-1 break-words text-xs leading-relaxed text-fg">{event.detail}</p>
+            {event.date.includes('T') && <span className="mt-1 block font-mono text-[11px] text-muted">{formatShanghaiDateTime(event.date)}</span>}
+          </div>)}
         </li>
       ))}
     </ol>
@@ -780,18 +806,20 @@ function OrderActions({
   ].includes(action);
   const receiveMatchesDue =
     action !== "receive" ||
-    receiveAmountMatchesDue(amount, order.amount_due_cny);
+    receiveAmountWithinRemaining(amount, order.remaining_amount_cny ?? order.amount_due_cny);
 
   const open = (nextAction: string) => {
     setAction(nextAction);
     setError("");
     setReason("");
     setConfirmReceipt(false);
-    setAmount(nextAction === "receive" ? String(order.amount_due_cny) : "");
+    setAmount(nextAction === "receive" ? String(order.remaining_amount_cny ?? order.amount_due_cny) : "");
     setDate(salesOrderActionBusinessDate());
   };
+  const actionInFlight = useRef(false);
   const executeAction = async () => {
-    setConfirmReceipt(false);
+    if (actionInFlight.current) return;
+    actionInFlight.current = true;
     setBusy(true);
     try {
       if (action === "confirm") await confirmSalesOrder(order.id);
@@ -805,6 +833,7 @@ function OrderActions({
         });
       if (action === "withdraw_receipt")
         await withdrawSalesOrderReceipt(order.id, {
+          ...(order.sales_receipt ? { sales_receipt_id: order.sales_receipt.id } : {}),
           business_date: date,
           reason: reason.trim(),
         });
@@ -820,11 +849,13 @@ function OrderActions({
           fund_account_id: selectedAccountId,
           business_date: date,
         });
+      setConfirmReceipt(false);
       setAction("");
       onChanged();
     } catch (requestError) {
       setError(apiErrorMessage(requestError));
     } finally {
+      actionInFlight.current = false;
       setBusy(false);
     }
   };
@@ -832,7 +863,7 @@ function OrderActions({
     setError("");
     if (action === "receive" && !receiveMatchesDue) {
       setError(
-        `收款金额必须等于应收 ${formatCny(order.amount_due_cny)}，请修正差额后提交。`,
+        `本次实收须大于零且不超过剩余待收 ${formatCny(order.remaining_amount_cny ?? order.amount_due_cny)}，请修正差额后提交。`,
       );
       return;
     }
@@ -874,16 +905,8 @@ function OrderActions({
         ))}
       </div>
       {action && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={actionLabel(action)}
-          className="fixed inset-0 z-50 grid place-items-center bg-fg/30 p-4"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setAction("");
-          }}
-        >
-          <div className="w-full max-w-md rounded-md border border-border bg-white shadow-xl">
+        <PaymentDialog title={actionLabel(action)} width="md" busy={busy} onClose={() => setAction("")}>
+          <div className="w-full bg-white">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
                 <h3 className="font-display text-lg font-semibold">
@@ -935,7 +958,7 @@ function OrderActions({
                 <>
                   <label className="block text-xs font-medium text-muted">
                     {action === "receive"
-                      ? `收款金额（必须等于应收 ${formatCny(order.amount_due_cny)}）`
+                      ? `本次实收金额（最多 ${formatCny(order.remaining_amount_cny ?? order.amount_due_cny)}）`
                       : "实际人肉成本"}
                     <input
                       type="number"
@@ -948,11 +971,7 @@ function OrderActions({
                   </label>
                   {action === "receive" && amount && !receiveMatchesDue && (
                     <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                      当前金额与应收相差{" "}
-                      {formatCny(
-                        Math.abs(Number(amount) - Number(order.amount_due_cny)),
-                      )}
-                      ，暂不能提交。
+                      本次实收须大于零且不超过剩余待收 {formatCny(order.remaining_amount_cny ?? order.amount_due_cny)}。
                     </p>
                   )}
                   <label className="block text-xs font-medium text-muted">
@@ -979,7 +998,7 @@ function OrderActions({
                 action === "withdraw_receipt") && (
                 <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                   {action === "withdraw_receipt"
-                    ? "仅在原收款之后没有其他正式流水、出库或已确认对账时可撤回；原收款及冲正记录会永久保留。"
+                    ? "仅撤回最新一笔有效收款，且该笔收款之后没有其他正式流水、出库或已确认对账时可撤回；原收款及冲正记录会永久保留。"
                     : "这是会改变订单、库存或资金事实的操作，请确认后执行。"}
                 </p>
               )}
@@ -1010,53 +1029,10 @@ function OrderActions({
               </button>
             </div>
           </div>
-        </div>
+        </PaymentDialog>
       )}
-      {confirmReceipt && (
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-label="确认收款信息"
-          className="fixed inset-0 z-[60] grid place-items-center bg-fg/40 p-4"
-        >
-          <div className="w-full max-w-md rounded-md border border-border bg-white shadow-2xl">
-            <div className="border-b border-border px-5 py-4">
-              <h3 className="font-display text-lg font-semibold">请再次确认收款</h3>
-              <p className="mt-1 text-xs text-muted">确认后会立即生成正式资金流水。</p>
-            </div>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 p-5 text-sm">
-              <dt className="text-muted">订单</dt>
-              <dd className="font-mono font-semibold">{order.order_number}</dd>
-              <dt className="text-muted">金额</dt>
-              <dd className="font-mono font-semibold">{formatCny(amount)}</dd>
-              <dt className="text-muted">业务日期</dt>
-              <dd className="font-semibold">{date}</dd>
-              <dt className="text-muted">到账账户</dt>
-              <dd className="font-semibold">
-                {accounts.find((account) => account.id === selectedAccountId)?.name ||
-                  `账户 #${selectedAccountId}`}
-              </dd>
-            </dl>
-            <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
-              <button
-                type="button"
-                onClick={() => setConfirmReceipt(false)}
-                className="rounded border border-border px-4 py-2 text-sm"
-              >
-                返回修改
-              </button>
-              <button
-                type="button"
-                onClick={executeAction}
-                disabled={busy}
-                className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {busy ? "处理中…" : "确认收款"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {confirmReceipt && <ReceiptConfirmation order={order} amount={amount} date={date} accountName={accounts.find(account => account.id === selectedAccountId)?.name || `账户 #${selectedAccountId}`} busy={busy} onBack={() => setConfirmReceipt(false)} onConfirm={executeAction} error={error} />}
+
     </div>
   );
 }
@@ -1126,4 +1102,26 @@ function Money({
       </span>
     </div>
   );
+}
+
+function ReceiptConfirmation({ order, amount, date, accountName, busy, onBack, onConfirm, error }: {
+  order: SalesOrder; amount: string; date: string; accountName: string; busy: boolean;
+  onBack: () => void; onConfirm: () => void; error: string;
+}) {
+  return <PaymentDialog title="确认收款信息" role="alertdialog" width="md" onClose={onBack} busy={busy}>
+    <div className="w-full bg-white">
+      <div className="border-b border-border px-5 py-4"><h3 className="font-display text-lg font-semibold">请再次确认收款</h3><p className="mt-1 text-xs text-muted">确认后会立即生成正式资金流水。</p></div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 p-5 text-sm">
+        <dt className="text-muted">订单</dt><dd className="font-mono font-semibold">{order.order_number}</dd>
+        <dt className="text-muted">订单应收</dt><dd>{formatCny(order.amount_due_cny)}</dd>
+        <dt className="text-muted">此前已收</dt><dd>{formatCny(order.received_amount_cny ?? 0)}</dd>
+        <dt className="text-muted">本次实收</dt><dd className="font-mono font-semibold">{formatCny(amount)}</dd>
+        <dt className="text-muted">本次收款后待收</dt><dd>{formatCny((order.remaining_amount_cny ?? order.amount_due_cny) - Number(amount))}</dd>
+        <dt className="text-muted">业务日期</dt><dd className="font-semibold">{date}</dd>
+        <dt className="text-muted">到账账户</dt><dd className="font-semibold">{accountName}</dd>
+      </dl>
+      {error && <p role="alert" className="px-5 pb-3 text-sm text-red-700">{error}</p>}
+      <div className="flex justify-end gap-2 border-t border-border px-5 py-4"><button type="button" onClick={onBack} disabled={busy} className="rounded border border-border px-4 py-2 text-sm">返回修改</button><button type="button" onClick={onConfirm} disabled={busy} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? '处理中…' : '确认收款'}</button></div>
+    </div>
+  </PaymentDialog>;
 }

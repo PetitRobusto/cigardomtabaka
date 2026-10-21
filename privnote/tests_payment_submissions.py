@@ -213,7 +213,7 @@ class PaymentSubmissionWorkflowTest(TestCase):
         current = PaymentSubmission.objects.get(status=PaymentSubmission.Status.PENDING)
         accepted = self.staff_client.post(
             f'/api/sales/orders/{self.order.id}/payment-submissions/{current.id}/accept/',
-            data='{"business_date":"2026-09-11"}', content_type='application/json',
+            data='{"business_date":"2026-09-11","amount_cny":"120.00"}', content_type='application/json',
             HTTP_IDEMPOTENCY_KEY='proof-accept',
         )
         self.assertEqual(accepted.status_code, 200)
@@ -272,13 +272,13 @@ class PaymentSubmissionWorkflowTest(TestCase):
         submission = PaymentSubmission.objects.get()
         accepted = self.staff_client.post(
             f'/api/sales/orders/{self.order.id}/payment-submissions/{submission.id}/accept/',
-            data='{"business_date":"2026-09-11"}', content_type='application/json',
+            data='{"business_date":"2026-09-11","amount_cny":"120.00"}', content_type='application/json',
             HTTP_IDEMPOTENCY_KEY='proof-accept-audit',
         )
         self.assertEqual(accepted.status_code, 200)
         conflicting_replay = self.staff_client.post(
             f'/api/sales/orders/{self.order.id}/payment-submissions/{submission.id}/accept/',
-            data='{"business_date":"2026-09-10"}', content_type='application/json',
+            data='{"business_date":"2026-09-10","amount_cny":"120.00"}', content_type='application/json',
             HTTP_IDEMPOTENCY_KEY='proof-accept-audit-different',
         )
         self.assertEqual(conflicting_replay.status_code, 409)

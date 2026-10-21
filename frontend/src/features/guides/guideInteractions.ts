@@ -32,9 +32,9 @@ const salesShipmentSteps: readonly ContextTourStep[] = [
 ];
 
 const salesReceiptSteps: readonly ContextTourStep[] = [
-  { id: 'sales-receive', title: '记录人民币收款', description: '客户实际付款后点击收款；一张订单只记录一次收款，并选择实际到账的人民币账户。', target: '[data-guide="sales-action-receive"]', route: '/sales', waitForTarget: true },
+  { id: 'sales-receive', title: '记录人民币收款', description: '客户实际付款后点击收款；同一订单可分次收款，每次选择实际到账的人民币账户。', target: '[data-guide="sales-action-receive"]', route: '/sales', waitForTarget: true },
   { id: 'sales-receive-date', title: '填写收款日期', description: '填写实际到账的业务日期，不能用预计收款日代替。', target: '[data-guide="sales-receive-date"]', route: '/sales', waitForTarget: true },
-  { id: 'sales-receive-amount', title: '填写收款金额', description: '填写客户实际支付的人民币金额；通常等于订单应收，但以银行实际到账为准。', target: '[data-guide="sales-receive-amount"]', route: '/sales', waitForTarget: true },
+  { id: 'sales-receive-amount', title: '填写收款金额', description: '填写客户实际支付的人民币金额；每次以银行实际到账为准，不能超过剩余待收金额。', target: '[data-guide="sales-receive-amount"]', route: '/sales', waitForTarget: true },
   { id: 'sales-receive-account', title: '选择到账账户', description: '选择实际收到人民币的公司账户。两个合伙人的账户都属于公司，但不能混入个人资金。', target: '[data-guide="sales-receive-account"]', route: '/sales', waitForTarget: true },
   { id: 'sales-receive-submit', title: '提交收款', description: '核对日期、金额和账户后执行收款。收款会增加对应人民币账户余额，月利润按订单收入统计。', target: '[data-guide="sales-action-submit"]', route: '/sales', waitForTarget: true },
 ];

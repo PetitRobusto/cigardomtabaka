@@ -10,7 +10,7 @@ import {
   formatSignedCny,
   initialActionAmount,
   orderDisplayStatus,
-  receiveAmountMatchesDue,
+  receiveAmountWithinRemaining,
   validateMoneyInput,
   validatePositiveMoneyInput,
   statusLabel,
@@ -184,8 +184,10 @@ describe("summarizeSalesOrders", () => {
     expect(actionNeedsFundAccount("transport_cost")).toBe(true);
     expect(actionNeedsFundAccount("confirm")).toBe(false);
     expect(actionNeedsFundAccount("ship")).toBe(false);
-    expect(receiveAmountMatchesDue("180.00", 180)).toBe(true);
-    expect(receiveAmountMatchesDue("179.99", 180)).toBe(false);
+    expect(receiveAmountWithinRemaining("180.00", 180)).toBe(true);
+    expect(receiveAmountWithinRemaining("179.99", 180)).toBe(true);
+    expect(receiveAmountWithinRemaining("180.01", 180)).toBe(false);
+    expect(receiveAmountWithinRemaining("0", 180)).toBe(false);
     expect(actionNeedsFundAccount("refund")).toBe(false);
   });
 });

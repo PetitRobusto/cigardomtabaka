@@ -3,7 +3,7 @@ import type { PaymentOrder } from '../types';
 export function eligiblePaymentOrders(orders: PaymentOrder[]): PaymentOrder[] {
   return orders.filter(order =>
     (order.fulfillment_status === 'confirmed' || order.fulfillment_status === 'shipped') &&
-    order.payment_status === 'unpaid',
+    ['unpaid', 'partial'].includes(order.payment_status),
   );
 }
 
@@ -12,6 +12,8 @@ export function paymentOrderSummary(order: PaymentOrder) {
     order_number: order.order_number || `SO-${order.id}`,
     customer_name: order.customer_name || order.customer?.name || '散客',
     amount_due_cny: order.amount_due_cny,
+    received_amount_cny: order.received_amount_cny ?? 0,
+    remaining_amount_cny: order.remaining_amount_cny ?? order.amount_due_cny,
     status: order.display_status || order.status,
     item_count: order.items.length,
     items: order.items.map(item => ({
@@ -27,7 +29,7 @@ export function canSubmitPayment(order: PaymentOrder | null, paymentMethodId: st
   return Boolean(
     order &&
     (order.fulfillment_status === 'confirmed' || order.fulfillment_status === 'shipped') &&
-    order.payment_status === 'unpaid' &&
+    ['unpaid', 'partial'].includes(order.payment_status) &&
     paymentMethodId,
   );
 }

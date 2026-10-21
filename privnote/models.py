@@ -353,10 +353,6 @@ class PaymentSubmission(models.Model):
                 fields=['sales_order'], condition=models.Q(status='pending'),
                 name='payment_submission_one_pending_per_order',
             ),
-            models.UniqueConstraint(
-                fields=['sales_order'], condition=models.Q(status='accepted'),
-                name='payment_submission_one_accepted_per_order',
-            ),
             models.UniqueConstraint(fields=['privnote', 'idempotency_key'], name='payment_submission_privnote_key_unique'),
             models.CheckConstraint(
                 condition=(

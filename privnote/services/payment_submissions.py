@@ -108,6 +108,7 @@ def serialize_submission(submission: PaymentSubmission, *, include_attachments: 
         "amount_cny": float(submission.amount_cny),
         "fund_account_id": submission.fund_account_id,
         "sales_receipt_id": submission.sales_receipt_id,
+        "received_amount_cny": float(submission.sales_receipt.amount_cny) if submission.sales_receipt_id else None,
     }
     if include_attachments:
         result["attachments"] = [
@@ -160,7 +161,7 @@ def submit_payment_evidence(*, note: Privnote, files: Iterable[UploadedFile], id
                     raise PaymentSubmissionError("幂等键已用于不同的付款凭证", status=409)
                 return existing, True
             if (
-                order.payment_status != SalesOrder.PaymentStatus.UNPAID
+                order.payment_status not in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PARTIAL)
                 or order.fulfillment_status not in (SalesOrder.FulfillmentStatus.CONFIRMED, SalesOrder.FulfillmentStatus.SHIPPED)
             ):
                 raise PaymentSubmissionError("订单当前不能继续提交付款凭证", status=409)
@@ -237,7 +238,7 @@ def mark_submission_needs_more(*, submission_id: int, sales_order_id: int, opera
 @_retry_sqlite_locked
 @transaction.atomic
 def accept_payment_submission(*, submission_id: int, sales_order_id: int, operator, business_date: date,
-                              idempotency_key: str, agent_context: AgentContext | None = None) -> PaymentSubmission:
+                              idempotency_key: str, amount_cny=None, fund_account_id=None, agent_context: AgentContext | None = None) -> PaymentSubmission:
     _acquire_sqlite_writer_gate()
     try:
         order = SalesOrder.objects.select_for_update().get(pk=sales_order_id)
@@ -246,6 +247,18 @@ def accept_payment_submission(*, submission_id: int, sales_order_id: int, operat
         ).get(pk=submission_id, sales_order=order)
     except (SalesOrder.DoesNotExist, PaymentSubmission.DoesNotExist, TypeError, ValueError) as exc:
         raise PaymentSubmissionError("付款凭证不存在或不属于该销售单", status=404) from exc
+    try:
+        actual_amount = Decimal(str(amount_cny))
+        if not actual_amount.is_finite() or actual_amount <= 0 or actual_amount != actual_amount.quantize(Decimal('0.01')):
+            raise ValueError
+        if fund_account_id is not None and (
+            isinstance(fund_account_id, bool)
+            or not str(fund_account_id).isdigit() or int(fund_account_id) <= 0
+        ):
+            raise ValueError
+        actual_account_id = int(fund_account_id) if fund_account_id is not None else submission.fund_account_id
+    except (ValueError, TypeError, ArithmeticError):
+        raise PaymentSubmissionError('请明确核实本次实收金额和到账账户')
     if submission.status == PaymentSubmission.Status.ACCEPTED:
         receipt = submission.sales_receipt
         replay_matches = (
@@ -254,6 +267,8 @@ def accept_payment_submission(*, submission_id: int, sales_order_id: int, operat
             and submission.reviewed_at is not None
             and receipt.operator_id == getattr(operator, "pk", None)
             and receipt.business_date == business_date
+            and receipt.amount_cny == actual_amount
+            and receipt.fund_account_id == actual_account_id
             and receipt.ledger_transaction.idempotency_key == idempotency_key
         )
         if replay_matches:
@@ -263,10 +278,14 @@ def accept_payment_submission(*, submission_id: int, sales_order_id: int, operat
         raise PaymentSubmissionError("该付款凭证当前不能确认到账", status=409)
     if submission.amount_cny != order.amount_due_cny:
         raise PaymentSubmissionError("订单应收金额已变化，不能确认该付款凭证", status=409)
+    try:
+        actual_account = FundAccount.objects.get(pk=actual_account_id)
+    except FundAccount.DoesNotExist:
+        raise PaymentSubmissionError('到账账户不存在')
     receipt = receive_sales_order_payment(
         order_id=order.id,
-        amount_cny=submission.amount_cny,
-        fund_account=submission.fund_account,
+        amount_cny=actual_amount,
+        fund_account=actual_account,
         business_date=business_date,
         operator=operator,
         idempotency_key=idempotency_key,

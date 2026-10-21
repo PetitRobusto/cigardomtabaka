@@ -28,7 +28,8 @@ describe('privnote payment helpers', () => {
       order({ id: 3, fulfillment_status: 'draft' }),
       order({ id: 4, fulfillment_status: 'cancelled' }),
       order({ id: 5, payment_status: 'paid' }),
-    ]).map(item => item.id)).toEqual([1, 2]);
+      order({ id: 6, payment_status: 'partial', remaining_amount_cny: 40 }),
+    ]).map(item => item.id)).toEqual([1, 2, 6]);
   });
 
   it('builds a selected-order summary for display and preview', () => {
@@ -54,6 +55,9 @@ describe('privnote payment helpers', () => {
 
   it('allows submit only with an eligible order and payment method', () => {
     expect(canSubmitPayment(order(), '12')).toBe(true);
+    const partial = order({ payment_status: 'partial', received_amount_cny: 60, remaining_amount_cny: 40 });
+    expect(canSubmitPayment(partial, '12')).toBe(true);
+    expect(paymentOrderSummary(partial)).toMatchObject({ amount_due_cny: 100, received_amount_cny: 60, remaining_amount_cny: 40 });
     expect(canSubmitPayment(null, '12')).toBe(false);
     expect(canSubmitPayment(order({ payment_status: 'paid' }), '12')).toBe(false);
     expect(canSubmitPayment(order(), '')).toBe(false);

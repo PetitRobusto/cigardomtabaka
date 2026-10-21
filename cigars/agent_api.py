@@ -679,7 +679,7 @@ def ship_sales_order_command(request):
 @csrf_exempt
 @staff_required
 def receive_sales_order_payment_command(request):
-    # 一张订单只记录一次人民币整单收款。
+    # 每次记录实际到账金额；同一订单可分次、跨人民币账户收款。
     if request.method != 'POST':
         return _json_response({'error': 'Method not allowed'}, status=405)
 

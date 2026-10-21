@@ -4,6 +4,8 @@
 
 本文件记录用户已确认的需求与拟定实现，不替代 CONTEXT.md 中当前已上线的业务定义。
 
+> 2026-10-21：本文保留初版设计记录。整单一次收款约束已由 [ADR 0021](adr/0021-sales-partial-receipts.md) 和 [分次收款契约](sales-partial-receipts-plan.md) 取代，现行定义见 CONTEXT.md。
+
 ## 1. 已确认的业务契约
 
 - 沿用现有销售流程：创建销售单 → 确认订单 → 创建收款单。不从 Privnote 自动创建或确认订单。

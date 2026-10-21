@@ -12,7 +12,7 @@ import { salesOrderFinancialView } from '../components/sales/SalesOrderCard.logi
 import { shanghaiBusinessDate, shiftIsoDate } from '../utils/businessDate';
 import { DelayedAppSkeleton } from '../components/layout/AppSkeleton';
 
-type QuickDate = 'all' | 'today' | 'week' | 'month' | 'custom';
+type QuickDate = 'all' | 'today' | 'week' | 'month' | 'last_month' | 'custom';
 
 export default function SalesPage() {
   const { setMeta } = usePageMeta();
@@ -88,6 +88,12 @@ export default function SalesPage() {
     const today = shanghaiBusinessDate();
     if (value === 'all') { setDateFrom(''); setDateTo(''); return; }
     if (value === 'today') { setDateFrom(today); setDateTo(today); return; }
+    if (value === 'last_month') {
+      const end = shiftIsoDate(`${today.slice(0, 8)}01`, -1);
+      setDateFrom(`${end.slice(0, 8)}01`);
+      setDateTo(end);
+      return;
+    }
     const start = value === 'week' ? shiftIsoDate(today, -6) : `${today.slice(0, 8)}01`;
     setDateFrom(start);
     setDateTo(today);
@@ -106,9 +112,9 @@ export default function SalesPage() {
         <label className="text-[11px] font-semibold text-muted">订单日期<input type="date" value={dateFrom} onChange={event => { setDateFrom(event.target.value); setQuickDate('custom'); }} className="mt-1 block rounded border border-border px-2 py-1.5 text-xs text-fg" /></label>
         <span className="pb-2 text-xs text-muted">至</span>
         <label className="text-[11px] font-semibold text-muted"><span className="sr-only">结束日期</span><input type="date" value={dateTo} onChange={event => { setDateTo(event.target.value); setQuickDate('custom'); }} className="mt-1 block rounded border border-border px-2 py-1.5 text-xs text-fg" /></label>
-        <div className="flex flex-wrap gap-1">{([['all', '全部'], ['today', '今天'], ['week', '近 7 天'], ['month', '本月']] as [QuickDate, string][]).map(([value, label]) => <button key={value} type="button" onClick={() => selectQuickDate(value)} className={'rounded-full border px-3 py-1.5 text-xs font-semibold ' + (quickDate === value ? 'border-fg bg-fg text-white' : 'border-border hover:border-gold')}>{label}</button>)}</div>
+        <div className="flex flex-wrap gap-1">{([['all', '全部'], ['today', '今天'], ['week', '近 7 天'], ['month', '本月'], ['last_month', '上个月']] as [QuickDate, string][]).map(([value, label]) => <button key={value} type="button" onClick={() => selectQuickDate(value)} className={'rounded-full border px-3 py-1.5 text-xs font-semibold ' + (quickDate === value ? 'border-fg bg-fg text-white' : 'border-border hover:border-gold')}>{label}</button>)}</div>
         <label className="text-[11px] font-semibold text-muted">订单<select value={fulfillment} onChange={event => setFulfillment(event.target.value)} className="mt-1 block rounded border border-border bg-white px-2 py-1.5 text-xs text-fg"><option value="">全部订单</option><option value="draft">草稿</option><option value="confirmed">已确认</option><option value="shipped">已出库</option><option value="cancelled">已取消</option><option value="returned">已退货</option></select></label>
-        <label className="text-[11px] font-semibold text-muted">付款<select value={payment} onChange={event => setPayment(event.target.value)} className="mt-1 block rounded border border-border bg-white px-2 py-1.5 text-xs text-fg"><option value="">全部付款</option><option value="unpaid">未收款</option><option value="paid">已收款</option><option value="refund_pending">待退款</option><option value="refunded">已退款</option></select></label>
+        <label className="text-[11px] font-semibold text-muted">付款<select value={payment} onChange={event => setPayment(event.target.value)} className="mt-1 block rounded border border-border bg-white px-2 py-1.5 text-xs text-fg"><option value="">全部付款</option><option value="unpaid">未收款</option><option value="partial">部分收款</option><option value="paid">已收款</option><option value="refund_pending">待退款</option><option value="refunded">已退款</option></select></label>
         <button type="button" onClick={() => setReviewOnly(value => !value)} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${reviewOnly ? 'border-accent bg-accent text-white' : reviewCount ? 'border-orange-200 bg-orange-50 text-orange-800' : 'border-border text-muted'}`}>待核实 <span className="font-mono">{reviewCount}</span></button>
         <div className="relative min-w-48 flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="搜索订单号或客户" className="w-full rounded border border-border py-2 pl-9 pr-3 text-sm outline-none focus:border-gold" /></div>
       </div>

@@ -110,7 +110,7 @@ def create_payment_request(*, sales_order_id, duration_hours, password: str,
     except (SalesOrder.DoesNotExist, TypeError, ValueError):
         raise PaymentRequestError('销售单不存在')
     if (
-        order.payment_status != SalesOrder.PaymentStatus.UNPAID
+        order.payment_status not in (SalesOrder.PaymentStatus.UNPAID, SalesOrder.PaymentStatus.PARTIAL)
         or order.fulfillment_status not in (SalesOrder.FulfillmentStatus.CONFIRMED, SalesOrder.FulfillmentStatus.SHIPPED)
     ):
         raise PaymentRequestError('只有已确认或已出库且未收款的销售单才能创建收款单')

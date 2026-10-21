@@ -13,16 +13,16 @@ export default function SalesReceiptsPage() {
   useEffect(() => { setMeta({ title: '收款记录', breadcrumbs: [{ label: '首页', to: '/' }, { label: '订单', to: '/sales' }, { label: '收款记录' }] }); }, [setMeta]);
   const query = useQuery({
     queryKey: ['sales-receipts'],
-    queryFn: () => fetchSalesOrders({ payment_status: 'paid', limit: 100 }),
+    queryFn: () => fetchSalesOrders({ limit: 100 }),
   });
-  const receipts = useMemo(() => (query.data || []).filter(order => order.sales_receipt), [query.data]);
+  const receipts = useMemo(() => (query.data || []).flatMap(order => (order.sales_receipts?.filter(receipt => !receipt.reversed_at) ?? (order.sales_receipt ? [order.sales_receipt] : [])).map(receipt => ({ ...order, sales_receipt: receipt }))), [query.data]);
   const total = receipts.reduce((sum, order) => sum + Number(order.sales_receipt?.amount_cny || 0), 0);
   const refresh = () => { queryClient.invalidateQueries({ queryKey: ['sales-receipts'] }); queryClient.invalidateQueries({ queryKey: ['sales-orders'] }); };
 
   return <div className="w-full animate-fade-in">
     <SalesSectionNav />
     <header className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Sales receipts</p><h1 className="mt-1 font-display text-3xl font-semibold sm:text-4xl">收款记录</h1><p className="mt-2 text-sm text-muted">每条记录对应一笔客户已经付款后的正式 SalesReceipt 收款事实。</p></div><button type="button" onClick={refresh} className="inline-flex items-center gap-1 self-start rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold sm:self-auto"><RefreshCw className="h-4 w-4" />刷新</button></header>
-    <section className="mb-4 grid grid-cols-2 overflow-hidden rounded-md border border-border bg-white shadow-sm lg:grid-cols-3"><Metric label="记录数" value={query.isLoading ? '—' : String(receipts.length)} /><Metric label="累计收款" value={query.isLoading ? '—' : formatCny(total)} /><Metric label="来源" value="销售订单" /></section>
+    <section className="mb-4 grid grid-cols-2 overflow-hidden rounded-md border border-border bg-white shadow-sm lg:grid-cols-3"><Metric label="记录数" value={query.isLoading ? '—' : String(receipts.length)} /><Metric label="当前列表收款" value={query.isLoading ? '—' : formatCny(total)} /><Metric label="来源" value="销售订单" /></section>
     {query.error && <p className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{apiErrorMessage(query.error, '收款记录加载失败')}</p>}
     <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
       <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-4 border-b border-border bg-[#FCFBF9] px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-muted"><span>收款记录 / 订单</span><span>业务日期</span><span>金额</span></div>

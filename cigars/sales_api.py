@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from accounting.models import FundAccount
 from accounting.guards import Day1IncompleteError
-from accounting.services import LedgerError
+from accounting.services import LedgerError, _acquire_sqlite_writer_gate
 
 from .models import Customer, IdempotencyRecord, SalesOrder
 from .sales_reports import pending_collection_summary
@@ -105,6 +105,7 @@ def _write(request, command, handler, success_status=200):
     for attempt in range(8):
         try:
             with transaction.atomic():
+                _acquire_sqlite_writer_gate()
                 record = IdempotencyRecord.objects.select_for_update().filter(key=context.idempotency_key).first()
                 if record:
                     if record.command_name != command or record.request_hash != request_hash:
@@ -576,9 +577,11 @@ def _action(request, order_id, command, handler):
     method_error = _method(request, {"POST"})
     if method_error:
         return method_error
-    if _get_order(order_id) is None:
-        return _error("销售单不存在", 404)
     def action_handler(body, operator, context):
+        # 与收款事实的读取一起置于 _write 的事务/锁重试中，避免并发收款
+        # 在事务外预取 sales_receipts 时触发 SQLite table locked 500。
+        if not SalesOrder.objects.filter(pk=order_id).exists():
+            raise SalesOrder.DoesNotExist
         try:
             return _response(handler(body, operator, context))
         except ActionInputError:
@@ -610,6 +613,7 @@ def sales_order_withdraw_receipt(request, order_id):
             order_id=order_id, business_date=_business_date(body), operator=operator,
             idempotency_key=context.idempotency_key,
             reason=_required_reason(body), agent_context=context,
+            sales_receipt_id=body.get('sales_receipt_id'),
         ).sales_order,
     )
 
@@ -636,12 +640,10 @@ def sales_order_payment_submission_accept(request, order_id, submission_id):
     method_error = _method(request, {"POST"})
     if method_error:
         return method_error
-    if _get_order(order_id) is None:
-        return _error("销售单不存在", 404)
-
     def handler(body, operator, context):
         return {"payment_submission": serialize_submission(accept_payment_submission(
             submission_id=submission_id, sales_order_id=order_id, operator=operator,
+            amount_cny=body.get("amount_cny"), fund_account_id=body.get("fund_account_id"),
             business_date=_business_date(body), idempotency_key=context.idempotency_key,
             agent_context=context,
         ), include_attachments=True)}

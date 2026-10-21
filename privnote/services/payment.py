@@ -3,6 +3,8 @@
 SalesOrder 必须由销售单工作流创建；这里的 payment privnote 只负责引用
 既有销售单并渲染收款信息。
 """
+from cigars.receipt_totals import received_amount, remaining_amount
+
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from privnote.models import PaymentMethod
@@ -116,6 +118,8 @@ def build_payment_data(sales_order, payment_method=None, *, remark=None, images=
         'extra_fees': extra_fees,
         'extra_total': decimal_to_number(extra_total),
         'grand_total': decimal_to_number(authoritative_total),
+        'received_amount_cny': decimal_to_number(received_amount(sales_order)),
+        'remaining_amount_cny': decimal_to_number(remaining_amount(sales_order)),
         'payment_methods': payment_methods,
         'customer_name': sales_order.customer_name or '',
         'remark': str(remark or ''),

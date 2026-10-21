@@ -87,7 +87,7 @@ def _render_order(kind: str, snapshot: dict) -> str:
         "received": "💰 <b>收款成功</b>",
         "cancelled": "🛑 <b>订单已取消</b>",
     }
-    paid = "已收款" if snapshot["payment_status"] == "paid" else "未收款"
+    paid = {"paid": "已收款", "partial": "部分收款"}.get(snapshot["payment_status"], "未收款")
     lines = [
         titles[kind],
         f"订单：<b>{_value(snapshot['order_number'])}</b>",

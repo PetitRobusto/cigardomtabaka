@@ -76,7 +76,7 @@ describe('manual content', () => {
     expect(text).toContain("/sales");
     expect(text).toContain("客户承担");
     expect(text).toContain("公司承担");
-    expect(text).toContain("一次性人民币收款");
+    expect(text).toContain("本次人民币收款");
   });
 
   it("keeps Day 1 readable while exposing the four required business flows", () => {

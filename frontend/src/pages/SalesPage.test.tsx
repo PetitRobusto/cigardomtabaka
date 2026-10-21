@@ -15,9 +15,29 @@ vi.mock('../components/sales/SalesOrderForm', () => ({ default: () => null }));
 vi.mock('../components/sales/SalesOrderWorkbench', () => ({ default: ({ selectedId, onSelect, onChanged }: {
   selectedId: number | null; onSelect: (id: number) => void; onChanged: () => void;
 }) => <div><span>选中 {selectedId || '无'}</span><button onClick={() => onSelect(1)}>选订单</button><button onClick={onChanged}>动作成功</button><button>动作失败</button></div> }));
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe('销售动作后的查询刷新', () => {
+  it.each([
+    ['2026-10-21T00:00:00Z', '2026-09-01', '2026-09-30'],
+    ['2026-01-15T00:00:00Z', '2025-12-01', '2025-12-31'],
+    ['2024-02-29T16:30:00Z', '2024-02-01', '2024-02-29'],
+  ])('上个月按上海日期筛选完整自然月：%s', async (now, start, end) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(now));
+    mocks.fetchSalesOrderList.mockClear().mockResolvedValue({ results: [] });
+    mocks.fetchAccountingAccounts.mockResolvedValue([]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter><SalesPage /></MemoryRouter></QueryClientProvider>);
+    fireEvent.click(await screen.findByRole('button', { name: '上个月' }));
+    await waitFor(() => expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ date_from: start, date_to: end })));
+    expect((screen.getByLabelText('订单日期') as HTMLInputElement).value).toBe(start);
+    expect((screen.getByLabelText('结束日期') as HTMLInputElement).value).toBe(end);
+    expect(screen.getByRole('button', { name: '上个月' }).className).toContain('bg-fg');
+    fireEvent.click(screen.getByRole('button', { name: '本月' }));
+    await waitFor(() => expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ date_to: shanghaiBusinessDate() })));
+  });
+
   it('订单轨道默认只查询本月至今', async () => {
     mocks.fetchSalesOrderList.mockResolvedValue({ results: [], pending_collection: { order_count: 2, amount_cny: '88.00' } });
     mocks.fetchAccountingAccounts.mockResolvedValue([]);

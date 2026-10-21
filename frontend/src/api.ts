@@ -140,7 +140,7 @@ export const confirmSalesOrder = (id: number): Promise<SalesOrder> => salesActio
 export const cancelSalesOrder = (id: number): Promise<SalesOrder> => salesAction(id, 'cancel');
 export const shipSalesOrder = (id: number, business_date: string): Promise<SalesOrder> => salesAction(id, 'ship', { business_date });
 export const receiveSalesOrder = (id: number, payload: { amount_cny: string; fund_account_id: number; business_date: string }): Promise<SalesOrder> => salesAction(id, 'receive', payload);
-export const withdrawSalesOrderReceipt = (id: number, payload: { business_date: string; reason: string }): Promise<SalesOrder> => salesAction(id, 'withdraw-receipt', payload);
+export const withdrawSalesOrderReceipt = (id: number, payload: { business_date: string; reason: string; sales_receipt_id?: number }): Promise<SalesOrder> => salesAction(id, 'withdraw-receipt', payload);
 export const refundSalesOrder = (id: number, business_date: string): Promise<SalesOrder> => salesAction(id, 'refund', { business_date });
 export const recordSalesTransportCost = (id: number, payload: { actual_cost_cny: string; fund_account_id: number; business_date: string }): Promise<SalesOrder> => salesAction(id, 'transport-cost', payload);
 export const returnSalesOrder = (id: number, payload: { business_date: string; reason: string }): Promise<SalesOrder> => salesAction(id, 'return', payload);
@@ -513,9 +513,9 @@ export const submitPaymentEvidence = async (token: string, files: File[], idempo
 export const fetchPaymentSubmissions = (orderId: number): Promise<PaymentSubmission[]> =>
   api.get(`/sales/orders/${orderId}/payment-submissions/`).then(response => response.data.payment_submissions as PaymentSubmission[]);
 
-export const acceptPaymentSubmission = (orderId: number, submissionId: number, businessDate: string): Promise<PaymentSubmission> =>
-  writeWithIdempotency<{ payment_submission: PaymentSubmission }>('accept-payment-submission-' + submissionId, { orderId, submissionId, businessDate }, config =>
-    api.post(`/sales/orders/${orderId}/payment-submissions/${submissionId}/accept/`, { business_date: businessDate }, config),
+export const acceptPaymentSubmission = (orderId: number, submissionId: number, businessDate: string, amount: string, accountId: number): Promise<PaymentSubmission> =>
+  writeWithIdempotency<{ payment_submission: PaymentSubmission }>('accept-payment-submission-' + submissionId, { orderId, submissionId, businessDate, amount, accountId }, config =>
+    api.post(`/sales/orders/${orderId}/payment-submissions/${submissionId}/accept/`, { business_date: businessDate, amount_cny: amount, fund_account_id: accountId }, config),
   ).then(response => response.payment_submission as PaymentSubmission);
 
 export const requestMorePaymentEvidence = (orderId: number, submissionId: number, reviewNote: string): Promise<PaymentSubmission> =>

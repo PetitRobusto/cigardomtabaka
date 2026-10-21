@@ -1576,7 +1576,7 @@ class PaymentOrdersAPITestCase(TestCase):
         self.assertEqual(set(orders[0]), {
             'id', 'order_number', 'status', 'display_status',
             'fulfillment_status', 'payment_status', 'customer_name',
-            'customer', 'amount_due_cny', 'items',
+            'customer', 'amount_due_cny', 'received_amount_cny', 'remaining_amount_cny', 'items',
         })
         self.assertNotIn('allocations', json.dumps(orders, ensure_ascii=False))
 

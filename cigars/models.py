@@ -1112,6 +1112,7 @@ class SalesOrder(models.Model):
 
     class PaymentStatus(models.TextChoices):
         UNPAID = 'unpaid', '未收款'
+        PARTIAL = 'partial', '部分收款'
         PAID = 'paid', '已收款'
         REFUND_PENDING = 'refund_pending', '待退款'
         REFUNDED = 'refunded', '已退款'
@@ -1216,6 +1217,8 @@ class SalesOrder(models.Model):
         statuses = {
             (self.FulfillmentStatus.DRAFT, self.PaymentStatus.UNPAID): '草稿',
             (self.FulfillmentStatus.CONFIRMED, self.PaymentStatus.UNPAID): '待出库',
+            (self.FulfillmentStatus.CONFIRMED, self.PaymentStatus.PARTIAL): '部分预收，待出库',
+            (self.FulfillmentStatus.SHIPPED, self.PaymentStatus.PARTIAL): '已出库，部分收款',
             (self.FulfillmentStatus.CONFIRMED, self.PaymentStatus.PAID): '已预收，待出库',
             (self.FulfillmentStatus.SHIPPED, self.PaymentStatus.UNPAID): '已出库，待收款',
             (self.FulfillmentStatus.SHIPPED, self.PaymentStatus.PAID): '已完成',
@@ -1297,7 +1300,7 @@ class SalesShipment(models.Model):
         verbose_name_plural = '销售出库'
 
 class SalesReceipt(models.Model):
-    """一张销售单的一次整单人民币收款事实。"""
+    """一张销售单的一次人民币收款事实。"""
     objects = ControlledBusinessFactQuerySet.as_manager()
     sales_order = models.ForeignKey(SalesOrder, on_delete=models.PROTECT, related_name='sales_receipts', verbose_name='销售单')
     amount_cny = models.DecimalField('收款金额 (CNY)', max_digits=14, decimal_places=2)
@@ -1337,10 +1340,6 @@ class SalesReceipt(models.Model):
         base_manager_name = 'objects'
         constraints = [
             models.CheckConstraint(condition=models.Q(amount_cny__gt=0), name='sales_receipt_amount_gt_zero'),
-            models.UniqueConstraint(
-                fields=['sales_order'], condition=models.Q(reversed_at__isnull=True),
-                name='sales_receipt_one_active_per_order',
-            ),
             models.CheckConstraint(
                 condition=(
                     models.Q(
@@ -1364,7 +1363,7 @@ class SalesRefund(models.Model):
     """一张已取消或已退货销售单的一次全额退款事实。"""
     sales_order = models.OneToOneField(SalesOrder, on_delete=models.PROTECT, related_name='sales_refund', verbose_name='销售单')
     amount_cny = models.DecimalField('退款金额 (CNY)', max_digits=14, decimal_places=2)
-    fund_account = models.ForeignKey('accounting.FundAccount', on_delete=models.PROTECT, related_name='sales_refunds', verbose_name='退款资金账户')
+    fund_account = models.ForeignKey('accounting.FundAccount', on_delete=models.PROTECT, related_name='sales_refunds', verbose_name='退款资金账户', null=True, blank=True)
     business_date = models.DateField('业务日期')
     ledger_transaction = models.OneToOneField('accounting.LedgerTransaction', on_delete=models.PROTECT, related_name='sales_refund', verbose_name='账务交易')
     operator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='sales_refunds', verbose_name='操作人')

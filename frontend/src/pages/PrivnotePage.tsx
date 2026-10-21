@@ -883,7 +883,7 @@ export default function PrivnotePage() {
                         <option key={order.id} value={order.id}>
                           {order.order_number || `SO-${order.id}`} ·{" "}
                           {order.customer_name || "散客"} · ¥
-                          {Number(order.amount_due_cny).toLocaleString()} ·{" "}
+                          {Number(order.remaining_amount_cny ?? order.amount_due_cny).toLocaleString()} ·{" "}
                           {order.display_status || order.status}
                         </option>
                       ))}
@@ -924,12 +924,12 @@ export default function PrivnotePage() {
                               </div>
                               <div>
                                 <span className="text-xs text-muted">
-                                  应收金额
+                                  剩余待收
                                 </span>
                                 <p className="font-mono font-semibold text-accent">
                                   ¥
                                   {Number(
-                                    summary.amount_due_cny,
+                                    summary.remaining_amount_cny,
                                   ).toLocaleString()}
                                 </p>
                               </div>

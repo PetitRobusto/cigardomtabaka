@@ -78,6 +78,7 @@ describe('销售动作后的查询刷新', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 300000 } } });
     const keys = ['inventory', 'accounting-dashboard', 'accounting-summary', 'monthly-profit', 'accounting-actions', 'sales-customer', 'sales-customers', 'sales-receipts', 'dividend-rounds'];
     for (const key of keys) client.setQueryData([key], { old: true });
+    client.setQueryData(['preorder-source', 5], { old: true });
     render(<QueryClientProvider client={client}><MemoryRouter><SalesPage /></MemoryRouter></QueryClientProvider>);
     await screen.findByRole('button', { name: '选订单' });
     fireEvent.change(screen.getByPlaceholderText('搜索订单号或客户'), { target: { value: '客户甲' } });
@@ -89,10 +90,12 @@ describe('销售动作后的查询刷新', () => {
     expect(screen.getByText('选中 1')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '动作失败' }));
     for (const key of keys) expect(client.getQueryState([key])?.isInvalidated).toBe(false);
+    expect(client.getQueryState(['preorder-source', 5])?.isInvalidated).toBe(false);
     const calls = mocks.fetchSalesOrderList.mock.calls.length;
     fireEvent.click(screen.getByRole('button', { name: '动作成功' }));
     await waitFor(() => expect(mocks.fetchSalesOrderList.mock.calls.length).toBeGreaterThan(calls));
     for (const key of keys) expect(client.getQueryState([key])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(['preorder-source', 5])?.isInvalidated).toBe(true);
     expect(screen.getByDisplayValue('客户甲')).toBeTruthy();
     expect(screen.getByDisplayValue('2026-09-01')).toBeTruthy();
     expect(screen.getByDisplayValue('2026-09-14')).toBeTruthy();

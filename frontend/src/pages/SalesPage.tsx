@@ -61,6 +61,7 @@ export default function SalesPage() {
 
   const invalidateSales = () => {
     queryClient.invalidateQueries({ queryKey: ['sales-orders'] });
+    queryClient.invalidateQueries({ queryKey: ['preorder-source'] });
     queryClient.invalidateQueries({ queryKey: ['inventory'] });
     queryClient.invalidateQueries({ queryKey: ['accounting-dashboard'] });
     queryClient.invalidateQueries({ queryKey: ['accounting-accounts'] });

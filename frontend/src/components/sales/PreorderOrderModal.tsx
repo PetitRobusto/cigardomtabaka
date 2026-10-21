@@ -11,7 +11,10 @@ import { preorderItems, preorderUnitQuantity, type PreorderSelection } from './p
 export default function PreorderOrderModal({ purchaseId, onClose, onCreated }: {
   purchaseId: number; onClose: () => void; onCreated: (order: SalesOrder) => void;
 }) {
-  const source = useQuery({ queryKey: ['preorder-source', purchaseId], queryFn: () => fetchPreorderSource(purchaseId), refetchOnWindowFocus: false });
+  const source = useQuery({
+    queryKey: ['preorder-source', purchaseId], queryFn: () => fetchPreorderSource(purchaseId),
+    staleTime: 0, refetchOnMount: 'always', refetchOnWindowFocus: false, refetchOnReconnect: false,
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const inFlight = useRef(false);
@@ -29,7 +32,7 @@ export default function PreorderOrderModal({ purchaseId, onClose, onCreated }: {
       <div><h2 className="font-display text-xl font-semibold">创建预售单</h2><p className="mt-1 text-xs text-muted">来源 {source.data?.order_number || `采购单 #${purchaseId}`}</p></div>
       <button type="button" aria-label="关闭创建预售单" onClick={onClose} disabled={busy} className="rounded p-1 text-muted hover:bg-cream disabled:opacity-50"><X className="h-4 w-4" /></button>
     </header>
-    {source.isLoading ? <p className="p-5 text-sm text-muted">加载商品与预售额度…</p> : source.error ? <div className="p-5"><p role="alert" className="text-sm text-accent">{apiErrorMessage(source.error, '采购商品加载失败')}</p><button className="mt-3 rounded border border-border px-3 py-2 text-xs" onClick={() => source.refetch()}>重新加载</button></div> : source.data && <PreorderForm key={JSON.stringify(source.data)} source={source.data} busy={busy} error={error} onSave={save} onClose={onClose} />}
+    {source.isPaused ? <p className="p-5 text-sm text-muted">网络已断开，恢复连接后重新获取预售额度…</p> : source.isLoading || source.isFetching ? <p className="p-5 text-sm text-muted">加载商品与预售额度…</p> : source.error ? <div className="p-5"><p role="alert" className="text-sm text-accent">{apiErrorMessage(source.error, '采购商品加载失败')}</p><button className="mt-3 rounded border border-border px-3 py-2 text-xs" onClick={() => source.refetch()}>重新加载</button></div> : source.data && <PreorderForm key={JSON.stringify(source.data)} source={source.data} busy={busy} error={error} onSave={save} onClose={onClose} />}
   </PaymentDialog>;
 }
 
@@ -57,7 +60,7 @@ function PreorderForm({ source, busy, error, onSave, onClose }: {
   };
   return <form onSubmit={submit}>
     <fieldset disabled={busy} className="min-w-0 space-y-4 p-5">
-      <p className="text-xs leading-relaxed text-muted">确认订单后可收预付款；到货后在同一销售单备货、出库。</p>
+      <p className="text-xs leading-relaxed text-muted">确认订单后可收预付款；到货后自动预留，在同一销售单直接出库。</p>
       {(error || validation) && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error || validation}</p>}
       {!source.can_create && <p role="alert" className="text-sm text-accent">这张采购单当前不能创建预售单。</p>}
       <CustomerAutocomplete value={customer} onChange={setCustomer} disabled={busy} />

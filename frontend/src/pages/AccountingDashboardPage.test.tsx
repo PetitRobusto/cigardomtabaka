@@ -36,7 +36,7 @@ describe('财务默认动作及刷新', () => {
     vi.clearAllMocks();
     const accounts = [{ id: 1, name: '公司人民币', currency: 'CNY', custodian_id: null, is_active: true }];
     api.fetchAccountingDashboard.mockResolvedValue({ day1_status: 'completed', requires_day1: false, accounts,
-      stats: { total_funds_cny: '100.00', net_assets_cny: '65.00', customer_prepayments_cny: '30.00', dividend_payable_cny: '5.00', rub_exchange_rate: '13.0000', inventory_book_cost_cny: '0.00', month_net_profit_cny: '-25.00', accounts_receivable_cny: '0.00', pending_collection_cny: '45.00', pending_collection_order_count: 2 } });
+      stats: { total_funds_cny: '100.00', net_assets_cny: '65.00', operating_assets_cny: '70.00', customer_prepayments_cny: '30.00', dividend_payable_cny: '5.00', rub_exchange_rate: '13.0000', inventory_book_cost_cny: '0.00', month_net_profit_cny: '-25.00', accounts_receivable_cny: '0.00', pending_collection_cny: '45.00', pending_collection_order_count: 2 } });
     api.fetchAccountingAccounts.mockResolvedValue(accounts);
     api.fetchAccountingActions.mockResolvedValue({ purchases: [], dividends: [] });
     api.fetchAccountingSummary.mockResolvedValue({});
@@ -53,9 +53,9 @@ describe('财务默认动作及刷新', () => {
     render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/accounting']}><GuideNavigation /><AccountingDashboardPage /></MemoryRouter></QueryClientProvider>);
     await screen.findByRole('heading', { name: '记录经营费用' });
     expect(screen.getByText('待收金额')).toBeTruthy();
-    const netAssetsCard = screen.getByText('净资产').parentElement as HTMLElement;
-    expect(within(netAssetsCard).getByText('¥65.00')).toBeTruthy();
-    expect(within(netAssetsCard).getByText('资金账面成本 + 库存 + 在途采购 + 应收款 − 客户预收款 − 待付分红')).toBeTruthy();
+    const operatingAssetsCard = screen.getByText('经营资产').parentElement as HTMLElement;
+    expect(within(operatingAssetsCard).getByText('¥70.00')).toBeTruthy();
+    expect(within(operatingAssetsCard).getByText('资金账面成本 + 库存 + 在途采购 + 应收款 − 客户预收款；分红实际支付后扣减')).toBeTruthy();
     expect(screen.queryByText('总资产')).toBeNull();
     expect(screen.getByText('¥45.00')).toBeTruthy();
     expect(screen.getByText('2 笔已确认未收款订单')).toBeTruthy();
@@ -90,13 +90,13 @@ describe('财务默认动作及刷新', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: '换汇', pressed: true })).toBeTruthy());
     expect(document.querySelector('[data-guide="accounting-actions-exchange"]')).toBeTruthy();
     api.fetchAccountingDashboard.mockResolvedValueOnce({ ...client.getQueryData<object>(['accounting-dashboard']),
-      stats: { total_funds_cny: '100.00', net_assets_cny: null, rub_exchange_rate: null } });
+      stats: { total_funds_cny: '100.00', net_assets_cny: '65.00', operating_assets_cny: null, rub_exchange_rate: null } });
     fireEvent.click(screen.getByRole('button', { name: '刷新' }));
     await within(rubCard).findByText('—');
-    expect(within(netAssetsCard).getByText('—')).toBeTruthy();
+    expect(within(operatingAssetsCard).getByText('—')).toBeTruthy();
     api.fetchAccountingDashboard.mockResolvedValueOnce({ ...client.getQueryData<object>(['accounting-dashboard']),
-      stats: { total_funds_cny: '100.00', net_assets_cny: '-65.00', rub_exchange_rate: null } });
+      stats: { total_funds_cny: '100.00', net_assets_cny: '-70.00', operating_assets_cny: '-65.00', rub_exchange_rate: null } });
     fireEvent.click(screen.getByRole('button', { name: '刷新' }));
-    await within(netAssetsCard).findByText('¥-65.00');
+    await within(operatingAssetsCard).findByText('¥-65.00');
   });
 });

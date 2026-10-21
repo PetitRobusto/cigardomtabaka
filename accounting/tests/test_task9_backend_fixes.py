@@ -331,6 +331,7 @@ class Task9BackendFixesTest(TestCase):
                 self.assertEqual(stats['customer_prepayments_cny'], prepaid)
                 self.assertEqual(stats['total_funds_cny'], Decimal('100') + prepaid)
                 self.assertEqual(stats['net_assets_cny'], Decimal('100'))
+                self.assertEqual(stats['operating_assets_cny'], Decimal('100'))
 
     def test_dashboard_pending_collection_is_distinct_from_accounting_receivable(self):
         self.complete_day1()

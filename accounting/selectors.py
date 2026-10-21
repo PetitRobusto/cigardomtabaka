@@ -274,6 +274,8 @@ def accounting_dashboard(*, as_of):
         + summary['accounts_receivable_cny']
     ).quantize(Decimal('0.01'))
     customer_prepayments = summary['customer_prepayments_cny']
+    # Management view: unpaid dividends remain available to the business until paid.
+    operating_assets = (total_funds_cny - customer_prepayments).quantize(Decimal('0.01'))
     dividend_payable = -_sum_category(LedgerPosting.Category.DIVIDEND_PAYABLE, end=as_of)
     # Returned sales can carry refund obligations as negative receivables, already
     # included above. Do not subtract pending refunds a second time.
@@ -302,6 +304,7 @@ def accounting_dashboard(*, as_of):
             'customer_prepayments_cny': customer_prepayments,
             'dividend_payable_cny': dividend_payable,
             'net_assets_cny': net_assets,
+            'operating_assets_cny': operating_assets,
             'cny_funds_total': cny_funds_total.quantize(Decimal('0.01')),
             'rub_exchange_rate': rub_exchange_rate,
             'inventory_book_cost_cny': summary['inventory_remaining_cost_cny'],

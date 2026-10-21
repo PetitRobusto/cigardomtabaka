@@ -925,6 +925,7 @@ export interface AccountingDashboardStats {
   customer_prepayments_cny: string | null;
   dividend_payable_cny: string | null;
   net_assets_cny: string | null;
+  operating_assets_cny: string | null;
   cny_funds_total: string | null;
   rub_exchange_rate: string | null;
   inventory_book_cost_cny: string | null;

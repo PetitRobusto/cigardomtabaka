@@ -103,6 +103,7 @@ class PurchasePreorderTest(TestCase):
         def stats(expected_net, expected_prepaid):
             value = accounting_dashboard(as_of=self.day)['stats']
             self.assertEqual(value['net_assets_cny'], Decimal(expected_net))
+            self.assertEqual(value['operating_assets_cny'], Decimal(expected_net))
             self.assertEqual(value['customer_prepayments_cny'], Decimal(expected_prepaid))
             return value
 

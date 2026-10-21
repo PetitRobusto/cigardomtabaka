@@ -74,6 +74,7 @@ class DividendRoundTests(TestCase):
         stats = accounting_dashboard(as_of=self.day)['stats']
         self.assertEqual(stats['net_assets_cny'], Decimal('899.98'))
         self.assertEqual(stats['dividend_payable_cny'], Decimal('100.02'))
+        self.assertEqual(stats['operating_assets_cny'], Decimal('1000.00'))
         self.assertEqual(monthly_profit(month=self.day)['net_profit_cny'], profit)
         self.assertEqual(retained_earnings(as_of=self.day), retained - Decimal('100.02'))
         self.assertEqual(set(round.ledger_transaction.postings.values_list('category', flat=True)),
@@ -82,11 +83,13 @@ class DividendRoundTests(TestCase):
         stats = accounting_dashboard(as_of=self.day)['stats']
         self.assertEqual(stats['net_assets_cny'], Decimal('899.98'))
         self.assertEqual(stats['dividend_payable_cny'], Decimal('80.01'))
+        self.assertEqual(stats['operating_assets_cny'], Decimal('979.99'))
         self.payout(round, key='payout-a2', amount_cny='30.00', business_date=date(2026, 9, 15))
         self.payout(round, key='payout-b1', recipient_id=self.b.pk, amount_cny='50.01', business_date=date(2026, 9, 16))
         stats = accounting_dashboard(as_of=date(2026, 9, 16))['stats']
         self.assertEqual(stats['net_assets_cny'], Decimal('899.98'))
         self.assertEqual(stats['dividend_payable_cny'], 0)
+        self.assertEqual(stats['operating_assets_cny'], Decimal('899.98'))
         self.assertEqual(retained_earnings(as_of=date(2026, 9, 16)), retained - Decimal('100.02'))
         self.assertEqual(monthly_profit(month=self.day)['net_profit_cny'], profit)
         from accounting.action_serializers import serialize_dividend_round
@@ -120,6 +123,7 @@ class DividendRoundTests(TestCase):
         round = self.confirm(total_cny='4000.00')
         before = accounting_dashboard(as_of=self.day)['stats']
         self.assertEqual(before['net_assets_cny'], Decimal('-3000'))
+        self.assertEqual(before['operating_assets_cny'], Decimal('1000'))
         with self.assertRaisesRegex(DividendActionError, 'insufficient_balance'):
             self.payout(round, amount_cny='1000.01')
         self.assertEqual(accounting_dashboard(as_of=self.day)['stats'], before)

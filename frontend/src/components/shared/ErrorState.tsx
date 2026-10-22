@@ -3,9 +3,10 @@ import { AlertTriangle, RotateCcw } from 'lucide-react';
 interface ErrorStateProps {
   message?: string;
   onRetry?: () => void;
+  retryLabel?: string;
 }
 
-export function ErrorState({ message = '数据加载失败', onRetry }: ErrorStateProps) {
+export function ErrorState({ message = '数据加载失败', onRetry, retryLabel = '重新加载' }: ErrorStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
       <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mb-5">
@@ -19,7 +20,7 @@ export function ErrorState({ message = '数据加载失败', onRetry }: ErrorSta
             hover:bg-accent-hover active:scale-[0.98] transition-all duration-200 shadow-sm"
         >
           <RotateCcw className="w-4 h-4" />
-          重新加载
+          {retryLabel}
         </button>
       )}
     </div>

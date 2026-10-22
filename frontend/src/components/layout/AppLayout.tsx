@@ -1,5 +1,5 @@
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { useAuthStore } from '../../store/authStore';
 import { usePageMetaContext } from '../../contexts/usePageMetaContext';
@@ -15,6 +15,10 @@ import { mobileNavItems } from './mobileNav';
 import { BrandLoader } from '../shared/BrandLoader';
 import { brandDockLogoUrl, brandLogoUrl, habanosSpecialistLogoUrl } from '../../utils/brandAssets';
 import { isAppNavPathActive } from './appSections';
+import CustomerLanguageMenu from '../../features/customer/CustomerLanguageMenu';
+import CustomerAgeGate from '../../features/customer/CustomerAgeGate';
+import { useCustomerExperience } from '../../features/customer/useCustomerExperience';
+import { isAgeConfirmationValid, useCustomerPreferences } from '../../features/customer/preferences';
 
 const GuideController = lazy(() => import('../../features/guides/GuideController'));
 
@@ -33,20 +37,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const reduceMotion = useReducedMotion();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { meta } = usePageMetaContext();
+  const { enabled: customerPage, text } = useCustomerExperience();
+  const confirmedAt = useCustomerPreferences((state) => state.confirmedAt);
+  const denied = useCustomerPreferences((state) => state.denied);
+  const ageBlocked = customerPage && (denied || !isAgeConfirmationValid(confirmedAt));
+  const customerScope = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     useAuthStore.getState().checkAuth();
   }, []);
 
   useEffect(() => {
-    if (meta.title) {
+    if (ageBlocked) {
+      document.title = `${denied ? text.deniedTitle : text.ageTitle} · CigarDomTabaka`;
+    } else if (meta.title) {
       document.title = meta.title;
     }
-  }, [meta.title]);
+  }, [meta.title, ageBlocked, denied, text.deniedTitle, text.ageTitle]);
 
   // 显式导航契约让内部与外部入口共用安全的渲染分支。
   const navItems: NavItem[] = [
-    { to: '/', label: '品牌', icon: LayoutGrid, public: true },
+    { to: '/', label: text.brands, icon: LayoutGrid, public: true },
     ...(user?.is_staff ? [
       { to: '/inventory', label: '库存', icon: Package },
       { to: '/sales', label: '订单', icon: CircleDollarSign },
@@ -67,7 +78,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-cream">
+    <div ref={customerScope} className="min-h-screen flex flex-col bg-cream">
       {/* ===== TOPBAR ===== */}
       <header className="sticky top-0 z-50 bg-cream/90 backdrop-blur-sm border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -81,7 +92,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 width="45"
                 height="45"
                 className="w-[45px] h-[45px] cursor-pointer object-contain"
-                onClick={() => navigate('/')}
+                onClick={() => { if (!ageBlocked) navigate('/'); }}
               />
               <span className="font-display text-lg font-semibold text-fg tracking-tight hidden sm:inline">
                 CigarDomTabaka
@@ -90,7 +101,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
             {/* Desktop Nav */}
             <LayoutGroup id="desktop-app-navigation">
-              <nav aria-label="应用导航" className="hidden md:flex items-center gap-1">
+              <nav aria-label={text.navigation} inert={ageBlocked || undefined} aria-hidden={ageBlocked || undefined} className="hidden md:flex items-center gap-1">
                 {navItems.map((item) =>
                 item.external ? (
                   <a
@@ -131,6 +142,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
             {/* Auth */}
             <div className="flex items-center gap-2">
+              {customerPage && <CustomerLanguageMenu />}
               {isAuthenticated ? (
                 <>
                   <div className="hidden sm:flex items-center gap-2">
@@ -140,9 +152,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <span className="text-sm text-fg">{user?.username}</span>
                   </div>
                   <button
+                    disabled={ageBlocked}
                     onClick={() => logout()}
                     className="p-2 rounded-md text-muted hover:text-accent hover:bg-accent-light transition-colors"
-                    title="退出"
+                    title={text.logout}
                   >
                     <LogOut className="w-4 h-4" />
                   </button>
@@ -150,18 +163,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               ) : (
                 <NavLink
                   to="/login"
+                  data-customer-login
+                  aria-label={text.login}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-accent hover:bg-accent-light transition-colors"
                 >
                   <LogIn className="w-4 h-4" />
-                  <span>登录</span>
+                  <span className={customerPage ? 'hidden sm:inline' : undefined}>{text.login}</span>
                 </NavLink>
               )}
 
               {/* Mobile menu button */}
               <button
+                disabled={ageBlocked}
                 className="md:hidden p-2 rounded-md text-muted hover:text-fg"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                aria-label="打开导航菜单"
+                aria-label={text.openMenu}
                 aria-expanded={mobileMenuOpen}
               >
                 {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -171,7 +187,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Mobile Nav */}
-        {mobileMenuOpen && (
+        {mobileMenuOpen && !ageBlocked && (
           <div className="md:hidden border-t border-border bg-cream">
             <div className="px-4 py-2 space-y-1">
               {navItems.map((item) =>
@@ -204,6 +220,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         )}
       </header>
 
+      {ageBlocked ? <CustomerAgeGate scope={customerScope} /> : <>
       {/* ===== MAIN CONTENT ===== */}
       <main className="flex-1">
         <div className="max-w-[1480px] mx-auto px-4 sm:px-6 py-6 pb-24 md:pb-6">
@@ -225,7 +242,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   CigarDomTabaka
                 </div>
                 <div className="text-[13px] text-muted italic font-display mt-1">
-                  Премиум сигары · Прямые поставки из Москвы
+                  {customerPage ? text.storeTagline : 'Премиум сигары · Прямые поставки из Москвы'}
                 </div>
               </div>
             </div>
@@ -259,17 +276,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 className="h-[70px] w-[56px] shrink-0 object-contain"
               />
               <div className="max-w-2xl">
-                <div className="font-display text-base font-semibold tracking-wide text-fg">莫斯科持证雪茄服务商</div>
-                <p className="mt-1 text-xs font-semibold tracking-[0.14em] text-accent">专业门店资质</p>
+                <div className="font-display text-base font-semibold tracking-wide text-fg">{text.storeCredential}</div>
+                <p className="mt-1 text-xs font-semibold tracking-[0.14em] text-accent">{text.storeQualification}</p>
               </div>
             </div>
-            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">Certificated Retailer</span>
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">{customerPage ? text.certifiedRetailer : 'Certificated Retailer'}</span>
           </div>
 
           {/* Bottom row */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6 pt-6">
             <div className="text-xs text-muted">
-              &copy; CigarDomTabaka. Все права защищены.
+              &copy; CigarDomTabaka. {customerPage ? text.copyright : 'Все права защищены.'}
             </div>
             <div className="flex gap-3">
               {/* Telegram */}
@@ -291,7 +308,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* ===== MOBILE BOTTOM NAV ===== */}
       <LayoutGroup id="mobile-app-navigation">
-        <nav aria-label="移动应用导航" className="md:hidden fixed bottom-0 left-0 right-0 bg-cream/95 backdrop-blur-sm border-t border-border z-50">
+        <nav aria-label={text.mobileNavigation} className="md:hidden fixed bottom-0 left-0 right-0 bg-cream/95 backdrop-blur-sm border-t border-border z-50">
           <div className="flex items-center justify-around h-14">
             {mobileNavItems(Boolean(user?.is_staff)).map((item) => item.kind === 'menu' ? (
               <button key={item.label} type="button" onClick={() => setMobileMenuOpen(true)} className="flex w-full h-full items-center justify-center text-[10px] font-medium text-muted" aria-label="打开导航菜单">
@@ -306,7 +323,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {active && <motion.span layoutId="active-app-indicator" className="absolute inset-x-0 top-0 mx-auto h-0.5 w-5 rounded-full bg-accent" transition={indicatorTransition} />}
                 <motion.span whileTap={mobileTap} transition={{ duration: 0.09 }} className="flex flex-col items-center justify-center gap-0.5">
                   {item.to === '/' ? <LayoutGrid className="w-5 h-5" /> : item.to === '/inventory' ? <Package className="w-5 h-5" /> : item.to === '/sales' ? <CircleDollarSign className="w-5 h-5" /> : <ClipboardList className="w-5 h-5" />}
-                  <span>{item.label}</span>
+                  <span>{item.to === '/' ? text.brands : item.label}</span>
                 </motion.span>
               </Link>;
             })())}
@@ -314,6 +331,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
       </LayoutGroup>
       <Suspense fallback={null}><GuideController /></Suspense>
+      </>}
     </div>
   );
 }

@@ -9,6 +9,8 @@ import { decideStaffRoute } from './utils/routeGuard';
 import { BUSINESS_STAFF_PATHS, resolveBusinessRoute } from './pages/businessRoutes';
 import { useAuthStore } from './store/authStore';
 import { BrandLoader } from './components/shared/BrandLoader';
+import CustomerDocumentLanguage from './features/customer/CustomerDocumentLanguage';
+import { useCustomerExperience } from './features/customer/useCustomerExperience';
 
 // Route components stay out of the startup bundle until their URL is rendered.
 const BrandListPage = lazy(() => import('./pages/BrandListPage'));
@@ -70,6 +72,7 @@ function StaffHelpRoute() {
 }
 
 function AnimatedRoutes() {
+  const { text } = useCustomerExperience();
   const location = useLocation();
   const reduceMotion = useReducedMotion();
   const section = appSectionForPath(location.pathname);
@@ -93,7 +96,7 @@ function AnimatedRoutes() {
           : { opacity: 0, transition: { duration: 0.08, ease: 'easeOut' } }}
         style={{ position: 'relative' }}
       >
-        <Suspense fallback={<DelayedAppSkeleton path={location.pathname} />}>
+        <Suspense fallback={<DelayedAppSkeleton path={location.pathname} label={text.loading} />}>
           <motion.div
             initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 4 }}
             animate={reduceMotion
@@ -143,6 +146,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <PageMetaProvider>
+        <CustomerDocumentLanguage />
         <StartupLoaderHandoff />
         <Routes>
           {/* Routes without AppLayout keep a full-screen initial fallback. */}

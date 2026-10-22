@@ -9,19 +9,17 @@ import { EmptyState } from '../components/shared/EmptyState';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { generateCigarSlugFromParts } from '../utils/slug';
 import type { CigarSummary } from '../types';
+import { useCustomerExperience } from '../features/customer/useCustomerExperience';
+import { catalogSectionLabel } from '../features/customer/catalogLabels';
 
-const FILTER_OPTIONS = [
-  { key: 'all', label: '全部' },
-  { key: 'regular', label: '常规' },
-  { key: 'limited', label: '限量' },
-  { key: 'regional', label: '地区限定' },
-];
+const FILTER_OPTIONS = ['all', 'regular', 'limited', 'regional'] as const;
 
 export default function BrandDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const { setMeta } = usePageMeta();
+  const { locale, text } = useCustomerExperience();
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['brand', slug],
@@ -32,18 +30,18 @@ export default function BrandDetailPage() {
   useEffect(() => {
     if (data?.brand) {
       setMeta({
-        title: data.brand.name,
+        title: locale === 'zh' ? data.brand.name : data.brand.english_name,
         breadcrumbs: [
-          { label: '首页', to: '/' },
-          { label: data.brand.name },
+          { label: text.home, to: '/' },
+          { label: locale === 'zh' ? data.brand.name : data.brand.english_name },
         ],
       });
     }
-  }, [data?.brand, setMeta]);
+  }, [data?.brand, setMeta, locale, text.home]);
 
-  if (isLoading) return <LoadingState text="加载品牌详情…" />;
-  if (error) return <ErrorState message="数据加载失败" onRetry={() => refetch()} />;
-  if (!data) return <EmptyState title="品牌不存在" />;
+  if (isLoading) return <LoadingState text={text.loadingBrand} />;
+  if (error) return <ErrorState message={text.loadError} retryLabel={text.retry} onRetry={() => refetch()} />;
+  if (!data) return <EmptyState title={text.brandNotFound} description={text.trySearch} />;
 
   const { brand, sections } = data;
 
@@ -57,9 +55,9 @@ export default function BrandDetailPage() {
 
   const getBadgeInfo = (type: string) => {
     switch (type) {
-      case 'regional': return { text: '地限', className: 'bg-accent text-white' };
-      case 'limited': return { text: '限量', className: 'bg-accent-2 text-white' };
-      case 'other-special': return { text: '特别', className: 'bg-muted text-white' };
+      case 'regional': return { text: text.regionalBadge, className: 'bg-accent text-white' };
+      case 'limited': return { text: text.limited, className: 'bg-accent-2 text-white' };
+      case 'other-special': return { text: text.special, className: 'bg-muted text-white' };
       default: return null;
     }
   };
@@ -96,31 +94,31 @@ export default function BrandDetailPage() {
       <div className="bg-white border border-border rounded p-6 sm:p-8 flex flex-col sm:flex-row gap-6 sm:gap-8 items-center sm:items-center mb-8">
         <div className="w-24 h-24 sm:w-[120px] sm:h-[120px] rounded bg-accent-3 flex items-center justify-center overflow-hidden shrink-0">
           {brand.logo_url ? (
-            <img src={brand.logo_url} alt={brand.name} className="w-[80%] h-[80%] object-contain" />
+            <img src={brand.logo_url} alt={locale === 'zh' ? brand.name : brand.english_name} className="w-[80%] h-[80%] object-contain" />
           ) : (
             <span className="font-display text-5xl text-accent font-semibold">{brand.name[0]}</span>
           )}
         </div>
         <div className="flex-1 min-w-0 text-center sm:text-left">
-          <h1 className="font-display text-[28px] font-semibold text-fg mb-1.5">{brand.name}</h1>
-          <div className="font-display italic text-base text-muted mb-3">{brand.english_name}</div>
+          <h1 className="font-display text-[28px] font-semibold text-fg mb-1.5">{locale === 'zh' ? brand.name : brand.english_name}</h1>
+          {locale === 'zh' && <div className="font-display italic text-base text-muted mb-3">{brand.english_name}</div>}
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 sm:gap-6 text-[13px] text-muted">
             {brand.origin === 'Cuban' && (
-              <span><strong className="text-fg font-semibold">古巴</strong> · 哈瓦那</span>
+              <span><strong className="text-fg font-semibold">{text.cuba}</strong> · {text.havana}</span>
             )}
-            <span><strong className="text-fg font-semibold">{data.total}</strong> 款雪茄</span>
+            <span><strong className="text-fg font-semibold">{data.total}</strong> {text.cigarUnit}</span>
           </div>
         </div>
         <div className="flex gap-8 text-center shrink-0">
           <div>
             <span className="font-display text-[28px] font-semibold text-fg block leading-tight">{data.total}</span>
-            <span className="text-[11px] text-muted uppercase tracking-[0.08em]">款雪茄</span>
+            <span className="text-[11px] text-muted uppercase tracking-[0.08em]">{text.cigarUnit}</span>
           </div>
           <div>
             <span className="font-display text-[28px] font-semibold text-fg block leading-tight">
               {sections.filter(s => !s.is_header).length}
             </span>
-            <span className="text-[11px] text-muted uppercase tracking-[0.08em]">系列</span>
+            <span className="text-[11px] text-muted uppercase tracking-[0.08em]">{text.series}</span>
           </div>
         </div>
       </div>
@@ -131,26 +129,27 @@ export default function BrandDetailPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
           <input
             type="text"
-            placeholder="搜索雪茄名称…"
+            placeholder={text.searchCigars}
+            aria-label={text.searchCigars}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-white border border-border rounded text-sm text-fg placeholder:text-muted focus:outline-none focus:border-accent transition-all"
           />
         </div>
         <div className="flex items-center gap-2 ml-auto flex-wrap">
-          <span className="text-xs text-muted uppercase tracking-[0.08em] whitespace-nowrap">筛选</span>
+          <span className="text-xs text-muted uppercase tracking-[0.08em] whitespace-nowrap">{text.filter}</span>
           <div className="flex gap-1.5 flex-wrap">
             {FILTER_OPTIONS.map(opt => (
               <button
-                key={opt.key}
-                onClick={() => setFilter(opt.key)}
+                key={opt}
+                onClick={() => setFilter(opt)}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all border ${
-                  filter === opt.key
+                  filter === opt
                     ? 'bg-accent text-white border-accent'
                     : 'bg-white text-fg border-border hover:border-accent hover:text-accent'
                 }`}
               >
-                {opt.label}
+                {text[opt]}
               </button>
             ))}
           </div>
@@ -159,16 +158,16 @@ export default function BrandDetailPage() {
 
       {/* Cigar Grids */}
       {totalVisible === 0 ? (
-        <EmptyState title="未找到匹配雪茄" description="请尝试其他搜索词或筛选条件" />
+        <EmptyState title={text.noMatchingCigars} description={text.tryFilters} />
       ) : (
         <div className="space-y-6">
           {filteredSections.map((section, idx) => (
             <div key={idx}>
               {!section.is_header && (
-                <h3 className="font-display text-base font-semibold text-fg mb-4">{section.label}</h3>
+                <h3 className="font-display text-base font-semibold text-fg mb-4">{catalogSectionLabel(section.label, locale)}</h3>
               )}
               {section.is_header && (
-                <h3 className="font-display text-base font-semibold text-fg mt-6 mb-4">{section.label}</h3>
+                <h3 className="font-display text-base font-semibold text-fg mt-6 mb-4">{catalogSectionLabel(section.label, locale)}</h3>
               )}
               {!section.is_header && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -213,11 +212,11 @@ export default function BrandDetailPage() {
                         <div className="px-4 pb-4 flex items-center justify-between gap-2">
                           <span className="text-xs text-muted">
                             {cigar.length && cigar.ring_gauge
-                              ? `${Math.round(cigar.length)}mm · ${Math.round(cigar.ring_gauge)}环径`
+                              ? `${Math.round(cigar.length)}mm · ${Math.round(cigar.ring_gauge)} ${text.ringGauge}`
                               : cigar.vitola || ''}
                           </span>
                           {cigar.release_type_cn && (
-                            <span className="text-xs text-muted truncate max-w-[120px]">{cigar.release_type_cn}</span>
+                            <span className="text-xs text-muted truncate max-w-[120px]">{locale === 'zh' ? cigar.release_type_cn : cigar.release_type}</span>
                           )}
                         </div>
                       </Link>

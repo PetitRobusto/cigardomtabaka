@@ -365,17 +365,34 @@ def _translation_dependencies(page: dict, translations: dict) -> list[list[str]]
     return [list(dependency) for dependency in sorted(used)]
 
 
-def build_pages() -> dict[str, dict]:
-    """Return all currently publishable pages, keyed by their canonical path."""
+def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
+    """Build public pages; requests omit unrelated directory-only detail pages.
+
+    Discovery shelves depend on inventory history and live stock, not the whole
+    legacy directory. Keep those dependencies plus the requested product in all
+    locales so recommendations, pagination and hreflang match the full build.
+    Workers and sitemaps omit requested_path to retain every public detail URL.
+    """
     brands = _brand_rows()
     store = StoreSettings.objects.filter(pk=1).first()
-    cigars = list(Cigar.objects.filter(deleted_at__isnull=True).select_related().prefetch_related("images"))
     stock = _available_boxes()
     stick_stock = _available_sticks()
     known_inventory = _known_inventory()
+    cigar_query = Cigar.objects.filter(deleted_at__isnull=True)
+    if requested_path is not None:
+        needed = known_inventory | {cigar_id for cigar_id, _ in stock} | set(stick_stock)
+        cleaned = _clean_path(urlsplit(requested_path or "/").path)
+        match = re.fullmatch(r"(?:/(?:ru|en))?/cigar/(\d+)(?:/[^/]*)?/?", cleaned)
+        if match:
+            # Avoid handing arbitrary-sized URL integers to the database.
+            product_id = int(match.group(1)) if len(match.group(1)) <= 19 else 0
+            if 0 < product_id <= 9223372036854775807:
+                needed.add(product_id)
+        cigar_query = cigar_query.filter(pk__in=needed)
+    cigars = list(cigar_query.select_related().prefetch_related("images"))
     listings = _published_listings()
     prices_by_cigar = defaultdict(list)
-    for price in CigarPrice.objects.filter(is_active=True).select_related("cigar").order_by("sort_order", "box_size"):
+    for price in CigarPrice.objects.filter(is_active=True, cigar_id__in=[cigar.pk for cigar in cigars]).order_by("sort_order", "box_size"):
         prices_by_cigar[price.cigar_id].append(price)
 
     translations = _published_translations()
@@ -396,6 +413,7 @@ def build_pages() -> dict[str, dict]:
                 brand_translations[locale][brand.slug] = resolved
     withdrawn = set(ProductListing.objects.filter(withdrawn=True).values_list("cigar_id", flat=True))
     result: dict[str, dict] = {}
+    products_by_locale = {locale: {} for locale in LOCALES}
 
     # Product pages: legacy Chinese catalog records remain available without a listing.
     for locale in LOCALES:
@@ -405,6 +423,7 @@ def build_pages() -> dict[str, dict]:
             translation = _resolved_translation("product", cigar.pk, locale, translations)
             brand = next((b for b in brands.values() if b.english_name == cigar.brand), None)
             product = _product_data(cigar, locale, translation, brands, stock, listings, prices_by_cigar, known_inventory, brand_translations, stick_stock)
+            products_by_locale[locale][cigar.pk] = product
             available_locales = {}
             for other in LOCALES:
                 available_locales[other] = _product_path(other, cigar.pk, _product_slug(cigar))
@@ -446,8 +465,7 @@ def build_pages() -> dict[str, dict]:
                     continue
                 if cigar.brand != brand.english_name:
                     continue
-                cigar_translation = _resolved_translation("product", cigar.pk, locale, translations)
-                rows.append(_product_data(cigar, locale, cigar_translation, brands, stock, listings, prices_by_cigar, known_inventory, brand_translations, stick_stock))
+                rows.append(products_by_locale[locale][cigar.pk])
             rows.sort(key=lambda p: (p["availability"] != "in_stock", p["english_name"].casefold(), p["id"]))
             _, pagination = _pagination(1, len(rows), brand_path)
             page_rows = rows[:PAGE_SIZE]
@@ -496,7 +514,7 @@ def build_pages() -> dict[str, dict]:
                 continue
             if not stick_stock.get(cigar.pk) and not any(stock.get((cigar.pk, box_size), 0) > 0 for (cigar_id, box_size) in stock if cigar_id == cigar.pk):
                 continue
-            rows.append(_product_data(cigar, locale, _resolved_translation("product", cigar.pk, locale, translations), brands, stock, listings, prices_by_cigar, known_inventory, brand_translations, stick_stock))
+            rows.append(products_by_locale[locale][cigar.pk])
         rows.sort(key=lambda p: (p["brand_slug"], p["english_name"].casefold(), p["id"]))
         home = _home_path(locale)
         _, pagination = _pagination(1, len(rows), home)
@@ -645,8 +663,8 @@ def _add_browsing_context(pages, brands, brand_translations, known_inventory):
     rows_by_path = defaultdict(list)
     for page in pages.values():
         rows_by_path[page["path"].split("?", 1)[0]].extend(page["products"])
-    for page in pages.values():
-        locale = page["locale"]
+    navigation_by_locale = {}
+    for locale in LOCALES:
         stock = stock_by_locale[locale]
         catalog = catalog_by_locale[locale]
         home = pages.get(_home_path(locale))
@@ -670,11 +688,16 @@ def _add_browsing_context(pages, brands, brand_translations, known_inventory):
                 PRIORITY_BRANDS.index(row["english_name"]) if row["english_name"] in PRIORITY_BRANDS else len(PRIORITY_BRANDS),
                 row["name"].casefold(), row["english_name"].casefold(),
             ))
-        page["navigation"] = {
+        navigation_by_locale[locale] = {
             "brands": navigation_brands,
             "box_sizes": sorted({o["box_size"] for p in stock for o in p["offers"] if o["in_stock"] and o["box_size"] is not None}),
             "has_sticks": any(o.get("sale_unit") == "stick" and o["in_stock"] for p in stock for o in p["offers"]),
         }
+    for page in pages.values():
+        locale = page["locale"]
+        stock = stock_by_locale[locale]
+        page["navigation"] = navigation_by_locale[locale]
+        navigation_brands = page["navigation"]["brands"]
         base = page["path"].split("?", 1)[0]
         rows = rows_by_path[base]
         page["filter_options"] = {
@@ -691,7 +714,7 @@ def _add_browsing_context(pages, brands, brand_translations, known_inventory):
 def resolve_path(path: str, pages: dict[str, dict] | None = None) -> str:
     """Resolve a public URL to its current canonical path (including its slug)."""
     cleaned = _clean_path(urlsplit(path or "/").path)
-    pages = pages if pages is not None else build_pages()
+    pages = pages if pages is not None else build_pages(requested_path=path)
     if cleaned in pages:
         return cleaned
     # Product URLs retain the numeric ID as their stable identifier.
@@ -874,7 +897,7 @@ def search_products(query: str, locale: str = "zh", limit: int | None = 20,
     tokens = [token for token in re.split(r"\W+", normalize_search_text(query), flags=re.UNICODE) if token]
     if not tokens:
         return []
-    pages = pages if pages is not None else build_pages()
+    pages = pages if pages is not None else build_pages(requested_path="/")
     searchable_ids = _known_inventory()
     products = []
     for page in pages.values():

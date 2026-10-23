@@ -32,7 +32,7 @@ def page(request):
     if not _enabled():
         _not_found()
     requested = request.path
-    pages = build_pages()
+    pages = build_pages(requested_path=requested)
     canonical = resolve_path(requested, pages)
     if canonical != requested:
         target = canonical
@@ -80,7 +80,7 @@ def page_data(request):
     if not _enabled():
         _not_found()
     requested = request.GET.get("path", "/")
-    pages = build_pages()
+    pages = build_pages(requested_path=requested)
     canonical = resolve_path(requested, pages)
     try:
         page_number = max(1, int(request.GET.get("page", "1")))
@@ -162,7 +162,9 @@ def sitemap(request):
     active_paths = set(StorePage.objects.filter(active=True, rendered_hash__gt="", html__gt="").values_list("path", flat=True))
     pages = build_pages()
     dependencies = public_dependencies()
-    page_rows = {row.path: row for row in StorePage.objects.filter(path__in=active_paths)}
+    page_rows = {row.path: row for row in StorePage.objects.filter(path__in=active_paths).only(
+        "path", "rendered_payload", "rendered_changed_at",
+    )}
     for path in sorted(pages):
         row = page_rows.get(path)
         if (path not in active_paths or not row or not allowed_payload(row.rendered_payload, dependencies)

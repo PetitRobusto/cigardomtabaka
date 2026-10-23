@@ -3,7 +3,7 @@ import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { Storefront } from "./Storefront";
-import { BrandBrowse } from "./BrandBrowse";
+import { BrandBrowse, BrandMark } from "./BrandBrowse";
 import { storeCopy } from "./copy";
 import { backendPageFixture } from "./fixture";
 import type { StorePageData } from "./types";
@@ -23,6 +23,17 @@ function catalog(): StorePageData {
 }
 
 describe("B2 commerce browsing", () => {
+  it.each([
+    ["Partagás", "partagás"], ["Bolívar", "bolívar"], ["Ramón Allones", "ramón-allones"],
+    ["José L. Piedra", "josé-l-piedra"], ["Diplomáticos", "diplomáticos"], ["Juan López", "juan-lópez"],
+    ["Por Larrañaga", "por-larrañaga"], ["Rafael González", "rafael-gonzález"],
+    ["San Cristóbal de la Habana", "san-cristóbal-de-la-habana"], ["Small Cigars", "small-cigars"],
+  ])("uses the original media filename for %s, independently of its page slug", (englishName, filename) => {
+    const { container } = render(<BrandMark brand={{ name: "本地化品牌名", english_name: englishName, slug: "page-slug", path: "/brand/page-slug" }} />);
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(`/media/brand_logos/${encodeURIComponent(filename)}.jpg`);
+    expect(screen.getByText("本地化品牌名")).toBeTruthy();
+  });
+
   it("keeps the brand browser hook order when brands arrive after an empty render", () => {
     const page = { ...catalog(), navigation: { brands: [], box_sizes: [] } };
     const { container, rerender } = render(<BrandBrowse page={page} labels={storeCopy.en} />);
@@ -37,7 +48,7 @@ describe("B2 commerce browsing", () => {
     const brandArea = container.querySelector(".store-brand-browser")!;
     const shelf = container.querySelector(".store-product-grid")!;
     expect(brandArea.compareDocumentPosition(shelf) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(Array.from(brandArea.querySelectorAll("img")).map((img) => img.getAttribute("src"))).toEqual(brands.map((brand) => `/media/brand_logos/${brand.slug}.jpg`));
+    expect(Array.from(brandArea.querySelectorAll("img")).map((img) => img.getAttribute("src"))).toEqual(["cohiba", "montecristo", "romeo-y-julieta", "partag%C3%A1s", "hoyo-de-monterrey", "h-upmann"].map((filename) => `/media/brand_logos/${filename}.jpg`));
     expect(Array.from(brandArea.querySelectorAll(".store-brand-logo-link")).map((link) => link.textContent)).toEqual(brands.map((brand) => brand.name));
     expect(Array.from(brandArea.querySelectorAll(".store-brand-logo-link")).map((link) => link.getAttribute("href"))).toEqual(brands.map((brand) => brand.path));
     expect(container.querySelectorAll("#store-contact")).toHaveLength(1);

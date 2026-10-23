@@ -21,7 +21,7 @@ export function SiteFooter({ locale = 'zh', customerPage = false, inert = false,
                   CigarDomTabaka
                 </div>
                 <div className="text-[13px] text-muted italic font-display mt-1">
-                  {customerPage ? text.storeTagline : 'Премиум сигары · Прямые поставки из Москвы'}
+                  {text.storeTagline}
                 </div>
               </div>
             </div>

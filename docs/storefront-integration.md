@@ -15,3 +15,13 @@
 只有明确传入 `--apply` 且 DEBUG 开启、数据库不是 `cigars.db` 时才写入。保留现有商品及品牌翻译；首页仅可发布与既有模板完全相同的草稿。品牌正文留空。它不修改商品、库存、价格、订单、会计或图片记录。
 
 构建前端后执行 `render_storefront`，持续刷新使用 `render_storefront --watch`。开发环境通过 Django 入口访问，管理页 Vite 来源需与该入口配置相符；直接打开未配置的 Vite 页面不会循环跳转。
+
+## 本地生产目录测试副本（2026-10-23）
+
+内网 `192.168.0.97:8000` 使用同一项目代码，并通过本地专用 settings 读取 `/tmp/cdt-prod-test-refresh/application.sqlite3`。原 `cigars_dev.db` 保留，不覆盖其订单、库存或财务数据。
+
+生产数据通过服务用户以 SQLite `mode=ro`、`query_only=ON` 读取：60 款有库存历史的商品、20 个品牌，其中 44 款当前有货、16 款历史有货，涵盖全部 18 款有销售出库记录的商品。新快照与先前准备的展示数据逐项核验相同，复用已确认的 125 张单支及盒装照片；魔术师现货为 10 支盒装。
+
+该副本仅是商城展示测试数据：库存批次按公开展示需要准备，成本为零，没有复制生产订单、客户或会计流水；不作为正式库存/财务账本。专用 middleware 禁止业务写入，登录和退出仍可使用原本地测试账号。
+
+运行设置、准备脚本、只读生产快照和核验记录保存在 `/tmp/cdt-prod-test-refresh/`，不提交数据库、账号资料或媒体文件。服务为 `cdt-project-app-lan` 和 `cdt-project-storefront-worker`；两者使用 `DJANGO_SETTINGS_MODULE=cdt_project_test_settings` 及该目录的 `PYTHONPATH`。移除这个本地 settings 覆盖即可恢复原开发库。

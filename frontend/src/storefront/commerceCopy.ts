@@ -1,6 +1,6 @@
 const en = {
   stockProducts: "In-stock cigars", allProducts: "View all products", browseStock: "Browse all in-stock cigars",
-  browseBrands: "Browse by brand", browseBoxes: "Browse by box size", boxSize: "Box size", perBox: "per box",
+  browseBrands: "Browse by brand", expandBrands: "Show more brands", collapseBrands: "Show fewer brands", browseBoxes: "Browse by box size", boxSize: "Box size", perBox: "per box",
   filters: "Filters", applyFilters: "Apply filters", close: "Close", reset: "Clear all", results: "results",
   sort: "Sort by", catalogOrder: "Catalogue order", nameOrder: "Name", lengthOrder: "Length",
   searchResults: "Search results", noResults: "No matching cigars", noResultsBody: "Try another name or clear your filters.",
@@ -22,7 +22,7 @@ export const commerceCopy: Record<"zh" | "ru" | "en", CommerceCopy> = {
   en,
   zh: {
     stockProducts: "现货商品", allProducts: "查看全部商品", browseStock: "浏览全部现货",
-    browseBrands: "按品牌浏览", browseBoxes: "按盒规浏览", boxSize: "盒规", perBox: "每盒",
+    browseBrands: "按品牌浏览", expandBrands: "展开", collapseBrands: "收起", browseBoxes: "按盒规浏览", boxSize: "盒规", perBox: "每盒",
     filters: "筛选", applyFilters: "应用筛选", close: "关闭", reset: "清空全部", results: "件商品",
     sort: "排序", catalogOrder: "目录顺序", nameOrder: "按名称", lengthOrder: "按长度",
     searchResults: "搜索结果", noResults: "没有匹配的商品", noResultsBody: "尝试其他名称，或清空筛选条件。",
@@ -39,7 +39,7 @@ export const commerceCopy: Record<"zh" | "ru" | "en", CommerceCopy> = {
   },
   ru: {
     stockProducts: "Сигары в наличии", allProducts: "Все товары", browseStock: "Смотреть все сигары в наличии",
-    browseBrands: "По брендам", browseBoxes: "По размеру коробки", boxSize: "Размер коробки", perBox: "за коробку",
+    browseBrands: "По брендам", expandBrands: "Показать ещё бренды", collapseBrands: "Скрыть бренды", browseBoxes: "По размеру коробки", boxSize: "Размер коробки", perBox: "за коробку",
     filters: "Фильтры", applyFilters: "Применить", close: "Закрыть", reset: "Сбросить всё", results: "товаров",
     sort: "Сортировка", catalogOrder: "Порядок каталога", nameOrder: "По названию", lengthOrder: "По длине",
     searchResults: "Результаты поиска", noResults: "Сигары не найдены", noResultsBody: "Попробуйте другое название или сбросьте фильтры.",

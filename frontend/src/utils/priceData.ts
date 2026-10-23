@@ -19,6 +19,7 @@ export const BRAND_LOGO_LOCAL: Record<string, string> = {
   'Trinidad': '/media/brand_logos/trinidad.jpg',
   'José L. Piedra': '/media/brand_logos/jose-l-piedra.jpg',
   'Quintero': '/media/brand_logos/quintero.jpg',
+  "Quai d'Orsay": '/media/brand_logos/quai-dorsay.jpg',
   'Vegueros': '/media/brand_logos/vegueros.jpg',
   'Cuaba': '/media/brand_logos/cuaba.jpg',
   'Diplomáticos': '/media/brand_logos/diplomaticos.jpg',

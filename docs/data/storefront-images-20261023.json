@@ -1,0 +1,2256 @@
+{
+  "version": 1,
+  "description": "已确认商品图片关联；品牌沿用原版彩色logo；不包含价格、库存、发布状态或媒体文件。",
+  "assets": [
+    {
+      "cigar_id": 93,
+      "brand": "Cohiba",
+      "english_name": "Espléndidos",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/93-single-detail.webp",
+        "sha256": "db53a568bb1ee47ccce177f0dc284d91d72bf5e70767b97acd2ef2f0e68652d7"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/93-single-list.webp",
+        "sha256": "28c8915966df43764a5692eec3f1d02d1085e006f192de23b8d8ff6e8226fa03"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 95,
+      "brand": "Cohiba",
+      "english_name": "Robustos",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/95-single-detail.webp",
+        "sha256": "04fdcbcf4387946259879c1bcd6d26a6cfae1bedb5354b12028ca05f75908cd0"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/95-single-list.webp",
+        "sha256": "58d79b362a3ffde60fa95f8301782f5430009ac243de16269e31c6543ad5fd26"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 96,
+      "brand": "Cohiba",
+      "english_name": "Siglo I",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/96-single-detail.webp",
+        "sha256": "7917bbc9894df9ca1d8905f2df6a4835bf58546498f846035960830ffc92bf96"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/96-single-list.webp",
+        "sha256": "67e5200f631f1d251ef6838f2bd5866e11503f31b921f92e1dcb4cf31ba43a89"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 97,
+      "brand": "Cohiba",
+      "english_name": "Siglo II",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/97-single-detail.webp",
+        "sha256": "4f51a861c9b715f83cedf148a195042bb38051c8e9e2d40cfff9b2887857ca35"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/97-single-list.webp",
+        "sha256": "532490c5b1044dddc975184081b5f7ad2bfa0bcf9edc01180d262783058015fa"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 98,
+      "brand": "Cohiba",
+      "english_name": "Siglo III",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/98-single-detail.webp",
+        "sha256": "1a8185d70b0cdd7c4bd90b5eb10eeffcc839a9eb036ac8365384e3108d8927a6"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/98-single-list.webp",
+        "sha256": "2a1ef4b052a8f8178991d0c6052b7231ea95e2dfe0ff5b46ca0dd3b9dfd2bac7"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 101,
+      "brand": "Cohiba",
+      "english_name": "Siglo VI",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/101-single-detail.webp",
+        "sha256": "f0a836c8c38fcade7f031564e50714b4044c77ae09595679f9182aa2df8cb649"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/101-single-list.webp",
+        "sha256": "e33ede389414ab7fd7d8aa6dae1d70a2276549aae1aa63abd3a8b0b57404beb3"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 102,
+      "brand": "Cohiba",
+      "english_name": "Genios",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/102-single-detail.webp",
+        "sha256": "926635c3a3a3f55f55d5fb9fcb8db9e66b69c85c8e5c5912265739b321114cf6"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/102-single-list.webp",
+        "sha256": "7c18b08385a07b95236e8f0e2d7c877c8b64ee7c2c8415744e10307bf3f2a629"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 103,
+      "brand": "Cohiba",
+      "english_name": "Magicos",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/103-single-detail.webp",
+        "sha256": "0358b81db67cb6bc0024c458840b8d31ef972e885dd9d983b543c3409e44d2ee"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/103-single-list.webp",
+        "sha256": "c72e5fb1cf7cb4d3a0a00227ca488011b09159c162e717b79799c9ea13968c15"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 106,
+      "brand": "Cohiba",
+      "english_name": "BHK 54",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/106-single-detail.webp",
+        "sha256": "0f9d3b662b942a29c34daf67dd37ccb7e8a538f03e553be646b5f1076e016f6e"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/106-single-list.webp",
+        "sha256": "1eb615824a5edb53aee1411e44da96cc6708ebf5f0cf031ead09167acc5a4d9d"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 180,
+      "brand": "Cuaba",
+      "english_name": "Exclusivos",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/180-single-detail.webp",
+        "sha256": "36ec22d50ab01c940d13a741347ca713971b736089f189cb77ba6222d109901a"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/180-single-list.webp",
+        "sha256": "01a23e48ae2d8ced5cc61a85b81199aea963d3557c8343f8922674d07277c31d"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 182,
+      "brand": "Cuaba",
+      "english_name": "Distinguidos",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/182-single-detail.webp",
+        "sha256": "d7ab561dc068d3636d0b70c602d8a3400f2451b968c665e60179bb9ccc26b295"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/182-single-list.webp",
+        "sha256": "48be394c70e93ac129cd6a349159dbd1672b67843971ddc2f22d3614e57b7bd1"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 197,
+      "brand": "Diplomáticos",
+      "english_name": "Diplomáticos No.2",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/197-single-detail.webp",
+        "sha256": "e76441e02c718557203bc739b609f3ba66ee81df9eeb0c0f859e1bdde239b2ca"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/197-single-list.webp",
+        "sha256": "0b5e9ac371f278151e1774bf56cd7959705c74f17866efc32293f13781df1e62"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 266,
+      "brand": "Fonseca",
+      "english_name": "Delicias",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/266-single-detail.webp",
+        "sha256": "e4c687b0919db6ea1cc81b87fcbe3ea13f71e51eaea1a3177ca635ec98917a89"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/266-single-list.webp",
+        "sha256": "7b6fe599b51454c4efe0aafb1e373cab065f7bf16c523876ccbdf7ea2e5dbc1e"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 281,
+      "brand": "H. Upmann",
+      "english_name": "Upmann No.2",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/281-single-detail.webp",
+        "sha256": "f6e72ffc135f67468490e16efb48b884d5d2fcc90aa3d795581dc68308d31dbe"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/281-single-list.webp",
+        "sha256": "ef25385e111c84b71ed9fa4f4dc60b4dd3fcde25ce1cd2daee283f8eb84f0691"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 289,
+      "brand": "H. Upmann",
+      "english_name": "Connossieur B",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/289-single-detail.webp",
+        "sha256": "e8b0117b97d8c0610bdcbba50eea2f7dd0579cf57efa2c21aa56a7b5e5f48c65"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/289-single-list.webp",
+        "sha256": "c20e1463e04738fc329effdcfa066a72c6e44f6f65e1632d9d589430899b290f"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 355,
+      "brand": "Hoyo de Monterrey",
+      "english_name": "Petit Robustos",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/355-single-detail.webp",
+        "sha256": "7bce19889e06b2e719ccaffb7c7c4cee5c5c75ba7e2033c9af54d5eb01077e0f"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/355-single-list.webp",
+        "sha256": "a2e22c51ee6b5a2921174b97365afc4fb091daff2944716527c903c1d69b0afc"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 356,
+      "brand": "Hoyo de Monterrey",
+      "english_name": "Epicure Especial",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/356-single-detail.webp",
+        "sha256": "aefad23f6f868b940e1350d9f40b40909c53be1189e1d76679dd88f9ee93fc45"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/356-single-list.webp",
+        "sha256": "cf102023d9fbf32814baa5c963aa52eb1f961fb498bb63c57f0dc77b190b6ed8"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 358,
+      "brand": "Hoyo de Monterrey",
+      "english_name": "Le Hoyo de San Juan",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/358-single-detail.webp",
+        "sha256": "c9e54d398d173e10986bbb288d9b94b2f9b4c0b1915aff9c433489d7ee9a681d"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/358-single-list.webp",
+        "sha256": "0fb0415bf1eb38e64e04b06405ec05e8a32da091cfbfe132d88dbe64e4eb27e7"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 418,
+      "brand": "José L. Piedra",
+      "english_name": "Brevas",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/418-single-detail.webp",
+        "sha256": "8b57d6a5c9feaf42a9c9035689ac1266e39d26242df26014ef78cd93813b8e01"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/418-single-list.webp",
+        "sha256": "23540576e65b9d40869b54eec1ce3a11e8ed3b185fd3d460463342dbc67eec1c"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 419,
+      "brand": "José L. Piedra",
+      "english_name": "Cazadores",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/419-single-detail.webp",
+        "sha256": "6f4f7820d2c4d3531391f170f213fa8d932caa0830a2f0569eefc4dc58eebcf3"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/419-single-list.webp",
+        "sha256": "e8ce7c9d051f964021ae4f27eb289dc2461e675e538f3edf074c219681b3af2b"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 421,
+      "brand": "José L. Piedra",
+      "english_name": "Petit Cazadores",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/421-single-detail.webp",
+        "sha256": "9a3de0bd22df35cef2ea636247b2f0b51ffa53cae8cc60d7e0e7cbd8e21bf3a6"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/421-single-list.webp",
+        "sha256": "7580c22430a45943207718b5c6ee48c172ad0b562a6be63f94f457fdc15f4726"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 422,
+      "brand": "José L. Piedra",
+      "english_name": "Petit Caballeros",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/422-single-detail.webp",
+        "sha256": "b92f5d027ca06b799a565c271682473a30bf987e1b4b8013090795488eff8f77"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/422-single-list.webp",
+        "sha256": "46a37fff20abe937cdb042441bd96c7edc115570c18d86e9d2f0cd8fd70de0e7"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 430,
+      "brand": "Juan López",
+      "english_name": "Selección No.2",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/430-single-detail.webp",
+        "sha256": "05bdab05eb85cf7a7a0b116d798d3f33c425de02a2a522f5bac9e8cab8eb9a49"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/430-single-list.webp",
+        "sha256": "306756f3f907de4bf6d3a8f3e4de51eccd4aa009fef75dddedc0eb11f6aa4e16"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 529,
+      "brand": "Montecristo",
+      "english_name": "Montecristo No.2",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/529-single-detail.webp",
+        "sha256": "337175bbd341d3d39be9d8169823a1907d59f30fae5e8a24532a87c8b6563907"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/529-single-list.webp",
+        "sha256": "a1ecdd3f3638c9a323d438993f8558393250b537bf985f5699d2bda22cd6981b"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 530,
+      "brand": "Montecristo",
+      "english_name": "Montecristo No.3",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/530-single-detail.webp",
+        "sha256": "a7973a447725b0c7cb4c785d0ee18790c4c62b81fc20d9c3550cbf6d3b61583c"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/530-single-list.webp",
+        "sha256": "50058ea3970ac3f5fe32e02cc549971ae0c73d5568a51d33a45d787c681a398e"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 531,
+      "brand": "Montecristo",
+      "english_name": "Montecristo No.4",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/531-single-detail.webp",
+        "sha256": "f74f4918c644d35e05ec664a1168635eb394c723f382111363701b0ee3ed60d1"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/531-single-list.webp",
+        "sha256": "9f90d91e89a70fd8fdcfebd61e85741219890568f223cf3f822cba5cad9768fa"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 532,
+      "brand": "Montecristo",
+      "english_name": "Montecristo No.5",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/532-single-detail.webp",
+        "sha256": "b690437053015715d4468ee12b875e7331930f7f76954670aac425fa8292cc90"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/532-single-list.webp",
+        "sha256": "b6665820b9e6b8343c4f57325298b7ffe466b8838bbe3667f242a60d5d58c513"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 539,
+      "brand": "Montecristo",
+      "english_name": "Edmundo",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/539-single-detail.webp",
+        "sha256": "602e5cfd4d4f848a004e4d5d7ac193c9241aec6567fcf1e5d702a0b2806b1b4f"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/539-single-list.webp",
+        "sha256": "b05019c4b408eb0acf623c6b560f4043a7d39887300ea62369f40d4ee7b52b1e"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 542,
+      "brand": "Montecristo",
+      "english_name": "Junior",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/542-single-detail.webp",
+        "sha256": "d7e46ee33f39b724cb28245f4b51930062dda54a7178d619bb0cd0b66c61ec19"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/542-single-list.webp",
+        "sha256": "67d49ec5aee5162a835c6de09a08b69ff09dce28c35f86f5d0176e6d27ab45d9"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 544,
+      "brand": "Montecristo",
+      "english_name": "Regata",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/544-single-detail.webp",
+        "sha256": "81e295fdb7169104679d1f5e297c294a237d93eeaccf7c75a87ce186c87715c1"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/544-single-list.webp",
+        "sha256": "850b765d436aa36edfd979dbd50ceace6be6ad19b631df4fd4707df31b7fc8a9"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 546,
+      "brand": "Montecristo",
+      "english_name": "Petit No. 2",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/546-single-detail.webp",
+        "sha256": "5222a71af37a5f58756bc5d5756a0dc06ddd1f71e4b45646c1ece55ec02aed29"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/546-single-list.webp",
+        "sha256": "3e48e5e067731726a94f4f990c379e32f422caf9b44c43669e1c45a00ec6fc32"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 599,
+      "brand": "Partagás",
+      "english_name": "Mille Fleurs",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/599-single-detail.webp",
+        "sha256": "70def13a651910bcdca73bc0f8b61c8b51547ee968f52a29493f5cfcbb1ea393"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/599-single-list.webp",
+        "sha256": "ea19eede00241d878f9cd74a722b10b0c8661e887d7a28ac991ac3df7ba835dc"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 603,
+      "brand": "Partagás",
+      "english_name": "Shorts",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/603-single-detail.webp",
+        "sha256": "6a143c84d003c0da957ff1e15cbead44e649c32a1af1e974c32eecba3717effe"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/603-single-list.webp",
+        "sha256": "71ac676522b2b3b5a2a232b3baa47b2f0d260823f2c29a4626bc92244ef2a5b7"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 606,
+      "brand": "Partagás",
+      "english_name": "Serie D No.4",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/606-single-detail.webp",
+        "sha256": "5afb2be2487e6eaa9ed3ca426ae46d1c288ca8ec17ced6e78c25c9b0b6bc6b23"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/606-single-list.webp",
+        "sha256": "013a3d1dacb821e63dc5f2e342ac035d4fbff56955ac0386786744f631b6ba4a"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 610,
+      "brand": "Partagás",
+      "english_name": "Serie D No.5",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/610-single-detail.webp",
+        "sha256": "87db5b3c1707085c68698feb62ec7b2aaf6c424668030e569fde90008cbcbc62"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/610-single-list.webp",
+        "sha256": "e5315c7b064539d3f0784c2b3fb0993f57e3d89af393c884cf7a0c71ea206c41"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 611,
+      "brand": "Partagás",
+      "english_name": "Serie E No.2",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/611-single-detail.webp",
+        "sha256": "759fe3bcc9d63bb64f9a128b85c5f4591c18b21032be748d8873716cc89015dc"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/611-single-list.webp",
+        "sha256": "cd9bc7c82e2e058f1d55d42f6fa214479bf3430da82b369417f6de5ff8ec9a75"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 612,
+      "brand": "Partagás",
+      "english_name": "Serie D No.6",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/612-single-detail.webp",
+        "sha256": "7bc5fe9f3ff31cecab4e1a906d932f545bc33a4f99f5d75b9d7dc929e4c7398c"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/612-single-list.webp",
+        "sha256": "6ff80d7c98243d38dfd1c729d2073b15abd776c6fa7e5a51b772355005c863c2"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 615,
+      "brand": "Partagás",
+      "english_name": "Maduro No. 2",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/615-single-detail.webp",
+        "sha256": "8b31eb583c0cbaf9fd893fbf27f690c72e652a0d21425ceb041216e5b38bfae5"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/615-single-list.webp",
+        "sha256": "efb35cc412fb7c7d279ea33d1de17dc9d46b5d39f425037ca4202f81b25f418b"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 764,
+      "brand": "Punch",
+      "english_name": "Punch Punch",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/764-single-detail.webp",
+        "sha256": "52b02450a1bbb96fa3cfd8c816f7e45f63a1726dc2fb05e4104b448e84ae48cb"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/764-single-list.webp",
+        "sha256": "a1ebf7927534747270ddfe7e2837a96e8dd5d500c6f0f82b6c8fc67b587f1ac1"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 96,
+      "brand": "Cohiba",
+      "english_name": "Siglo I",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/96-box-25-detail.webp",
+        "sha256": "2e5d3125f317f240f6b0cfdde7709137b867bf779bdca7d9344baaa1ce24a2d2"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/96-box-25-list.webp",
+        "sha256": "504a82db8ff4057dc7f62a60d973d989b6b9984896d26fe0fa167f23047eac19"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 97,
+      "brand": "Cohiba",
+      "english_name": "Siglo II",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/97-box-25-detail.webp",
+        "sha256": "6930273ab95aebcf0280c9d59bbcc6a5f8ca0bec2705b56ea9f4fd88e5d13217"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/97-box-25-list.webp",
+        "sha256": "609a26bdd04fb3b7e724aaffd9e35b9aa86b4660c2f6e5a6f90245efde0fb551"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 98,
+      "brand": "Cohiba",
+      "english_name": "Siglo III",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/98-box-25-detail.webp",
+        "sha256": "a5fb85e2f8318d9a3fe8dca7794e18f2764f28127cff56b49cc90755e532970f"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/98-box-25-list.webp",
+        "sha256": "ae4e7f42b6c85c6df52ee7f0931b1c88ad1443309fe41128c8b83481a0ddabd2"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 101,
+      "brand": "Cohiba",
+      "english_name": "Siglo VI",
+      "image_type": "box",
+      "box_size": 10,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/101-box-10-detail.webp",
+        "sha256": "683928884c1f2f3030a9bb09663a040b396c8b1f487a10d03d18ff0a18444511"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/101-box-10-list.webp",
+        "sha256": "7e0f68c0da59eef86419316b28308db83332235d7bf915e91d5bcc8b556fe778"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 106,
+      "brand": "Cohiba",
+      "english_name": "BHK 54",
+      "image_type": "box",
+      "box_size": 10,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/106-box-10-detail.webp",
+        "sha256": "de27a532b1ca1f937635b98d60f5d4561473c2671d9e2e183ac880126da7cc27"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/106-box-10-list.webp",
+        "sha256": "e8418dbd2a0bee4f2b7c87896b8f9c2a7534839b1c385a86a0c69855ce2d2c25"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 180,
+      "brand": "Cuaba",
+      "english_name": "Exclusivos",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/180-box-25-detail.webp",
+        "sha256": "c6784b27aa9226848f9f1c326b0b496a2d7ec36ae1b3a4e7abed849f987462e4"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/180-box-25-list.webp",
+        "sha256": "5df40b1b7075c7cb52aca5c6b3a8d24960150a436da5cf0661f0baa38cd43106"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 182,
+      "brand": "Cuaba",
+      "english_name": "Distinguidos",
+      "image_type": "box",
+      "box_size": 10,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/182-box-10-detail.webp",
+        "sha256": "e585ba4db20ca1b2cf211f14e294315beda2fcb800280de957cbfb088a98665d"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/182-box-10-list.webp",
+        "sha256": "050805cba2c54e6abec2f5869c013b2e0a98f4fe65c565f92bd5f9648ec7f2d5"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 197,
+      "brand": "Diplomáticos",
+      "english_name": "Diplomáticos No.2",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/197-box-25-detail.webp",
+        "sha256": "8f5e12d1d39b84276b41e3327309d1eef063059395004306bf502349d3ebe66d"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/197-box-25-list.webp",
+        "sha256": "d01998631ad2610909c0cf41253a0ad8ff57efb37a8ffcf967b7d842e0922062"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 266,
+      "brand": "Fonseca",
+      "english_name": "Delicias",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/266-box-25-detail.webp",
+        "sha256": "66354a3a8d9c646b55afdf6d3d4ac11d6fe0fb5e1dc236d89d6c1da10bcd9831"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/266-box-25-list.webp",
+        "sha256": "f83d68bd382254d9db298e2ac35378b4451d992a764c7d8c8720367d6c233726"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 281,
+      "brand": "H. Upmann",
+      "english_name": "Upmann No.2",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/281-box-25-detail.webp",
+        "sha256": "47e8674689c88ee1e7ab205a8813dd2488f21d4952171110e0b9d4899d9cbdd4"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/281-box-25-list.webp",
+        "sha256": "29493976bcecdff7c342f331cde057ff0d346702f709d1ed6a135d0cb836e85b"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 355,
+      "brand": "Hoyo de Monterrey",
+      "english_name": "Petit Robustos",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/355-box-25-detail.webp",
+        "sha256": "9328ebc7d6702638aae80b27db678003aa4ff2501c33c8c8210be87c3b418cdf"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/355-box-25-list.webp",
+        "sha256": "556d19edec47cb03953f8034d14f01689e0f0f4ac865f02e12a43f2982336849"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 356,
+      "brand": "Hoyo de Monterrey",
+      "english_name": "Epicure Especial",
+      "image_type": "box",
+      "box_size": 10,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/356-box-10-detail.webp",
+        "sha256": "86711dfbe9a084c023922423a90784883410da58791ab29fc23ad6096056b1f1"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/356-box-10-list.webp",
+        "sha256": "6495083dababf65cf0588c8cfd8ed7c94bbfbbc80752a35c29615404a6eab1d7"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 358,
+      "brand": "Hoyo de Monterrey",
+      "english_name": "Le Hoyo de San Juan",
+      "image_type": "box",
+      "box_size": 10,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/358-box-10-detail.webp",
+        "sha256": "5788577b9729e0d5d5df239c7dcc259b54da6985017522df4a9f74d35f899e27"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/358-box-10-list.webp",
+        "sha256": "5e22b1e13098c57a8e63bb6f31b47b5ae473a41c8ac6e4bb189518c9bf626590"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 418,
+      "brand": "José L. Piedra",
+      "english_name": "Brevas",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/418-box-25-detail.webp",
+        "sha256": "160a2da5e7187b5f1f97bb69f2732833f0cf7b3c3af1d5d7fe2d418aac73bf97"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/418-box-25-list.webp",
+        "sha256": "5f239e878b3b177cf10ad1a9f5d1a9b62f3d4038ea7013b14c170bf7503203ba"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 419,
+      "brand": "José L. Piedra",
+      "english_name": "Cazadores",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/419-box-25-detail.webp",
+        "sha256": "47f5bee1b7475b5e71b939079e6e3e701605d54eed487a572e29df8da47737e7"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/419-box-25-list.webp",
+        "sha256": "2299078d3befca2c8891d9f445ec16e00a0849e239be2d9d26be6c7b459bf5a4"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 421,
+      "brand": "José L. Piedra",
+      "english_name": "Petit Cazadores",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/421-box-25-detail.webp",
+        "sha256": "840f3305eaeaa50f66dfd6535f9c892cd6433e4e7356e845dbfb9bb47671625b"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/421-box-25-list.webp",
+        "sha256": "889b38cd98a867e4c44f61b02f0e56020dfc2a7ea39730f89787f6e0f9729db3"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 422,
+      "brand": "José L. Piedra",
+      "english_name": "Petit Caballeros",
+      "image_type": "box",
+      "box_size": 12,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/422-box-12-detail.webp",
+        "sha256": "015b5004d57608689bc5c620fd637142024a11cb7ae641cb0edd599cb081a6eb"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/422-box-12-list.webp",
+        "sha256": "0376d1010f22b166e2e79be8d877dec8d1f6f8b606f01f04ee8b15d7cd19ef5f"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 430,
+      "brand": "Juan López",
+      "english_name": "Selección No.2",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/430-box-25-detail.webp",
+        "sha256": "7e5c2b4f5daf63cf4c3419654c3952832f1fbd1c3b4362da62fdac35c770c687"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/430-box-25-list.webp",
+        "sha256": "9b8d46de3708cf21a00ea43f76452d93a1c22d195d469436fd563ddcbedcf74c"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 529,
+      "brand": "Montecristo",
+      "english_name": "Montecristo No.2",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/529-box-25-detail.webp",
+        "sha256": "19029e68a55e5b8a7d47556fe61c9f785387d308303920ad6bb825f2f2e77abf"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/529-box-25-list.webp",
+        "sha256": "a5f1802fd334cc541db2186bcd2aca522f2b32fd40d182b12b1b4dc922d86f7a"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 530,
+      "brand": "Montecristo",
+      "english_name": "Montecristo No.3",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/530-box-25-detail.webp",
+        "sha256": "f00325f758e133e06a98ddbf578a1c81813b0e19c6552fb84ad0a2dab0dbfa15"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/530-box-25-list.webp",
+        "sha256": "b9471a05ceba5ffee08e8cf7bee5ed6d13191fee0f183e2b7369c8c0d63d81ad"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 531,
+      "brand": "Montecristo",
+      "english_name": "Montecristo No.4",
+      "image_type": "box",
+      "box_size": 10,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/531-box-10-detail.webp",
+        "sha256": "26390e6364688db66ff38e3e2ff4af565d84a5173a1f8ffa751d6562fcb87453"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/531-box-10-list.webp",
+        "sha256": "319d45422788c8c05121c9b0fe84f89fb5d9f89d18179d37ec2f1beaf898d6cf"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 531,
+      "brand": "Montecristo",
+      "english_name": "Montecristo No.4",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/531-box-25-detail.webp",
+        "sha256": "266813a6542ce5d5b8de14d5a0306ccd36b1ccbb4bb2c53d1971bb75fbd86b1f"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/531-box-25-list.webp",
+        "sha256": "58e50e4c7d5a9dbc33ff6f6b5a4a7c51817ca0ed23b95c68935b31d8c54f1ba3"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 532,
+      "brand": "Montecristo",
+      "english_name": "Montecristo No.5",
+      "image_type": "box",
+      "box_size": 10,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/532-box-10-detail.webp",
+        "sha256": "dfdc4f06308497d90b441c007daa9bbbef77290adf0b707e7942a57636b7db09"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/532-box-10-list.webp",
+        "sha256": "230e28e12f826f31e9ac96139a32b1925837bbe48dabffaf4c9b61548bfc9875"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 532,
+      "brand": "Montecristo",
+      "english_name": "Montecristo No.5",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/532-box-25-detail.webp",
+        "sha256": "3dbee9a1b982bebbd8b4fbd3e71cbe16c7f89f32c3c602cca46478428a1f46bc"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/532-box-25-list.webp",
+        "sha256": "d7c2b4e4a9600f31fe06dbf8f496e005e3e1dceb1fc1542733db74e010a5d92a"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 539,
+      "brand": "Montecristo",
+      "english_name": "Edmundo",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/539-box-25-detail.webp",
+        "sha256": "ea33b650a666230f3e0b7d3c77f2c6c79f6955831b983a01d0fc8f4a8a05526e"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/539-box-25-list.webp",
+        "sha256": "112bd815710b4811ca7b965dc92956d17419b988e29a21f54e6337577d9d0383"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 542,
+      "brand": "Montecristo",
+      "english_name": "Junior",
+      "image_type": "box",
+      "box_size": 20,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/542-box-20-detail.webp",
+        "sha256": "2dfe39294aad53b22ed4095e2b05da31e996ec7e8781899699bc5d8dc244c072"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/542-box-20-list.webp",
+        "sha256": "bf11980a2a53b91e705b5802ee7efb24423c7b2e944787e58a2dfac997adb325"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 544,
+      "brand": "Montecristo",
+      "english_name": "Regata",
+      "image_type": "box",
+      "box_size": 20,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/544-box-20-detail.webp",
+        "sha256": "8c8db424546e84df3bf75358b75635bc6120ea36d70764ea3d8bcdced4661001"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/544-box-20-list.webp",
+        "sha256": "67cbd69b9fb36b1a8506a54bea6fdec5f65a7a4c2d5138ebb6a611621f38e58f"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 546,
+      "brand": "Montecristo",
+      "english_name": "Petit No. 2",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/546-box-25-detail.webp",
+        "sha256": "5d4231a0f529c38fc35e47b62ea36255a7d5c3a734d81868994a86d67ce4267a"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/546-box-25-list.webp",
+        "sha256": "3ff331808e5bca5844eeea62324bf8d977d9f7c79bfe399f0a02234d772521b6"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 599,
+      "brand": "Partagás",
+      "english_name": "Mille Fleurs",
+      "image_type": "box",
+      "box_size": 10,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/599-box-10-detail.webp",
+        "sha256": "452687eb77a1de7f0f422fa302ddbe5030e1f6f35139864d8827da278ec58ba9"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/599-box-10-list.webp",
+        "sha256": "f219db873bc9813c96a778bc6d058f9509461e4075ba9c9df271d5ac834637f9"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 599,
+      "brand": "Partagás",
+      "english_name": "Mille Fleurs",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/599-box-25-detail.webp",
+        "sha256": "65c207d3bd73e54ed3abb28fcdca9cadc5ed7ba657da820fc45fc932a0159f80"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/599-box-25-list.webp",
+        "sha256": "af57aa6f6cf2c634de93633bd433f7a88acfd3b5549e6a48e3c8fa3d1ecac947"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 603,
+      "brand": "Partagás",
+      "english_name": "Shorts",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/603-box-25-detail.webp",
+        "sha256": "a014c5b282018aab197028c2f8b3cda3ca88fb5a39c43517ff3eb9bf1c969d36"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/603-box-25-list.webp",
+        "sha256": "f036dc56506071b741352f3c29edcbe0a0553ba1e023076df55fb56d2e14b5cc"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 606,
+      "brand": "Partagás",
+      "english_name": "Serie D No.4",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/606-box-25-detail.webp",
+        "sha256": "799eb99302ffc8154948f063f8791f13e9efcafa9d82593b62f0ef38733431ff"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/606-box-25-list.webp",
+        "sha256": "3fead56f1a44a6cb067de6e02d1aa3b60ed69dbda21c482ea5f41851f3b139db"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 610,
+      "brand": "Partagás",
+      "english_name": "Serie D No.5",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/610-box-25-detail.webp",
+        "sha256": "ccd49ef8d67457cbafccd9a0ad88f5929af8fd48f9e3b0481513f77196df529e"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/610-box-25-list.webp",
+        "sha256": "3daa15c71cd3f272e93b9e502e9f5090e3275ff11b417f304c333235054bcbe3"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 611,
+      "brand": "Partagás",
+      "english_name": "Serie E No.2",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/611-box-25-detail.webp",
+        "sha256": "8a4ee743ef3114d5f1d1a60ca42516a05add5589c4a2e2b6724125ede953dace"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/611-box-25-list.webp",
+        "sha256": "fac450a3e189bbbbf718e15a4de13278a47afad5d70eca379f2ef14f201d5a31"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 840,
+      "brand": "Quai d'Orsay",
+      "english_name": "No.52",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/840-single-detail.webp",
+        "sha256": "76d3daf6ed4ce846643c523b4a21a48b2aacbf8dd0c4927cee2b95f0aa4e2f03"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/840-single-list.webp",
+        "sha256": "5e71436b1b09f00073b03717794854a43ede2fd18b842b46cb8533956cfbc9f7"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 876,
+      "brand": "Rafael González",
+      "english_name": "Perlas",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/876-single-detail.webp",
+        "sha256": "b262a3bcfc1e3c66bad28ece06e17a7ba841f0eeb5967a65d59b0c5035bc211c"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/876-single-list.webp",
+        "sha256": "a88d54f351b1824ae03135df3042f51065280d02399e4dad8b55822c592a8fed"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 893,
+      "brand": "Ramón Allones",
+      "english_name": "Allones Specially Selected",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/893-single-detail.webp",
+        "sha256": "30900b00ce0497b3a2fbe66d138caf0ae0e2d22ce38ffe5fb1d280684d2af0ff"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/893-single-list.webp",
+        "sha256": "c7edcd8ee8ffee579c8bac7baa6d13affa0c27caef7f52bf108791a6f70a5741"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 979,
+      "brand": "Romeo y Julieta",
+      "english_name": "Mille Fleurs",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/979-single-detail.webp",
+        "sha256": "f0befb1aada0f0eb8173b3d2a3a7ce27f7add55e3b11a033a20ee17a9ecc5361"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/979-single-list.webp",
+        "sha256": "fa44926c3127d649137aa486c0bb220a20b6306373bb3e0e452e4eb555bee8f1"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 985,
+      "brand": "Romeo y Julieta",
+      "english_name": "Romeo No.3",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/985-single-detail.webp",
+        "sha256": "77dab07d2ededdc129aca0821f9f10daafe608fe9f871e33afd52d79036109bc"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/985-single-list.webp",
+        "sha256": "ac1075ef3d76f2f64bf225e0c16627ad076d36b869e5f9842d0817eaa491cd84"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 986,
+      "brand": "Romeo y Julieta",
+      "english_name": "Sports Largos",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/986-single-detail.webp",
+        "sha256": "017b16b18723878d4c088821631e8c83347726ec63ac58eec8ca13d3ea057b8c"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/986-single-list.webp",
+        "sha256": "a3472fc7db563c7ce077b865b2fbf58c2666447e3c48402abd97e572e304641f"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 990,
+      "brand": "Romeo y Julieta",
+      "english_name": "Wide Churchills",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/990-single-detail.webp",
+        "sha256": "74ff38c6f3d6f0bb25082eebd5b3f79970d16191c869ada4fc64edc0e1eb1b7f"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/990-single-list.webp",
+        "sha256": "75301b620891f71d437db57da9b4919e88041426202a039bcd69e8ade5257054"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 995,
+      "brand": "Romeo y Julieta",
+      "english_name": "Dianas",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/995-single-detail.webp",
+        "sha256": "3261bd1298d2fdc03396f0fcbed0e315da04ad3243abeea3963565143e9c8482"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/995-single-list.webp",
+        "sha256": "dfea75f12fc7a2b2639341da3470bcf10e8bfa0189f7b715560e8ea38168cd8c"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 999,
+      "brand": "Romeo y Julieta",
+      "english_name": "Amantes",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/999-single-detail.webp",
+        "sha256": "87511cd96716c22fab06e4efb23beed3285fc5405866e0e79c2a68e7d6a9d20e"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/999-single-list.webp",
+        "sha256": "afa1fd60dff9131aad779c84ba0acb869107e43d050f1b9aff6218cb98af8bc3"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1139,
+      "brand": "Trinidad",
+      "english_name": "Fundadores",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/1139-single-detail.webp",
+        "sha256": "f71be902348b74f3577b3d8a16318772d14c8b51b882086fad32f4bb74a88380"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/1139-single-list.webp",
+        "sha256": "efe137d81d9d9471651f1b623f8f39cec6d386e1f33d835bf8d6d0ceb7ee2ab8"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1143,
+      "brand": "Trinidad",
+      "english_name": "Vigia",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/1143-single-detail.webp",
+        "sha256": "824161d2980251981af2ab4208ae5cd7fd2f030c8899e039a01cf42596a46f1e"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/1143-single-list.webp",
+        "sha256": "664fcf30437206be0c54e76e49f1ef153912d0f6680e064e23c6c021bf5d423a"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1146,
+      "brand": "Trinidad",
+      "english_name": "Media Luna",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/1146-single-detail.webp",
+        "sha256": "43d01753c7917d62a832968d0441c5cf1e5085d6893b4d452c68ba8e23abf2c0"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/1146-single-list.webp",
+        "sha256": "4c950fd299925e047693789751b383b5a839ef3548726287d4a5ed3d9af07a2d"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1147,
+      "brand": "Trinidad",
+      "english_name": "Topes",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/1147-single-detail.webp",
+        "sha256": "7e718950650c14424a2d3080769e8f81590fc9d5ca72175d1009e76fdec71104"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/1147-single-list.webp",
+        "sha256": "8174085ac3a1be0cf7c36e46b80463dba0eece2f26fc1fbfaca16aacbcc9f9c9"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1166,
+      "brand": "Vegas Robaina",
+      "english_name": "Famosos",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/1166-single-detail.webp",
+        "sha256": "bbff5ec1b998bb7affdee6bcb8abeddd602d2889c990e748f1b970176c8c14b5"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/1166-single-list.webp",
+        "sha256": "e8df8c19324f9b1e5850c5f3a7a7d9d806a89949203de9cacad576c372ecd437"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1189,
+      "brand": "Vegueros",
+      "english_name": "Entretiempos",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/1189-single-detail.webp",
+        "sha256": "d433f162b5a2bd2fb084eb71e5b7ddfdca31a0e7313514f6f390cafd6a56c015"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/1189-single-list.webp",
+        "sha256": "0c2a1bef060c66594054dd4c1aced678bc5f09196060daa4a24857822299afd1"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1191,
+      "brand": "Vegueros",
+      "english_name": "Tapados",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/1191-single-detail.webp",
+        "sha256": "f2e8341d093db4f7e80a3f18ebf53f9831060310dc2cd19e76ec4864272154c6"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/1191-single-list.webp",
+        "sha256": "05154eb6f90958f395943cd8bda621615570eec92c562be1595bdfcc54177bad"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1343,
+      "brand": "Hoyo de Monterrey",
+      "english_name": "EPICURE № 2 D-C-C/P-3-n-15",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/1343-single-detail.webp",
+        "sha256": "f82136c894bda5f9eeb04fa71205e3829a393c33a143affc64bc895f48348c1e"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/1343-single-list.webp",
+        "sha256": "631729fccc73e501e07744fa7e641f9661fe167f3901101afedae3678e812827"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1346,
+      "brand": "La Gloria Cubana",
+      "english_name": "TURQUINOS",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/1346-single-detail.webp",
+        "sha256": "5622b686a16416b0358d33269f05ded138a3575acdd55208a46ccb3a6e57a0bf"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/1346-single-list.webp",
+        "sha256": "02009f8f33af02f7c7a6601b71ecd8019186fec15617efe927e6f52977c0f98e"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1359,
+      "brand": "Quintero",
+      "english_name": "BREVAS",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/1359-single-detail.webp",
+        "sha256": "f25eba54c3f1a24bd7694f7cf4ba007d05c742e3913ae14a7de4b239572eeccf"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/1359-single-list.webp",
+        "sha256": "0a2aac8cb46d19bae04eb226a0b15179c29e69c92820989a33988ee3803d695f"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 840,
+      "brand": "Quai d'Orsay",
+      "english_name": "No.52",
+      "image_type": "box",
+      "box_size": 10,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/840-box-10-detail.webp",
+        "sha256": "4ff96b47c28d806d1d2bdd0be63f699f372abc52f3f10758038b5476467a529c"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/840-box-10-list.webp",
+        "sha256": "0def4354a9ba94267e27d791795af5f62e8a24b591a5716462ef991fea85b27a"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 876,
+      "brand": "Rafael González",
+      "english_name": "Perlas",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/876-box-25-detail.webp",
+        "sha256": "9d3e5c46bd9ad70106dfa0d26a168221d5fef9339720229dc504ba071633f96d"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/876-box-25-list.webp",
+        "sha256": "7ae0ecf1635063710439d6c2d3e0fee246d8bf536d656ca9715c8f354caf17a5"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 893,
+      "brand": "Ramón Allones",
+      "english_name": "Allones Specially Selected",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/893-box-25-detail.webp",
+        "sha256": "95d3f6d5a45796bf3ebb66bb2c90decfeab9f05b02e7a7e45f7c02f376a2deb8"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/893-box-25-list.webp",
+        "sha256": "4f22a2d6ddba41329d1ed943e31c4184f7b45455b48d66accae01210ced974f2"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 979,
+      "brand": "Romeo y Julieta",
+      "english_name": "Mille Fleurs",
+      "image_type": "box",
+      "box_size": 10,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/979-box-10-detail.webp",
+        "sha256": "9ef0fd7f1083ead2081304946082e5584187dd3bdae8c10f53cdb92bae2d2af1"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/979-box-10-list.webp",
+        "sha256": "b216fe07ce9a92aff728d5d07d0c827970b7c46709d4e4d7fd13ca436e98c1d3"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 979,
+      "brand": "Romeo y Julieta",
+      "english_name": "Mille Fleurs",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/979-box-25-detail.webp",
+        "sha256": "b64f6c7fa935c77dd1d6056efc10529dc2b1621dffcd9fe10d42903b6726762d"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/979-box-25-list.webp",
+        "sha256": "1bc9bcf22bf5f1c1b4c460e6ef9b8e029e3d2c56d287890968ca49eef6c81c16"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 985,
+      "brand": "Romeo y Julieta",
+      "english_name": "Romeo No.3",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/985-box-25-detail.webp",
+        "sha256": "b78b685ada382eaeab5709ebad9b4210bdbab33e01f1673f140caf17bd9227d0"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/985-box-25-list.webp",
+        "sha256": "6c9d9cc0b81b3b1720438c730abd8ef9685d6f5052bf427a787143c95faa1113"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 986,
+      "brand": "Romeo y Julieta",
+      "english_name": "Sports Largos",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/986-box-25-detail.webp",
+        "sha256": "9fd0186aa7a2e4c8493319b8f19a04cada4d2ed497ce6186b3b7e76b133aad34"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/986-box-25-list.webp",
+        "sha256": "e3fb724d2832e28c1f3b86b81a0e6c8b8fcfe6c6362e1b11f4ce8fc48fbed732"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 990,
+      "brand": "Romeo y Julieta",
+      "english_name": "Wide Churchills",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/990-box-25-detail.webp",
+        "sha256": "c00e97b2908920533c87a9989d77860c3fd50ef446e8623811571d5e24b912e5"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/990-box-25-list.webp",
+        "sha256": "dfa89014d7294561b561bd7f39c9723a09939be33921700a256ab00b303ead2e"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 995,
+      "brand": "Romeo y Julieta",
+      "english_name": "Dianas",
+      "image_type": "box",
+      "box_size": 20,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/995-box-20-detail.webp",
+        "sha256": "a1dd47af0062be1b896acc13e357eafd637bb913466fcca0cfc634b4c19fcd7f"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/995-box-20-list.webp",
+        "sha256": "7e09db7e96e2209e74de009eebca7eb7a683e25da1ba443b9480fef0826c36b8"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 999,
+      "brand": "Romeo y Julieta",
+      "english_name": "Amantes",
+      "image_type": "box",
+      "box_size": 20,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/999-box-20-detail.webp",
+        "sha256": "20b84536fb5079eb4b48fae4f6581b587415a3285921523f5ccec29b015451be"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/999-box-20-list.webp",
+        "sha256": "198445af3345377f72340d6887a28a2fa26760adb3e07fc0c39bad556bce4278"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1139,
+      "brand": "Trinidad",
+      "english_name": "Fundadores",
+      "image_type": "box",
+      "box_size": 24,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/1139-box-24-detail.webp",
+        "sha256": "c15a4ff1167fc601d7a5c123cce4806c5d87265beb7d52208fe50c2d82c44b05"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/1139-box-24-list.webp",
+        "sha256": "3dabf4b2974b5026aeb98217584d3771e7664cfc0b9f270166c9892f75af5412"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1143,
+      "brand": "Trinidad",
+      "english_name": "Vigia",
+      "image_type": "box",
+      "box_size": 12,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/1143-box-12-detail.webp",
+        "sha256": "5a5354c22f495cdb4a3c4ff271c4685fe7b215ae1980d130835fa8e79bf1139a"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/1143-box-12-list.webp",
+        "sha256": "b9fe98f273c354f8b6f9830fcbd76be239b25cff34bfceadfcb3d829e106d31e"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1146,
+      "brand": "Trinidad",
+      "english_name": "Media Luna",
+      "image_type": "box",
+      "box_size": 12,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/1146-box-12-detail.webp",
+        "sha256": "e8943a7f245fd26a77c068396bb9f5f08a507a8a892d969e1fbc84eda62afaee"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/1146-box-12-list.webp",
+        "sha256": "ceb45563a1edb50ea56b905e21bb3aaf68a3bd1aedf18e74286792d36a65adca"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1147,
+      "brand": "Trinidad",
+      "english_name": "Topes",
+      "image_type": "box",
+      "box_size": 12,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/1147-box-12-detail.webp",
+        "sha256": "f66f59f079850192130ab775fa06c7d942f06dd640e0f8acf2889b7376c0498b"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/1147-box-12-list.webp",
+        "sha256": "95eec1fca6b7f33492dcaabf6672f6957edb3df3f0b19bbbf9a7eb7e151d5d0f"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1166,
+      "brand": "Vegas Robaina",
+      "english_name": "Famosos",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/1166-box-25-detail.webp",
+        "sha256": "fd486d73fc593f5bde699a20a1a934a743cc2e548c9db335e2a766f6bfc6f96a"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/1166-box-25-list.webp",
+        "sha256": "2f5f3ec6375f7bed258263a00d8c7fc5ec090b58839f32cb4acc0e50b39e1f79"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1189,
+      "brand": "Vegueros",
+      "english_name": "Entretiempos",
+      "image_type": "box",
+      "box_size": 16,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/1189-box-16-detail.webp",
+        "sha256": "7b2188ec89824cf0ada3e394be3d054ee9b34eb3ebe9cd06581663cfb3d4a5f1"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/1189-box-16-list.webp",
+        "sha256": "9a82d252b687ac85b371aae4549e98fe3076ad9dda05048324b5947beeb0cdff"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1191,
+      "brand": "Vegueros",
+      "english_name": "Tapados",
+      "image_type": "box",
+      "box_size": 16,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/1191-box-16-detail.webp",
+        "sha256": "2d8b42aaab9efb02df9534b5c94857e7551d649ba6d6a5abac115fbd3d297bc0"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/1191-box-16-list.webp",
+        "sha256": "36dfd5a5d69786330805ac3edab0044b9c964b34b6c1252927abef75ca8f9aab"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 95,
+      "brand": "Cohiba",
+      "english_name": "Robustos",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/95-box-25-detail.webp",
+        "sha256": "1ad372d57d7e8dc1a5f4082c5f86ad723206d9a953b020ce42403b991297cf1f"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/95-box-25-list.webp",
+        "sha256": "3b09258986f714e96703b8e51e18cb0d526a5823cbe1820f0d09e28c4fb03f1e"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 839,
+      "brand": "Quai d'Orsay",
+      "english_name": "No.54",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/839-single-detail.webp",
+        "sha256": "e8a7e81c2b94622319a8871e429a5ce6432f59e471b6f50e24aa26a02f87d850"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/839-single-list.webp",
+        "sha256": "9be4a8ed1b1f8a86c516784881c8bdf015cbe13aa2e59ac02e1676ab6057fadb"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 529,
+      "brand": "Montecristo",
+      "english_name": "Montecristo No.2",
+      "image_type": "box",
+      "box_size": 15,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/529-box-15-detail.webp",
+        "sha256": "fe59135bc37922c447cc565d8b1c5b96241bff34c6d9343cfdf663e3144ca426"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/529-box-15-list.webp",
+        "sha256": "903fb652998f97eacea6098b51bc96946a49bf71a27d484e1bbe9b5989670a18"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 289,
+      "brand": "H. Upmann",
+      "english_name": "Connossieur B",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/289-box-25-detail.webp",
+        "sha256": "e22252f6e67772ebc80602d70d1221f1844db2a26c2882e4f3814c0c0094d3f3"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/289-box-25-list.webp",
+        "sha256": "ade3c874a390ee4577a9bdc89c07621a91cb388cdf1ce5575d5cd014c2db66b1"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 93,
+      "brand": "Cohiba",
+      "english_name": "Espléndidos",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/93-box-25-detail.webp",
+        "sha256": "99eb2379ba8eb806d555b848ecf51000478440f53bd8a741a1b87793c734deae"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/93-box-25-list.webp",
+        "sha256": "28a0889923cd10da025fa1c7f68787cd33faa2626cf8e5c7b2fa883576f55a19"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1343,
+      "brand": "Hoyo de Monterrey",
+      "english_name": "EPICURE № 2 D-C-C/P-3-n-15",
+      "image_type": "box",
+      "box_size": 15,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/1343-box-15-detail.webp",
+        "sha256": "d569c7bf161249409226cdbafd6967c8eba1b6141aace76c027d908021d74655"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/1343-box-15-list.webp",
+        "sha256": "61d80f932cb57d1e18b6cc7302960fbef13150e93d5fe63510c9ef5052d56694"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1346,
+      "brand": "La Gloria Cubana",
+      "english_name": "TURQUINOS",
+      "image_type": "box",
+      "box_size": 10,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/1346-box-10-detail.webp",
+        "sha256": "f64dd295864c31af0e04ad9e544ba02355c3e709eefb47d27c54dc929b30e4a6"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/1346-box-10-list.webp",
+        "sha256": "bb2d4503dedee1ae9b3e0a868186b5e02c3cc6476162c0b836c941db27a5aff0"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1359,
+      "brand": "Quintero",
+      "english_name": "BREVAS",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/1359-box-25-detail.webp",
+        "sha256": "122254302f3ba95e5c68a2ded17111a325c17d982dce7178b0bb7d494cac7de9"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/1359-box-25-list.webp",
+        "sha256": "474fc439aefe3f35844ababe9b2bf57a03be1c921351d6f01e66a7ab2b3e1c6a"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 1212,
+      "brand": "Cohiba",
+      "english_name": "Reserva Selección",
+      "image_type": "box",
+      "box_size": 2,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/1212-box-2-detail.webp",
+        "sha256": "4d85d5968cdf90d9ad1efb9bfbb2fc41ec0ccb8d72e9afe9ab8df7a5e4d512d3"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/1212-box-2-list.webp",
+        "sha256": "09cd3c26c719e69f0dbb0c3f59e50c10ea9c03323df7d2718fdc79406a54c9bb"
+      },
+      "release_type": "Other Special Release",
+      "release_name": "Reserva Selección"
+    },
+    {
+      "cigar_id": 1212,
+      "brand": "Cohiba",
+      "english_name": "Reserva Selección",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/1212-single-detail.webp",
+        "sha256": "bdb35bf394f58ae27d77103e7d4cd66e56610ff1f4dbf84dfc158517fb91df04"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/1212-single-list.webp",
+        "sha256": "4632edc2bab9a0a20a42ab2b9a8d5f851bf73852886065d7695f1db2a89504d8"
+      },
+      "release_type": "Other Special Release",
+      "release_name": "Reserva Selección"
+    },
+    {
+      "cigar_id": 102,
+      "brand": "Cohiba",
+      "english_name": "Genios",
+      "image_type": "box",
+      "box_size": 10,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/102-box-10-detail.webp",
+        "sha256": "775cc27c629c04360c38d57ced44b582cc267f45f1767f18137b66d084647150"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/102-box-10-list.webp",
+        "sha256": "f7a777c6b05135e8bd9cfc587b2246b8fcba0257635925430cb540727ab43e2c"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 103,
+      "brand": "Cohiba",
+      "english_name": "Magicos",
+      "image_type": "box",
+      "box_size": 10,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/103-box-10-detail.webp",
+        "sha256": "1f8ed0164b4f4a11bddb1d973de330c7e6037e6ebf06e7893ed58f0ba38354e5"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/103-box-10-list.webp",
+        "sha256": "2ba06de393fd2a3589633fdf643b1ac65a29a05b85707c535f14bf1733128a6f"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 612,
+      "brand": "Partagás",
+      "english_name": "Serie D No.6",
+      "image_type": "box",
+      "box_size": 20,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/612-box-20-detail.webp",
+        "sha256": "e7f26b7ef96426f47b5db3b8e1b26fc5f599254b0fa11f2b17433ae14e130a43"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/612-box-20-list.webp",
+        "sha256": "b9da7d90c937b957d23181d7373c73320ba8101cef451a9babd057fef0b0b82b"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 615,
+      "brand": "Partagás",
+      "english_name": "Maduro No. 2",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v2/products/615-box-25-detail.webp",
+        "sha256": "f60680ec9d33c0521b271fe53b637c9b8cab149a37945f10f4990592fc30014d"
+      },
+      "list": {
+        "media_path": "storefront/generated-v2/products/615-box-25-list.webp",
+        "sha256": "405722a9cecc2d4331847e563799d0ebe9f0ec0b6b1e64916c9ff92b6e1d41e7"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 764,
+      "brand": "Punch",
+      "english_name": "Punch Punch",
+      "image_type": "box",
+      "box_size": 25,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/764-box-25-detail.webp",
+        "sha256": "5f042f86ce232acb21dec2b087541a6b21d17e1a4406f1c66e7ab989044597e6"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/764-box-25-list.webp",
+        "sha256": "7004bb8302f35212768c835ba1b76d0418e1aeacc0126d40c8985ccab8a31765"
+      },
+      "release_type": "",
+      "release_name": ""
+    },
+    {
+      "cigar_id": 839,
+      "brand": "Quai d'Orsay",
+      "english_name": "No.54",
+      "image_type": "box",
+      "box_size": 10,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v3/products/839-box-10-detail.webp",
+        "sha256": "71c9ccb2a02fd311c269242faa4c0e5168babf9c5fdfc4f27101ecd519f1f40b"
+      },
+      "list": {
+        "media_path": "storefront/generated-v3/products/839-box-10-list.webp",
+        "sha256": "1a409340e5263aaf0d5ea074063f42b43730420f6cd0b5881cbde94bb2848d12"
+      },
+      "release_type": "",
+      "release_name": ""
+    }
+  ]
+}

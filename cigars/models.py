@@ -595,6 +595,10 @@ class CigarImage(models.Model):
     image = models.ImageField('原图', upload_to=cigar_image_path)
     thumbnail = models.ImageField('缩略图', upload_to=cigar_thumb_path, blank=True)
     image_type = models.CharField('图片类型', max_length=20, choices=ImageType.choices)
+    box_size = models.PositiveIntegerField(
+        '对应盒规', null=True, blank=True,
+        help_text='仅包装或特殊包装图片可填写；未知或未核实的盒规留空',
+    )
     image_url = models.URLField('原始URL', blank=True)
     order = models.IntegerField('排序', default=0)
     is_primary = models.BooleanField('主图', default=False)
@@ -603,6 +607,15 @@ class CigarImage(models.Model):
         ordering = ['cigar', 'order']
         verbose_name = '雪茄图片'
         verbose_name_plural = '雪茄图片'
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(box_size__isnull=True)
+                    | models.Q(box_size__gt=0, image_type__in=['packaging', 'special'])
+                ),
+                name='cigar_image_box_size_requires_packaging_type',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.cigar} - {self.get_image_type_display()} #{self.order}'

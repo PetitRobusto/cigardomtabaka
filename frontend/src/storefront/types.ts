@@ -12,6 +12,7 @@ export type StoreProduct = {
   image_url: string | null;
   images: string[];
   image_kinds?: Record<string, string>;
+  image_variants?: Array<{ url: string; thumbnail_url: string; image_type: string | null; box_size: number | null }>;
   vitola: string;
   length: number | null;
   ring_gauge: number | null;

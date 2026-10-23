@@ -47,13 +47,13 @@ class CigarAdmin(admin.ModelAdmin):
 class CigarImageInline(admin.TabularInline):
     model = CigarImage
     extra = 0
-    fields = ['image', 'thumbnail', 'image_type', 'is_primary', 'order']
+    fields = ['image', 'thumbnail', 'image_type', 'box_size', 'is_primary', 'order']
     readonly_fields = ['thumbnail']
 
 
 @admin.register(CigarImage)
 class CigarImageAdmin(admin.ModelAdmin):
-    list_display = ['cigar', 'image_type', 'is_primary', 'order']
+    list_display = ['cigar', 'image_type', 'box_size', 'is_primary', 'order']
     list_filter = ['image_type', 'is_primary']
     search_fields = ['cigar__brand', 'cigar__name']
 

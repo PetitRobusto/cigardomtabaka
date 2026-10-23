@@ -161,10 +161,16 @@ class TranslationPublicationDependenciesTests(TestCase):
 
     def test_paginated_page_only_depends_on_translations_it_actually_shows(self):
         ProductListing.objects.filter(cigar=self.cigar).update(published=False)
-        Cigar.objects.bulk_create([
+        cigars = Cigar.objects.bulk_create([
             Cigar(brand=self.brand.english_name, english_name=f"A item {number:02}")
             for number in range(24)
         ])
+        for cigar in cigars:
+            create_purchase_batch(
+                source=PurchaseBatch.Source.OPENING, cigar=cigar,
+                quantity=1, remaining=0, physical_remaining=0, box_size=None,
+                unit_cost_cny=Decimal("1.00"),
+            )
         translation = self.translation("product", self.cigar.pk)
         translation.title = "Z translated item"
         translation.save(update_fields=["title"])

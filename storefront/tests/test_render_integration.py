@@ -7,7 +7,7 @@ from unittest import skipUnless
 from django.conf import settings
 from django.test import TestCase, override_settings
 
-from cigars.models import Brand, Cigar, CigarPrice
+from cigars.models import Brand, Cigar, CigarImage, CigarPrice
 from cigars.tests.inventory_fixtures import create_purchase_batch
 from storefront.models import ProductListing, StorePage, StoreSettings, StoreTranslation
 from storefront.publishing import build_assets, publish_pending, reconcile
@@ -20,6 +20,10 @@ class PrerenderIntegrationTests(TestCase):
         self.brand = Brand.objects.create(english_name='Cohiba', name='高希霸', slug='cohiba')
         self.cigar = Cigar.objects.create(brand='Cohiba', english_name='Robustos', name='罗布图', length=124, ring_gauge=50,
                                           image_url='https://images.example/robustos.jpg')
+        self.box_image = CigarImage.objects.create(
+            cigar=self.cigar, image='cigars/robustos-box-25.jpg',
+            image_type='packaging', box_size=25,
+        )
         create_purchase_batch(source='opening', cigar=self.cigar, quantity=25, remaining=25, physical_remaining=25,
                               box_size=25, unit_cost_cny=Decimal('1.00'))
         self.listing = ProductListing.objects.create(cigar=self.cigar, published=True)
@@ -46,7 +50,8 @@ class PrerenderIntegrationTests(TestCase):
             self.assertContains(response, 'hreflang="ru"')
             self.assertContains(response, 'data-age-gate')
             self.assertContains(response, 'data-age-confirm')
-            self.assertContains(response, 'src="https://images.example/robustos.jpg"')
+            self.assertContains(response, 'src="/media/cigars/robustos-box-25.jpg"')
+            self.assertNotContains(response, 'src="https://images.example/robustos.jpg"')
             if path.endswith('catalog'):
                 prefix = '' if locale == 'zh' else f'/{locale}'
                 self.assertContains(response, f'href="{prefix}/cigar/{self.cigar.pk}/cohiba-robustos?from=')
@@ -60,7 +65,7 @@ class PrerenderIntegrationTests(TestCase):
         self.assertContains(product, 'original complete product information.')
         self.assertContains(product, 'RUB ₽')
         self.assertContains(product, 'data-price-rub="12345.67"')
-        self.assertContains(product, 'src="https://images.example/robustos.jpg"')
+        self.assertContains(product, 'src="/media/cigars/robustos-box-25.jpg"')
         self.assertContains(product, 'data-age-gate="true"')
         self.assertContains(product, 'href="/en/catalog"')
         sitemap = self.client.get('/sitemap-storefront.xml')
@@ -76,6 +81,18 @@ class PrerenderIntegrationTests(TestCase):
         self.assertEqual(self.client.get('/en/not-a-page').status_code, 404)
         self.assertEqual(self.client.get('/ru/catalog/not-a-page').status_code, 404)
         self.assertEqual(self.client.get('/invented-page').status_code, 404)
+
+    def test_unknown_box_size_is_not_presented_as_the_25_cigar_offer_photo(self):
+        self.box_image.box_size = None
+        self.box_image.save(update_fields=['box_size'])
+        reconcile(assets=self.assets)
+        self.assertEqual(publish_pending(assets=self.assets), 12)
+        for path in ['/', '/catalog', f'/en/cigar/{self.cigar.pk}/cohiba-robustos']:
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, 'store-image-placeholder')
+            self.assertNotContains(response, 'src="/media/cigars/robustos-box-25.jpg"')
+            self.assertNotContains(response, 'src="https://images.example/robustos.jpg"')
 
     def test_withdrawn_product_is_not_served_from_previous_html(self):
         self.listing.published = False

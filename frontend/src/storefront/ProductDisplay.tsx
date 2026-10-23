@@ -3,6 +3,7 @@ import type { StoreLocale, StorePageData, StoreProduct } from "./types";
 import { catalogPath, productLink } from "./browsing";
 import { useStoreModal } from "./Modal";
 import { ReferencePrice } from "./ReferencePrice";
+import { offerImages } from "./productImages";
 
 type Labels = Record<string, string>;
 const languageTag = { zh: "zh-CN", ru: "ru-RU", en: "en" };
@@ -39,10 +40,11 @@ export function ProductCard({ product, locale, labels, from, selectedBoxes = [] 
   const offers = selectedBoxes.length ? product.offers.filter((item) => selectedBoxes.includes(offerKey(item))) : product.offers;
   if (selectedBoxes.length && !offers.length) return null;
   const offer = chooseOffer(offers);
+  const image = offerImages(product, offer)[0];
   const availability = product.availability === "catalog" ? "catalog" : offer ? offer.in_stock ? "in_stock" : "out_of_stock" : product.availability;
   const href = productLink(product.path, from);
-  return <article className="pcard store-product-card">
-    <a className="pm store-product-image" href={href} onClick={rememberScroll}>{product.image_url ? <ProductImage src={product.image_url} alt={product.name} loading="lazy" /> : <span className="store-image-placeholder">{product.brand}</span>}</a>
+  return <article className={`pcard store-product-card store-product-card-${availability}`}>
+    <a className="pm store-product-image" href={href} onClick={rememberScroll}>{image ? <ProductImage src={image.thumbnail_url || image.url} alt={product.name} loading="lazy" /> : <span className="store-image-placeholder">{product.brand}</span>}</a>
     <div className="pcard-body store-product-copy">
       {product.brand_slug ? <a className="pcard-brand store-product-brand" href={brandPath(product, locale)}>{product.brand}</a> : <span className="pcard-brand">{product.brand}</span>}
       <h3><a className="pcard-name" href={href} onClick={rememberScroll}>{product.name}</a></h3>
@@ -58,15 +60,16 @@ function imageCaption(product: StoreProduct, image: string, labels: Labels) {
 }
 
 export function ProductPage({ product, page, labels, returnPath }: { product: StoreProduct; page: StorePageData; labels: Labels; returnPath?: string }) {
-  const images = product.images.length ? product.images : product.image_url ? [product.image_url] : [];
-  const [activeImage, setActiveImage] = useState(0);
+  const [activeImage, setActiveImage] = useState<{ selection: string; url: string } | null>(null);
   const [selectedOffer, setSelectedOffer] = useState<string | null>(null);
   const lightboxRef = useRef<HTMLDialogElement>(null);
   const lightbox = useStoreModal(lightboxRef);
-  const image = images[activeImage] || images[0];
   const requestedBoxes = returnPath ? new URL(returnPath, "https://store.invalid").searchParams.getAll("box") : [];
   const matchingOffers = product.offers.filter((item) => requestedBoxes.includes(offerKey(item)));
   const offer = product.offers.find((item) => offerKey(item) === selectedOffer) || chooseOffer(matchingOffers) || chooseOffer(product.offers);
+  const images = offerImages(product, offer).map((item) => item.url);
+  const selection = `${product.id}:${offer ? offerKey(offer) : "catalog"}`;
+  const image = activeImage?.selection === selection && images.includes(activeImage.url) ? activeImage.url : images[0];
   const availability = product.availability === "catalog" ? "catalog" : offer ? offer.in_stock ? "in_stock" : "out_of_stock" : product.availability;
   const details = page.body || product.description;
   return <>
@@ -75,14 +78,14 @@ export function ProductPage({ product, page, labels, returnPath }: { product: St
       <div className="store-product-detail-gallery" aria-label={labels.productImages}>
         {image ? <button className="gal-main store-product-detail-media" type="button" onClick={lightbox.show} aria-label={labels.openImage}><ProductImage src={image} alt={product.name} data-gallery-main="true" /></button> : <div className="gal-main store-image-placeholder">{product.brand}</div>}
         {image && <p className="gal-cap">{imageCaption(product, image, labels)}</p>}
-        {images.length > 1 && <div className="thumbs store-gallery-thumbs" aria-label={labels.productImages}>{images.map((source, index) => <button className={`thumb store-gallery-thumb${index === activeImage ? " on" : ""}`} type="button" key={source} aria-label={`${imageCaption(product, source, labels)} ${index + 1}`} aria-pressed={activeImage === index} onClick={() => setActiveImage(index)}><img src={source} alt="" /></button>)}</div>}
+        {images.length > 1 && <div className="thumbs store-gallery-thumbs" aria-label={labels.productImages}>{images.map((source, index) => <button className={`thumb store-gallery-thumb${source === image ? " on" : ""}`} type="button" key={source} aria-label={`${imageCaption(product, source, labels)} ${index + 1}`} aria-pressed={source === image} onClick={() => setActiveImage({ selection, url: source })}><img src={source} alt="" /></button>)}</div>}
       </div>
       <div className="d-info store-product-detail-copy">
         <p className="store-product-brand">{product.brand_slug ? <a className="d-brand" href={brandPath(product, page.locale)}>{product.brand}</a> : product.brand}</p>
         <h1>{product.name}</h1>
         <div className="d-status"><Availability value={availability} labels={labels} /></div>
         <section className="d-price"><h2>{labels.price}</h2><div className="pv"><strong className="store-price">{offer?.price_rub ? <Price amount={offer.price_rub} locale={page.locale} labels={labels} /> : labels.ask}</strong><span className="pu">RUB ₽ · {priceUnit(offer, labels)}</span></div></section>
-        {product.offers.length > 0 && <section className="d-box store-offers"><h2 className="d-h">{labels.packaging}</h2><div className="store-box-options">{product.offers.length === 1 ? <span className="d-boxopt" aria-label={labels.selectedPackaging}>{offerLabel(offer, labels)}</span> : product.offers.map((item) => <button className="d-boxopt" type="button" key={offerKey(item)} aria-pressed={offerKey(offer) === offerKey(item)} onClick={() => setSelectedOffer(offerKey(item))}>{offerLabel(item, labels)}</button>)}</div></section>}
+        {product.offers.length > 0 && <section className="d-box store-offers"><h2 className="d-h">{labels.packaging}</h2><div className="store-box-options">{product.offers.length === 1 ? <span className="d-boxopt" aria-label={labels.selectedPackaging}>{offerLabel(offer, labels)}</span> : product.offers.map((item) => <button className="d-boxopt" type="button" key={offerKey(item)} aria-pressed={offerKey(offer) === offerKey(item)} onClick={() => { setSelectedOffer(offerKey(item)); setActiveImage(null); }}>{offerLabel(item, labels)}</button>)}</div></section>}
         <p className="d-contact"><a className="store-contact-link" href="#store-contact">{labels.contact}</a></p>
         <h2 className="d-h store-spec-title">{labels.details}</h2>
         <dl className="spec store-specs">{product.vitola && <div><dt>{labels.vitola}</dt><dd>{product.vitola}</dd></div>}{product.length !== null && <div><dt>{labels.length}</dt><dd>{product.length} mm</dd></div>}{product.ring_gauge !== null && <div><dt>{labels.ringGauge}</dt><dd>RG {product.ring_gauge}</dd></div>}{offer && <div><dt>{labels.packaging}</dt><dd>{offerLabel(offer, labels)}</dd></div>}</dl>

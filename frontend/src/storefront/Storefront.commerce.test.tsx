@@ -3,6 +3,8 @@ import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { Storefront } from "./Storefront";
+import { BrandBrowse } from "./BrandBrowse";
+import { storeCopy } from "./copy";
 import { backendPageFixture } from "./fixture";
 import type { StorePageData } from "./types";
 
@@ -10,7 +12,7 @@ afterEach(cleanup);
 const brands = [
   ["Cohiba", "cohiba"], ["Montecristo", "montecristo"], ["Romeo y Julieta", "romeo-y-julieta"],
   ["Partagás", "partagas"], ["Hoyo de Monterrey", "hoyo-de-monterrey"], ["H. Upmann", "h-upmann"],
-].map(([name, slug]) => ({ name, english_name: name, slug, path: `/en/catalog?brand=${slug}` }));
+].map(([name, slug]) => ({ name, english_name: name, slug, path: `/en/brand/${slug}` }));
 
 function catalog(): StorePageData {
   return { ...backendPageFixture, kind: "home", view: "catalog", path: "/en/catalog", product: null,
@@ -21,7 +23,15 @@ function catalog(): StorePageData {
 }
 
 describe("B2 commerce browsing", () => {
-  it("places real six-brand logo filters before the product shelf", () => {
+  it("keeps the brand browser hook order when brands arrive after an empty render", () => {
+    const page = { ...catalog(), navigation: { brands: [], box_sizes: [] } };
+    const { container, rerender } = render(<BrandBrowse page={page} labels={storeCopy.en} />);
+    expect(container.querySelector(".store-brand-browser")).toBeNull();
+    rerender(<BrandBrowse page={{ ...page, navigation: { brands, box_sizes: [] } }} labels={storeCopy.en} />);
+    expect(container.querySelectorAll(".store-brand-logo-link")).toHaveLength(brands.length);
+  });
+
+  it("places six canonical brand links before the home product shelf", () => {
     const page = { ...catalog(), view: undefined, path: "/en/" };
     const { container } = render(<Storefront page={page} ageConfirmed />);
     const brandArea = container.querySelector(".store-brand-browser")!;
@@ -29,10 +39,30 @@ describe("B2 commerce browsing", () => {
     expect(brandArea.compareDocumentPosition(shelf) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(Array.from(brandArea.querySelectorAll("img")).map((img) => img.getAttribute("src"))).toEqual(brands.map((brand) => `/media/brand_logos/${brand.slug}.jpg`));
     expect(Array.from(brandArea.querySelectorAll(".store-brand-logo-link")).map((link) => link.textContent)).toEqual(brands.map((brand) => brand.name));
+    expect(Array.from(brandArea.querySelectorAll(".store-brand-logo-link")).map((link) => link.getAttribute("href"))).toEqual(brands.map((brand) => brand.path));
     expect(container.querySelectorAll("#store-contact")).toHaveLength(1);
     expect(container.querySelector("#store-contact button")).toBeNull();
     expect(container.querySelector('[popoverTarget="store-box-menu"]')).toBeNull();
     expect(screen.queryByText("Browse by box size")).toBeNull();
+  });
+
+  it.each(["zh", "ru", "en"] as const)("links home logos and the brand menu to localized brand pages in %s", (locale) => {
+    const prefix = locale === "zh" ? "" : `/${locale}`;
+    const localizedBrands = brands.map((brand) => ({ ...brand, path: `${prefix}/brand/${brand.slug}` }));
+    const page = { ...catalog(), locale, view: undefined, path: `${prefix}/`, navigation: { brands: localizedBrands, box_sizes: [] } };
+    const { container } = render(<Storefront page={page} ageConfirmed />);
+    for (const selector of [".store-brand-logo-link", "#store-brands-menu a"]) {
+      expect(Array.from(container.querySelectorAll(selector)).map((link) => link.getAttribute("href"))).toEqual(localizedBrands.map((brand) => brand.path));
+    }
+  });
+
+  it("preserves search, packaging and sort when switching a catalog brand", () => {
+    const filters = { q: "Robusto", brands: ["cohiba"], boxes: ["25"], sort: "length" };
+    const { container } = render(<BrandBrowse page={{ ...catalog(), filters }} labels={storeCopy.en} filters={filters} />);
+    const link = container.querySelector<HTMLAnchorElement>('.store-brand-logo-link[href*="montecristo"]')!;
+    const url = new URL(link.href);
+    expect(url.pathname).toBe("/en/catalog");
+    expect(Object.fromEntries(url.searchParams)).toEqual({ q: "Robusto", brand: "montecristo", box: "25", sort: "length" });
   });
 
   it("submits combined criteria as native GET fields and keeps them through language switches", () => {
@@ -48,6 +78,59 @@ describe("B2 commerce browsing", () => {
     expect(url.pathname).toBe("/ru/catalog");
     expect(url.searchParams.get("sort")).toBe("length");
     expect(url.searchParams.get("brand")).toBe("cohiba");
+  });
+
+  it("starts with ten brands and keeps the remaining brand links expandable and filterable", () => {
+    const allBrands = [...brands, ...Array.from({ length: 14 }, (_, index) => ({
+      name: `Brand ${index}`, english_name: `Brand ${index}`, slug: `brand-${index}`, path: `/en/brand/brand-${index}`,
+    }))];
+    const page = { ...catalog(), navigation: { brands: allBrands, box_sizes: [10, 25], has_sticks: true },
+      filter_options: { brands: allBrands, box_sizes: [10, 25], has_sticks: true } };
+    const { container, rerender } = render(<Storefront page={{ ...page, view: undefined, path: "/en/" }} ageConfirmed />);
+    const brandArea = container.querySelector(".store-brand-browser")!;
+    const visibleLinks = brandArea.querySelectorAll(":scope > .store-brand-logo-grid .store-brand-logo-link");
+    const extraLinks = brandArea.querySelectorAll(".store-brand-extra .store-brand-logo-link");
+    const toggle = screen.getByRole("button", { name: "Show more brands" });
+    expect(visibleLinks).toHaveLength(10);
+    expect(extraLinks).toHaveLength(10);
+    expect(Array.from(visibleLinks).map((link) => link.textContent)).toEqual(allBrands.slice(0, 10).map((brand) => brand.name));
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.getAttribute("aria-controls")).toBe("store-brand-extra");
+    expect(brandArea.querySelector(".store-brand-extra")?.hasAttribute("inert")).toBe(true);
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(brandArea.querySelector(".store-brand-extra")?.hasAttribute("inert")).toBe(false);
+    const lastBrandLink = Array.from(extraLinks).find((link) => link.textContent?.includes("Brand 13")) as HTMLAnchorElement;
+    expect(new URL(lastBrandLink.href).pathname).toBe("/en/brand/brand-13");
+    expect(new URL(lastBrandLink.href).search).toBe("");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(brandArea.querySelector(".store-brand-extra")?.hasAttribute("inert")).toBe(true);
+    expect(container.querySelector('[popoverTarget="store-box-menu"]')).toBeNull();
+    expect(container.querySelector("#store-box-menu")).toBeNull();
+    rerender(<Storefront page={page} ageConfirmed />);
+    const catalogLastBrandLink = Array.from(container.querySelectorAll<HTMLAnchorElement>(".store-brand-logo-link")).find((link) => link.textContent?.includes("Brand 13"))!;
+    expect(new URL(catalogLastBrandLink.href).searchParams.get("brand")).toBe("brand-13");
+    expect(container.querySelectorAll('.store-desktop-filters input[name="brand"]')).toHaveLength(20);
+    expect(container.querySelector('.store-desktop-filters input[value="stick"]')).not.toBeNull();
+    expect(container.querySelector('.store-desktop-filters input[value="25"]')).not.toBeNull();
+    expect(container.querySelector('[popoverTarget="store-box-menu"]')).toBeNull();
+  });
+
+  it.each([
+    ["en", "Show more brands", "Show fewer brands"],
+    ["zh", "展开", "收起"],
+    ["ru", "Показать ещё бренды", "Скрыть бренды"],
+  ] as const)("localizes brand expansion controls in %s", (locale, expand, collapse) => {
+    const allBrands = [...brands, ...Array.from({ length: 5 }, (_, index) => ({
+      name: `Brand ${index}`, english_name: `Brand ${index}`, slug: `brand-${index}`, path: `/${locale}/brand/brand-${index}`,
+    }))];
+    const page = { ...catalog(), locale, navigation: { brands: allBrands, box_sizes: [] } };
+    const { container } = render(<Storefront page={{ ...page, view: undefined, path: `/${locale}/` }} ageConfirmed />);
+    expect(container.querySelectorAll(".store-brand-logo-link")).toHaveLength(11);
+    const toggle = screen.getByRole("button", { name: expand });
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: collapse }).getAttribute("aria-expanded")).toBe("true");
   });
 
   it("changes price and stock together when selecting an actual box offer", () => {

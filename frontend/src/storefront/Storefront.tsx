@@ -2,7 +2,7 @@ import React from "react";
 import { MapPin, MessageCircle, Phone, Search } from "lucide-react";
 import type { StoreLocale, StorePageData } from "./types";
 import { storeCopy } from "./copy";
-import { browseUrl, catalogPath, emptyFilters, filtersFromSearch, homePath, safeBrowsePath, type BrowseFilters } from "./browsing";
+import { catalogPath, filtersFromSearch, homePath, safeBrowsePath, type BrowseFilters } from "./browsing";
 import { ProductCard, ProductPage } from "./ProductDisplay";
 import { CatalogResults } from "./CatalogFilters";
 import { BrandBrowse, BrandMark } from "./BrandBrowse";
@@ -53,9 +53,8 @@ export function Storefront({ page, currentUrl = page.path, ageConfirmed = false,
         <form className="hsearch store-search" method="get" action={catalogPath(page.locale)} role="search"><Search aria-hidden="true" /><label className="visually-hidden" htmlFor="store-search">{labels.search}</label><input id="store-search" type="search" name="q" placeholder={labels.searchPlaceholder} defaultValue={filters.q} key={filters.q} />{filters.brands.map((value) => <input type="hidden" key={value} name="brand" value={value} />)}{filters.boxes.map((value) => <input type="hidden" key={value} name="box" value={value} />)}<button className="go" type="submit">{labels.searchAction}</button></form>
         <div className="h-right"><span className="cur">RUB <b>₽</b></span><LanguageLinks page={page} labels={labels} links={links} /></div>
       </div>
-      <div className="mast-r2"><nav className="catnav" aria-label={labels.catalogPage}><button type="button" popoverTarget="store-brands-menu">{labels.brands} ▾</button><a href={catalogPath(page.locale)}>{labels.stockProducts}</a>{!isHome && <button type="button" popoverTarget="store-box-menu">{labels.packaging} ▾</button>}<a href="#store-contact">{labels.storeContact}</a></nav><div className="store-reference-control" role="group" aria-label={labels.currency}>{(["RUB", "CNY", "USD"] as const).map((code) => <button key={code} type="button" data-store-currency={code} aria-pressed={currency === code} onClick={() => onCurrencyChange?.(code)}>{code}</button>)}</div></div>
+      <div className="mast-r2"><nav className="catnav" aria-label={labels.catalogPage}><button type="button" popoverTarget="store-brands-menu">{labels.brands} ▾</button><a href={catalogPath(page.locale)}>{labels.stockProducts}</a><a href="#store-contact">{labels.storeContact}</a></nav><div className="store-reference-control" role="group" aria-label={labels.currency}>{(["RUB", "CNY", "USD"] as const).map((code) => <button key={code} type="button" data-store-currency={code} aria-pressed={currency === code} onClick={() => onCurrencyChange?.(code)}>{code}</button>)}</div></div>
       <nav popover="auto" id="store-brands-menu" className="store-category-menu" aria-label={labels.brands}>{page.navigation?.brands.map((brand) => <a key={brand.slug} href={brand.path}><BrandMark brand={brand} /></a>)}</nav>
-      {!isHome && <nav popover="auto" id="store-box-menu" className="store-category-menu" aria-label={labels.packaging}>{page.navigation?.has_sticks && <a href={browseUrl(catalogPath(page.locale), { ...emptyFilters, boxes: ["stick"] })}>{labels.single}</a>}{page.navigation?.box_sizes.map((size) => <a key={size} href={browseUrl(catalogPath(page.locale), { ...emptyFilters, boxes: [String(size)] })}>{size} {labels.box}</a>)}</nav>}
       <small className="store-rates-note" data-rates-note hidden>{labels.ratesNote}</small>
     </header>
     <main className="view store-main" inert={!ageConfirmed} aria-busy={busy || undefined}><div className="wrap" key={`${page.locale}:${page.kind}:${product?.id ?? page.path}:${current.search}`}>

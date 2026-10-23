@@ -8,7 +8,7 @@ import hashlib
 import json
 from collections import defaultdict
 from urllib.parse import urlsplit, urlencode
-from django.db.models import Sum
+from django.db.models import Q, Sum
 
 from cigars.models import Brand, Cigar, CigarPrice, PurchaseBatch
 from .models import ProductListing, StoreSettings, StoreTranslation
@@ -114,6 +114,36 @@ def _images(cigar: Cigar, image_rows: list | None = None) -> list[str]:
     return result
 
 
+def _image_variants(cigar: Cigar, image_rows: list | None = None) -> list[dict]:
+    """Expose image metadata without inferring a package from the available offers."""
+    rows = image_rows if image_rows is not None else _image_rows(cigar)
+    variants = []
+    seen = set()
+    for image in rows:
+        url = _safe_media_url(image.image) or _safe_media_url(image.thumbnail)
+        if not url or url in seen:
+            continue
+        thumbnail_url = _safe_media_url(image.thumbnail) or url
+        variants.append({
+            "url": url,
+            "thumbnail_url": thumbnail_url,
+            "image_type": image.image_type,
+            "box_size": image.box_size,
+        })
+        seen.add(url)
+
+    # Legacy Cigar-level images have no verified type or box-size metadata.
+    fallback = _safe_media_url(cigar.image) or cigar.image_url
+    if fallback and fallback not in seen:
+        variants.append({
+            "url": fallback,
+            "thumbnail_url": fallback,
+            "image_type": None,
+            "box_size": None,
+        })
+    return variants
+
+
 def _card_image(cigar: Cigar, image_rows: list | None = None) -> str:
     """Prefer the primary thumbnail for cards; retain source fallbacks."""
     rows = image_rows if image_rows is not None else _image_rows(cigar)
@@ -151,7 +181,14 @@ def _available_sticks() -> dict[int, int]:
 
 
 def _known_inventory() -> set[int]:
-    return set(PurchaseBatch.objects.values_list("cigar_id", flat=True).distinct())
+    """Products with unreversed positive stock history, whether or not stock remains."""
+    return set(PurchaseBatch.objects.filter(
+        reversed_at__isnull=True,
+        cigar__deleted_at__isnull=True,
+    ).filter(
+        # A batch may consist entirely of quantities added by a positive adjustment.
+        Q(quantity__gt=0) | Q(positive_adjustment_quantity__gt=0)
+    ).values_list("cigar_id", flat=True).distinct())
 
 
 def _published_listings() -> set[int]:
@@ -221,6 +258,7 @@ def _product_data(cigar: Cigar, locale: str, translation: StoreTranslation | Non
         "image_url": _card_image(cigar, image_rows),
         "images": images,
         "image_kinds": {_safe_media_url(row.image) or _safe_media_url(row.thumbnail): row.image_type for row in image_rows},
+        "image_variants": _image_variants(cigar, image_rows),
         "vitola": cigar.vitola_cn or cigar.vitola if locale == "zh" else cigar.vitola,
         "length": cigar.length,
         "ring_gauge": cigar.ring_gauge,
@@ -370,6 +408,8 @@ def build_pages() -> dict[str, dict]:
             for cigar in cigars:
                 if cigar.pk in withdrawn:
                     continue
+                if cigar.pk not in known_inventory:
+                    continue
                 if cigar.brand != brand.english_name:
                     continue
                 cigar_translation = translations.get(("product", str(cigar.pk), locale))
@@ -435,8 +475,18 @@ def build_pages() -> dict[str, dict]:
         rows.sort(key=lambda p: (p["brand"].casefold(), p["name"].casefold(), p["id"]))
         home = _home_path(locale)
         _, pagination = _pagination(1, len(rows), home)
+        discoverable_brand_slugs = {
+            product["brand_slug"]
+            for candidate in result.values()
+            if candidate["locale"] == locale and candidate["kind"] == "brand"
+            for product in candidate["products"]
+            if product["brand_slug"]
+        }
+        in_stock_brand_slugs = {product["brand_slug"] for product in rows if product["brand_slug"]}
         visible_brands = []
         for brand in brands.values():
+            if brand.slug not in discoverable_brand_slugs:
+                continue
             brand_translation = brand_translations[locale].get(brand.slug)
             if locale != "zh" and not brand_translation:
                 continue
@@ -446,7 +496,12 @@ def build_pages() -> dict[str, dict]:
                 "slug": brand.slug,
                 "path": _brand_path(locale, brand.slug),
             })
-        visible_brands.sort(key=lambda row: row["name"].casefold())
+        visible_brands.sort(key=lambda row: (
+            row["slug"] not in in_stock_brand_slugs,
+            PRIORITY_BRANDS.index(row["english_name"]) if row["english_name"] in PRIORITY_BRANDS else len(PRIORITY_BRANDS),
+            row["name"].casefold(),
+            row["english_name"].casefold(),
+        ))
         paths = {other: _home_path(other) for other in LOCALES
                  if ("home", "home", other) in translations}
         result[home] = {
@@ -466,7 +521,7 @@ def build_pages() -> dict[str, dict]:
             _, page_copy["pagination"] = _pagination(page_number, len(rows), home)
             result[page_url] = page_copy
 
-    _add_browsing_context(result, brands, brand_translations)
+    _add_browsing_context(result, brands, brand_translations, known_inventory)
 
     # A paginated page must alternate to the matching page in another locale.
     # A target page may not exist when fewer products are published there.
@@ -492,8 +547,8 @@ def _catalog_path(locale):
     return _locale_prefix(locale) + "/catalog"
 
 
-def _add_browsing_context(pages, brands, brand_translations):
-    """Add a separate stock shelf without changing legacy catalogue URLs."""
+def _add_browsing_context(pages, brands, brand_translations, known_inventory):
+    """Build stock and historical discovery shelves without exposing directory-only cigars."""
     stock_by_locale = {}
     for locale in LOCALES:
         stock_by_locale[locale] = [
@@ -501,20 +556,35 @@ def _add_browsing_context(pages, brands, brand_translations):
             if page["locale"] == locale and page["kind"] == "home"
             for product in page["products"]
         ]
+    catalog_by_locale = {}
+    for locale in LOCALES:
+        catalog_rows = [
+            page["product"] for page in pages.values()
+            if page["locale"] == locale and page["kind"] == "product"
+            and page.get("product") and page["product"]["id"] in known_inventory
+        ]
+        catalog_rows = list({product["id"]: product for product in catalog_rows}.values())
+        catalog_rows.sort(key=lambda product: (
+            product["availability"] != "in_stock",
+            product["brand"].casefold(), product["name"].casefold(), product["id"],
+        ))
+        catalog_by_locale[locale] = catalog_rows
     for locale in LOCALES:
         home = pages.get(_home_path(locale))
         if not home:
             continue
         stock = stock_by_locale[locale]
-        title = {"zh": "现货商品", "ru": "Сигары в наличии", "en": "In-stock cigars"}[locale]
+        catalog = catalog_by_locale[locale]
+        title = {"zh": "商品目录", "ru": "Каталог сигар", "en": "Cigar catalogue"}[locale]
         base = _catalog_path(locale)
-        _, pagination = _pagination(1, len(stock), base)
+        _, pagination = _pagination(1, len(catalog), base)
         for number in range(1, pagination["total_pages"] + 1):
             path = base if number == 1 else f"{base}?page={number}"
-            _, current = _pagination(number, len(stock), base)
+            _, current = _pagination(number, len(catalog), base)
             pages[path] = {
                 **home, "path": path, "view": "catalog", "title": title,
-                "products": stock[(number - 1) * PAGE_SIZE:number * PAGE_SIZE],
+                "total_products": len(catalog),
+                "products": catalog[(number - 1) * PAGE_SIZE:number * PAGE_SIZE],
                 "breadcrumbs": [{"label": home["title"], "path": home["path"]}, {"label": title, "path": base}],
                 "pagination": current,
                 "alternates": [{"locale": alt["locale"], "path": _catalog_path(alt["locale"])} for alt in home["alternates"]],
@@ -525,21 +595,26 @@ def _add_browsing_context(pages, brands, brand_translations):
     for page in pages.values():
         locale = page["locale"]
         stock = stock_by_locale[locale]
+        catalog = catalog_by_locale[locale]
         home = pages.get(_home_path(locale))
-        stock_brands = {p["brand_slug"] for p in stock}
+        stock_brands = {p["brand_slug"] for p in stock if p["brand_slug"]}
+        catalog_brands = {p["brand_slug"] for p in catalog if p["brand_slug"]}
         navigation_brands = []
         if home:
             for brand in brands.values():
-                if brand.english_name not in PRIORITY_BRANDS and brand.slug not in stock_brands:
+                if brand.slug not in catalog_brands:
                     continue
                 translation = brand_translations[locale].get(brand.slug)
                 navigation_brands.append({
                     "name": translation.title if translation else (brand.name or brand.english_name) if locale == "zh" else brand.english_name,
                     "english_name": brand.english_name, "slug": brand.slug,
-                    "path": _catalog_path(locale) + "?" + urlencode({"brand": brand.slug}),
-                    "filter_only": True,
+                    "path": _brand_path(locale, brand.slug),
                 })
-            navigation_brands.sort(key=lambda row: (PRIORITY_BRANDS.index(row["english_name"]) if row["english_name"] in PRIORITY_BRANDS else len(PRIORITY_BRANDS), row["name"].casefold()))
+            navigation_brands.sort(key=lambda row: (
+                row["slug"] not in stock_brands,
+                PRIORITY_BRANDS.index(row["english_name"]) if row["english_name"] in PRIORITY_BRANDS else len(PRIORITY_BRANDS),
+                row["name"].casefold(), row["english_name"].casefold(),
+            ))
         page["navigation"] = {
             "brands": navigation_brands,
             "box_sizes": sorted({o["box_size"] for p in stock for o in p["offers"] if o["in_stock"] and o["box_size"] is not None}),
@@ -577,12 +652,23 @@ def resolve_path(path: str, pages: dict[str, dict] | None = None) -> str:
 
 def public_dependencies() -> dict:
     """Take a compact snapshot of dependencies whose revocation hides cached HTML."""
+    cigars = dict(Cigar.objects.filter(deleted_at__isnull=True).values_list("pk", "brand"))
+    withdrawn = set(ProductListing.objects.filter(withdrawn=True).values_list("cigar_id", flat=True))
+    published = set(ProductListing.objects.filter(published=True, withdrawn=False).values_list("cigar_id", flat=True))
+    known_inventory = _known_inventory()
+    brand_slugs = dict(Brand.objects.values_list("english_name", "slug"))
+    discoverable = known_inventory - withdrawn
     return {
-        "cigars": dict(Cigar.objects.filter(deleted_at__isnull=True).values_list("pk", "brand")),
-        "withdrawn": set(ProductListing.objects.filter(withdrawn=True).values_list("cigar_id", flat=True)),
-        "published": set(ProductListing.objects.filter(published=True, withdrawn=False).values_list("cigar_id", flat=True)),
+        "cigars": cigars,
+        "withdrawn": withdrawn,
+        "published": published,
+        "known_inventory": known_inventory,
+        "discoverable_brands": {
+            brand_slugs[cigars[cigar_id]] for cigar_id in discoverable
+            if cigar_id in cigars and cigars[cigar_id] in brand_slugs
+        },
         "translations": set(_published_translations()),
-        "brand_slugs": dict(Brand.objects.values_list("english_name", "slug")),
+        "brand_slugs": brand_slugs,
         "details_verified": StoreSettings.objects.filter(pk=1, details_verified=True).exists(),
     }
 
@@ -621,7 +707,14 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
     for brand_row in payload.get("navigation", {}).get("brands", []):
         if brand_row.get("slug") not in dependencies["brand_slugs"].values():
             return False
+        if brand_row.get("slug") not in dependencies["discoverable_brands"]:
+            return False
         if locale != "zh" and not brand_row.get("filter_only") and not has_translation("brand", brand_row.get("slug", ""), locale):
+            return False
+    for brand_row in payload.get("brands") or []:
+        if brand_row.get("slug") not in dependencies["discoverable_brands"]:
+            return False
+        if locale != "zh" and not has_translation("brand", brand_row.get("slug", ""), locale):
             return False
     if kind == "brand":
         slug = payload.get("path", "").split("?")[0].rstrip("/").split("/")[-1]
@@ -631,7 +724,10 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
             return False
         if locale != "zh" and not has_translation("home", "home", locale):
             return False
-    products = list(payload.get("products") or [])
+    listed_products = list(payload.get("products") or [])
+    if any(product.get("id") not in dependencies["known_inventory"] for product in listed_products):
+        return False
+    products = list(listed_products)
     if payload.get("product"):
         products.append(payload["product"])
     for product in products:
@@ -696,14 +792,16 @@ def search_products(query: str, locale: str = "zh", limit: int | None = 20,
     if not tokens:
         return []
     pages = pages if pages is not None else build_pages()
+    searchable_ids = _known_inventory()
     products = []
     for page in pages.values():
         if page["locale"] != locale:
             continue
         product = page.get("product")
-        if product:
+        if product and product["id"] in searchable_ids:
             products.append(product)
-        products.extend(page.get("products", []))
+        products.extend(product for product in page.get("products", [])
+                        if product["id"] in searchable_ids)
     deduped = {product["id"]: product for product in products}
     cigar_rows = {
         cigar.pk: cigar

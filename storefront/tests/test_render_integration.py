@@ -55,7 +55,12 @@ class PrerenderIntegrationTests(TestCase):
             if path.endswith('catalog'):
                 prefix = '' if locale == 'zh' else f'/{locale}'
                 self.assertContains(response, f'href="{prefix}/cigar/{self.cigar.pk}/cohiba-robustos?from=')
-            self.assertNotContains(response, 'Habanos Specialist')
+            # The unified site retains the original credential footer and loader.
+            self.assertContains(response, 'Habanos Specialist')
+            self.assertContains(response, '<header ', count=1)
+            self.assertContains(response, '<footer ', count=1)
+            self.assertNotContains(response, 'id="site-management-menu"')
+            self.assertNotContains(response, 'class="site-staff-dock"')
             self.assertNotContains(response, 'unit_cost_cny')
             self.assertEqual(self.client.head(path).content, b'')
             self.assertEqual(self.client.get(path, HTTP_IF_NONE_MATCH=response['ETag']).status_code, 304)

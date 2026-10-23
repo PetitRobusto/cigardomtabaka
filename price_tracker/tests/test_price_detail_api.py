@@ -32,7 +32,7 @@ class PriceDetailContractTests(TestCase):
     def request(self, action='history', authenticate=True, **params):
         request = self.factory.get('/', {'cigar_id': self.cigar.id, **params})
         if authenticate:
-            force_authenticate(request, user=SimpleNamespace(is_authenticated=True))
+            force_authenticate(request, user=SimpleNamespace(is_authenticated=True, is_staff=True))
         return PriceSnapshotViewSet.as_view({'get': action})(request)
 
     def test_history_window_excludes_old_points_but_keeps_current_quote(self):

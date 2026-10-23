@@ -1,0 +1,51 @@
+.site-header { position:sticky; top:0; z-index:50; color:#2c2416; background:rgba(250,248,245,.96); border-bottom:1px solid #e8e0d6; backdrop-filter:blur(10px); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+.site-header *, .site-staff-dock * { box-sizing:border-box; }
+.site-header a,.site-staff-dock a { color:inherit; text-decoration:none; }
+.site-header button,.site-staff-dock button { font:inherit; color:inherit; border:0; background:none; cursor:pointer; }
+.site-header-main { max-width:1280px; min-height:76px; margin:auto; padding:10px 24px; display:flex; align-items:center; gap:20px; }
+.site-brand { display:flex; align-items:center; gap:12px; flex-shrink:0; }
+.site-brand img { width:45px; height:45px; object-fit:contain; }
+.site-brand span { font-family:Georgia,"Songti SC","Noto Serif SC",serif; font-size:18px; font-weight:600; }
+.site-app-nav { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+.site-app-nav > a,.site-app-nav button { display:flex; align-items:center; gap:6px; padding:8px 10px; border-radius:6px; font-size:14px; white-space:nowrap; }
+.site-app-nav .active,.site-app-nav button[aria-expanded=true] { color:#7a1f2e; background:#f5efe8; }
+.site-header svg { width:16px; height:16px; flex-shrink:0; }
+.site-search { display:flex; align-items:center; gap:8px; flex:1; min-width:120px; height:42px; margin:0; padding-left:12px; border:1px solid #e8e0d6; border-radius:6px; background:#fff; overflow:hidden; }
+.site-search > svg { color:#8a7e6e; }
+.site-search input { min-width:0; width:100%; border:0; outline:none; background:none; padding:6px 0; color:#2c2416; font:inherit; font-size:13px; }
+.site-search input:focus-visible { box-shadow:inset 0 -2px #b87a3a; }
+.site-search button { align-self:stretch; padding:0 14px; background:#7a1f2e; color:white; font-size:13px; white-space:nowrap; }
+.site-account { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+.site-account > button,.site-login,.site-language-button { display:flex; align-items:center; justify-content:center; gap:6px; min-height:40px; font-size:13px; }
+.site-account > button { width:32px; }
+.site-username { font-size:13px; }
+.site-language-button span { white-space:nowrap; }
+.site-menu-wrap { position:relative; }
+.site-menu { position:absolute; top:calc(100% + 8px); left:0; z-index:60; min-width:152px; padding:5px; border:1px solid #e8e0d6; border-radius:6px; background:#fff; box-shadow:0 8px 24px #2c24161a; }
+.site-menu a { display:block; padding:10px 12px; border-radius:4px; font-size:14px; white-space:nowrap; }
+.site-menu a:hover,.site-menu a[aria-current=page] { color:#7a1f2e; background:#f5efe8; }
+.site-language-menu { left:auto; right:0; }
+.site-header-extra { max-width:1280px; margin:auto; padding:0 24px; }
+.site-header a:focus-visible,.site-header button:focus-visible,.site-staff-dock a:focus-visible,.site-staff-dock button:focus-visible { outline:2px solid #b87a3a; outline-offset:3px; }
+.site-staff-dock { display:none; }
+@media(max-width:1100px) { .site-header-main { gap:12px; padding-inline:16px; } .site-brand span { display:none; } }
+@media(max-width:767px) {
+  .site-header-main { flex-wrap:wrap; min-height:64px; gap:8px; padding:8px 16px 12px; }
+  .site-brand img { width:40px; height:40px; }
+  .site-app-nav { margin-right:auto; }
+  .site-app-nav > a,.site-app-nav button { padding:8px 6px; font-size:12px; }
+  .site-app-nav button > svg:first-child { display:none; }
+  .site-search { flex-basis:100%; order:4; }
+  .site-username,.site-login span { display:none; }
+  .site-account { gap:8px; }
+  .site-language-button > svg:first-child { display:none; }
+  .site-language-button span { font-size:12px; }
+  .site-header-extra { padding-inline:16px; }
+  .site-staff-dock { display:block; position:fixed; inset:auto 0 0; z-index:55; background:rgba(250,248,245,.97); border-top:1px solid #e8e0d6; padding-bottom:env(safe-area-inset-bottom); color:#8a7e6e; }
+  .site-staff-dock nav { display:flex; align-items:stretch; height:56px; }
+  .site-staff-dock nav > * { display:flex; flex:1; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:10px; }
+  .site-staff-dock svg { width:20px; height:20px; }
+  .site-staff-dock [aria-current=page] { color:#7a1f2e; border-top:2px solid #7a1f2e; }
+  .site-dock-more { display:flex; flex-wrap:wrap; justify-content:space-around; gap:12px; padding:16px; border-bottom:1px solid #e8e0d6; font-size:14px; }
+  body:has(.site-staff-dock) { padding-bottom:calc(56px + env(safe-area-inset-bottom)); }
+}

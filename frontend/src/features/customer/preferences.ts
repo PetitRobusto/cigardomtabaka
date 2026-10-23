@@ -45,7 +45,7 @@ export function readCustomerPreferences() {
   const locale = isCustomerLocale(storedLocale) ? storedLocale : detectCustomerLocale(
     typeof navigator === 'undefined' ? [] : navigator.languages?.length ? navigator.languages : [navigator.language],
   );
-  const rawTimestamp = readStorage(CUSTOMER_AGE_KEY);
+  const rawTimestamp = readStorage(CUSTOMER_AGE_KEY) || readStorage('cdt-store-age-confirmed');
   const timestamp = rawTimestamp === null ? null : Number(rawTimestamp);
   return {
     locale,
@@ -73,11 +73,13 @@ export const useCustomerPreferences = create<CustomerPreferences>((set) => ({
   confirmAge: () => {
     const confirmedAt = Date.now();
     writeStorage(CUSTOMER_AGE_KEY, String(confirmedAt));
+    writeStorage('cdt-store-age-confirmed', String(confirmedAt));
     writeStorage(DENIED_KEY, null, true);
     set({ confirmedAt, denied: false });
   },
   denyAge: () => {
     writeStorage(CUSTOMER_AGE_KEY, null);
+    writeStorage('cdt-store-age-confirmed', null);
     writeStorage(DENIED_KEY, 'true', true);
     set({ confirmedAt: null, denied: true });
   },

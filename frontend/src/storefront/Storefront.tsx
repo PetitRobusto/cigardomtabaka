@@ -1,5 +1,7 @@
 import React from "react";
-import { MapPin, MessageCircle, Phone, Search } from "lucide-react";
+import { SiteHeader, StaffDock } from "../components/site/SiteHeader";
+import { SiteFooter } from "../components/site/SiteFooter";
+import type { User } from "../store/authStore";
 import type { StoreLocale, StorePageData } from "./types";
 import { storeCopy } from "./copy";
 import { catalogPath, filtersFromSearch, homePath, safeBrowsePath, type BrowseFilters } from "./browsing";
@@ -8,8 +10,6 @@ import { CatalogResults } from "./CatalogFilters";
 import { BrandBrowse, BrandMark } from "./BrandBrowse";
 
 const langTag: Record<StoreLocale, string> = { zh: "zh-CN", ru: "ru-RU", en: "en" };
-// Match the browser build's public base in the offline Node renderer as well.
-const brandLogoUrl = "/static/frontend/logo-opening.webp";
 type Labels = Record<string, string>;
 type Props = { page: StorePageData; labels: Labels };
 
@@ -38,7 +38,7 @@ function LanguageLinks({ page, links, labels }: { page: StorePageData; links: St
   return <nav className="locale store-languages" aria-label={labels.language}>{links.map((item) => <a key={item.locale} href={item.path} lang={langTag[item.locale]} aria-current={item.locale === page.locale ? "page" : undefined}>{item.locale === "zh" ? "中文" : item.locale === "ru" ? "Русский" : "English"}</a>)}</nav>;
 }
 
-export function Storefront({ page, currentUrl = page.path, ageConfirmed = false, busy = false, currency = "RUB", onCurrencyChange, onAgeConfirm, onAgeDecline }: { page: StorePageData; currentUrl?: string; ageConfirmed?: boolean; busy?: boolean; currency?: "RUB" | "CNY" | "USD"; onCurrencyChange?: (currency: "RUB" | "CNY" | "USD") => void; onAgeConfirm?: () => void; onAgeDecline?: () => void }) {
+export function Storefront({ page, currentUrl = page.path, ageConfirmed = false, busy = false, currency = "RUB", onCurrencyChange, onAgeConfirm, onAgeDecline, user = null, onLogout }: { user?: User | null; onLogout?: () => void; page: StorePageData; currentUrl?: string; ageConfirmed?: boolean; busy?: boolean; currency?: "RUB" | "CNY" | "USD"; onCurrencyChange?: (currency: "RUB" | "CNY" | "USD") => void; onAgeConfirm?: () => void; onAgeDecline?: () => void }) {
   const labels = storeCopy[page.locale];
   const current = new URL(currentUrl, "https://store.invalid");
   const filters = page.filters || filtersFromSearch(current.search);
@@ -48,20 +48,19 @@ export function Storefront({ page, currentUrl = page.path, ageConfirmed = false,
   const isHome = page.kind === "home" && page.view !== "catalog" && !page.filters && !current.searchParams.has("q") && page.pagination.page === 1;
   const crumbs = page.breadcrumbs.filter((crumb) => crumb.path !== homePath(page.locale));
   return <>
-    <header className="mast store-header" inert={!ageConfirmed}>
-      <div className="mast-r1"><a className="brand-lock store-brand-link" href={homePath(page.locale)} aria-label={page.site.name}><img src={brandLogoUrl} alt="" width="38" height="38" /><span className="bt"><span className="bn">{page.site.name}</span>{page.site.address && <span className="bl">{page.site.address}</span>}</span></a>
-        <form className="hsearch store-search" method="get" action={catalogPath(page.locale)} role="search"><Search aria-hidden="true" /><label className="visually-hidden" htmlFor="store-search">{labels.search}</label><input id="store-search" type="search" name="q" placeholder={labels.searchPlaceholder} defaultValue={filters.q} key={filters.q} />{filters.brands.map((value) => <input type="hidden" key={value} name="brand" value={value} />)}{filters.boxes.map((value) => <input type="hidden" key={value} name="box" value={value} />)}<button className="go" type="submit">{labels.searchAction}</button></form>
-        <div className="h-right"><span className="cur">RUB <b>₽</b></span><LanguageLinks page={page} labels={labels} links={links} /></div>
-      </div>
+    <SiteHeader locale={page.locale} user={user} pathname={current.pathname} languages={links} query={filters.q}
+      searchFields={[...filters.brands.map((value) => ({ name: 'brand', value })), ...filters.boxes.map((value) => ({ name: 'box', value })), ...(filters.sort !== 'catalog' ? [{ name: 'sort', value: filters.sort }] : [])]}
+      inert={!ageConfirmed} onLogout={onLogout}>
       <div className="mast-r2"><nav className="catnav" aria-label={labels.catalogPage}><button type="button" popoverTarget="store-brands-menu">{labels.brands} ▾</button><a href={catalogPath(page.locale)}>{labels.stockProducts}</a><a href="#store-contact">{labels.storeContact}</a></nav><div className="store-reference-control" role="group" aria-label={labels.currency}>{(["RUB", "CNY", "USD"] as const).map((code) => <button key={code} type="button" data-store-currency={code} aria-pressed={currency === code} onClick={() => onCurrencyChange?.(code)}>{code}</button>)}</div></div>
       <nav popover="auto" id="store-brands-menu" className="store-category-menu" aria-label={labels.brands}>{page.navigation?.brands.map((brand) => <a key={brand.slug} href={brand.path}><BrandMark brand={brand} /></a>)}</nav>
       <small className="store-rates-note" data-rates-note hidden>{labels.ratesNote}</small>
-    </header>
+    </SiteHeader>
     <main className="view store-main" inert={!ageConfirmed} aria-busy={busy || undefined}><div className="wrap" key={`${page.locale}:${page.kind}:${product?.id ?? page.path}:${current.search}`}>
       {!isHome && crumbs.length > 0 && <nav className="crumb store-breadcrumbs" aria-label={labels.breadcrumb}><a href={homePath(page.locale)}>{labels.home}</a>{crumbs.map((crumb) => <React.Fragment key={`${crumb.path}:${crumb.label}`}><span aria-hidden="true">/</span><a href={crumb.path}>{crumb.label}</a></React.Fragment>)}</nav>}
       {page.kind === "product" && product ? <><ProductPage product={product} page={page} labels={labels} returnPath={from || undefined} />{page.products.length > 0 && <section className="rel store-section"><div className="sec-h"><h2>{labels.relatedBrand}</h2></div><div className="grid store-product-grid">{page.products.map((item) => <ProductCard product={item} key={item.id} locale={page.locale} labels={labels} from={from || undefined} />)}</div></section>}</> : isHome ? <HomePage page={page} labels={labels} /> : <CatalogPage page={page} labels={labels} filters={filters} currentUrl={current.pathname + current.search} />}
     </div></main>
-    <StoreContact page={page} labels={labels} ageConfirmed={ageConfirmed} />
+    <SiteFooter locale={page.locale} customerPage inert={!ageConfirmed} onPhoneContact={() => window.dispatchEvent(new CustomEvent("cdt:store-contact", { detail: { kind: "phone", locale: page.locale, ...(page.product ? { product_id: String(page.product.id) } : {}) } }))} />
+    <StaffDock storeLocale={page.locale} user={user} pathname={current.pathname} inert={!ageConfirmed} />
     <AgeGate labels={labels} confirmed={ageConfirmed} onConfirm={onAgeConfirm} onDecline={onAgeDecline} page={page} links={links} />
   </>;
 }
@@ -86,12 +85,6 @@ function CatalogPage({ page, labels, filters, currentUrl }: Props & { filters: B
 function Pagination({ page, labels }: Props) {
   if (page.pagination.total_pages < 2) return null;
   return <nav className="store-pagination" aria-label={labels.page}>{page.pagination.previous && <a rel="prev" href={page.pagination.previous}>{labels.prev}</a>}<span>{page.pagination.page} / {page.pagination.total_pages}</span>{page.pagination.next && <a rel="next" href={page.pagination.next}>{labels.next}</a>}</nav>;
-}
-
-function StoreContact({ page, labels, ageConfirmed }: Props & { ageConfirmed: boolean }) {
-  const telephone = page.site.phone.replace(/[^\d+]/g, "");
-  const reportPhoneContact = () => window.dispatchEvent(new CustomEvent("cdt:store-contact", { detail: { kind: "phone", locale: page.locale, ...(page.product ? { product_id: String(page.product.id) } : {}) } }));
-  return <footer className="site-foot store-contact" id="store-contact" inert={!ageConfirmed}><div className="foot-contact"><div className="foot-brand"><img className="foot-logo" src={brandLogoUrl} alt={page.site.name} width="120" height="120" loading="lazy" /><div><div className="foot-name">{page.site.name}</div><div className="foot-tag">{labels.storeTagline}</div></div></div><address className="foot-lines store-contact-details">{page.site.address && <span><MapPin aria-hidden="true" />{page.site.address}</span>}{page.site.phone && <span><Phone aria-hidden="true" />{labels.contactPhone}: <a href={`tel:${telephone}`} onClick={reportPhoneContact}>{page.site.phone}</a></span>}{page.site.wechat && <span><MessageCircle aria-hidden="true" />{labels.wechat}: <span>{page.site.wechat}</span></span>}{page.site.hours && <span>{labels.hours}: {page.site.hours}</span>}{page.site.map_url && <a href={page.site.map_url} rel="noopener noreferrer">{labels.map}</a>}</address>{page.site.points_of_sales && <img className="store-points-image" src={page.site.points_of_sales} alt={labels.points} />}</div><div className="foot-base"><div className="foot-base-in store-footer">{page.site.name}</div></div></footer>;
 }
 
 function AgeGate({ labels, confirmed, onConfirm, onDecline, page, links }: { labels: Labels; confirmed: boolean; onConfirm?: () => void; onDecline?: () => void; page: StorePageData; links: StorePageData["alternates"] }) {

@@ -12,9 +12,10 @@ from django.db.models import Q, Sum
 
 from cigars.models import Brand, Cigar, CigarPrice, PurchaseBatch
 from .models import ProductListing, StoreSettings, StoreTranslation
+from .languages import HOME_COPY, LOCALES as STORE_LOCALES, locale_content_locale, vitola_label
 
 
-LOCALES = ("zh", "ru", "en")
+LOCALES = STORE_LOCALES
 PAGE_SIZE = 24
 PRIORITY_BRANDS = ("Cohiba", "Montecristo", "Romeo y Julieta", "Partagás", "Hoyo de Monterrey", "H. Upmann")
 
@@ -211,14 +212,15 @@ def _product_data(cigar: Cigar, locale: str, translation: StoreTranslation | Non
         aliases = translation.aliases.split()
         body = translation.body
     else:
-        name = cigar.name or cigar.english_name
-        description = " · ".join(filter(None, [cigar.vitola_cn or cigar.vitola, cigar.common_name_cn or cigar.common_name]))
+        name = (cigar.name or cigar.english_name) if locale == "zh" else cigar.english_name
+        vitola = (cigar.vitola_cn or cigar.vitola) if locale == "zh" else vitola_label(cigar.vitola, locale)
+        common_name = cigar.common_name_cn if locale == "zh" else cigar.common_name
+        description = " · ".join(filter(None, [vitola, common_name]))
         aliases = [x for x in (cigar.english_name, cigar.name, cigar.common_name, cigar.common_name_cn) if x]
         body = description
     if not description:
-        description = f"{cigar.brand} {cigar.english_name}"
-        if cigar.vitola:
-            description += f" · {cigar.vitola}"
+        vitola = (cigar.vitola_cn or cigar.vitola) if locale == "zh" else vitola_label(cigar.vitola, locale)
+        description = " · ".join(filter(None, [cigar.english_name if locale != "zh" else name, vitola]))
         body = description
     offers = []
     has_sticks = bool((stick_stock or {}).get(cigar.pk, 0) > 0)
@@ -241,14 +243,16 @@ def _product_data(cigar: Cigar, locale: str, translation: StoreTranslation | Non
             offers.append({"sale_unit": "stick", "box_size": None, "price_rub": None, "in_stock": True})
     image_rows = _image_rows(cigar)
     images = _images(cigar, image_rows)
+    translated = bool(translation and translation.locale == locale)
+    brand_translation = brand_translations.get(locale, {}).get(brand.slug) if brand else None
     return {
         "id": cigar.pk,
         "name": name,
         "english_name": cigar.english_name,
         "brand": (
-            brand_translations.get(locale, {}).get(brand.slug).title
-            if brand and locale != "zh" and brand.slug in brand_translations.get(locale, {})
-            else (brand.english_name if locale != "zh" else brand.name or brand.english_name)
+            (brand_translation.title if brand_translation else brand.english_name)
+            if locale != "zh" and brand
+            else (brand.name or brand.english_name)
             if brand else cigar.brand
         ),
         "brand_slug": brand_slug,
@@ -259,7 +263,7 @@ def _product_data(cigar: Cigar, locale: str, translation: StoreTranslation | Non
         "images": images,
         "image_kinds": {_safe_media_url(row.image) or _safe_media_url(row.thumbnail): row.image_type for row in image_rows},
         "image_variants": _image_variants(cigar, image_rows),
-        "vitola": cigar.vitola_cn or cigar.vitola if locale == "zh" else cigar.vitola,
+        "vitola": cigar.vitola_cn or cigar.vitola if locale == "zh" else vitola_label(cigar.vitola, locale),
         "length": cigar.length,
         "ring_gauge": cigar.ring_gauge,
         "availability": (
@@ -269,6 +273,10 @@ def _product_data(cigar: Cigar, locale: str, translation: StoreTranslation | Non
             else "catalog"
         ),
         "offers": offers,
+        "translation_complete": locale == "zh" or translated,
+        "content_locale": locale if locale == "zh" or translated else "en",
+        "brand_translation_complete": locale in {"zh", "en"} or bool(brand_translation and brand_translation.locale == locale),
+        "brand_content_locale": brand_translation.locale if brand_translation else (locale if locale == "zh" else "en"),
     }
 
 
@@ -296,37 +304,61 @@ def _published_translations() -> dict[tuple[str, str, str], StoreTranslation]:
     return {
         (row.kind, row.key, row.locale): row
         for row in StoreTranslation.objects.filter(published=True)
-        if all(value.strip() for value in (row.title, row.description, row.body))
+        if all(value.strip() for value in (row.title, row.description))
+        and (row.kind == "brand" or bool(row.body.strip()))
     }
+
+
+def _resolved_translation(kind: str, key: str, locale: str,
+                          translations: dict[tuple[str, str, str], StoreTranslation]):
+    """Use exact reviewed text, then reviewed English text; never read drafts."""
+    return translations.get((kind, str(key), locale)) or (
+        translations.get((kind, str(key), "en")) if locale != "zh" else None
+    )
+
+
+def _page_translation_complete(locale: str, translations: dict,
+                               products: list[dict] | None = None) -> bool:
+    if locale == "zh":
+        return True
+    if ("home", "home", locale) not in translations:
+        return False
+    return all(("product", str(product["id"]), locale) in translations for product in products or [])
+
+
+def _set_page_language(page: dict, complete: bool) -> None:
+    page["translation_complete"] = complete
+    page["content_locale"] = locale_content_locale(page["locale"], complete)
+    page["indexable"] = page["locale"] == "zh" or complete
 
 
 def _translation_dependencies(page: dict, translations: dict) -> list[list[str]]:
     """Record the reviewed text actually used in this page, including visible cards."""
-    locale = page["locale"]
     used = set()
 
-    def include(kind, key):
-        dependency = (kind, str(key), locale)
-        if dependency in translations:
-            used.add(dependency)
-
-    if page["kind"] == "home":
-        include("home", "home")
-    elif page["kind"] == "brand":
-        include("brand", page["path"].split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1])
-    if locale != "zh" or page["site"].get("hours"):
-        include("home", "home")
+    home_translation = _resolved_translation("home", "home", page["locale"], translations)
+    if home_translation and (page["kind"] == "home" or page["locale"] != "zh" or page["site"].get("hours")):
+        used.add(("home", "home", home_translation.locale))
     products = [*page["products"]]
     if page["product"]:
         products.append(page["product"])
     for product in products:
-        include("product", product["id"])
-        if locale != "zh":
-            include("brand", product["brand_slug"])
-    for brand in page["brands"]:
-        include("brand", brand["slug"])
-    for brand in page.get("navigation", {}).get("brands", []):
-        include("brand", brand["slug"])
+        source_locale = product.get("content_locale", page["locale"])
+        dependency = ("product", str(product["id"]), source_locale)
+        if dependency in translations:
+            used.add(dependency)
+        brand_dependency = ("brand", str(product.get("brand_slug") or ""), product.get("brand_content_locale", page["locale"]))
+        if brand_dependency in translations:
+            used.add(brand_dependency)
+    if page["kind"] == "brand":
+        slug = page["path"].split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1]
+        dependency = ("brand", slug, page.get("brand_content_locale", page["locale"]))
+        if dependency in translations:
+            used.add(dependency)
+    for brand in [*(page.get("brands") or []), *(page.get("navigation", {}).get("brands", []))]:
+        dependency = ("brand", str(brand.get("slug") or ""), brand.get("content_locale", page["locale"]))
+        if dependency in translations:
+            used.add(dependency)
     return [list(dependency) for dependency in sorted(used)]
 
 
@@ -345,10 +377,20 @@ def build_pages() -> dict[str, dict]:
 
     translations = _published_translations()
     brand_translations = {
-        locale: {key: row for (kind, key, row_locale), row in translations.items()
-                 if kind == "brand" and row_locale == locale}
+        locale: {
+            key: row
+            for (kind, key, row_locale), row in translations.items()
+            if kind == "brand" and row_locale == locale
+        }
         for locale in LOCALES
     }
+    for locale in LOCALES:
+        if locale == "zh":
+            continue
+        for brand in brands.values():
+            resolved = _resolved_translation("brand", brand.slug, locale, translations)
+            if resolved:
+                brand_translations[locale][brand.slug] = resolved
     withdrawn = set(ProductListing.objects.filter(withdrawn=True).values_list("cigar_id", flat=True))
     result: dict[str, dict] = {}
 
@@ -357,31 +399,19 @@ def build_pages() -> dict[str, dict]:
         for cigar in cigars:
             if cigar.pk in withdrawn:
                 continue
-            translation = translations.get(("product", str(cigar.pk), locale))
+            translation = _resolved_translation("product", cigar.pk, locale, translations)
             brand = next((b for b in brands.values() if b.english_name == cigar.brand), None)
-            if locale != "zh" and (
-                not translation
-                or ("home", "home", locale) not in translations
-                or not brand
-                or brand.slug not in brand_translations[locale]
-            ):
-                continue
             product = _product_data(cigar, locale, translation, brands, stock, listings, prices_by_cigar, known_inventory, brand_translations, stick_stock)
             available_locales = {}
             for other in LOCALES:
-                other_brand_ok = bool(brand and (other == "zh" or brand.slug in brand_translations[other]))
-                if other == "zh" or (
-                    other_brand_ok
-                    and ("home", "home", other) in translations
-                    and ("product", str(cigar.pk), other) in translations
-                ):
-                    available_locales[other] = _product_path(other, cigar.pk, _product_slug(cigar))
+                available_locales[other] = _product_path(other, cigar.pk, _product_slug(cigar))
             breadcrumbs = []
-            if locale == "zh" or ("home", "home", locale) in translations:
-                home_title = translations.get(("home", "home", locale)).title if locale != "zh" else "Home"
+            home_translation = _resolved_translation("home", "home", locale, translations)
+            if locale == "zh" or home_translation:
+                home_title = home_translation.title if locale != "zh" else "Home"
                 breadcrumbs.append({"label": home_title, "path": _home_path(locale)})
-            if brand and (locale == "zh" or brand.slug in brand_translations[locale]):
-                brand_title = brand_translations[locale][brand.slug].title if locale != "zh" else brand.name or brand.english_name
+            if brand:
+                brand_title = brand_translations[locale][brand.slug].title if brand.slug in brand_translations[locale] else (brand.name or brand.english_name if locale == "zh" else brand.english_name)
                 breadcrumbs.append({"label": brand_title, "path": _brand_path(locale, brand.slug)})
             breadcrumbs.append({"label": product["name"], "path": product["path"]})
             title = translation.title if translation else product["name"]
@@ -389,20 +419,21 @@ def build_pages() -> dict[str, dict]:
                 "locale": locale, "kind": "product", "path": product["path"],
                 "title": title, "description": translation.description if translation else product["description"],
                 "body": translation.body if translation else product["description"],
-                "site": _site_data(locale, translations.get(("home", "home", locale)), store),
+                "site": _site_data(locale, home_translation, store),
                 "products": [], "product": product, "brands": [],
                 "alternates": _alternates(available_locales), "breadcrumbs": breadcrumbs,
                 "pagination": {"page": 1, "total_pages": 1, "previous": None, "next": None},
             }
+            _set_page_language(page, _page_translation_complete(locale, translations, [product]))
             result[page["path"]] = page
 
-    # Brand pages: zh can use existing brand names; translated pages require publication.
+    # Brand pages exist in every locale; reviewed text is used when available,
+    # and otherwise the official brand name remains visible as a fallback.
     for locale in LOCALES:
         locale_brand_translations = brand_translations[locale]
         for brand in brands.values():
+            exact_translation = translations.get(("brand", brand.slug, locale))
             translation = locale_brand_translations.get(brand.slug)
-            if locale != "zh" and (not translation or ("home", "home", locale) not in translations):
-                continue
             brand_path = _brand_path(locale, brand.slug)
             rows = []
             for cigar in cigars:
@@ -412,40 +443,32 @@ def build_pages() -> dict[str, dict]:
                     continue
                 if cigar.brand != brand.english_name:
                     continue
-                cigar_translation = translations.get(("product", str(cigar.pk), locale))
-                if locale != "zh" and (
-                    not cigar_translation
-                    or ("home", "home", locale) not in translations
-                    or brand.slug not in brand_translations[locale]
-                ):
-                    continue
+                cigar_translation = _resolved_translation("product", cigar.pk, locale, translations)
                 rows.append(_product_data(cigar, locale, cigar_translation, brands, stock, listings, prices_by_cigar, known_inventory, brand_translations, stick_stock))
-            rows.sort(key=lambda p: (p["availability"] != "in_stock", p["name"].casefold(), p["id"]))
+            rows.sort(key=lambda p: (p["availability"] != "in_stock", p["english_name"].casefold(), p["id"]))
             _, pagination = _pagination(1, len(rows), brand_path)
             page_rows = rows[:PAGE_SIZE]
-            paths = {locale: brand_path}
-            for other in LOCALES:
-                if other == "zh" or (
-                    brand.slug in brand_translations[other]
-                    and ("home", "home", other) in translations
-                ):
-                    paths[other] = _brand_path(other, brand.slug)
-            title = translation.title if translation else (brand.name or brand.english_name)
-            description = translation.description if translation else brand.english_name
+            paths = {other: _brand_path(other, brand.slug) for other in LOCALES}
+            formal_name = brand.name or brand.english_name if locale == "zh" else brand.english_name
+            title = translation.title if translation else formal_name
+            description = translation.description if translation else title
             page = {
                 "locale": locale, "kind": "brand", "path": brand_path,
                 "total_products": len(rows),
                 "title": title, "description": description,
                 "body": translation.body if translation else "",
-                "site": _site_data(locale, translations.get(("home", "home", locale)), store),
+                "site": _site_data(locale, _resolved_translation("home", "home", locale, translations), store),
                 "products": page_rows, "product": None,
                 "brands": [], "alternates": _alternates(paths),
+                "brand_translation_complete": locale in {"zh", "en"} or bool(exact_translation and exact_translation.locale == locale),
+                "brand_content_locale": exact_translation.locale if exact_translation else (locale if locale == "zh" else "en"),
                 "breadcrumbs": ([{"label": translations[("home", "home", locale)].title, "path": _home_path(locale)}]
                                  if locale != "zh" and ("home", "home", locale) in translations
                                  else [{"label": "Home", "path": _home_path(locale)}] if locale == "zh" else [])
                                 + [{"label": title, "path": brand_path}],
                 "pagination": pagination,
             }
+            _set_page_language(page, _page_translation_complete(locale, translations, rows))
             result[brand_path] = page
             for page_number in range(2, pagination["total_pages"] + 1):
                 page_url = f"{brand_path}?page={page_number}"
@@ -455,24 +478,23 @@ def build_pages() -> dict[str, dict]:
                 _, page_copy["pagination"] = _pagination(page_number, len(rows), brand_path)
                 result[page_url] = page_copy
 
-    # Home pages require an explicitly reviewed translation in each locale.
+    # The Chinese home page keeps its published source content. Other locales
+    # may render the existing English home template, without publishing it.
     for locale in LOCALES:
-        translation = translations.get(("home", "home", locale))
-        if not translation:
+        exact_translation = translations.get(("home", "home", locale))
+        translation = exact_translation if locale == "zh" else exact_translation or translations.get(("home", "home", "en"))
+        if locale == "zh" and not translation:
             continue
+        home_copy = ({"title": translation.title, "description": translation.description,
+                      "body": translation.body} if translation else HOME_COPY["en"])
         rows = []
         for cigar in cigars:
             if cigar.pk in withdrawn or cigar.pk not in listings:
                 continue
             if not stick_stock.get(cigar.pk) and not any(stock.get((cigar.pk, box_size), 0) > 0 for (cigar_id, box_size) in stock if cigar_id == cigar.pk):
                 continue
-            if locale != "zh":
-                brand = next((b for b in brands.values() if b.english_name == cigar.brand), None)
-                if (not translations.get(("product", str(cigar.pk), locale))
-                        or not brand or brand.slug not in brand_translations[locale]):
-                    continue
-            rows.append(_product_data(cigar, locale, translations.get(("product", str(cigar.pk), locale)), brands, stock, listings, prices_by_cigar, known_inventory, brand_translations, stick_stock))
-        rows.sort(key=lambda p: (p["brand"].casefold(), p["name"].casefold(), p["id"]))
+            rows.append(_product_data(cigar, locale, _resolved_translation("product", cigar.pk, locale, translations), brands, stock, listings, prices_by_cigar, known_inventory, brand_translations, stick_stock))
+        rows.sort(key=lambda p: (p["brand_slug"], p["english_name"].casefold(), p["id"]))
         home = _home_path(locale)
         _, pagination = _pagination(1, len(rows), home)
         discoverable_brand_slugs = {
@@ -488,13 +510,15 @@ def build_pages() -> dict[str, dict]:
             if brand.slug not in discoverable_brand_slugs:
                 continue
             brand_translation = brand_translations[locale].get(brand.slug)
-            if locale != "zh" and not brand_translation:
-                continue
+            display_name = brand_translation.title if brand_translation else brand.name or brand.english_name if locale == "zh" else brand.english_name
             visible_brands.append({
-                "name": brand_translation.title if brand_translation else brand.name or brand.english_name,
+                "name": display_name,
                 "english_name": brand.english_name,
                 "slug": brand.slug,
                 "path": _brand_path(locale, brand.slug),
+                "translation_complete": locale in {"zh", "en"} or bool(brand_translation and brand_translation.locale == locale),
+                "content_locale": brand_translation.locale if brand_translation else (locale if locale == "zh" else "en"),
+                "indexable": locale == "zh" or bool(brand_translation and brand_translation.locale == locale),
             })
         visible_brands.sort(key=lambda row: (
             row["slug"] not in in_stock_brand_slugs,
@@ -502,17 +526,21 @@ def build_pages() -> dict[str, dict]:
             row["name"].casefold(),
             row["english_name"].casefold(),
         ))
-        paths = {other: _home_path(other) for other in LOCALES
-                 if ("home", "home", other) in translations}
+        paths = {other: _home_path(other) for other in LOCALES}
         result[home] = {
             "locale": locale, "kind": "home", "path": home,
             "total_products": len(rows),
-            "title": translation.title, "description": translation.description, "body": translation.body,
+            "title": home_copy["title"], "description": home_copy["description"], "body": home_copy["body"],
             "site": _site_data(locale, translation, store),
             "products": rows[:PAGE_SIZE], "product": None, "brands": visible_brands,
-            "alternates": _alternates(paths), "breadcrumbs": [{"label": translation.title, "path": home}],
+            "alternates": _alternates(paths), "breadcrumbs": [{"label": home_copy["title"], "path": home}],
             "pagination": pagination,
         }
+        complete = _page_translation_complete(locale, translations, products=rows)
+        _set_page_language(result[home], complete)
+        if locale != "zh" and not exact_translation:
+            result[home]["translation_complete"] = False
+            result[home]["indexable"] = False
         for page_number in range(2, pagination["total_pages"] + 1):
             page_url = f"{home}?page={page_number}"
             page_copy = dict(result[home])
@@ -524,21 +552,38 @@ def build_pages() -> dict[str, dict]:
     _add_browsing_context(result, brands, brand_translations, known_inventory)
 
     # A paginated page must alternate to the matching page in another locale.
-    # A target page may not exist when fewer products are published there.
+    # SEO alternates include only fully reviewed target-language pages. The UI
+    # switcher continues to expose every locale, including fallback pages.
     for page in result.values():
+        visible_products = [*page["products"]]
+        if page.get("product"):
+            visible_products.append(page["product"])
+        complete = page["locale"] == "zh" or (
+            ("home", "home", page["locale"]) in translations
+            and all(("product", str(product["id"]), page["locale"]) in translations
+                    for product in visible_products)
+            and all(product.get("brand_translation_complete", False) for product in visible_products)
+            and all(brand.get("translation_complete", False) for brand in page.get("brands", []))
+            and (page["kind"] != "brand" or page.get("brand_translation_complete", False))
+        )
+        _set_page_language(page, complete)
         page["translation_dependencies"] = _translation_dependencies(page, translations)
         page_number = page.get("pagination", {}).get("page", 1)
-        page["browsing_alternates"] = [
-            {**alternate, "path": alternate["path"].split("?", 1)[0]}
-            for alternate in page.get("alternates", [])
-            if alternate["path"].split("?", 1)[0] in result
-        ]
+        page_kind = "catalog" if page.get("view") == "catalog" else page["kind"]
+        locale_paths = {
+            "home": lambda locale: _home_path(locale),
+            "brand": lambda locale: _brand_path(locale, page["path"].split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1]),
+            "product": lambda locale: _product_path(locale, page["product"]["id"], page["product"]["path"].rstrip("/").rsplit("/", 1)[-1]),
+            "catalog": lambda locale: _catalog_path(locale),
+        }
+        browsing_paths = {locale: locale_paths[page_kind](locale) for locale in LOCALES}
+        page["browsing_alternates"] = _alternates(browsing_paths)
         alternates = []
-        for alternate in page.get("alternates", []):
-            base_path = alternate["path"].split("?", 1)[0]
+        for locale, base_path in browsing_paths.items():
             target_path = base_path if page_number == 1 else f"{base_path}?page={page_number}"
-            if target_path in result:
-                alternates.append({**alternate, "path": target_path})
+            target = result.get(target_path)
+            if target and target.get("indexable"):
+                alternates.append({"locale": locale, "path": target_path})
         page["alternates"] = alternates
     return result
 
@@ -566,7 +611,7 @@ def _add_browsing_context(pages, brands, brand_translations, known_inventory):
         catalog_rows = list({product["id"]: product for product in catalog_rows}.values())
         catalog_rows.sort(key=lambda product: (
             product["availability"] != "in_stock",
-            product["brand"].casefold(), product["name"].casefold(), product["id"],
+            product["brand_slug"], product["english_name"].casefold(), product["id"],
         ))
         catalog_by_locale[locale] = catalog_rows
     for locale in LOCALES:
@@ -609,6 +654,8 @@ def _add_browsing_context(pages, brands, brand_translations, known_inventory):
                     "name": translation.title if translation else (brand.name or brand.english_name) if locale == "zh" else brand.english_name,
                     "english_name": brand.english_name, "slug": brand.slug,
                     "path": _brand_path(locale, brand.slug),
+                    "translation_complete": locale in {"zh", "en"} or bool(translation and translation.locale == locale),
+                    "content_locale": translation.locale if translation else (locale if locale in {"zh", "en"} else "en"),
                 })
             navigation_brands.sort(key=lambda row: (
                 row["slug"] not in stock_brands,
@@ -684,9 +731,10 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
     dependencies = dependencies or public_dependencies()
     translations = dependencies["translations"]
     used_translations = payload.get("translation_dependencies")
-    # Older artifacts cannot distinguish legacy text from revoked custom text.
-    # Rebuild them rather than continuing to expose untracked reviewed content.
-    if not isinstance(used_translations, list):
+    if (not isinstance(used_translations, list)
+            or not isinstance(payload.get("translation_complete"), bool)
+            or not isinstance(payload.get("content_locale"), str)
+            or not isinstance(payload.get("indexable"), bool)):
         return False
     for dependency in used_translations:
         if (not isinstance(dependency, list) or len(dependency) != 3
@@ -698,32 +746,33 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
     has_translation = lambda translation_kind, key, translation_locale: (
         translation_kind, str(key), translation_locale,
     ) in translations
-    if kind == "home" and not has_translation("home", "home", locale):
-        return False
-    if locale != "zh":
-        for brand_row in payload.get("brands") or []:
-            if not has_translation("brand", brand_row.get("slug", ""), locale):
-                return False
     for brand_row in payload.get("navigation", {}).get("brands", []):
         if brand_row.get("slug") not in dependencies["brand_slugs"].values():
             return False
         if brand_row.get("slug") not in dependencies["discoverable_brands"]:
             return False
-        if locale != "zh" and not brand_row.get("filter_only") and not has_translation("brand", brand_row.get("slug", ""), locale):
-            return False
+        if locale != "zh":
+            expected_brand_locale = locale if has_translation("brand", brand_row.get("slug"), locale) else "en"
+            if (brand_row.get("content_locale") != expected_brand_locale
+                    or brand_row.get("translation_complete") != (expected_brand_locale == locale)):
+                return False
     for brand_row in payload.get("brands") or []:
         if brand_row.get("slug") not in dependencies["discoverable_brands"]:
             return False
-        if locale != "zh" and not has_translation("brand", brand_row.get("slug", ""), locale):
-            return False
+        if locale != "zh":
+            expected_brand_locale = locale if has_translation("brand", brand_row.get("slug"), locale) else "en"
+            if (brand_row.get("content_locale") != expected_brand_locale
+                    or brand_row.get("translation_complete") != (expected_brand_locale == locale)):
+                return False
     if kind == "brand":
         slug = payload.get("path", "").split("?")[0].rstrip("/").split("/")[-1]
         if slug not in dependencies["brand_slugs"].values():
             return False
-        if locale != "zh" and not has_translation("brand", slug, locale):
-            return False
-        if locale != "zh" and not has_translation("home", "home", locale):
-            return False
+        if locale != "zh":
+            expected_brand_locale = locale if has_translation("brand", slug, locale) else "en"
+            if (payload.get("brand_content_locale") != expected_brand_locale
+                    or payload.get("brand_translation_complete") != (expected_brand_locale == locale)):
+                return False
     listed_products = list(payload.get("products") or [])
     if any(product.get("id") not in dependencies["known_inventory"] for product in listed_products):
         return False
@@ -738,44 +787,66 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
         listing_is_live = cigar_id in dependencies["published"]
         if (product.get("offers") or product.get("availability") != "catalog") and not listing_is_live:
             return False
-        if locale != "zh" and not has_translation("product", cigar_id, locale):
-            return False
         if locale != "zh":
-            brand_slug = dependencies["brand_slugs"].get(brand_name)
-            if (not brand_slug
-                    or not has_translation("brand", brand_slug, locale)
-                    or not has_translation("home", "home", locale)):
+            current_locale = locale if has_translation("product", cigar_id, locale) else "en"
+            if product.get("content_locale") != current_locale:
                 return False
+            brand_slug = dependencies["brand_slugs"].get(brand_name)
+            expected_brand_locale = locale if has_translation("brand", brand_slug, locale) else "en"
+            if (product.get("brand_content_locale") != expected_brand_locale
+                    or product.get("brand_translation_complete") != (expected_brand_locale == locale)):
+                return False
+    if locale != "zh":
+        exact_home = has_translation("home", "home", locale)
+        expected_complete = exact_home and all(
+            has_translation("product", product.get("id"), locale)
+            and has_translation("brand", dependencies["brand_slugs"].get(dependencies["cigars"].get(product.get("id"))), locale)
+            for product in products
+        )
+        expected_complete = expected_complete and all(
+            has_translation("brand", brand.get("slug"), locale) for brand in payload.get("brands") or []
+        )
+        if kind == "brand":
+            slug = payload.get("path", "").split("?")[0].rstrip("/").split("/")[-1]
+            expected_complete = expected_complete and has_translation("brand", slug, locale)
+        if payload["translation_complete"] != expected_complete:
+            return False
+        if payload["content_locale"] != (locale if expected_complete else "en"):
+            return False
+        if payload["indexable"] != expected_complete:
+            return False
+        if kind == "home":
+            expected_home_locale = locale if exact_home else ("en" if has_translation("home", "home", "en") else None)
+            actual_home_locale = next((row[2] for row in used_translations if row[:2] == ["home", "home"]), None)
+            if actual_home_locale != expected_home_locale:
+                return False
+    else:
+        if not payload["translation_complete"] or payload["content_locale"] != "zh" or not payload["indexable"]:
+            return False
     site = payload.get("site") or {}
     has_verified_store_data = any(site.get(key) for key in (
         "address", "phone", "wechat", "map_url", "photo", "points_of_sales", "hours",
     ))
     if has_verified_store_data and not dependencies["details_verified"]:
         return False
-    if site.get("hours") and not has_translation("home", "home", locale):
+    if site.get("hours") and not any(row[:2] == ["home", "home"] for row in used_translations):
         return False
-    for alternate in [*(payload.get("alternates") or []), *(payload.get("browsing_alternates") or [])]:
+    for alternate in payload.get("alternates") or []:
         alternate_locale = alternate.get("locale")
         if alternate_locale == locale or alternate_locale not in LOCALES:
             continue
-        if kind == "home" and not has_translation("home", "home", alternate_locale):
+        if alternate_locale != "zh" and (
+            not has_translation("home", "home", alternate_locale)
+            or any(not has_translation("product", product.get("id"), alternate_locale)
+                   or not has_translation("brand", dependencies["brand_slugs"].get(dependencies["cigars"].get(product.get("id"))), alternate_locale)
+                   for product in products)
+            or any(not has_translation("brand", brand.get("slug"), alternate_locale)
+                   for brand in payload.get("brands") or [])
+            or (kind == "brand" and not has_translation(
+                "brand", payload.get("path", "").split("?")[0].rstrip("/").split("/")[-1], alternate_locale,
+            ))
+        ):
             return False
-        if kind == "brand":
-            slug = payload.get("path", "").split("?")[0].rstrip("/").split("/")[-1]
-            if alternate_locale != "zh" and not has_translation("brand", slug, alternate_locale):
-                return False
-            if alternate_locale != "zh" and not has_translation("home", "home", alternate_locale):
-                return False
-        if kind == "product":
-            product_id = payload.get("product", {}).get("id")
-            if alternate_locale != "zh":
-                brand_name = dependencies["cigars"].get(product_id)
-                brand_slug = dependencies["brand_slugs"].get(brand_name)
-                if (not has_translation("product", product_id, alternate_locale)
-                        or not has_translation("home", "home", alternate_locale)
-                        or not brand_slug
-                        or not has_translation("brand", brand_slug, alternate_locale)):
-                    return False
     return True
 
 

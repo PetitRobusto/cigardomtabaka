@@ -1,147 +1,103 @@
 // @vitest-environment jsdom
-import { useEffect } from 'react';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter, useNavigate } from 'react-router-dom';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import AppLayout from '../../components/layout/AppLayout';
-import { PageMetaProvider } from '../../contexts/PageMetaContext';
 import { useAuthStore } from '../../store/authStore';
-import BrandListPage from '../../pages/BrandListPage';
-import CustomerDocumentLanguage from './CustomerDocumentLanguage';
-import { CUSTOMER_LANGUAGE_KEY, readCustomerPreferences, useCustomerPreferences } from './preferences';
+import { CUSTOMER_AGE_KEY, CUSTOMER_LANGUAGE_KEY, readCustomerPreferences, useCustomerPreferences } from './preferences';
+import { AGE_CONFIRMATION_KEY } from '../../storefront/ageConfirmation';
+import { backendPageFixture } from '../../storefront/fixture';
+import { LiveStorefront } from '../../storefront/LiveStorefront';
+import { Storefront } from '../../storefront/Storefront';
 
-vi.mock('../guides/GuideController', () => ({ default: () => null }));
-vi.mock('../../api', () => ({ fetchBrandList: vi.fn(async () => ({ total_brands: 2, sections: [{ key: 'global', label: '全球品牌', brands: [
-  { slug: 'cohiba', name: '高希霸', english_name: 'Cohiba', cigar_count: 2, origin: 'Cuban', category: 'global', logo_url: null },
-  { slug: 'montecristo', name: '蒙特', english_name: 'Montecristo', cigar_count: 1, origin: 'Cuban', category: 'global', logo_url: null },
-] }] })) }));
+function createStorage(): Storage {
+  const values = new Map<string, string>();
+  return {
+    get length() { return values.size; },
+    clear: () => values.clear(),
+    getItem: (key) => values.get(key) ?? null,
+    key: (index) => Array.from(values.keys())[index] ?? null,
+    removeItem: (key) => { values.delete(key); },
+    setItem: (key, value) => { values.set(key, String(value)); },
+  };
+}
 
 beforeEach(() => {
-  window.localStorage.clear(); window.sessionStorage.clear();
+  Object.defineProperty(window, 'localStorage', { configurable: true, value: createStorage() });
+  Object.defineProperty(window, 'sessionStorage', { configurable: true, value: createStorage() });
   useCustomerPreferences.setState({ locale: 'en', confirmedAt: null, denied: false });
-  useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: false, checkAuth: vi.fn(async () => undefined), logout: vi.fn(async () => undefined) });
+  useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: false });
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-function show(children: React.ReactNode = <div>Catalogue content</div>, path = '/') {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<MemoryRouter initialEntries={[path]}><QueryClientProvider client={client}><PageMetaProvider>
-    <CustomerDocumentLanguage /><AppLayout>{children}</AppLayout>
-  </PageMetaProvider></QueryClientProvider></MemoryRouter>);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  window.localStorage.clear();
+  window.sessionStorage.clear();
+  document.body.innerHTML = '';
+  document.head.replaceChildren();
+});
+
+function renderShop(user: Parameters<typeof Storefront>[0]['user'] = null, ageConfirmed = false, currentUrl = backendPageFixture.path) {
+  return render(<Storefront page={backendPageFixture} currentUrl={currentUrl} user={user} ageConfirmed={ageConfirmed} />);
 }
 
-function selectLanguage(name: string) {
-  fireEvent.click(screen.getByRole('button', { name: /^(Language|Язык|语言)$/ }));
-  const menu = screen.getByRole('menu');
-  expect(within(menu).getAllByRole('menuitemradio')).toHaveLength(3);
-  expect(menu.textContent).not.toMatch(/跟随设备|Follow device|Как на устройстве/);
-  fireEvent.click(within(menu).getByRole('menuitemradio', { name }));
-}
+describe('customer storefront experience', () => {
+  it.each([
+    ['guest', null],
+    ['ordinary account', { username: 'customer', is_staff: false, is_superuser: false }],
+  ] as const)('%s sees the store without management navigation', (_label, user) => {
+    renderShop(user);
 
-describe('consumer language and age flow', () => {
-  it.each(['/Brand/cohiba', '/brand/cohiba//', '/%62rand/cohiba'])('blocks catalogue content for router-equivalent path %s', (path) => {
-    show(undefined, path);
-    expect(screen.getByRole('dialog')).not.toBeNull();
-    expect(screen.queryByText('Catalogue content')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'I am under 18' }));
-    expect(screen.queryByText('Catalogue content')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Cohiba Robustos' })).not.toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Are you 18 or older?' })).not.toBeNull();
+    expect(screen.queryByText('Management')).toBeNull();
+    expect(screen.queryByText('管理工具')).toBeNull();
+    expect(screen.queryByRole('navigation', { name: '移动应用导航' })).toBeNull();
+    expect(screen.queryByRole('link', { name: '资料库' })).toBeNull();
+    if (user) expect(screen.getByText('customer')).not.toBeNull();
+    else expect(screen.getByRole('link', { name: 'Log in' })).not.toBeNull();
   });
 
-  it('does not mount catalogue content before confirmation or after declining', () => {
-    const mounted = vi.fn();
-    function Content() { useEffect(mounted, []); return <div>Catalogue content</div>; }
-    show(<Content />);
-    expect(screen.getByRole('dialog').textContent).toContain('Are you 18 or older?');
-    expect(mounted).not.toHaveBeenCalled();
-    fireEvent.keyDown(document, { key: 'Escape' });
-    fireEvent.click(screen.getByRole('dialog').parentElement!);
-    expect(screen.getByRole('dialog')).not.toBeNull();
-    selectLanguage('Русский');
-    expect(document.documentElement.lang).toBe('ru');
-    fireEvent.click(screen.getByRole('button', { name: 'Мне нет 18 лет' }));
-    expect(screen.getByRole('heading', { name: 'Доступ ограничен' })).not.toBeNull();
-    selectLanguage('English');
-    expect(screen.getByRole('heading', { name: 'Content not available' })).not.toBeNull();
-    expect(mounted).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Back to age confirmation' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Yes, I am 18 or older' }));
-    expect(screen.getByText('Catalogue content')).not.toBeNull();
-    expect(mounted).toHaveBeenCalledOnce();
-    expect(document.body.style.overflow).not.toBe('hidden');
-    expect(readCustomerPreferences().confirmedAt).not.toBeNull();
+  it('offers three language links, preserves the product return path, and saves the chosen preference', () => {
+    renderShop(null, true, `${backendPageFixture.path}?from=%2Fen%2Fcatalog#store-contact`);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Language' }));
+    const menu = document.getElementById('site-language-menu')!;
+    const links = Array.from(menu.querySelectorAll<HTMLAnchorElement>('a'));
+    expect(new Set(links.map((link) => link.lang))).toEqual(new Set(['zh-CN', 'ru', 'en']));
+    expect(menu.querySelector('a[lang="ru"]')?.getAttribute('href'))
+      .toBe('/ru/cigar/5/cohiba-robustos?from=%2Fru%2Fcatalog#store-contact');
+    expect(menu.querySelector('a[lang="zh-CN"]')?.getAttribute('href'))
+      .toBe('/zh/cigar/5/cohiba-robustos?from=%2Fcatalog#store-contact');
+
+    const russian = menu.querySelector('a[lang="ru"]')!;
+    russian.addEventListener('click', (event) => event.preventDefault(), { once: true });
+    fireEvent.click(russian);
+    expect(window.localStorage.getItem(CUSTOMER_LANGUAGE_KEY)).toBe('ru');
+    expect(useCustomerPreferences.getState().locale).toBe('ru');
   });
 
-  it('remembers language and age across remounts for an ordinary logged-in user', () => {
-    useAuthStore.setState({ user: { username: 'customer', is_staff: false, is_superuser: false }, isAuthenticated: true });
-    const first = show();
-    selectLanguage('简体中文');
-    fireEvent.click(screen.getByRole('button', { name: '是的，我已满18岁' }));
-    expect(window.localStorage.getItem(CUSTOMER_LANGUAGE_KEY)).toBe('zh');
-    first.unmount();
+  it('reads the shared age preference from the legacy storefront key', async () => {
+    const legacyTimestamp = Date.now() - 1_000;
+    window.localStorage.setItem(AGE_CONFIRMATION_KEY, String(legacyTimestamp));
+    expect(readCustomerPreferences().confirmedAt).toBe(legacyTimestamp);
     useCustomerPreferences.setState(readCustomerPreferences());
-    show();
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.getByRole('button', { name: '语言' }).textContent).toContain('简体中文');
-    expect(screen.getByText('customer')).not.toBeNull();
-  });
+    expect(useCustomerPreferences.getState().confirmedAt).toBe(legacyTimestamp);
 
-  it('supports keyboard dropdown selection and outside dismissal', () => {
-    show();
-    const trigger = screen.getByRole('button', { name: 'Language' });
-    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
-    expect(document.activeElement?.textContent).toBe('English');
-    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' });
-    expect(document.activeElement?.textContent).toBe('Русский');
-    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
-    expect(screen.queryByRole('menu')).toBeNull();
-    expect(document.activeElement).toBe(trigger);
-    expect(screen.getByRole('dialog')).not.toBeNull();
-    fireEvent.click(trigger);
-    fireEvent.pointerDown(screen.getByRole('dialog'));
-    expect(screen.queryByRole('menu')).toBeNull();
-  });
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input), window.location.origin);
+      if (url.pathname === '/api/auth/me/') return { ok: true, json: async () => ({ authenticated: false }) };
+      if (url.pathname === '/api/storefront/rates/') return { ok: true, json: async () => ({ expires_at: null }) };
+      return { ok: true, status: 200, json: async () => backendPageFixture };
+    }));
+    useAuthStore.setState({ isLoading: true });
+    const container = document.createElement('div');
+    container.id = 'store-root';
+    document.body.append(container);
 
-  it.each([{ is_staff: true, is_superuser: false }, { is_staff: false, is_superuser: true }])('keeps administrator views unchanged: %j', (flags) => {
-    useAuthStore.setState({ user: { username: 'admin', ...flags }, isAuthenticated: true });
-    show();
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.queryByRole('button', { name: /Language|语言|Язык/ })).toBeNull();
-    expect(screen.getByText('Catalogue content')).not.toBeNull();
-    expect(document.documentElement.lang).toBe('zh-CN');
-  });
+    render(<LiveStorefront initialPage={backendPageFixture} />, { container });
+    await screen.findByRole('heading', { name: 'Cohiba Robustos' });
 
-  it.each(['/cigar/1/cohiba', '/p/token', '/privnote', '/sales', '/prices', '/login'])('does not add the experience to excluded route %s', (path) => {
-    show(undefined, path);
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.queryByRole('button', { name: /Language|语言|Язык/ })).toBeNull();
-    expect(screen.getByText('Catalogue content')).not.toBeNull();
-  });
-
-  it('keeps search and metadata in sync when switching language, including mobile navigation', async () => {
-    useCustomerPreferences.setState({ confirmedAt: Date.now() });
-    show(<BrandListPage />);
-    const search = await screen.findByRole('textbox', { name: 'Search brand names…' });
-    fireEvent.change(search, { target: { value: 'Cohiba' } });
-    selectLanguage('Русский');
-    expect(screen.getByRole('textbox', { name: 'Поиск по названию бренда…' }).getAttribute('value')).toBe('Cohiba');
-    expect(screen.getByRole('heading', { name: 'Каталог кубинских сигар' })).not.toBeNull();
-    expect(screen.queryByText('Montecristo')).toBeNull();
-    expect(document.title).toBe('Каталог кубинских сигар · CigarDomTabaka');
-    expect(within(screen.getByRole('navigation', { name: 'Мобильная навигация' })).getByRole('link', { name: 'Бренды' })).not.toBeNull();
-    act(() => useAuthStore.setState({ user: { username: 'staff', is_staff: true, is_superuser: false }, isAuthenticated: true }));
-    expect(screen.queryByRole('button', { name: 'Язык' })).toBeNull();
-    expect(screen.getByRole('heading', { name: '古巴雪茄目录' })).not.toBeNull();
-    expect(document.documentElement.lang).toBe('zh-CN');
-  });
-
-  it('restores Chinese document language on excluded routes', () => {
-    useCustomerPreferences.setState({ confirmedAt: Date.now(), locale: 'ru' });
-    function NavigateAway() { const navigate = useNavigate(); return <button onClick={() => navigate('/cigar/1')}>Product detail</button>; }
-    show(<NavigateAway />);
-    expect(document.documentElement.lang).toBe('ru');
-    fireEvent.click(screen.getByRole('button', { name: 'Product detail' }));
-    expect(document.documentElement.lang).toBe('zh-CN');
-    expect(screen.queryByRole('button', { name: 'Язык' })).toBeNull();
+    expect(document.querySelector('[data-age-gate]')?.hasAttribute('hidden')).toBe(true);
+    expect(window.localStorage.getItem(CUSTOMER_AGE_KEY)).toBeNull();
   });
 });

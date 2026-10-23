@@ -45,7 +45,7 @@ class StoreTranslation(models.Model):
     locale = models.CharField('语言', max_length=2, choices=LOCALES)
     title = models.CharField('页面标题', max_length=180)
     description = models.CharField('搜索摘要', max_length=400)
-    body = models.TextField('正文（纯文本）')
+    body = models.TextField('正文（纯文本）', blank=True)
     aliases = models.CharField('搜索别名（空格分隔）', max_length=500, blank=True)
     hours = models.CharField('营业时间（首页使用）', max_length=200, blank=True)
     published = models.BooleanField('翻译已核对，可公开', default=False)
@@ -63,7 +63,8 @@ class StoreTranslation(models.Model):
             valid = self.key.isdigit() and Cigar.objects.filter(pk=int(self.key), deleted_at__isnull=True).exists()
         if not valid:
             raise ValidationError({'key': '页面对象不存在。'})
-        if self.published and not all(value.strip() for value in (self.title, self.description, self.body)):
+        required = (self.title, self.description) if self.kind == 'brand' else (self.title, self.description, self.body)
+        if self.published and not all(value.strip() for value in required):
             raise ValidationError('发布前需填写并核对标题、摘要和正文。')
 
     def __str__(self):

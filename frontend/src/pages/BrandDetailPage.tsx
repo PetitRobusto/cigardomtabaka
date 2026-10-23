@@ -32,7 +32,7 @@ export default function BrandDetailPage() {
       setMeta({
         title: locale === 'zh' ? data.brand.name : data.brand.english_name,
         breadcrumbs: [
-          { label: text.home, to: '/' },
+          { label: text.home, to: '/library' },
           { label: locale === 'zh' ? data.brand.name : data.brand.english_name },
         ],
       });
@@ -178,7 +178,7 @@ export default function BrandDetailPage() {
                     return (
                       <Link
                         key={cigar.id}
-                        to={`/cigar/${cigar.id}/${generateCigarSlugFromParts(brand.name, cigar.english_name, cigar.release_type)}`}
+                        to={`/library/cigar/${cigar.id}/${generateCigarSlugFromParts(brand.name, cigar.english_name, cigar.release_type)}`}
                         className={`group bg-white border border-border rounded overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 border-l-[3px] ${borderLeft}`}
                       >
                         {/* Header */}

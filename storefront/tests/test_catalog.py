@@ -90,9 +90,34 @@ class StorefrontCatalogTests(TestCase):
         listing.save()
         self.assertNotIn(path, build_pages())
 
-    def test_translated_product_requires_published_complete_translation(self):
+    def test_missing_product_translation_keeps_locale_page_with_safe_fallback(self):
         path = f"/en/cigar/{self.cigar.pk}/test-brand-test-cigar"
-        self.assertNotIn(path, build_pages())
+        fallback = build_pages()[path]
+        self.assertEqual(fallback["product"]["name"], self.cigar.english_name)
+        self.assertEqual(fallback["product"]["description"], "Robusto")
+        self.assertFalse(fallback["translation_complete"])
+        self.assertEqual(fallback["content_locale"], "en")
+        self.assertFalse(fallback["indexable"])
+        self.assertTrue(allowed_payload(fallback))
+        self.assertNotIn("en", {row["locale"] for row in fallback["alternates"]})
+        self.assertEqual({row["locale"] for row in fallback["browsing_alternates"]}, {"zh", "ru", "en"})
+        pages = build_pages()
+        locale_products = {
+            locale: {page["product"]["id"] for page in pages.values()
+                     if page["locale"] == locale and page["kind"] == "product"}
+            for locale in ("zh", "ru", "en")
+        }
+        self.assertEqual(locale_products["zh"], locale_products["ru"])
+        self.assertEqual(locale_products["zh"], locale_products["en"])
+        StorePage.objects.create(
+            path=path, payload=fallback, rendered_payload=fallback,
+            desired_hash=semantic_hash(fallback), rendered_hash=semantic_hash(fallback),
+            html="<html><body>fallback product</body></html>",
+        )
+        response = page(self.factory.get(path))
+        self.assertEqual(response["X-Robots-Tag"], "noindex, nofollow")
+        sitemap = self.client.get("/sitemap-storefront.xml")
+        self.assertNotContains(sitemap, path)
         self.add_home_translation("en")
         self.add_brand_translation("en")
         self.add_product_translation("en")
@@ -100,7 +125,30 @@ class StorefrontCatalogTests(TestCase):
         self.assertEqual(payload["locale"], "en")
         self.assertEqual(payload["product"]["description"], "Reviewed cigar description")
         self.assertEqual(payload["product"]["brand"], "Reviewed en brand")
-        self.assertEqual(payload["alternates"], [{"locale": "zh", "path": f"/cigar/{self.cigar.pk}/test-brand-test-cigar"}, {"locale": "en", "path": path}])
+        self.assertTrue(payload["translation_complete"])
+        self.assertTrue(payload["indexable"])
+
+    def test_published_english_translation_revocation_invalidates_cached_english_fallback(self):
+        self.add_home_translation("en")
+        self.add_brand_translation("en")
+        translation = self.add_product_translation("en")
+        path = f"/en/cigar/{self.cigar.pk}/test-brand-test-cigar"
+        payload = build_pages()[path]
+        self.assertTrue(allowed_payload(payload))
+        translation.published = False
+        translation.save(update_fields=["published"])
+        self.assertFalse(allowed_payload(payload))
+
+    def test_store_translation_brand_body_may_be_empty(self):
+        row = StoreTranslation.objects.create(
+            kind="brand", key=self.brand.slug, locale="en", title=self.brand.english_name,
+            description=self.brand.english_name, body="", published=True,
+        )
+        row.full_clean()
+        self.add_home_translation("en")
+        payload = build_pages()[f"/en/brand/{self.brand.slug}"]
+        self.assertEqual(payload["body"], "")
+        self.assertEqual(payload["title"], self.brand.english_name)
 
     def test_untranslated_non_chinese_brand_fallback_uses_english_name(self):
         product = _product_data(
@@ -221,7 +269,7 @@ class StorefrontCatalogTests(TestCase):
         self.assertIn({"locale": "ru", "path": f"/ru/brand/{self.brand.slug}"}, zh_page_two["browsing_alternates"])
         self.assertTrue(allowed_payload(zh_page_two))
         StoreTranslation.objects.filter(kind="home", key="home", locale="ru").update(published=False)
-        self.assertFalse(allowed_payload(zh_page_two))
+        self.assertTrue(allowed_payload(zh_page_two))
 
     def test_stock_requires_complete_available_boxes_and_live_batch(self):
         self.batch.available_box_quantity = 0

@@ -61,7 +61,7 @@ describe("storefront server renderer", () => {
       breadcrumbs: [],
     };
     const html = renderStorePage({ page: home, origin: "https://shop.example", assets: { js: [], css: [] } });
-    expect(html).toContain('class="brand-lock store-brand-link" href="/"');
+    expect(html).toContain('class="site-brand" href="/"');
     expect(html).toContain('class="btn-pri" href="/catalog"');
     expect(html).toContain('"item":"https://shop.example/"');
     expect(html).toContain("10");

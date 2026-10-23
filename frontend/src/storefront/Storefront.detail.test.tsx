@@ -39,13 +39,13 @@ describe("storefront product detail", () => {
     expect(screen.getByText("В наличии")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Цена" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Связаться" }).getAttribute("href")).toBe("#store-contact");
-    expect(container.querySelector(".store-contact-details a[href^=tel]")?.getAttribute("href")).toBe("tel:+70000000000");
+    expect(container.querySelector(".site-footer-contacts a[href^=tel]")?.getAttribute("href")).toBe("tel:+79296384878");
     expect(container.querySelector("#store-contact button")).toBeNull();
-    expect(container.querySelector(".store-contact-details")?.textContent).toContain("cigar-contact");
+    expect(container.querySelector(".site-footer-contacts")?.textContent).toContain("cigardomtabaka");
     expect(container.querySelector(".store-description")?.textContent).toBe("Русское описание товара");
     const contactListener = vi.fn();
     window.addEventListener("cdt:store-contact", contactListener, { once: true });
-    const phoneLink = container.querySelector<HTMLAnchorElement>(".store-contact-details a[href^=tel]")!;
+    const phoneLink = container.querySelector<HTMLAnchorElement>(".site-footer-contacts a[href^=tel]")!;
     phoneLink.addEventListener("click", (event) => event.preventDefault(), { once: true });
     fireEvent.click(phoneLink);
     expect(contactListener.mock.calls[0]?.[0]).toMatchObject({ detail: { kind: "phone", locale: "ru", product_id: "5" } });

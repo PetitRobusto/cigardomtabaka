@@ -8,6 +8,12 @@
   var status = root.querySelector('.cdt-startup__status');
   var retry = root.querySelector('.cdt-startup__retry');
   var surface = root.querySelector('.cdt-startup__surface');
+  var appRoots = Array.prototype.slice.call(document.querySelectorAll('#root, #store-root'));
+  if (!mark || !status || !retry || !surface || !appRoots.length) return;
+  // The SSR overlay stays hidden unless this script is available and runs.
+  root.hidden = false;
+  document.documentElement.dataset.cdtStarting = 'true';
+  document.body.classList.add('cdt-starting');
   var motionSrc = mark.dataset.motionSrc || mark.getAttribute('src');
   var staticSrc = mark.dataset.staticSrc;
   var motionStart = null;
@@ -37,7 +43,7 @@
   }
 
   function hasPendingReactLoader() {
-    return Boolean(document.querySelector('#root .cdt-loader'));
+    return Boolean(document.querySelector('#root .cdt-loader, #store-root .cdt-loader'));
   }
 
   function finish() {
@@ -162,7 +168,8 @@
     root.dataset.phase = 'failed';
     mark.src = mark.dataset.staticSrc;
     root.setAttribute('aria-busy', 'false');
-    setStatus('内容加载失败，请重试');
+    setStatus(root.dataset.failedText || '内容加载失败，请重试');
+    retry.textContent = root.dataset.retryText || retry.textContent;
     retry.hidden = false;
   }
 
@@ -187,10 +194,13 @@
     handleLogoError();
   }
   observer = new MutationObserver(attemptReady);
-  observer.observe(document.getElementById('root'), { childList: true, subtree: true });
+  appRoots.forEach(function (appRoot) {
+    observer.observe(appRoot, { childList: true, subtree: true });
+  });
   slowTimer = window.setTimeout(function () {
     if (state !== 'loading') return;
-    setStatus('加载时间较长，请稍候');
+    setStatus(root.dataset.slowText || '加载时间较长，请稍候');
+    retry.textContent = root.dataset.retryText || retry.textContent;
     retry.hidden = false;
   }, 10000);
 

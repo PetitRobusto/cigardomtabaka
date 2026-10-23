@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useAuthStore } from "../store/authStore";
+import { AGE_CONFIRMATION_TTL, CUSTOMER_AGE_KEY, isAgeConfirmationValid as isPreferenceAgeConfirmationValid, useCustomerPreferences } from "../features/customer/preferences";
+import "../components/shared/startup-loader.css";
 import { Storefront } from "./Storefront";
 import { storeCopy } from "./copy";
 import { AGE_CONFIRMATION_KEY, isAgeConfirmationValid } from "./ageConfirmation";
@@ -9,7 +12,7 @@ import { clearStoreMetadata, markStoreNavigationFailure, updateStoreMetadata } f
 import { homePath } from "./browsing";
 import type { StorePageData, StoreRates } from "./types";
 
-let ageConfirmedInMemory = false;
+const MAX_TIMEOUT_MS = 2_147_483_647;
 
 function subscribeLocation(onChange: () => void) {
   window.addEventListener("popstate", onChange);
@@ -19,21 +22,69 @@ function subscribeLocation(onChange: () => void) {
 }
 function locationSnapshot() { return window.location.pathname + window.location.search + window.location.hash; }
 
+function getAgeConfirmationTimestamp(): number | null {
+  const preferences = useCustomerPreferences.getState();
+  if (preferences.denied) return null;
+  const preferenceTimestamp = isPreferenceAgeConfirmationValid(preferences.confirmedAt) ? preferences.confirmedAt : null;
+  try {
+    const currentTimestamp = localStorage.getItem(CUSTOMER_AGE_KEY);
+    const legacyTimestamp = localStorage.getItem(AGE_CONFIRMATION_KEY);
+    const storedTimestamp = currentTimestamp ?? legacyTimestamp;
+    if (storedTimestamp === null) return null;
+    return isAgeConfirmationValid(storedTimestamp) ? Number(storedTimestamp) : null;
+  } catch {
+    return preferenceTimestamp;
+  }
+}
+
 function subscribeAgeConfirmation(onChange: () => void) {
-  window.addEventListener("storage", onChange);
-  window.addEventListener("cdt:store-age-confirmation", onChange);
+  let expiryTimer: number | undefined;
+  const scheduleExpiryCheck = () => {
+    if (expiryTimer !== undefined) window.clearTimeout(expiryTimer);
+    const confirmedAt = getAgeConfirmationTimestamp();
+    if (confirmedAt === null) return;
+    const remaining = confirmedAt + AGE_CONFIRMATION_TTL - Date.now();
+    if (remaining <= 0) return;
+    expiryTimer = window.setTimeout(() => {
+      expiryTimer = undefined;
+      onChange();
+      scheduleExpiryCheck();
+    }, Math.min(remaining, MAX_TIMEOUT_MS));
+  };
+  const recheck = () => {
+    onChange();
+    scheduleExpiryCheck();
+  };
+  const onVisibilityChange = () => {
+    if (document.visibilityState === "visible") recheck();
+  };
+  const unsubscribePreferences = useCustomerPreferences.subscribe(recheck);
+  window.addEventListener("storage", recheck);
+  window.addEventListener("cdt:store-age-confirmation", recheck);
+  window.addEventListener("focus", recheck);
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  scheduleExpiryCheck();
   return () => {
-    window.removeEventListener("storage", onChange);
-    window.removeEventListener("cdt:store-age-confirmation", onChange);
+    if (expiryTimer !== undefined) window.clearTimeout(expiryTimer);
+    unsubscribePreferences();
+    window.removeEventListener("storage", recheck);
+    window.removeEventListener("cdt:store-age-confirmation", recheck);
+    window.removeEventListener("focus", recheck);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
   };
 }
 
 function getAgeConfirmationSnapshot() {
-  try { return ageConfirmedInMemory || isAgeConfirmationValid(localStorage.getItem(AGE_CONFIRMATION_KEY)); }
-  catch { return ageConfirmedInMemory; }
+  return getAgeConfirmationTimestamp() !== null;
 }
 
 export function LiveStorefront({ initialPage, origin }: { initialPage: StorePageData; origin?: string }) {
+  const { user, isLoading: authLoading, checkAuth, logout } = useAuthStore();
+  useEffect(() => { void checkAuth(); }, [checkAuth]);
+  useEffect(() => {
+    document.documentElement.dataset.cdtAppReady = "true";
+    window.dispatchEvent(new Event("cdt:app-ready"));
+  }, []);
   const currentUrl = useSyncExternalStore(subscribeLocation, locationSnapshot, () => initialPage.path);
   const [page, setPage] = useState<StorePageData | null>(initialPage);
   const [rates, setRates] = useState<StoreRates | null>(null);
@@ -72,11 +123,10 @@ export function LiveStorefront({ initialPage, origin }: { initialPage: StorePage
   }, [ageConfirmed, page]);
 
   const confirmAge = () => {
-    try { localStorage.setItem(AGE_CONFIRMATION_KEY, String(Date.now())); } catch { /* Continue for this page even when storage is unavailable. */ }
-    ageConfirmedInMemory = true;
+    useCustomerPreferences.getState().confirmAge();
     window.dispatchEvent(new Event("cdt:store-age-confirmation"));
   };
-  const declineAge = () => window.location.replace("about:blank");
+  const declineAge = () => { useCustomerPreferences.getState().denyAge(); window.location.replace("about:blank"); };
 
   useEffect(() => {
     let active = true;
@@ -163,8 +213,9 @@ export function LiveStorefront({ initialPage, origin }: { initialPage: StorePage
 
   const locale = page?.locale || (requestPath.startsWith("/ru/") ? "ru" : requestPath.startsWith("/en/") ? "en" : "zh");
   const labels = storeCopy[locale];
+  useEffect(() => { useCustomerPreferences.getState().selectLocale(locale); }, [locale]);
   return <>
-    {page ? <ReferencePrices currency={currency} rates={rates}><Storefront page={page} currentUrl={displayedUrl} busy={loading} currency={currency} onCurrencyChange={setCurrency} ageConfirmed={ageConfirmed} onAgeConfirm={confirmAge} onAgeDecline={declineAge} /></ReferencePrices> : <main className="view store-main"><section className="wrap store-section"><h1>{labels.pageUnavailable}</h1><a href={homePath(locale)}>{labels.home}</a></section></main>}
+    {page ? <ReferencePrices currency={currency} rates={rates}><Storefront page={page} user={authLoading ? null : user} onLogout={logout} currentUrl={displayedUrl} busy={loading} currency={currency} onCurrencyChange={setCurrency} ageConfirmed={ageConfirmed} onAgeConfirm={confirmAge} onAgeDecline={declineAge} /></ReferencePrices> : <main className="view store-main"><section className="wrap store-section"><h1>{labels.pageUnavailable}</h1><a href={homePath(locale)}>{labels.home}</a></section></main>}
     {loading && <><div className="store-navigation-progress" aria-hidden="true" /><span className="visually-hidden" role="status">{labels.loadingPage}</span></>}
     {refreshFailed && <p className="store-live-status" role="status">{labels.navigationError} <button type="button" onClick={() => { navigationKind.current = "push"; setRetryToken((value) => value + 1); }}>{labels.retry}</button></p>}
   </>;

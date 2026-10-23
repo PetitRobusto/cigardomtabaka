@@ -5,7 +5,7 @@ import { PageMetaProvider } from './contexts/PageMetaContext';
 import AppLayout from './components/layout/AppLayout';
 import { DelayedAppSkeleton } from './components/layout/AppSkeleton';
 import { appSectionForPath } from './components/layout/appSections';
-import { decideStaffRoute } from './utils/routeGuard';
+import { decideStaffRoute, resolveStorefrontTarget } from './utils/routeGuard';
 import { BUSINESS_STAFF_PATHS, resolveBusinessRoute } from './pages/businessRoutes';
 import { useAuthStore } from './store/authStore';
 import { BrandLoader } from './components/shared/BrandLoader';
@@ -53,11 +53,72 @@ function StartupLoaderHandoff() {
 
 function StaffGate({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated, user } = useAuthStore();
+  const location = useLocation();
   const decision = decideStaffRoute({ isLoading, isAuthenticated, isStaff: Boolean(user?.is_staff) });
   if (decision === 'loading') return null;
-  if (decision === 'login') return <Navigate to="/login" replace />;
-  if (decision === 'home') return <Navigate to="/" replace />;
+  if (decision === 'login') {
+    const next = `${location.pathname}${location.search}${location.hash}`;
+    return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
+  }
+  if (decision === 'home') return <NativeStorefrontRoute path="/" />;
   return <>{children}</>;
+}
+
+interface AppRuntimeConfig {
+  storefrontEnabled: boolean;
+  djangoOrigin: string;
+  allowConfiguredCrossOrigin: boolean;
+}
+
+function readAppRuntimeConfig(): AppRuntimeConfig {
+  const element = document.getElementById('cdt-app-runtime-config');
+  if (element?.textContent) {
+    try {
+      const config = JSON.parse(element.textContent) as Partial<AppRuntimeConfig>;
+      return {
+        storefrontEnabled: config.storefrontEnabled === true,
+        djangoOrigin: typeof config.djangoOrigin === 'string' ? config.djangoOrigin : '',
+        allowConfiguredCrossOrigin: false,
+      };
+    } catch {
+      return { storefrontEnabled: false, djangoOrigin: '', allowConfiguredCrossOrigin: false };
+    }
+  }
+
+  const djangoOrigin = import.meta.env.DEV ? import.meta.env.VITE_DJANGO_ORIGIN || '' : '';
+  return {
+    storefrontEnabled: import.meta.env.DEV && import.meta.env.VITE_STOREFRONT_ENABLED === 'true',
+    djangoOrigin,
+    allowConfiguredCrossOrigin: Boolean(djangoOrigin && import.meta.env.DEV),
+  };
+}
+
+function NativeStorefrontRoute({ path }: { path: string }) {
+  const location = useLocation();
+  const runtime = readAppRuntimeConfig();
+  const target = resolveStorefrontTarget(`${path}${location.search}${location.hash}`, {
+    enabled: runtime.storefrontEnabled,
+    djangoOrigin: runtime.djangoOrigin,
+    currentOrigin: window.location.origin,
+    allowConfiguredCrossOrigin: runtime.allowConfiguredCrossOrigin,
+  });
+
+  useEffect(() => {
+    if (target) window.location.assign(target);
+  }, [target]);
+
+  if (target) return null;
+  return (
+    <section className="min-h-[50vh] flex flex-col items-center justify-center px-6 text-center" role="status">
+      <h1 className="font-display text-2xl font-semibold text-fg">商城暂不可用</h1>
+      <p className="max-w-md mt-3 text-sm text-muted">
+        {runtime.storefrontEnabled
+          ? '请从配置的 Django 站点入口打开商城。'
+          : '当前站点未启用预渲染商城。'}
+      </p>
+      <a href="/login" className="mt-5 text-sm text-accent underline underline-offset-4">前往登录</a>
+    </section>
+  );
 }
 
 function LegacySalesRoute() {
@@ -104,13 +165,19 @@ function AnimatedRoutes() {
               : { opacity: 1, y: 0, transition: { opacity: { duration: 0.15, ease: 'easeOut' }, y: { duration: 0.15, ease: [0.2, 0, 0, 1] } } }}
           >
             <Routes location={location}>
-          {/* Catalog */}
-          <Route path="/" element={<BrandListPage />} />
-          <Route path="/brand/:slug" element={<BrandDetailPage />} />
-          <Route path="/cigar/:id/:slug?" element={<CigarCatalogDetailPage />} />
+          {/* Public storefront pages are rendered by Django; always cross the app boundary natively. */}
+          <Route path="/" element={<NativeStorefrontRoute path="/" />} />
+          <Route path="/catalog" element={<NativeStorefrontRoute path="/catalog" />} />
+          <Route path="/brand/:slug" element={<NativeStorefrontRoute path={location.pathname} />} />
+          <Route path="/cigar/:id/:slug?" element={<NativeStorefrontRoute path={location.pathname} />} />
+
+          {/* Legacy full directory remains staff only under /library. */}
+          <Route path="/library" element={<StaffGate><BrandListPage /></StaffGate>} />
+          <Route path="/library/brand/:slug" element={<StaffGate><BrandDetailPage /></StaffGate>} />
+          <Route path="/library/cigar/:id/:slug?" element={<StaffGate><CigarCatalogDetailPage /></StaffGate>} />
 
           {/* Inventory */}
-          <Route path={BUSINESS_STAFF_PATHS.inventory} element={<InventoryPage />} />
+          <Route path={BUSINESS_STAFF_PATHS.inventory} element={<StaffGate><InventoryPage /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.inventoryPurchases} element={<StaffGate><InventoryPurchasesPage /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.sales} element={<StaffGate><LegacySalesRoute /></StaffGate>} />
           <Route path={BUSINESS_STAFF_PATHS.salesReceipts} element={<StaffGate><Navigate to={BUSINESS_STAFF_PATHS.sales} replace /></StaffGate>} />
@@ -124,12 +191,12 @@ function AnimatedRoutes() {
           <Route path="/help" element={<StaffHelpRoute />} />
 
           {/* Price Tracker */}
-          <Route path="/prices" element={<PriceDashboard />} />
-          <Route path="/prices/cigar/:id/:slug?" element={<PriceCigarDetail />} />
-          <Route path="/prices/alerts" element={<AlertsPage />} />
+          <Route path="/prices" element={<StaffGate><PriceDashboard /></StaffGate>} />
+          <Route path="/prices/cigar/:id/:slug?" element={<StaffGate><PriceCigarDetail /></StaffGate>} />
+          <Route path="/prices/alerts" element={<StaffGate><AlertsPage /></StaffGate>} />
 
           {/* Privnote */}
-          <Route path="/privnote" element={<PrivnotePage />} />
+          <Route path="/privnote" element={<StaffGate><PrivnotePage /></StaffGate>} />
           <Route path="/p/:token" element={<PrivnoteViewPage />} />
 
           {/* Auth */}

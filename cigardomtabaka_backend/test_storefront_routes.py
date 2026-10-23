@@ -3,13 +3,15 @@
 from unittest.mock import patch
 
 from django.http import HttpResponse
-from django.test import SimpleTestCase, override_settings
+from django.contrib.auth import get_user_model
+from django.test import TestCase, override_settings
 
 
 @override_settings(STOREFRONT_ENABLED=True, DEBUG=True)
-class StorefrontSpaRouteTests(SimpleTestCase):
+class StorefrontSpaRouteTests(TestCase):
     # These are page routes in App.tsx/businessRoutes.ts, not namespace prefixes.
     fixed_paths = (
+        '/library', '/library/brand',
         '/inventory', '/inventory/purchases',
         '/sales', '/sales/receipts', '/sales/customers',
         '/accounting', '/accounting/day1',
@@ -18,6 +20,7 @@ class StorefrontSpaRouteTests(SimpleTestCase):
         '/help', '/prices', '/prices/alerts', '/privnote', '/login',
     )
     parameter_paths = (
+        '/library/brand/cohiba', '/library/cigar/123', '/library/cigar/123/cohiba-robustos',
         '/prices/cigar/123', '/prices/cigar/123/cohiba-robustos',
         '/p/customer-token_123',
     )
@@ -25,6 +28,7 @@ class StorefrontSpaRouteTests(SimpleTestCase):
         '/invented-page', '/pricesfake', '/inventoryfake', '/salesfake',
         '/accountingfake', '/helpful', '/privnotefake', '/loginfake',
         '/catalogfake', '/catalog/not-a-page',
+        '/libraryfake', '/library/unknown', '/library/cigar/not-an-id',
         '/prices/not-a-page', '/inventory/not-a-page',
         '/inventory/purchases/123', '/sales/customers/123',
         '/accounting/reports/not-a-page', '/reports/not-a-page',
@@ -32,6 +36,13 @@ class StorefrontSpaRouteTests(SimpleTestCase):
         '/prices/cigar', '/prices/cigar/not-an-id',
         '/prices/cigar/123/slug/extra', '/p', '/p/token/extra',
     )
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.staff = get_user_model().objects.create_user(username='spa-staff', is_staff=True)
+
+    def setUp(self):
+        self.client.force_login(self.staff)
 
     def test_existing_pages_and_single_trailing_slash_keep_the_spa(self):
         for base_path in self.fixed_paths + self.parameter_paths:
@@ -70,4 +81,22 @@ class StorefrontSpaRouteTests(SimpleTestCase):
     def test_disabled_storefront_retains_legacy_spa_catchall(self):
         for path in ('/', '/invented-page', '/pricesfake', '/prices/not-a-page', '/ru/not-a-page'):
             with self.subTest(path=path):
-                self.assertContains(self.client.get(path), '<div id="root"></div>')
+                response = self.client.get(path)
+                self.assertContains(response, '<div id="root"></div>')
+                self.assertEqual(response.context['app_runtime_config'], {
+                    'storefrontEnabled': False,
+                    'djangoOrigin': 'http://testserver',
+                })
+                self.assertContains(response, 'id="cdt-app-runtime-config"')
+
+    def test_staff_route_gate_redirects_anonymous_and_regular_users(self):
+        self.client.logout()
+        response = self.client.get('/library/brand/cohiba')
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], '/login/?next=%2Flibrary%2Fbrand%2Fcohiba')
+
+        regular = get_user_model().objects.create_user(username='spa-regular')
+        self.client.force_login(regular)
+        response = self.client.get('/prices/alerts')
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], '/')

@@ -1,12 +1,14 @@
 import json
 
 from django.test import TestCase
+from django.contrib.auth import get_user_model
 
 from cigars.models import Cigar
 
 
 class CigarDetailPackagingApiTest(TestCase):
     def test_detail_exposes_declared_box_sizes_separately_from_display_packagings(self):
+        self.client.force_login(get_user_model().objects.create_user(username='catalog-staff', is_staff=True))
         cigar = Cigar.objects.create(
             brand='包装接口品牌',
             english_name='Packaging API Cigar',

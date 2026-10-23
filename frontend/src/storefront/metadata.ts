@@ -37,13 +37,13 @@ export function updateStoreMetadata(page: StorePageData, origin: string, request
   canonical.rel = "canonical"; canonical.href = new URL(page.path, origin).toString();
   if (!canonical.isConnected) document.head.append(canonical);
   document.head.querySelectorAll('link[rel="alternate"][hreflang]').forEach((element) => element.remove());
-  const alternates = [{ locale: "x-default", path: page.alternates.find((item) => item.locale === "zh")?.path || page.path }, ...page.alternates];
+  const alternates = page.alternates.length ? [{ locale: "x-default", path: page.alternates.find((item) => item.locale === "zh")?.path || page.alternates[0].path }, ...page.alternates] : [];
   for (const item of alternates) {
     const link = document.createElement("link"); link.rel = "alternate";
     link.hreflang = item.locale === "zh" ? "zh-CN" : item.locale;
     link.href = new URL(item.path, origin).toString(); document.head.append(link);
   }
-  meta("robots", ["q", "brand", "box", "sort"].some((key) => requested.searchParams.get(key)) ? "noindex, nofollow" : null);
+  meta("robots", page.indexable === false || ["q", "brand", "box", "sort"].some((key) => requested.searchParams.get(key)) ? "noindex, nofollow" : null);
   meta("og:type", "website", true); meta("og:title", page.title, true);
   meta("og:description", page.description, true); meta("og:url", canonical.href, true);
   const image = page.product?.image_url || page.site.photo;

@@ -38,6 +38,7 @@ SITE_DESCRIPTIONS = json.loads(
 # Keep these page routes aligned with frontend/src/App.tsx and businessRoutes.ts.
 # A namespace prefix is insufficient: unknown children otherwise become soft 404s.
 SPA_PAGE_PATHS = frozenset({
+    '/library', '/library/brand',
     '/inventory', '/inventory/purchases',
     '/sales', '/sales/receipts', '/sales/customers',
     '/accounting', '/accounting/day1',
@@ -46,6 +47,17 @@ SPA_PAGE_PATHS = frozenset({
     '/help', '/prices', '/prices/alerts', '/privnote', '/login',
 })
 SPA_PARAMETER_PATH = re.compile(r'/(?:prices/cigar/[0-9]+(?:/[^/]+)?|p/[^/]+)')
+LIBRARY_PATH = re.compile(r'/library(?:/brand/[^/]+|/cigar/[0-9]+(?:/[^/]+)?)?')
+STAFF_PAGE_PREFIXES = (
+    '/library', '/inventory', '/sales', '/accounting', '/reports',
+    '/help', '/prices', '/privnote',
+)
+
+
+def is_staff_page_path(path):
+    normalized = path.removesuffix('/') or '/'
+    return any(normalized == prefix or normalized.startswith(prefix + '/')
+               for prefix in STAFF_PAGE_PREFIXES)
 
 
 def admin_login_redirect(request):
@@ -69,15 +81,28 @@ def spa_index(request):
             return page(request)
         # Unknown URLs must not become indexable 200 responses with an empty SPA.
         spa_path = request.path.removesuffix('/')
-        staff_or_existing = spa_path in SPA_PAGE_PATHS or SPA_PARAMETER_PATH.fullmatch(spa_path)
+        staff_or_existing = (
+            spa_path in SPA_PAGE_PATHS
+            or SPA_PARAMETER_PATH.fullmatch(spa_path)
+            or LIBRARY_PATH.fullmatch(spa_path)
+        )
         if not staff_or_existing:
             raise Http404
+    if is_staff_page_path(request.path):
+        if not request.user.is_authenticated:
+            return redirect(f'/login/?{urlencode({"next": request.get_full_path()})}')
+        if not request.user.is_staff:
+            return redirect('/')
     dev_host = urlsplit(request.build_absolute_uri()).hostname or 'localhost'
     if ':' in dev_host:
         dev_host = f'[{dev_host}]'
     return render(request, 'spa_index.html', {
         'debug': settings.DEBUG,
         'vite_origin': f'{request.scheme}://{dev_host}:5173',
+        'app_runtime_config': {
+            'storefrontEnabled': settings.STOREFRONT_ENABLED,
+            'djangoOrigin': request.build_absolute_uri('/').rstrip('/'),
+        },
         # The current page content is Chinese; translations are reserved for localized pages.
         'site_description': SITE_DESCRIPTIONS['zh-CN'],
     })

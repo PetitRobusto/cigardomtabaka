@@ -25,8 +25,8 @@ export default function CigarCatalogDetailPage() {
       setMeta({
         title: `${data.cigar.name || data.cigar.english_name} · ${data.brand?.name || data.cigar.brand}`,
         breadcrumbs: [
-          { label: '首页', to: '/' },
-          { label: data.brand?.name || data.cigar.brand, to: data.brand ? `/brand/${data.brand.slug}` : undefined },
+          { label: '旧目录', to: '/library' },
+          { label: data.brand?.name || data.cigar.brand, to: data.brand ? `/library/brand/${data.brand.slug}` : undefined },
           { label: data.cigar.name || data.cigar.english_name },
         ],
       });
@@ -59,7 +59,7 @@ export default function CigarCatalogDetailPage() {
     quickSpecs.push({
       label: '品牌',
       value: (
-        <Link to={`/brand/${brand.slug}`} className="text-accent hover:underline">
+        <Link to={`/library/brand/${brand.slug}`} className="text-accent hover:underline">
           {brand.name}
         </Link>
       ),
@@ -222,7 +222,7 @@ export default function CigarCatalogDetailPage() {
                 {children.map(child => (
                   <Link
                     key={child.id}
-                    to={`/cigar/${child.id}/${generateCigarSlugFromParts(cigar.brand, child.english_name, child.release_type)}`}
+                    to={`/library/cigar/${child.id}/${generateCigarSlugFromParts(cigar.brand, child.english_name, child.release_type)}`}
                     className="flex items-center gap-3 bg-white border border-border rounded-md p-3 hover:border-accent transition-colors"
                   >
                     <div className="w-12 h-12 rounded bg-accent-light flex items-center justify-center shrink-0 overflow-hidden">
@@ -281,7 +281,7 @@ export default function CigarCatalogDetailPage() {
               </div>
               <div className="p-5">
                 <Link
-                  to={`/brand/${brand.slug}`}
+                  to={`/library/brand/${brand.slug}`}
                   className="flex items-center gap-3 mb-4 group"
                 >
                   <div className="w-11 h-11 rounded bg-accent-light flex items-center justify-center overflow-hidden shrink-0">
@@ -301,7 +301,7 @@ export default function CigarCatalogDetailPage() {
                   </div>
                 </Link>
                 <Link
-                  to={`/brand/${brand.slug}`}
+                  to={`/library/brand/${brand.slug}`}
                   className="text-[13px] text-accent font-medium hover:underline"
                 >
                   查看全部 {brand.cigar_count} 款
@@ -320,7 +320,7 @@ export default function CigarCatalogDetailPage() {
                 {related.map((r, idx) => (
                   <Link
                     key={r.id}
-                    to={`/cigar/${r.id}/${generateCigarSlugFromParts(cigar.brand, r.english_name)}`}
+                    to={`/library/cigar/${r.id}/${generateCigarSlugFromParts(cigar.brand, r.english_name)}`}
                     className={`flex items-center gap-3 py-3 transition-colors hover:bg-accent-light -mx-5 px-5 ${
                       idx < related.length - 1 ? 'border-b border-border' : ''
                     }`}

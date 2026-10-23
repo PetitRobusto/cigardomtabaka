@@ -67,7 +67,7 @@ def test_import_coh_bulk_creates_snapshot_with_box_size():
     """COH import creates a snapshot and parses compound box info."""
     cigar = create_cohiba_cigar('Test Robusto')
     source = create_coh_source()
-    user = get_user_model().objects.create_user(username='coh-importer')
+    user = get_user_model().objects.create_user(username='coh-importer', is_staff=True)
     request = APIRequestFactory().post(
         '/api/prices/import_coh/',
         {'cohiba': [{'name': 'Test Robusto', 'price': 100, 'box_info': '3x2 Box'}]},
@@ -94,7 +94,7 @@ def test_import_coh_bulk_reports_unmatched_and_price_skips():
     """COH import keeps skipped no-price rows separate from unmatched rows."""
     Brand.objects.create(name='Cohiba', english_name='Cohiba')
     create_coh_source()
-    user = get_user_model().objects.create_user(username='coh-importer')
+    user = get_user_model().objects.create_user(username='coh-importer', is_staff=True)
     request = APIRequestFactory().post(
         '/api/prices/import_coh/',
         {

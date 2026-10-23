@@ -100,6 +100,16 @@ describe("storefront metadata", () => {
     expect(document.head.querySelector<HTMLMetaElement>('meta[name="robots"]')).toBeNull();
   });
 
+  it("does not index English fallback content or invent language alternates", () => {
+    setUpHead();
+    const fallback = { ...backendPageFixture, indexable: false, alternates: [] };
+    updateStoreMetadata(fallback, "https://shop.example", new URL("https://shop.example" + fallback.path));
+    expect(document.head.querySelector<HTMLMetaElement>('meta[name="robots"]')?.content).toBe("noindex, nofollow");
+    expect(document.head.querySelectorAll('link[rel="alternate"][hreflang]')).toHaveLength(0);
+    updateStoreMetadata({ ...fallback, indexable: true }, "https://shop.example", new URL("https://shop.example" + fallback.path));
+    expect(document.head.querySelector('meta[name="robots"]')).toBeNull();
+  });
+
   it("clears stale SEO identity and blocks indexing after a client-side 404", () => {
     setUpHead();
     clearStoreMetadata("Page unavailable", "ru");

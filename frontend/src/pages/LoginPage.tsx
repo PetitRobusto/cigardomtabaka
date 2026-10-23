@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { Lock, User } from 'lucide-react';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { brandLogoUrl } from '../utils/brandAssets';
+import { safeLoginDestination } from '../utils/routeGuard';
 
 export default function LoginPage() {
   const { setMeta } = usePageMeta();
@@ -19,18 +20,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
   const location = useLocation();
-  const { login, isAuthenticated } = useAuthStore();
+  const { login, isAuthenticated, user } = useAuthStore();
 
   // 已登录自动跳转
   useEffect(() => {
     if (isAuthenticated) {
       const params = new URLSearchParams(location.search);
-      const next = params.get('next');
-      navigate(next?.startsWith('/') ? next : '/');
+      window.location.replace(safeLoginDestination(params.get('next'), Boolean(user?.is_staff)));
     }
-  }, [isAuthenticated, location.search, navigate]);
+  }, [isAuthenticated, location.search, user?.is_staff]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,8 +39,8 @@ export default function LoginPage() {
     setLoading(false);
     if (result.ok) {
       const params = new URLSearchParams(location.search);
-      const next = params.get('next');
-      navigate(next?.startsWith('/') ? next : '/');
+      const authenticatedUser = useAuthStore.getState().user;
+      window.location.replace(safeLoginDestination(params.get('next'), Boolean(authenticatedUser?.is_staff)));
     } else {
       setError(result.error || '登录失败');
     }

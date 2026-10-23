@@ -1,6 +1,9 @@
 export type StoreLocale = "zh" | "ru" | "en";
 
 export type StoreProduct = {
+  translation_complete?: boolean;
+  content_locale?: StoreLocale;
+  indexable?: boolean;
   id: number | string;
   name: string;
   english_name: string;
@@ -21,6 +24,9 @@ export type StoreProduct = {
 };
 
 export type StorePageData = {
+  translation_complete?: boolean;
+  content_locale?: StoreLocale;
+  indexable?: boolean;
   locale: StoreLocale;
   kind: "home" | "brand" | "product";
   view?: "catalog";

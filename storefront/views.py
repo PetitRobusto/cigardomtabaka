@@ -65,7 +65,7 @@ def page(request):
         response = HttpResponse(stored.html, content_type="text/html; charset=utf-8")
     response["ETag"] = etag
     response["Cache-Control"] = "no-cache"
-    if any(request.GET.get(key) for key in BROWSING_PARAMETERS):
+    if not stored.rendered_payload.get("indexable") or any(request.GET.get(key) for key in BROWSING_PARAMETERS):
         response["X-Robots-Tag"] = "noindex, nofollow"
     return response
 
@@ -91,7 +91,7 @@ def page_data(request):
     response = JsonResponse(payload, json_dumps_params={"ensure_ascii": False})
     response["Cache-Control"] = "no-cache"
     response["ETag"] = '"' + semantic_hash(payload) + '"'
-    if browsing:
+    if browsing or not payload.get("indexable"):
         response["X-Robots-Tag"] = "noindex, nofollow"
     return response
 
@@ -160,7 +160,8 @@ def sitemap(request):
     page_rows = {row.path: row for row in StorePage.objects.filter(path__in=active_paths)}
     for path in sorted(pages):
         row = page_rows.get(path)
-        if path not in active_paths or not row or not allowed_payload(row.rendered_payload, dependencies):
+        if (path not in active_paths or not row or not allowed_payload(row.rendered_payload, dependencies)
+                or not row.rendered_payload.get("indexable")):
             continue
         node = SubElement(root, "url")
         SubElement(node, "loc").text = settings.STOREFRONT_ORIGIN.rstrip("/") + path

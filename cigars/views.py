@@ -1,9 +1,9 @@
 from django.db.models import Count, Sum, Max, F
-from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 
 from .models import Brand, Cigar, PurchaseBatch
 from privnote.helpers import decimal_to_number
+from .permissions import staff_required_json
 
 
 PACKAGING_TRANSLATIONS = [
@@ -105,6 +105,7 @@ RELEASE_TYPE_ORDER = [
 
 # =================== API VIEWS ===================
 
+@staff_required_json
 def api_brand_list(request):
     """GET /api/brands/"""
     brands = list(Brand.objects.all().order_by('english_name'))
@@ -139,6 +140,7 @@ def api_brand_list(request):
     return JsonResponse({'sections': sections, 'total_brands': len(brands)})
 
 
+@staff_required_json
 def api_brand_detail(request, slug):
     """GET /api/brands/<slug>/"""
     from django.shortcuts import get_object_or_404
@@ -240,6 +242,7 @@ def api_brand_detail(request, slug):
     })
 
 
+@staff_required_json
 def api_cigar_detail(request, cigar_id):
     """GET /api/cigars/<id>/"""
     import json
@@ -335,12 +338,9 @@ def api_cigar_detail(request, cigar_id):
     })
 
 
-@login_required
+@staff_required_json
 def api_inventory(request):
     """GET /api/inventory/"""
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'Forbidden'}, status=403)
-
     stock_data = {}
     batches = PurchaseBatch.objects.filter(physical_remaining__gt=0, reversed_at__isnull=True).values(
         'cigar_id'

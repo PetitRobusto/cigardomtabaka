@@ -73,7 +73,8 @@ describe("B2 commerce browsing", () => {
     expect(new FormData(sidebar).getAll("brand")).toEqual(["cohiba", "partagas"]);
     expect(new FormData(sidebar).getAll("box")).toEqual(["10"]);
     expect(new FormData(sidebar).get("q")).toBe("BHK");
-    const href = container.querySelector<HTMLAnchorElement>('.store-header .store-languages a[lang="ru-RU"]')!.href;
+    fireEvent.click(screen.getByRole('button', { name: 'Language' }));
+    const href = container.querySelector<HTMLAnchorElement>('.site-language-menu a[lang="ru"]')!.href;
     const url = new URL(href);
     expect(url.pathname).toBe("/ru/catalog");
     expect(url.searchParams.get("sort")).toBe("length");
@@ -162,7 +163,8 @@ describe("B2 commerce browsing", () => {
   it("resets translated list pagination while preserving all criteria", () => {
     const page = { ...catalog(), path: "/en/catalog?page=2", browsing_alternates: [{ locale: "en" as const, path: "/en/catalog" }, { locale: "ru" as const, path: "/ru/catalog" }] };
     const { container } = render(<Storefront page={page} currentUrl="/en/catalog?box=10&sort=length&page=2" ageConfirmed />);
-    const url = new URL(container.querySelector<HTMLAnchorElement>('.store-header .store-languages a[lang="ru-RU"]')!.href);
+    fireEvent.click(screen.getByRole('button', { name: 'Language' }));
+    const url = new URL(container.querySelector<HTMLAnchorElement>('.site-language-menu a[lang="ru"]')!.href);
     expect(url.searchParams.has("page")).toBe(false);
     expect(url.searchParams.get("box")).toBe("10");
     expect(url.searchParams.get("sort")).toBe("length");
@@ -182,7 +184,8 @@ describe("B2 commerce browsing", () => {
     const currentUrl = `${backendPageFixture.path}?${new URLSearchParams({ from: source })}#store-contact`;
     const { container } = render(<Storefront page={backendPageFixture} currentUrl={currentUrl} ageConfirmed />);
     expect(container.querySelector(".store-return-link")?.getAttribute("href")).toBe(source);
-    const url = new URL(container.querySelector<HTMLAnchorElement>('.store-header .store-languages a[lang="ru-RU"]')!.href);
+    fireEvent.click(screen.getByRole('button', { name: 'Language' }));
+    const url = new URL(container.querySelector<HTMLAnchorElement>('.site-language-menu a[lang="ru"]')!.href);
     expect(url.hash).toBe("#store-contact");
     expect(url.searchParams.get("from")).toBe("/ru/catalog?q=BHK&box=10&sort=length");
   });

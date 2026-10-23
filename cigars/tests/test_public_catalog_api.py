@@ -1,10 +1,11 @@
 from django.test import TestCase
 from django.utils import timezone
+from django.contrib.auth import get_user_model
 
 from cigars.models import Brand, Cigar
 
 
-class PublicCatalogApiTests(TestCase):
+class StaffCatalogApiTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         Brand.objects.create(english_name='Cohiba', name='高希霸', slug='cohiba')
@@ -12,6 +13,10 @@ class PublicCatalogApiTests(TestCase):
         cls.deleted = Cigar.objects.create(brand='Cohiba', english_name='Deleted', deleted_at=timezone.now())
         cls.child = Cigar.objects.create(brand='Cohiba', english_name='Robustos Special', parent=cls.cigar,
                                         deleted_at=timezone.now(), release_type='Special Release')
+
+    def setUp(self):
+        self.staff = get_user_model().objects.create_user(username='catalog-staff', is_staff=True)
+        self.client.force_login(self.staff)
 
     def test_missing_and_deleted_entities_return_404(self):
         for path in ['/api/brands/missing/', '/api/cigars/99999/', f'/api/cigars/{self.deleted.pk}/']:

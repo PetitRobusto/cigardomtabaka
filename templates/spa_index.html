@@ -30,6 +30,7 @@ html,body{min-height:100%;margin:0}html{background:#faf8f5}body{color:#2c2416;ba
   </div>
 </section>
 <div id="root"></div>
+{{ app_runtime_config|json_script:"cdt-app-runtime-config" }}
 <script src="{% if debug %}{{ vite_origin }}/static/frontend/startup-loader.js{% else %}{{ startup_loader_url }}{% endif %}" defer></script>
 {% if debug %}
   <script type="module">

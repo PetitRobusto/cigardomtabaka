@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { AGE_CONFIRMATION_KEY } from "./ageConfirmation";
+import { AGE_CONFIRMATION_TTL } from "../features/customer/preferences";
 import { backendPageFixture } from "./fixture";
 import { LiveStorefront } from "./LiveStorefront";
 import type { StorePageData } from "./types";
@@ -93,7 +94,8 @@ it("switches catalog → product → Russian page in place and updates rendered 
   fireEvent.click(document.querySelector(".pcard-name")!);
   await screen.findByRole("heading", { name: "Cohiba Robustos" });
   expect(location.pathname).toBe("/en/cigar/5/cohiba-robustos");
-  fireEvent.click(document.querySelector('.store-languages a[lang="ru-RU"]')!);
+  fireEvent.click(screen.getByRole("button", { name: "Language" }));
+  fireEvent.click(document.querySelector('.site-language-menu a[lang="ru"]')!);
 
   await screen.findByRole("heading", { name: "Кохиба Робустос" });
   expect(location.pathname).toBe("/ru/cigar/5/cohiba-robustos");
@@ -142,7 +144,8 @@ it.each([404, 200])("ignores an outdated catalog response (%s) after a newer loc
   await screen.findByRole("heading", { name: "Cohiba Robustos" });
   fireEvent.click(document.querySelector('.catnav a[href="/en/catalog"]')!);
   await waitFor(() => expect(location.pathname).toBe("/en/catalog"));
-  fireEvent.click(document.querySelector('.store-languages a[lang="ru-RU"]')!);
+  fireEvent.click(screen.getByRole("button", { name: "Language" }));
+  fireEvent.click(document.querySelector('.site-language-menu a[lang="ru"]')!);
   await waitFor(() => expect(location.pathname).toBe("/ru/cigar/5/cohiba-robustos"));
 
   latest.resolve(response(russianProductPage));
@@ -189,4 +192,68 @@ it("keeps currency and age confirmation across navigation, then retries a failed
   expect(document.querySelector('[data-store-currency="CNY"]')?.getAttribute("aria-pressed")).toBe("true");
   expect(document.querySelector('[data-age-gate]')?.hasAttribute("hidden")).toBe(true);
   expect(catalogAttempts).toBe(2);
+});
+
+
+it("revokes an existing age confirmation when another tab clears storage", async () => {
+  vi.stubGlobal("fetch", makeFetch());
+  mount();
+  fireEvent.click(document.querySelector('[data-age-confirm]')!);
+  await waitFor(() => expect(document.querySelector('[data-age-gate]')?.hasAttribute("hidden")).toBe(true));
+  localStorage.clear();
+  fireEvent(window, new StorageEvent("storage", { key: null }));
+  await waitFor(() => expect(document.querySelector('[data-age-gate]')?.hasAttribute("hidden")).toBe(false));
+});
+
+it("rechecks the age timestamp instead of retaining a permanent in-memory pass", async () => {
+  vi.stubGlobal("fetch", makeFetch());
+  mount();
+  fireEvent.click(document.querySelector('[data-age-confirm]')!);
+  await waitFor(() => expect(document.querySelector('[data-age-gate]')?.hasAttribute("hidden")).toBe(true));
+  const expired = String(Date.now() - 31 * 24 * 60 * 60 * 1000);
+  localStorage.setItem("cdt.customer.age-confirmed-at", expired);
+  localStorage.setItem(AGE_CONFIRMATION_KEY, expired);
+  fireEvent(window, new StorageEvent("storage", { key: AGE_CONFIRMATION_KEY }));
+  await waitFor(() => expect(document.querySelector('[data-age-gate]')?.hasAttribute("hidden")).toBe(false));
+});
+
+it("reopens the age gate at natural expiry without a storage event", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-23T12:00:00Z"));
+  try {
+    vi.stubGlobal("fetch", makeFetch());
+    mount();
+    fireEvent.click(document.querySelector('[data-age-confirm]')!);
+    expect(document.querySelector('[data-age-gate]')?.hasAttribute("hidden")).toBe(true);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(AGE_CONFIRMATION_TTL); });
+
+    expect(document.querySelector('[data-age-gate]')?.hasAttribute("hidden")).toBe(false);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it.each(["focus", "visibilitychange"] as const)("rechecks age confirmation when the page resumes by %s", async (eventName) => {
+  vi.useFakeTimers();
+  const now = new Date("2026-10-23T12:00:00Z");
+  vi.setSystemTime(now);
+  try {
+    vi.stubGlobal("fetch", makeFetch());
+    mount();
+    fireEvent.click(document.querySelector('[data-age-confirm]')!);
+    expect(document.querySelector('[data-age-gate]')?.hasAttribute("hidden")).toBe(true);
+    vi.setSystemTime(now.getTime() + AGE_CONFIRMATION_TTL + 1);
+
+    if (eventName === "focus") {
+      fireEvent(window, new Event("focus"));
+    } else {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+      fireEvent(document, new Event("visibilitychange"));
+    }
+
+    expect(document.querySelector('[data-age-gate]')?.hasAttribute("hidden")).toBe(false);
+  } finally {
+    vi.useRealTimers();
+  }
 });

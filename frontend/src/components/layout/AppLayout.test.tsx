@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PageMetaProvider } from '../../contexts/PageMetaContext';
@@ -44,11 +44,12 @@ describe('AppLayout navigation', () => {
       </MemoryRouter>,
     );
 
+    fireEvent.click(screen.getByRole('button', { name: '管理工具' }));
     const desktopCurrent = container.querySelector('nav[aria-label="应用导航"] a[aria-current="page"]');
     const mobileCurrent = container.querySelector('nav[aria-label="移动应用导航"] a[aria-current="page"]');
     expect(desktopCurrent?.textContent).toContain('账务');
     expect(mobileCurrent?.textContent).toContain('账务');
-    expect(container.querySelector('nav[aria-label="应用导航"] a[href="/"]')?.getAttribute('aria-current')).toBeNull();
+    expect(container.querySelector('nav[aria-label="应用导航"] .active')).toBeNull();
   });
 
   it('keeps monthly reports inside the accounting app navigation', () => {
@@ -58,6 +59,7 @@ describe('AppLayout navigation', () => {
       </MemoryRouter>,
     );
 
+    fireEvent.click(screen.getByRole('button', { name: '管理工具' }));
     const desktopNav = container.querySelector('nav[aria-label="应用导航"]');
     expect(desktopNav?.querySelector('a[aria-current="page"]')?.textContent).toContain('账务');
     expect(desktopNav?.textContent).not.toContain('月报');

@@ -1,8 +1,9 @@
-export type AppSection = 'catalog' | 'inventory' | 'sales' | 'accounting' | 'prices' | 'privnote' | 'help';
+export type AppSection = 'catalog' | 'library' | 'inventory' | 'sales' | 'accounting' | 'prices' | 'privnote' | 'help';
 
 export type AppSkeletonVariant = 'catalog' | 'table' | 'panel';
 
 const SECTION_PREFIXES: ReadonlyArray<{ prefix: string; section: AppSection }> = [
+  { prefix: '/library', section: 'library' },
   { prefix: '/inventory', section: 'inventory' },
   { prefix: '/sales', section: 'sales' },
   { prefix: '/accounting', section: 'accounting' },

@@ -2,7 +2,7 @@
 from django.db.models import OuterRef, Subquery, Max, Q, Case, When, F
 from django.utils import timezone
 from datetime import timedelta
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -18,6 +18,7 @@ from .pricing import per_stick, avg_per_stick, convert_to_cny
 from .helpers import resolve_brand_cn, get_cigar_image_url
 from .presentation import product_name, anomaly_info
 from math import isfinite
+from cigars.permissions import IsStaffUser
 
 
 # --- DRF ViewSets ---
@@ -27,13 +28,13 @@ class PriceSourceViewSet(viewsets.ReadOnlyModelViewSet):
     """价格来源 — 只读"""
     queryset = PriceSource.objects.filter(active=True)
     serializer_class = PriceSourceSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsStaffUser]
 
 
 class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     """价格快照 — 只读 + 自定义查询"""
     serializer_class = PriceSnapshotSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsStaffUser]
 
     def get_queryset(self):
         qs = PriceSnapshot.objects.select_related('cigar', 'source')
@@ -423,7 +424,7 @@ class PriceSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
 class PriceAlertViewSet(viewsets.ModelViewSet):
     """价格预警 — 完整 CRUD"""
     serializer_class = PriceAlertSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsStaffUser]
 
     def get_queryset(self):
         return PriceAlert.objects.select_related('cigar', 'source').order_by('cigar__brand')
@@ -439,7 +440,7 @@ from price_tracker.ingestion import ingest_items
 
 @csrf_exempt
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])  # Restored
+@permission_classes([IsStaffUser])
 def import_coh_bulk(request):
     """接收浏览器直接 POST 的 COH 全站数据"""
     data = request.data

@@ -80,7 +80,7 @@ export default function BrandListPage() {
                   {section.brands.map((brand: BrandItem) => (
                     <Link
                       key={brand.slug}
-                      to={`/brand/${brand.slug}`}
+                      to={`/library/brand/${brand.slug}`}
                       className={`group bg-white border border-border rounded text-center p-6 pt-5 pb-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
                         brand.category === 'discontinued' ? 'opacity-60 grayscale' : ''
                       }`}

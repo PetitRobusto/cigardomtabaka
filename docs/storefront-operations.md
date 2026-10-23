@@ -79,6 +79,31 @@ RUB 是正式售价，CNY/USD 是参考换算。超过 48 小时或缺少有效�
 
 ## 搜索基线与验收
 
+上线前可运行只读内容检查：
+
+```bash
+DJANGO_DEBUG=True .venv/bin/python manage.py check_storefront_seo
+DJANGO_DEBUG=True .venv/bin/python manage.py check_storefront_seo --json --strict --sample-limit 10
+```
+
+命令只读取当前数据库的商城读模型，不请求公网、不修改数据、不渲染或发布页面。
+本地命令使用开发库；检查其他环境时须明确使用对应环境的既有配置，不要为了检查启用商城。
+`--json` 输出 `schema_version`、`page_count`、`ready`、`counts` 和按问题代码分组的
+`issues`；每类包含数量、严重度、处理建议及最多 `--sample-limit` 个路径/字段样例。
+数量按问题发生次数计算，同一页面可能涉及多类问题。
+
+默认报告问题但退出码为 0；`--strict` 仅在没有公开页面、中文首页尚未发布、包含明确测试占位文案、
+缺少标题/摘要或首页正文时返回非零退出码，JSON 报告仍先写至标准输出。
+缺少已核实门店资料、地图/营业时间/照片、正文不足、空品牌列表，以及未从目录列表链接的
+商品均为人工核查警告，不阻塞命令。未入过库的历史目录按既有规则保留直达页面，孤立页面
+提示不代表自动上架、补货或删除 URL；是否增加资料归档入口需要内容价值判断。
+此检查不能证明 HTML 缓存已经更新、站点上线或搜索引擎收录。
+
+正式上线还需核对 `STOREFRONT_ORIGIN` 是规范 HTTPS 域名、canonical/hreflang 不含预览域名，
+且正式响应没有继承预览代理的全站 `noindex`。在线请求 `/sitemap-storefront.xml` 应返回
+XML 而非 SPA HTML，robots.txt 应列出正式 sitemap。部署模板中的 www HTTP 跳转不会自动
+影响线上配置；经授权发布时，HTTPS www 虚拟主机也需持有有效证书并跳转至规范域名。
+
 `manage.py export_storefront_baseline` 只读导出原中文 URL 清单。使用 CSV 与 Google Search
 Console / Yandex Webmaster 的页面、查询、点击、曝光、收录及外链导出关联。没有账户访问时
 记录为“未取得基线”，不能用猜测值替代。正式改版前保留导出供对照。

@@ -94,10 +94,16 @@ jobs:
             pip install -r requirements.txt
 
             echo "=== prepare runtime database access ==="
+            # WAL/SHM created by maintenance users must inherit the service group.
+            sudo chgrp www-data .
+            sudo chmod g+rws .
             sudo chown www-data:www-data cigars.db
+            sudo chmod g+rw cigars.db
             for sidecar in cigars.db-wal cigars.db-shm; do
               if [ -e "$sidecar" ]; then
-                sudo chown www-data:www-data "$sidecar"
+                # SQLite may remove an idle sidecar between these commands.
+                sudo chown www-data:www-data "$sidecar" || [ ! -e "$sidecar" ]
+                sudo chmod g+rw "$sidecar" || [ ! -e "$sidecar" ]
               fi
             done
             sudo -u www-data test -w .

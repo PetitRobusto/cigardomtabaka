@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { backendPageFixture } from "./fixture";
+import { renderStorePage } from "./render";
 import { clearStoreMetadata, storeStructuredData, updateStoreMetadata } from "./metadata";
 
 function setUpHead() {
@@ -22,6 +23,25 @@ afterEach(() => {
 });
 
 describe("storefront metadata", () => {
+  it.each(["Cohiba Robustos — specifications & prices | CigarDomTabaka", undefined, "  "])("keeps server and client search titles consistent without changing product headings (%s)", (seoTitle) => {
+    const page = { ...backendPageFixture, seo_title: seoTitle };
+    const html = renderStorePage({ page, origin: "https://shop.example", assets: { js: [], css: [] } });
+    const serverDocument = new DOMParser().parseFromString(html, "text/html");
+    const expected = seoTitle?.trim() || page.title;
+    expect(serverDocument.title).toBe(expected);
+    expect(serverDocument.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.content).toBe(expected);
+    expect(serverDocument.querySelector("h1")?.textContent).toBe(page.product!.name);
+
+    document.head.innerHTML = serverDocument.head.innerHTML;
+    updateStoreMetadata(page, "https://shop.example", new URL(`https://browser.example${page.path}`));
+    expect(document.title).toBe(expected);
+    expect(document.head.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.content).toBe(expected);
+
+    updateStoreMetadata({ ...page, seo_title: undefined, title: "Next page" }, "https://shop.example", new URL("https://browser.example/en/"));
+    expect(document.title).toBe("Next page");
+    expect(document.head.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.content).toBe("Next page");
+  });
+
   it("updates localized metadata and canonical origin without retaining stale social or language tags", () => {
     setUpHead();
     const requested = new URL("https://browser.example/ru/cigar/5/cohiba-robustos");

@@ -12,6 +12,7 @@ from django.db.models import Q, Sum
 
 from cigars.models import Brand, Cigar, CigarPrice, PurchaseBatch
 from .models import ProductListing, StoreSettings, StoreTranslation
+from .seo import enrich_page_metadata
 from .languages import HOME_COPY, LOCALES as STORE_LOCALES, locale_content_locale, vitola_label
 
 
@@ -585,6 +586,7 @@ def build_pages() -> dict[str, dict]:
             if target and target.get("indexable"):
                 alternates.append({"locale": locale, "path": target_path})
         page["alternates"] = alternates
+    enrich_page_metadata(result)
     return result
 
 

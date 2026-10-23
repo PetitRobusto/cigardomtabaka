@@ -1,6 +1,10 @@
 import type { StoreLocale, StorePageData } from "./types";
 import { storeCopy } from "./copy";
 
+export function storePageTitle(page: StorePageData): string {
+  return page.seo_title?.trim() || page.title;
+}
+
 export function storeStructuredData(page: StorePageData, origin: string): object {
   const homePath = page.locale === "zh" ? "/" : `/${page.locale}/`;
   const home = new URL(homePath, origin).toString();
@@ -30,7 +34,8 @@ function meta(key: string, value: string | null, property = false) {
 }
 
 export function updateStoreMetadata(page: StorePageData, origin: string, requested: URL) {
-  document.title = page.title;
+  const title = storePageTitle(page);
+  document.title = title;
   document.documentElement.lang = page.locale === "zh" ? "zh-CN" : page.locale === "ru" ? "ru-RU" : "en";
   meta("description", page.description);
   const canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]') || document.createElement("link");
@@ -44,7 +49,7 @@ export function updateStoreMetadata(page: StorePageData, origin: string, request
     link.href = new URL(item.path, origin).toString(); document.head.append(link);
   }
   meta("robots", page.indexable === false || ["q", "brand", "box", "sort"].some((key) => requested.searchParams.get(key)) ? "noindex, nofollow" : null);
-  meta("og:type", "website", true); meta("og:title", page.title, true);
+  meta("og:type", "website", true); meta("og:title", title, true);
   meta("og:description", page.description, true); meta("og:url", canonical.href, true);
   const image = page.product?.image_url || page.site.photo;
   meta("og:image", image ? new URL(image, origin).toString() : null, true);

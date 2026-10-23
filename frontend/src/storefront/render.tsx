@@ -2,7 +2,7 @@ import React from "react";
 import { renderToString } from "react-dom/server";
 import { Storefront } from "./Storefront";
 import { StartupLoader } from "../components/shared/StartupLoader";
-import { storeStructuredData } from "./metadata";
+import { storePageTitle, storeStructuredData } from "./metadata";
 import type { StoreAssets, StorePageData, StoreRenderInput } from "./types";
 
 function absolute(origin: string, path: string): string {
@@ -23,6 +23,7 @@ export function renderStorePage(input: StoreRenderInput): string {
   const { page, origin, assets } = input;
   if (!page.title.trim()) throw new Error("Store page requires a title");
   if (!page.description.trim()) throw new Error("Store page requires a description");
+  const title = storePageTitle(page);
   const canonical = absolute(origin, page.path);
   const defaultPath = page.alternates.find((alt) => alt.locale === "zh")?.path || page.alternates[0]?.path;
   const links = defaultPath ? [`<link rel="alternate" hreflang="x-default" href="${escapeAttribute(absolute(origin, defaultPath))}">`] : [];
@@ -36,7 +37,7 @@ export function renderStorePage(input: StoreRenderInput): string {
   const startup = renderToString(<StartupLoader locale={page.locale} />);
   const robots = page.indexable === false ? '<meta name="robots" content="noindex, nofollow">' : '';
   const jsonLd = storeStructuredData(page, origin);
-  const html = `<!doctype html><html lang="${htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(page.title)}</title><meta name="description" content="${escapeAttribute(page.description)}"><link rel="canonical" href="${escapeAttribute(canonical)}">${links.join("")}${robots}${styles}<meta property="og:type" content="website"><meta property="og:title" content="${escapeAttribute(page.title)}"><meta property="og:description" content="${escapeAttribute(page.description)}"><meta property="og:url" content="${escapeAttribute(canonical)}">${ogImage}<script type="application/ld+json">${safeJson(jsonLd)}</script></head><body>${startup}<div id="store-root">${rendered}</div><script id="store-data" type="application/json">${safeJson({ page, origin })}</script><script src="/static/frontend/startup-loader.js" defer></script>${scripts}</body></html>`;
+  const html = `<!doctype html><html lang="${htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeAttribute(page.description)}"><link rel="canonical" href="${escapeAttribute(canonical)}">${links.join("")}${robots}${styles}<meta property="og:type" content="website"><meta property="og:title" content="${escapeAttribute(title)}"><meta property="og:description" content="${escapeAttribute(page.description)}"><meta property="og:url" content="${escapeAttribute(canonical)}">${ogImage}<script type="application/ld+json">${safeJson(jsonLd)}</script></head><body>${startup}<div id="store-root">${rendered}</div><script id="store-data" type="application/json">${safeJson({ page, origin })}</script><script src="/static/frontend/startup-loader.js" defer></script>${scripts}</body></html>`;
   if (!/<h1\b/.test(html)) throw new Error("Store page requires an H1");
   return html;
 }

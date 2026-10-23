@@ -36,6 +36,7 @@ export type StorePageData = {
   filter_options?: { brands: Array<{ name: string; english_name?: string; slug: string; path: string }>; box_sizes: number[]; has_sticks?: boolean };
   path: string;
   title: string;
+  seo_title?: string;
   description: string;
   body: string;
   site: {

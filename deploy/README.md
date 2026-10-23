@@ -60,6 +60,25 @@ tail -f /var/log/nginx/access.log
 
 ## 四、手动部署
 
+### SQLite 运行时权限
+
+生产数据库及其 WAL/SHM 文件统一使用 `www-data` 组，并保持组可读写。
+数据库所在目录 `/opt/cigardomtabaka` 设置 setgid（当前标准权限为 `2775`），
+使维护用户创建的新文件继承 `www-data` 组。`jason` 已在该组中，但仅加入组
+不会改变其新建文件的默认所属组。SQLite 创建 WAL/SHM 时沿用数据库文件的
+权限，因此必须同时保证 `cigars.db` 组可读写；部署流程会维护这些条件。
+不要递归修改整个仓库或 `.env` 的权限。
+
+生产数据库的排查、备份脚本和 Django 数据库管理命令统一以 `www-data` 执行；
+例如已获授权的迁移使用 `sudo -u www-data env DJANGO_DEBUG=False venv/bin/python manage.py migrate`。
+只读排查使用 SQLite URI `file:/opt/cigardomtabaka/cigars.db?mode=ro`，
+不要使用 `immutable=1` 绕过 WAL，否则可能读到过期状态。
+
+权限修复后，用服务用户执行 `BEGIN IMMEDIATE; ROLLBACK;` 验证写锁，
+不通过真实付款验证，也不删除 WAL/SHM 文件。权限修复不需要重启应用。
+
+### 发布流程
+
 优先在 GitHub Actions 中重新运行对应成功 CI 的 Deploy workflow，继续使用该 run 的准确 SHA 与 artifact。
 若 artifact 已过期，重新运行该提交的完整 CI 以产生新的已验证 artifact；不回退到服务器临时构建。
 旧提交不是当前 `main` 时仍会被过期检查拒绝；回滚应通过新的回滚提交并重新通过 CI。

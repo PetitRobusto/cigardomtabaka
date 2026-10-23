@@ -88,16 +88,18 @@ it("switches catalog → product → Russian page in place and updates rendered 
   mount();
   fireEvent.click(document.querySelector('[data-age-confirm]')!);
   fireEvent.click(document.querySelector('.catnav a[href="/en/catalog"]')!);
-  await screen.findByRole("heading", { name: "English catalog | CigarDomTabaka" });
+  await screen.findByRole("heading", { name: "English catalog | CigarDomTabaka", level: 1 });
   expect(location.pathname).toBe("/en/catalog");
 
   fireEvent.click(document.querySelector(".pcard-name")!);
-  await screen.findByRole("heading", { name: "Cohiba Robustos" });
+  // The catalog card already has this heading; wait for the detail page H1
+  // before opening a menu whose state intentionally closes on page changes.
+  await screen.findByRole("heading", { name: "Cohiba Robustos", level: 1 });
   expect(location.pathname).toBe("/en/cigar/5/cohiba-robustos");
   fireEvent.click(screen.getByRole("button", { name: "Language" }));
   fireEvent.click(document.querySelector('.site-language-menu a[lang="ru"]')!);
 
-  await screen.findByRole("heading", { name: "Кохиба Робустос" });
+  await screen.findByRole("heading", { name: "Кохиба Робустос", level: 1 });
   expect(location.pathname).toBe("/ru/cigar/5/cohiba-robustos");
   expect(document.documentElement.lang).toBe("ru-RU");
   expect(document.title).toBe(russianProductPage.title);

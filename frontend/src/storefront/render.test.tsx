@@ -1,13 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { renderStorePage } from "./render";
 import { backendPageFixture } from "./fixture";
+import publicDetails from "../../../storefront/public_details.json";
 
 
 
 describe("storefront server renderer", () => {
+  it.each(['zh', 'ru', 'en'] as const)("renders confirmed contact details and machine-readable hours without JavaScript in %s", (locale) => {
+    const page = { ...backendPageFixture, locale, content_locale: locale, site: { ...backendPageFixture.site,
+      address: publicDetails.address[locale], hours: publicDetails.hours[locale] } };
+    const html = renderStorePage({ page, origin: "https://shop.example", assets: { js: [], css: [] } });
+    expect(html).toContain(publicDetails.address[locale]);
+    expect(html).toContain(publicDetails.hours[locale]);
+    expect(html).toContain('"openingHours":["Mo-Sa 12:00-20:00","Su 12:00-16:00"]');
+  });
   it("renders localized SEO and supplied manifest assets without browser globals", () => {
     const html = renderStorePage({ page: backendPageFixture, origin: "https://shop.example", assets: { js: ["/static/assets/store-abc.js"], css: ["/static/assets/store-def.css"] } });
     expect(html).toContain('<html lang="en">');
+    expect(html).toContain('<link rel="icon" type="image/png" sizes="96x96" href="/static/frontend/favicon-96.png">');
     expect(html).toContain('<link rel="canonical" href="https://shop.example/en/cigar/5/cohiba-robustos">');
     expect(html).toContain('hreflang="ru" href="https://shop.example/ru/cigar/5/cohiba-robustos"');
     expect(html).toContain('href="/static/assets/store-def.css"');
@@ -63,7 +73,8 @@ describe("storefront server renderer", () => {
     const html = renderStorePage({ page: home, origin: "https://shop.example", assets: { js: [], css: [] } });
     expect(html).toContain('class="site-brand" href="/"');
     expect(html).toContain('class="btn-pri" href="/catalog"');
-    expect(html).toContain('"item":"https://shop.example/"');
+    expect(html).toContain('"@type":"WebSite","name":"CigarDomTabaka","url":"https://shop.example/"');
+    expect(html).not.toContain('"@type":"BreadcrumbList"');
     expect(html).toContain("10");
     expect(html).toContain("询价");
     expect(html.split('<script id="store-data"')[0]).not.toContain("10000.00");

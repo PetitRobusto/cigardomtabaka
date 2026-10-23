@@ -13,6 +13,7 @@ from django.db.models import Q, Sum
 from cigars.models import Brand, Cigar, CigarPrice, PurchaseBatch
 from .models import ProductListing, StoreSettings, StoreTranslation
 from .seo import enrich_page_metadata
+from .public_details import PUBLIC_DETAILS
 from .languages import HOME_COPY, LOCALES as STORE_LOCALES, locale_content_locale, vitola_label
 
 
@@ -67,23 +68,23 @@ def _safe_media_url(field) -> str:
 def _site_data(locale: str, home_translation: StoreTranslation | None, store: StoreSettings | None) -> dict:
     data = {
         "name": store.name if store else "CigarDomTabaka",
-        "address": "",
-        "phone": "",
+        "address": PUBLIC_DETAILS["address"][locale],
+        "phone": PUBLIC_DETAILS["phone"],
         "wechat": "",
-        "map_url": "",
+        "map_url": PUBLIC_DETAILS["map_url"],
         "photo": "",
         "points_of_sales": "",
-        "hours": "",
+        "hours": PUBLIC_DETAILS["hours"][locale],
     }
     if store and store.details_verified:
         data.update({
-            "address": store.address,
-            "phone": store.phone,
+            "address": store.address.strip() or data["address"],
+            "phone": store.phone.strip() or data["phone"],
             "wechat": store.wechat,
-            "map_url": store.map_url,
+            "map_url": store.map_url.strip() or data["map_url"],
             "photo": _safe_media_url(store.photo),
             "points_of_sales": _safe_media_url(store.points_of_sales),
-            "hours": home_translation.hours if home_translation else "",
+            "hours": (home_translation.hours.strip() if home_translation else "") or data["hours"],
         })
     return data
 
@@ -276,7 +277,7 @@ def _product_data(cigar: Cigar, locale: str, translation: StoreTranslation | Non
         "offers": offers,
         "translation_complete": locale == "zh" or translated,
         "content_locale": locale if locale == "zh" or translated else "en",
-        "brand_translation_complete": locale in {"zh", "en"} or bool(brand_translation and brand_translation.locale == locale),
+        "brand_translation_complete": locale == "zh" or bool(brand_translation and brand_translation.locale == locale),
         "brand_content_locale": brand_translation.locale if brand_translation else (locale if locale == "zh" else "en"),
     }
 
@@ -338,7 +339,8 @@ def _translation_dependencies(page: dict, translations: dict) -> list[list[str]]
     used = set()
 
     home_translation = _resolved_translation("home", "home", page["locale"], translations)
-    if home_translation and (page["kind"] == "home" or page["locale"] != "zh" or page["site"].get("hours")):
+    custom_hours = page["site"].get("hours") not in ("", PUBLIC_DETAILS["hours"][page["locale"]])
+    if home_translation and (page["kind"] == "home" or page["locale"] != "zh" or custom_hours):
         used.add(("home", "home", home_translation.locale))
     products = [*page["products"]]
     if page["product"]:
@@ -461,7 +463,7 @@ def build_pages() -> dict[str, dict]:
                 "site": _site_data(locale, _resolved_translation("home", "home", locale, translations), store),
                 "products": page_rows, "product": None,
                 "brands": [], "alternates": _alternates(paths),
-                "brand_translation_complete": locale in {"zh", "en"} or bool(exact_translation and exact_translation.locale == locale),
+                "brand_translation_complete": locale == "zh" or bool(exact_translation and exact_translation.locale == locale),
                 "brand_content_locale": exact_translation.locale if exact_translation else (locale if locale == "zh" else "en"),
                 "breadcrumbs": ([{"label": translations[("home", "home", locale)].title, "path": _home_path(locale)}]
                                  if locale != "zh" and ("home", "home", locale) in translations
@@ -517,7 +519,7 @@ def build_pages() -> dict[str, dict]:
                 "english_name": brand.english_name,
                 "slug": brand.slug,
                 "path": _brand_path(locale, brand.slug),
-                "translation_complete": locale in {"zh", "en"} or bool(brand_translation and brand_translation.locale == locale),
+                "translation_complete": locale == "zh" or bool(brand_translation and brand_translation.locale == locale),
                 "content_locale": brand_translation.locale if brand_translation else (locale if locale == "zh" else "en"),
                 "indexable": locale == "zh" or bool(brand_translation and brand_translation.locale == locale),
             })
@@ -569,6 +571,10 @@ def build_pages() -> dict[str, dict]:
         )
         _set_page_language(page, complete)
         page["translation_dependencies"] = _translation_dependencies(page, translations)
+
+    # All target pages must have their final indexability before hreflang is built.
+    # Related products and brand fallbacks can change the provisional flags above.
+    for page in result.values():
         page_number = page.get("pagination", {}).get("page", 1)
         page_kind = "catalog" if page.get("view") == "catalog" else page["kind"]
         locale_paths = {
@@ -656,7 +662,7 @@ def _add_browsing_context(pages, brands, brand_translations, known_inventory):
                     "name": translation.title if translation else (brand.name or brand.english_name) if locale == "zh" else brand.english_name,
                     "english_name": brand.english_name, "slug": brand.slug,
                     "path": _brand_path(locale, brand.slug),
-                    "translation_complete": locale in {"zh", "en"} or bool(translation and translation.locale == locale),
+                    "translation_complete": locale == "zh" or bool(translation and translation.locale == locale),
                     "content_locale": translation.locale if translation else (locale if locale in {"zh", "en"} else "en"),
                 })
             navigation_brands.sort(key=lambda row: (
@@ -756,7 +762,7 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
         if locale != "zh":
             expected_brand_locale = locale if has_translation("brand", brand_row.get("slug"), locale) else "en"
             if (brand_row.get("content_locale") != expected_brand_locale
-                    or brand_row.get("translation_complete") != (expected_brand_locale == locale)):
+                    or brand_row.get("translation_complete") != has_translation("brand", brand_row.get("slug"), locale)):
                 return False
     for brand_row in payload.get("brands") or []:
         if brand_row.get("slug") not in dependencies["discoverable_brands"]:
@@ -764,7 +770,7 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
         if locale != "zh":
             expected_brand_locale = locale if has_translation("brand", brand_row.get("slug"), locale) else "en"
             if (brand_row.get("content_locale") != expected_brand_locale
-                    or brand_row.get("translation_complete") != (expected_brand_locale == locale)):
+                    or brand_row.get("translation_complete") != has_translation("brand", brand_row.get("slug"), locale)):
                 return False
     if kind == "brand":
         slug = payload.get("path", "").split("?")[0].rstrip("/").split("/")[-1]
@@ -773,7 +779,7 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
         if locale != "zh":
             expected_brand_locale = locale if has_translation("brand", slug, locale) else "en"
             if (payload.get("brand_content_locale") != expected_brand_locale
-                    or payload.get("brand_translation_complete") != (expected_brand_locale == locale)):
+                    or payload.get("brand_translation_complete") != has_translation("brand", slug, locale)):
                 return False
     listed_products = list(payload.get("products") or [])
     if any(product.get("id") not in dependencies["known_inventory"] for product in listed_products):
@@ -796,7 +802,7 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
             brand_slug = dependencies["brand_slugs"].get(brand_name)
             expected_brand_locale = locale if has_translation("brand", brand_slug, locale) else "en"
             if (product.get("brand_content_locale") != expected_brand_locale
-                    or product.get("brand_translation_complete") != (expected_brand_locale == locale)):
+                    or product.get("brand_translation_complete") != has_translation("brand", brand_slug, locale)):
                 return False
     if locale != "zh":
         exact_home = has_translation("home", "home", locale)
@@ -826,12 +832,16 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
         if not payload["translation_complete"] or payload["content_locale"] != "zh" or not payload["indexable"]:
             return False
     site = payload.get("site") or {}
-    has_verified_store_data = any(site.get(key) for key in (
-        "address", "phone", "wechat", "map_url", "photo", "points_of_sales", "hours",
+    custom_hours = site.get("hours", "") not in ("", PUBLIC_DETAILS["hours"][locale])
+    custom_address = site.get("address", "") not in ("", PUBLIC_DETAILS["address"][locale])
+    custom_phone = site.get("phone", "") not in ("", PUBLIC_DETAILS["phone"])
+    custom_map = site.get("map_url", "") not in ("", PUBLIC_DETAILS["map_url"])
+    has_verified_store_data = custom_hours or custom_address or custom_phone or custom_map or any(site.get(key) for key in (
+        "wechat", "photo", "points_of_sales",
     ))
     if has_verified_store_data and not dependencies["details_verified"]:
         return False
-    if site.get("hours") and not any(row[:2] == ["home", "home"] for row in used_translations):
+    if custom_hours and not any(row[:2] == ["home", "home"] for row in used_translations):
         return False
     for alternate in payload.get("alternates") or []:
         alternate_locale = alternate.get("locale")

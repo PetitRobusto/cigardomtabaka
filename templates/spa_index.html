@@ -21,7 +21,7 @@ html,body{min-height:100%;margin:0}html{background:#faf8f5}body{color:#2c2416;ba
 </style>
 </head>
 <body class="cdt-starting">
-<section id="startup-loader" data-phase="intro" aria-busy="true">
+<section id="startup-loader" data-phase="intro" aria-busy="true" hidden>
   <div class="cdt-startup__surface" aria-hidden="true"></div>
   <div class="cdt-startup__composition">
     <img class="cdt-startup__logo" data-motion-src="{% if debug %}{{ vite_origin }}/static/frontend/logo-opening-motion-v2.svg{% else %}{{ opening_logo_url }}{% endif %}" data-static-src="{% if debug %}{{ vite_origin }}/static/frontend/logo-motion.webp{% else %}{{ logo_url }}{% endif %}" width="640" height="525" alt="" aria-hidden="true">
@@ -31,7 +31,7 @@ html,body{min-height:100%;margin:0}html{background:#faf8f5}body{color:#2c2416;ba
 </section>
 <div id="root"></div>
 {{ app_runtime_config|json_script:"cdt-app-runtime-config" }}
-<script src="{% if debug %}{{ vite_origin }}/static/frontend/startup-loader.js{% else %}{{ startup_loader_url }}{% endif %}" defer></script>
+<script src="{% if debug %}{{ vite_origin }}/static/frontend/startup-loader.js{% else %}{{ startup_loader_url }}{% endif %}?v=cf665fd5f942" defer></script>
 {% if debug %}
   <script type="module">
     import RefreshRuntime from '{{ vite_origin }}/static/frontend/@react-refresh';

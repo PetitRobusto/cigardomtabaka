@@ -110,7 +110,8 @@ def spa_index(request):
 
 def robots(request):
     return render(request, 'robots.txt', {
-        'storefront_sitemap': settings.STOREFRONT_ORIGIN + '/sitemap-storefront.xml' if settings.STOREFRONT_ENABLED else '',
+        'staff_page_prefixes': STAFF_PAGE_PREFIXES,
+        'storefront_sitemap': settings.STOREFRONT_ORIGIN.rstrip('/') + '/sitemap-storefront.xml' if settings.STOREFRONT_ENABLED else '',
     }, content_type='text/plain; charset=utf-8')
 
 

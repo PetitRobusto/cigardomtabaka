@@ -49,7 +49,7 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: frontend-artifact/frontend.tar.gz,frontend-artifact/metadata.json,deploy/frontend_artifact.py
+          source: frontend-artifact/frontend.tar.gz,frontend-artifact/metadata.json,deploy/frontend_artifact.py,deploy/check_database_integrity.py
           target: /tmp/cigardomtabaka-frontend-${{ github.run_id }}-${{ github.run_attempt }}
           strip_components: 1
 
@@ -87,6 +87,10 @@ jobs:
               exit 0
             fi
             git cat-file -e "${DEPLOY_SHA}^{commit}"
+
+            # Check the actual production DB before replacing code. Never delete
+            # orphan records as a deployment side effect; remediation is separate.
+            sudo -u www-data venv/bin/python "$ARTIFACT_DIR/check_database_integrity.py" cigars.db
             git reset --hard "$DEPLOY_SHA"
 
             echo "=== pip install ==="
@@ -109,16 +113,8 @@ jobs:
             sudo -u www-data test -w .
             sudo -u www-data sqlite3 -cmd ".timeout 5000" cigars.db "BEGIN IMMEDIATE; ROLLBACK;"
 
-            echo "=== cleanup orphan FK ==="
-            sudo -u www-data sqlite3 -cmd ".timeout 5000" cigars.db "
-              DELETE FROM cigars_cigarimage
-              WHERE cigar_id IS NULL OR cigar_id NOT IN (SELECT id FROM cigars_cigar);
-              DELETE FROM cigars_cigarprice
-              WHERE cigar_id IS NULL OR cigar_id NOT IN (SELECT id FROM cigars_cigar);
-            "
-
             echo "=== database migrate ==="
-            sudo -u www-data venv/bin/python manage.py migrate
+            sudo -u www-data env DJANGO_DEBUG=False venv/bin/python manage.py migrate
 
             echo "=== verify runtime database access ==="
             sudo -u www-data test -w .
@@ -128,7 +124,7 @@ jobs:
             python "$ARTIFACT_DIR/frontend_artifact.py" install "$ARTIFACT_DIR" "$DEPLOY_SHA" static/frontend
 
             echo "=== collectstatic ==="
-            python manage.py collectstatic --noinput
+            DJANGO_DEBUG=False python manage.py collectstatic --noinput
 
             echo "=== restart gunicorn ==="
             sudo systemctl restart gunicorn

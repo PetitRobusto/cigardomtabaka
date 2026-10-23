@@ -1,5 +1,10 @@
 import type { StoreProduct } from "./types";
 
+/** Shared default selection for the visible product and its canonical preview. */
+export function chooseOffer(offers: StoreProduct["offers"]) {
+  return offers.find((item) => item.in_stock) || offers.find((item) => item.price_rub) || offers[0];
+}
+
 /** Only reviewed metadata can associate a photo with a sale unit or box size. */
 export function offerImages(product: StoreProduct, offer: StoreProduct["offers"][number] | undefined) {
   if (product.image_variants !== undefined && offer) {
@@ -13,5 +18,9 @@ export function offerImages(product: StoreProduct, offer: StoreProduct["offers"]
 
   // Unoffered catalogue entries and cached payloads from before metadata support.
   const urls = product.images.length ? product.images : product.image_url ? [product.image_url] : [];
-  return urls.map((url, index) => ({ url, thumbnail_url: index === 0 ? product.image_url || url : url }));
+  return urls.map((url, index) => ({
+    url,
+    thumbnail_url: product.image_variants?.find((image) => image.url === url)?.thumbnail_url
+      || (index === 0 ? product.image_url || url : url),
+  }));
 }

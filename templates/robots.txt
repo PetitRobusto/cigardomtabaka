@@ -1,12 +1,8 @@
 User-agent: *
-Disallow: /admin/
-Disallow: /api/
-Disallow: /privnote
+Disallow: /admin
+Disallow: /api
 Disallow: /p/
 Disallow: /login
-Disallow: /inventory
-Disallow: /sales
-Disallow: /accounting
-Disallow: /reports/
-Disallow: /help
+{% for prefix in staff_page_prefixes %}Disallow: {{ prefix }}
+{% endfor %}
 {% if storefront_sitemap %}Sitemap: {{ storefront_sitemap }}{% endif %}

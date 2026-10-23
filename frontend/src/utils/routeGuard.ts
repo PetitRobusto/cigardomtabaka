@@ -30,6 +30,7 @@ export function isStaffPath(pathname: string): boolean {
 
 export function safeLoginDestination(rawNext: string | null, isStaff: boolean): string {
   if (!rawNext || !rawNext.startsWith('/') || rawNext.startsWith('//') || rawNext.startsWith('/\\')) return '/';
+  // eslint-disable-next-line no-control-regex -- Reject URL control characters before parsing normalizes them.
   if (/[\\\u0000-\u001f]/.test(rawNext)) return '/';
 
   try {
@@ -53,6 +54,7 @@ export interface StorefrontBridgeOptions {
 
 export function resolveStorefrontTarget(path: string, options: StorefrontBridgeOptions): string | null {
   if (!options.enabled || !path.startsWith('/') || path.startsWith('//') || path.startsWith('/\\')) return null;
+  // eslint-disable-next-line no-control-regex -- Reject URL control characters before parsing normalizes them.
   if (/[\\\u0000-\u001f]/.test(path)) return null;
 
   try {

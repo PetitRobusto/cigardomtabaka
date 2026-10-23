@@ -2,7 +2,8 @@ import React from "react";
 import { renderToString } from "react-dom/server";
 import { Storefront } from "./Storefront";
 import { StartupLoader } from "../components/shared/StartupLoader";
-import { storePageTitle, storeStructuredData } from "./metadata";
+import { storeOpenGraph, storePageTitle, storeStructuredData } from "./metadata";
+import { siteFaviconUrl, siteStartupScriptUrl } from "../components/site/siteAssets";
 import type { StoreAssets, StorePageData, StoreRenderInput } from "./types";
 
 function absolute(origin: string, path: string): string {
@@ -30,14 +31,13 @@ export function renderStorePage(input: StoreRenderInput): string {
   for (const alt of page.alternates) links.push(`<link rel="alternate" hreflang="${alt.locale === "zh" ? "zh-CN" : alt.locale}" href="${escapeAttribute(absolute(origin, alt.path))}">`);
   const scripts = assets.js.map((src) => `<script type="module" crossorigin src="${escapeAttribute(src)}"></script>`).join("");
   const styles = assets.css.map((href) => `<link rel="stylesheet" href="${escapeAttribute(href)}">`).join("");
-  const imageUrl = page.product?.image_url || page.site.photo;
-  const ogImage = imageUrl ? `<meta property="og:image" content="${escapeAttribute(absolute(origin, imageUrl))}">` : "";
+  const openGraph = storeOpenGraph(page, origin).map(([property, content]) => `<meta property="${escapeAttribute(property)}" content="${escapeAttribute(content)}">`).join("");
   const htmlLang = page.locale === "zh" ? "zh-CN" : page.locale === "ru" ? "ru-RU" : "en";
   const rendered = renderToString(<Storefront page={page} />);
   const startup = renderToString(<StartupLoader locale={page.locale} />);
   const robots = page.indexable === false ? '<meta name="robots" content="noindex, nofollow">' : '';
   const jsonLd = storeStructuredData(page, origin);
-  const html = `<!doctype html><html lang="${htmlLang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeAttribute(page.description)}"><link rel="canonical" href="${escapeAttribute(canonical)}">${links.join("")}${robots}${styles}<meta property="og:type" content="website"><meta property="og:title" content="${escapeAttribute(title)}"><meta property="og:description" content="${escapeAttribute(page.description)}"><meta property="og:url" content="${escapeAttribute(canonical)}">${ogImage}<script type="application/ld+json">${safeJson(jsonLd)}</script></head><body>${startup}<div id="store-root">${rendered}</div><script id="store-data" type="application/json">${safeJson({ page, origin })}</script><script src="/static/frontend/startup-loader.js" defer></script>${scripts}</body></html>`;
+  const html = `<!doctype html><html lang="${htmlLang}"><head><meta charset="utf-8"><link rel="icon" type="image/png" sizes="96x96" href="${escapeAttribute(siteFaviconUrl)}"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeAttribute(page.description)}"><link rel="canonical" href="${escapeAttribute(canonical)}">${links.join("")}${robots}${styles}${openGraph}<script type="application/ld+json">${safeJson(jsonLd)}</script></head><body>${startup}<div id="store-root">${rendered}</div><script id="store-data" type="application/json">${safeJson({ page, origin })}</script><script src="${escapeAttribute(siteStartupScriptUrl)}" defer></script>${scripts}</body></html>`;
   if (!/<h1\b/.test(html)) throw new Error("Store page requires an H1");
   return html;
 }

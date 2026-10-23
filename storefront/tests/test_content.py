@@ -21,6 +21,8 @@ class StoreContentTests(TestCase):
         self.assertTrue(existing.published)
         self.assertEqual(StoreTranslation.objects.filter(published=False).count(), 2)
         self.assertFalse(StoreSettings.objects.get(pk=1).details_verified)
+        self.assertEqual(StoreSettings.objects.get(pk=1).address, 'Москва, Молодёжная ул., д. 3, подъезд 6')
+        self.assertEqual(StoreSettings.objects.get(pk=1).map_url, 'https://yandex.com/maps/-/CXVaV4nN')
 
     def test_rub_pricing_cannot_be_zero_or_negative_and_keeps_cny(self):
         cigar = Cigar.objects.create(brand='Cohiba', english_name='Robustos')

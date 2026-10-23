@@ -13,6 +13,10 @@ from deploy.frontend_artifact import install, pack, verify
 
 class FrontendArtifactTests(SimpleTestCase):
     sha = 'a' * 40
+    storefront_public_assets = (
+        'startup-loader.js', 'favicon-96.png', 'logo-opening.webp',
+        'logo-motion.webp', 'logo-opening-motion-v2.svg', 'habanos-specialist.png',
+    )
 
     def setUp(self):
         temporary = TemporaryDirectory()
@@ -66,6 +70,49 @@ class FrontendArtifactTests(SimpleTestCase):
         }))
         with self.assertRaisesRegex(ValueError, 'renderer'):
             pack(self.source, self.artifact, self.sha)
+
+    def storefront_members(self):
+        return {
+            '.vite/manifest.json': json.dumps({
+                'src/storefront/client.tsx': {'file': 'assets/app.js', 'isEntry': True},
+            }).encode(),
+            'assets/app.js': b'app',
+            'storefront-render/render.mjs': b'renderer',
+            **{name: b'public resource' for name in self.storefront_public_assets},
+        }
+
+    def test_complete_storefront_artifact_can_be_packaged_verified_and_installed(self):
+        members = self.storefront_members()
+        for name, contents in members.items():
+            path = self.source / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(contents)
+        pack(self.source, self.artifact, self.sha)
+        verify(self.artifact, self.sha)
+        install(self.artifact, self.sha, self.destination)
+        for name, contents in members.items():
+            self.assertEqual((self.destination / name).read_bytes(), contents)
+
+    def test_missing_storefront_public_resource_is_rejected_before_replacing_live_build(self):
+        members = self.storefront_members()
+        for name, contents in members.items():
+            path = self.source / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(contents)
+        for missing in self.storefront_public_assets:
+            with self.subTest(missing=missing):
+                path = self.source / missing
+                path.unlink()
+                with self.assertRaisesRegex(ValueError, 'Missing storefront public asset'):
+                    pack(self.source, self.root / 'incomplete-package', self.sha)
+                self.assertFalse((self.root / 'incomplete-package').exists())
+                self.rewrite_archive({name: value for name, value in members.items() if name != missing})
+                with self.assertRaisesRegex(ValueError, 'Missing storefront public asset'):
+                    verify(self.artifact, self.sha)
+                with self.assertRaisesRegex(ValueError, 'Missing storefront public asset'):
+                    install(self.artifact, self.sha, self.destination)
+                self.assert_old_build()
+                path.write_bytes(members[missing])
 
     def rewrite_archive(self, members):
         archive = self.artifact / 'frontend.tar.gz'

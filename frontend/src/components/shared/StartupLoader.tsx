@@ -13,6 +13,8 @@ export function StartupLoader({ locale }: StartupLoaderProps): ReactElement {
   return (
     <section
       id="startup-loader"
+      data-locale={locale}
+      lang={locale === 'zh' ? 'zh-CN' : locale}
       data-phase="intro"
       data-slow-text={messages.loading}
       data-failed-text={messages.loadError}

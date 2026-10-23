@@ -4,6 +4,7 @@ from django.db import transaction
 
 from storefront.languages import HOME_COPY as HOME_DRAFTS
 from storefront.models import StoreSettings, StoreTranslation
+from storefront.public_details import PUBLIC_DETAILS
 
 
 class Command(BaseCommand):
@@ -19,7 +20,8 @@ class Command(BaseCommand):
             return
         with transaction.atomic():
             StoreSettings.objects.get_or_create(pk=1, defaults={
-                'address': 'Москва, Молодёжная ул. 3', 'phone': '+7 929 638-48-78',
+                'address': PUBLIC_DETAILS['address']['ru'], 'phone': PUBLIC_DETAILS['phone'],
+                'map_url': PUBLIC_DETAILS['map_url'],
                 'wechat': 'cigardomtabaka', 'details_verified': False,
             })
             for locale, draft in HOME_DRAFTS.items():

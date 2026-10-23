@@ -1,8 +1,10 @@
 """Exercise the real CI-built React renderer against Django's public contract."""
 import shutil
+import mimetypes
 from decimal import Decimal
 from pathlib import Path
 from unittest import skipUnless
+from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.test import TestCase, override_settings
@@ -11,6 +13,7 @@ from cigars.models import Brand, Cigar, CigarImage, CigarPrice
 from cigars.tests.inventory_fixtures import create_purchase_batch
 from storefront.models import ProductListing, StorePage, StoreSettings, StoreTranslation
 from storefront.publishing import build_assets, publish_pending, reconcile
+from deploy.verify_storefront_http import Response, audit
 
 
 @skipUnless(shutil.which('node') and Path(settings.STOREFRONT_RENDERER).is_file(), 'Run npm run build to exercise the real React renderer')
@@ -86,6 +89,22 @@ class PrerenderIntegrationTests(TestCase):
         self.assertEqual(self.client.get('/en/not-a-page').status_code, 404)
         self.assertEqual(self.client.get('/ru/catalog/not-a-page').status_code, 404)
         self.assertEqual(self.client.get('/invented-page').status_code, 404)
+
+    def test_release_http_audit_accepts_real_rendered_pages_and_public_sitemap(self):
+        def request(url):
+            parsed = urlsplit(url)
+            if parsed.path.startswith('/static/frontend/'):
+                path = Path(settings.STOREFRONT_RENDERER).parent.parent / parsed.path.removeprefix('/static/frontend/')
+                return Response(200, {'content-type': mimetypes.guess_type(path)[0]},
+                                path.read_bytes().decode('utf-8', errors='replace'))
+            response = self.client.get(parsed.path + ('?' + parsed.query if parsed.query else ''))
+            return Response(response.status_code, {key.lower(): value for key, value in response.items()},
+                            response.content.decode())
+
+        report = audit(settings.STOREFRONT_ORIGIN, request=request,
+                       extra_paths=['/catalog', '/ru/brand/cohiba', f'/en/cigar/{self.cigar.pk}/cohiba-robustos'])
+        self.assertTrue(report['ready'], report['issues'])
+        self.assertEqual(report['sitemap_url_count'], 12)
 
     def test_unknown_box_size_is_not_presented_as_the_25_cigar_offer_photo(self):
         self.box_image.box_size = None

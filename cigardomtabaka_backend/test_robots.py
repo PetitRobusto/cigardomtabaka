@@ -2,6 +2,8 @@ from urllib.robotparser import RobotFileParser
 
 from django.test import SimpleTestCase, override_settings
 
+from cigardomtabaka_backend.urls import STAFF_PAGE_PREFIXES, SPA_PAGE_PATHS, is_staff_page_path
+
 
 class RobotsTests(SimpleTestCase):
     def test_anonymous_request_returns_plain_text_in_both_environments(self):
@@ -29,16 +31,22 @@ class RobotsTests(SimpleTestCase):
         rules.parse(response.content.decode().splitlines())
 
         allowed = (
-            '/', '/brand/cohiba', '/cigar/1/cohiba', '/prices',
+            '/', '/ru/', '/en/', '/catalog', '/catalog?page=2',
+            '/brand/cohiba', '/cigar/1/cohiba', '/ru/catalog', '/en/brand/cohiba',
+            '/ru/cigar/1/cohiba', '/sitemap-storefront.xml',
             '/static/frontend/assets/app.js', '/media/cigars/cohiba.jpg',
             '/yandex_b944c5e69a8995a8.html',
         )
         disallowed = (
-            '/admin/', '/api/brands/', '/privnote', '/privnote/api/access/',
+            '/admin', '/admin/', '/admin/login/', '/api', '/api/brands/', '/privnote', '/privnote/api/access/',
             '/p/customer-token', '/login', '/inventory', '/inventory/purchases',
             '/sales', '/sales/customers', '/accounting', '/accounting/day1',
-            '/accounting/reports/monthly', '/reports/monthly', '/help',
+            '/accounting/reports/monthly', '/reports', '/reports/monthly', '/help',
+            '/library', '/library/brand/cohiba', '/library/cigar/1/cohiba',
+            '/prices', '/prices/alerts', '/prices/cigar/1/cohiba',
         )
+        disallowed += tuple(STAFF_PAGE_PREFIXES)
+        disallowed += tuple(path for path in SPA_PAGE_PATHS if is_staff_page_path(path))
         for agent in ('YandexBot', 'Googlebot', 'ExampleBot'):
             for path in allowed:
                 with self.subTest(agent=agent, allowed=path):
@@ -46,3 +54,11 @@ class RobotsTests(SimpleTestCase):
             for path in disallowed:
                 with self.subTest(agent=agent, disallowed=path):
                     self.assertFalse(rules.can_fetch(agent, path))
+
+    @override_settings(STOREFRONT_ENABLED=True, STOREFRONT_ORIGIN='https://shop.example/')
+    def test_robots_lists_only_the_public_storefront_sitemap(self):
+        rules = RobotFileParser()
+        rules.parse(self.client.get('/robots.txt').content.decode().splitlines())
+        self.assertEqual(rules.site_maps(), ['https://shop.example/sitemap-storefront.xml'])
+        with override_settings(STOREFRONT_ENABLED=False):
+            self.assertNotContains(self.client.get('/robots.txt'), 'Sitemap:')

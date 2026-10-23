@@ -58,10 +58,14 @@ describe("sale unit photos", () => {
   it("synchronizes the gallery and full image with the selected unit and exact box size", () => {
     render(<Storefront page={{ ...backendPageFixture, product }} ageConfirmed />);
     expect(main()?.getAttribute("src")).toBe("/box10.jpg");
+    expect(main()?.getAttribute("fetchpriority")).toBe("high");
+    expect(main()?.getAttribute("loading")).toBe("eager");
     expect(document.querySelectorAll(".store-gallery-thumb")).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "Single cigar" }));
     expect(main()?.getAttribute("src")).toBe("/single.jpg");
     expect(document.querySelectorAll(".store-gallery-thumb")).toHaveLength(2);
+    expect(Array.from(document.querySelectorAll('.store-gallery-thumb img')).map((img) => img.getAttribute('src')))
+      .toEqual(['/single-thumb.jpg', '/single-second-thumb.jpg']);
     fireEvent.click(screen.getByRole("button", { name: "Cigar 2" }));
     expect(main()?.getAttribute("src")).toBe("/single-second.jpg");
     expect(document.querySelector(".store-lightbox img")?.getAttribute("src")).toBe("/single-second.jpg");
@@ -92,7 +96,17 @@ describe("sale unit photos", () => {
 
   it("retains unoffered catalogue images and supports previously rendered payloads", () => {
     expect(offerImages(product, undefined).map((image) => image.url)).toEqual(product.images);
+    expect(offerImages(product, undefined).map((image) => image.thumbnail_url)).toEqual(product.image_variants!.map((image) => image.thumbnail_url));
     expect(offerImages({ ...product, image_variants: undefined }, product.offers[0])[0].url).toBe("/single.jpg");
+  });
+
+  it("falls back to the same original when a thumbnail is absent", () => {
+    const noThumbnail = { ...product, offers: [product.offers[2]], image_variants: product.image_variants!.map((image) => ({ ...image, thumbnail_url: '' })) };
+    const { container } = render(<Storefront page={{ ...backendPageFixture, product: noThumbnail }} ageConfirmed />);
+    expect(Array.from(container.querySelectorAll('.store-gallery-thumb img')).map((img) => img.getAttribute('src')))
+      .toEqual(['/single.jpg', '/single-second.jpg']);
+    fireEvent.click(screen.getByRole('button', { name: 'Cigar 2' }));
+    expect(main()?.getAttribute('src')).toBe('/single-second.jpg');
   });
 
   it("does not carry a single selection into another product opened from a box card", () => {

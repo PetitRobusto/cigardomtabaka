@@ -2,15 +2,22 @@
 
 // @ts-expect-error Node types are intentionally absent from the browser app config.
 import { readFileSync } from 'node:fs';
+// @ts-expect-error Node types are intentionally absent from the browser app config.
+import { createHash } from 'node:crypto';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { StartupLoader } from './components/shared/StartupLoader';
+import { customerMessages } from './features/customer/messages';
+import { siteStartupScriptUrl } from './components/site/siteAssets';
+import { renderStorePage } from './storefront/render';
+import { backendPageFixture } from './storefront/fixture';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const script = readFileSync('public/startup-loader.js', 'utf8');
+const shells = ['index.html', '../templates/spa_index.html'].map((path) => ({ path, html: readFileSync(path, 'utf8') }));
 
 type StartupWindow = Window & {
-  CDTStartup?: { ready: () => void; fail: () => void };
+  CDTStartup?: { ready: () => void; fail: () => void; destroy: () => void };
 };
 
 function installLoader(appRoot = 'root', locale: 'zh' | 'en' | 'ru' = 'zh') {
@@ -21,6 +28,8 @@ function installLoader(appRoot = 'root', locale: 'zh' | 'en' | 'ru' = 'zh') {
 
 beforeEach(() => {
   vi.useFakeTimers();
+  window.history.replaceState({}, '', '/');
+  window.localStorage.clear();
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
     value: () => ({ matches: false }),
@@ -31,7 +40,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  (window as StartupWindow).CDTStartup?.destroy();
   vi.useRealTimers();
+  vi.restoreAllMocks();
   delete (window as StartupWindow).CDTStartup;
   document.body.innerHTML = '';
 });
@@ -103,6 +114,14 @@ describe('startup logo fallback', () => {
 });
 
 describe('server-rendered loader default', () => {
+  it('invalidates cached startup scripts in all HTML entry points when the script changes', () => {
+    const version = createHash('sha256').update(script).digest('hex').slice(0, 12);
+    expect(siteStartupScriptUrl).toBe(`/static/frontend/startup-loader.js?v=${version}`);
+    expect(shells[0].html).toContain(`src="${siteStartupScriptUrl}"`);
+    expect(shells[1].html).toContain(`{% endif %}?v=${version}" defer></script>`);
+    const html = renderStorePage({ page: backendPageFixture, origin: 'https://shop.example', assets: { js: [], css: [] } });
+    expect(html).toContain(`src="${siteStartupScriptUrl}"`);
+  });
   it.each(['zh', 'en', 'ru'] as const)('renders %s copy with the overlay hidden until JavaScript runs', locale => {
     const markup = renderToStaticMarkup(createElement(StartupLoader, { locale }));
     expect(markup).toContain(' hidden');
@@ -110,5 +129,68 @@ describe('server-rendered loader default', () => {
     expect(markup).toContain('/static/frontend/logo-motion.webp');
     expect(markup).toContain('/static/frontend/habanos-specialist.png');
     expect(markup).not.toContain('cdt-starting');
+  });
+});
+
+describe('startup language matching', () => {
+  function installShell(html: string, path: string, storefrontEnabled = false) {
+    window.history.replaceState({}, '', path);
+    const shell = new DOMParser().parseFromString(html, 'text/html');
+    document.body.innerHTML = `${shell.getElementById('startup-loader')!.outerHTML}<div id="root"></div><script id="cdt-app-runtime-config" type="application/json">${JSON.stringify({ storefrontEnabled })}</script>`;
+    expect(document.getElementById('startup-loader')!.hidden).toBe(true);
+    window.eval(script);
+  }
+
+  for (const shell of shells) {
+    it.each(['zh', 'ru', 'en'] as const)(`localizes ${shell.path} introduction, slow loading and failure in %s`, async (locale) => {
+      window.localStorage.setItem('cdt.customer.language', locale === 'zh' ? 'en' : 'zh');
+      installShell(shell.html, locale === 'zh' ? '/catalog' : `/${locale}/catalog`);
+      const text = customerMessages[locale];
+      const root = document.getElementById('startup-loader')!;
+      expect(root.hidden).toBe(false);
+      expect(root.lang).toBe(locale === 'zh' ? 'zh-CN' : locale);
+      expect(root.getAttribute('aria-label')).toBe(text.loading);
+      expect(root.querySelector('.cdt-startup__status-label')!.textContent).toBe(text.storeCredential);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(root.querySelector('.cdt-startup__status-label')!.textContent).toBe(text.loading);
+      const retry = root.querySelector<HTMLButtonElement>('.cdt-startup__retry')!;
+      expect(retry.textContent).toBe(text.retry);
+      expect(retry.hidden).toBe(false);
+      (window as StartupWindow).CDTStartup!.fail();
+      expect(root.querySelector('.cdt-startup__status-label')!.textContent).toBe(text.loadError);
+      expect(root.getAttribute('aria-busy')).toBe('false');
+    });
+  }
+
+  it.each(['zh', 'ru', 'en'] as const)('preserves the SSR %s locale over saved preferences and the URL', (locale) => {
+    window.history.replaceState({}, '', '/en/');
+    window.localStorage.setItem('cdt.customer.language', 'ru');
+    installLoader('store-root', locale);
+    expect(document.querySelector('.cdt-startup__status-label')!.textContent).toBe(customerMessages[locale].storeCredential);
+  });
+
+  it('uses saved customer preferences for the legacy customer homepage', () => {
+    window.localStorage.setItem('cdt.customer.language', 'ru');
+    installShell(shells[0].html, '/');
+    expect(document.getElementById('startup-loader')!.lang).toBe('ru');
+  });
+
+  it('uses Chinese for the enabled storefront root regardless of legacy preferences', () => {
+    window.localStorage.setItem('cdt.customer.language', 'ru');
+    installShell(shells[0].html, '/', true);
+    expect(document.getElementById('startup-loader')!.lang).toBe('zh-CN');
+  });
+
+  it('falls back to a supported browser language when storage is unavailable', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('Storage blocked'); });
+    vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['fr-FR', 'ru-RU']);
+    installShell(shells[0].html, '/brand/cohiba');
+    expect(document.getElementById('startup-loader')!.lang).toBe('ru');
+  });
+
+  it('keeps management pages Chinese despite customer preferences or return URLs', () => {
+    window.localStorage.setItem('cdt.customer.language', 'ru');
+    installShell(shells[0].html, '/login?next=/en/catalog');
+    expect(document.getElementById('startup-loader')!.lang).toBe('zh-CN');
   });
 });

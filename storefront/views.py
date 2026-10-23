@@ -46,10 +46,15 @@ def page(request):
         page_number = max(1, int(request.GET.get("page", "1")))
     except (TypeError, ValueError):
         page_number = 1
-    page_path = canonical if page_number == 1 else f"{canonical}?page={page_number}"
+    browsing = any(request.GET.get(key) for key in BROWSING_PARAMETERS)
+    page_path = canonical if browsing or page_number == 1 else f"{canonical}?page={page_number}"
     live_payload = pages.get(page_path)
     if live_payload is None:
         _not_found()
+    if browsing and live_payload["kind"] != "product":
+        # Match the JSON endpoint's filtered pagination validity while serving
+        # the base canonical artifact; client navigation fills in the results.
+        browse_page(live_payload, request.GET, pages)
     stored = StorePage.objects.filter(path=page_path, active=True).first()
     if not stored or not stored.html or not stored.rendered_hash or not stored.rendered_payload:
         return HttpResponse("Store page is being prepared.", status=503, content_type="text/plain; charset=utf-8",
@@ -65,7 +70,7 @@ def page(request):
         response = HttpResponse(stored.html, content_type="text/html; charset=utf-8")
     response["ETag"] = etag
     response["Cache-Control"] = "no-cache"
-    if not stored.rendered_payload.get("indexable") or any(request.GET.get(key) for key in BROWSING_PARAMETERS):
+    if not stored.rendered_payload.get("indexable") or browsing:
         response["X-Robots-Tag"] = "noindex, nofollow"
     return response
 

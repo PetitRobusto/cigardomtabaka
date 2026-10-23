@@ -29,6 +29,29 @@ artifact 名为 `frontend-<commit SHA>`，保留 7 天。Deploy 按触发 CI 的
 VPS 使用独立 run/attempt 暂存目录，安装时先验证并解包到同文件系统，替换失败恢复旧目录；
 安装成功后仍执行 `collectstatic`，不再在 VPS 上运行 `npm ci` 或前端构建。
 
+商城制品还必须包含 SSR 直接引用的启动脚本、favicon 与品牌图片，不能仅凭 manifest
+完整判断资源齐全。获准启用商城后，用独立只读验收核对公开响应：
+
+```bash
+python3 deploy/verify_storefront_http.py https://cigardomtabaka.com \
+  --www-origin https://www.cigardomtabaka.com
+```
+
+可用重复的 `--path` 参数补充实际品牌、商品和分页样例。检查返回非零时核查 JSON 报告，
+不要把旧 SPA 的 200 响应视作 SEO 上线成功。此工具不启用商城、不重启服务、不写生产数据。
+它也拒绝 sitemap 中的管理、私密、筛选或非规范地址，并检查 robots 的管理路径排除和资源抓取规则。
+
+部署在替换代码前以 `www-data` 只读运行 `deploy/check_database_integrity.py cigars.db`，
+检查 SQLite 外键完整性（包含已提交 WAL）。发现孤儿、数据库不可读或检查失败时停止；
+不会再自动删除历史图片或价格记录。异常数据须单独诊断和获准修复，不能绕过门禁。
+迁移和 collectstatic 显式使用 `DJANGO_DEBUG=False`，避免落入默认开发环境。
+
+工作流完成仅代表安装与服务重启成功。商城首次启用还必须完成
+[商城发布验收](../docs/storefront-operations.md#发布验收门禁)，包括缓存代次、HTTPS www、HTTP 结果和回退准备。
+当前工作流不会安装 Nginx 模板、创建 worker 服务或自动启用商城。
+`deploy/nginx-https.conf` 是按现有生产证书路径准备的 HTTPS 配置，包含 www 规范跳转；
+仅在核对实际证书覆盖两个域名、备份现有配置并通过 `nginx -t` 后安装。
+
 
 ## 二、GitHub Secrets
 

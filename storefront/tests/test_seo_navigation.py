@@ -4,8 +4,8 @@ from django.test import TestCase, override_settings
 
 from cigars.models import Brand, Cigar
 from cigars.tests.inventory_fixtures import create_purchase_batch
-from storefront.catalog import allowed_payload, build_pages
-from storefront.models import StoreTranslation
+from storefront.catalog import allowed_payload, build_pages, public_dependencies
+from storefront.models import StoreTranslation, ProductListing, StorePage
 
 
 @override_settings(STOREFRONT_ENABLED=True)
@@ -57,3 +57,49 @@ class BrandLandingNavigationTests(TestCase):
         self.assertFalse(pages["/ru/"]["indexable"])
         self.assertIn("/ru/brand/cohiba", pages)
         self.assertFalse(pages["/ru/brand/cohiba"]["indexable"])
+
+    def test_hreflang_only_targets_final_indexable_pages_when_related_translation_is_missing(self):
+        # The main Russian product is translated, but its related stock is not.
+        related = Cigar.objects.create(brand="Cohiba", english_name="Siglo II")
+        create_purchase_batch(source="opening", cigar=related, quantity=25, remaining=25,
+                              physical_remaining=25, box_size=25, unit_cost_cny=Decimal("1"))
+        ProductListing.objects.create(cigar=related, published=True)
+        StoreTranslation.objects.create(kind="product", key=str(related.pk), locale="en",
+                                        title="Siglo II", description="Reviewed description",
+                                        body="Reviewed body", published=True)
+        pages = build_pages()
+        path = f"/cigar/{self.cigar.pk}/cohiba-genios"
+        self.assertFalse(pages["/ru" + path]["indexable"])
+        self.assertNotIn("ru", {row["locale"] for row in pages[path]["alternates"]})
+        dependencies = public_dependencies()
+        for current_path, payload in pages.items():
+            with self.subTest(path=current_path):
+                self.assertTrue(allowed_payload(payload, dependencies))
+                for alternate in payload["alternates"]:
+                    self.assertTrue(pages[alternate["path"]]["indexable"])
+
+    def test_missing_english_brand_translation_is_browsable_but_not_indexable(self):
+        StoreTranslation.objects.filter(kind="brand", key="cohiba", locale="en").update(published=False)
+        pages = build_pages()
+        dependencies = public_dependencies()
+        for path in ("/en/", "/en/catalog", "/en/brand/cohiba",
+                     f"/en/cigar/{self.cigar.pk}/cohiba-genios"):
+            with self.subTest(path=path):
+                payload = pages[path]
+                self.assertFalse(payload["indexable"])
+                self.assertTrue(allowed_payload(payload, dependencies))
+                self.assertNotIn("en", {row["locale"] for row in payload["alternates"]})
+        fallback = pages[f"/en/cigar/{self.cigar.pk}/cohiba-genios"]
+        self.assertEqual(fallback["product"]["brand"], "Cohiba")
+        StorePage.objects.create(path=fallback["path"], payload=fallback, rendered_payload=fallback,
+                                 desired_hash="fallback", rendered_hash="fallback",
+                                 html="<h1>Genios</h1>")
+        response = self.client.get(fallback["path"])
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("noindex", response["X-Robots-Tag"])
+        self.assertNotContains(self.client.get("/sitemap-storefront.xml"), fallback["path"])
+        StoreTranslation.objects.filter(kind="brand", key="cohiba", locale="en").update(published=True)
+        self.assertFalse(allowed_payload(fallback))
+        published = build_pages()[fallback["path"]]
+        self.assertTrue(published["indexable"])
+        self.assertTrue(allowed_payload(published))

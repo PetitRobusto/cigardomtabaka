@@ -63,7 +63,46 @@ class SeoAuditTests(SimpleTestCase):
         report = self.audit(paths)
         self.assertTrue(report["ready"])
         codes = {issue["code"] for issue in report["issues"]}
-        self.assertEqual(codes, {"empty_brand", "missing_body", "orphan_product"})
+        self.assertEqual(codes, {"empty_brand", "orphan_product"})
+
+    def test_optional_brand_body_does_not_require_an_introduction(self):
+        paths = {"/": page("/"), "/brand/cohiba": page("/brand/cohiba", kind="brand", body="", total_products=1)}
+        self.assertEqual(self.audit(paths)["issues"], [])
+
+    def test_noindex_list_does_not_make_indexable_product_discoverable(self):
+        product_path = "/en/cigar/1/robustos"
+        paths = {
+            "/": page("/"),
+            product_path: page(product_path, locale="en", kind="product", indexable=True),
+            "/en/catalog": page("/en/catalog", locale="en", view="catalog", indexable=False,
+                                translation_complete=False, products=[{"path": product_path}]),
+        }
+        report = self.audit(paths)
+        orphan = next(issue for issue in report["issues"] if issue["code"] == "orphan_product")
+        self.assertEqual(orphan["samples"], [{"path": product_path, "fields": []}])
+        paths["/en/catalog"]["indexable"] = True
+        paths["/en/catalog"]["translation_complete"] = True
+        self.assertNotIn("orphan_product", {issue["code"] for issue in self.audit(paths)["issues"]})
+
+    def test_fallback_pages_are_counted_and_warned_without_orphan_or_blocker(self):
+        product_path = "/ru/cigar/1/robustos"
+        paths = {
+            "/": page("/", indexable=True, translation_complete=True),
+            product_path: page(product_path, locale="ru", kind="product", indexable=False, translation_complete=False),
+            "/ru/catalog": page("/ru/catalog", locale="ru", view="catalog", indexable=False, translation_complete=False),
+            "/ru/catalog?page=2": page("/ru/catalog?page=2", locale="ru", view="catalog", indexable=False,
+                                       translation_complete=False, pagination={"page": 2}),
+        }
+        report = self.audit(paths)
+        self.assertTrue(report["ready"])
+        self.assertEqual(report["page_count"], 4)
+        self.assertEqual(report["indexable_page_count"], 1)
+        self.assertEqual(report["locales"], {
+            "ru": {"page_count": 3, "indexable_page_count": 0, "fallback_page_count": 3},
+            "zh": {"page_count": 1, "indexable_page_count": 1, "fallback_page_count": 0},
+        })
+        self.assertEqual([issue["code"] for issue in report["issues"]], ["translation_fallback"])
+        self.assertEqual(report["issues"][0]["count"], 3)
 
     def test_product_linked_on_second_page_is_discoverable_but_filtered_link_does_not_count(self):
         product_path = "/cigar/1/robustos"
@@ -122,6 +161,16 @@ class SeoCommandTests(TestCase):
         self.assertFalse(report["ready"])
         self.assertEqual(report["schema_version"], 1)
         self.assertIn("no_pages", {issue["code"] for issue in report["issues"]})
+
+    def test_strict_mode_allows_intentional_translation_fallback(self):
+        paths = {"/": page("/"), "/ru/": page("/ru/", locale="ru", indexable=False, translation_complete=False)}
+        output = io.StringIO()
+        StoreSettings.objects.create(details_verified=True)
+        with patch("storefront.management.commands.check_storefront_seo.build_pages", return_value=paths):
+            call_command("check_storefront_seo", json=True, strict=True, stdout=output)
+        report = json.loads(output.getvalue())
+        self.assertTrue(report["ready"])
+        self.assertEqual(report["counts"], {"error": 0, "warning": 1})
 
     def test_default_reports_blockers_without_failure_and_invalid_sample_limit_fails(self):
         with patch("storefront.management.commands.check_storefront_seo.build_pages", return_value={}):

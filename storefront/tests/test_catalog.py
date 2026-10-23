@@ -12,6 +12,7 @@ from price_tracker.models import ExchangeRate
 
 from storefront.catalog import _product_data, allowed_payload, build_pages, public_dependencies, resolve_path, search_products, semantic_hash
 from storefront.models import ProductListing, StorePage, StoreSettings, StoreTranslation
+from storefront.public_details import PUBLIC_DETAILS
 from storefront.views import page, page_data, rates
 
 
@@ -323,17 +324,40 @@ class StorefrontCatalogTests(TestCase):
         store, _ = StoreSettings.objects.get_or_create(pk=1)
         store.address = "Private draft address"
         store.phone = "+7 999 123 45 67"
+        store.map_url = "https://maps.example/custom-store"
         store.save()
         site = build_pages()["/"]["site"]
-        self.assertEqual(site["address"], "")
-        self.assertEqual(site["phone"], "")
-        self.assertEqual(site["hours"], "")
+        self.assertEqual(site["address"], PUBLIC_DETAILS["address"]["zh"])
+        self.assertEqual(site["phone"], PUBLIC_DETAILS["phone"])
+        self.assertEqual(site["map_url"], PUBLIC_DETAILS["map_url"])
+        self.assertEqual(site["hours"], PUBLIC_DETAILS["hours"]["zh"])
         store.details_verified = True
         store.save()
         site = build_pages()["/"]["site"]
         self.assertEqual(site["address"], "Private draft address")
         self.assertEqual(site["phone"], "+7 999 123 45 67")
+        self.assertEqual(site["map_url"], "https://maps.example/custom-store")
         self.assertEqual(site["hours"], "Daily 10–18")
+
+    def test_confirmed_details_are_public_in_all_locales_without_verifying_other_drafts(self):
+        StoreSettings.objects.create(address="Draft address", phone="Private phone", map_url="https://maps.example/draft", details_verified=False)
+        for locale in ("zh", "ru", "en"):
+            self.add_home_translation(locale)
+        pages = build_pages()
+        dependencies = public_dependencies()
+        for path, payload in pages.items():
+            with self.subTest(path=path):
+                locale = payload["locale"]
+                self.assertEqual(payload["site"]["address"], PUBLIC_DETAILS["address"][locale])
+                self.assertEqual(payload["site"]["hours"], PUBLIC_DETAILS["hours"][locale])
+                self.assertEqual(payload["site"]["phone"], PUBLIC_DETAILS["phone"])
+                self.assertEqual(payload["site"]["map_url"], PUBLIC_DETAILS["map_url"])
+                self.assertTrue(allowed_payload(payload, dependencies))
+        for field in ("address", "hours", "phone", "map_url"):
+            payload = json.loads(json.dumps(pages["/"]))
+            payload["site"][field] = "Unverified draft"
+            with self.subTest(field=field):
+                self.assertFalse(allowed_payload(payload, dependencies))
 
     def test_page_data_etag_and_current_publication_guard(self):
         self.add_home_translation()
@@ -458,6 +482,27 @@ class StorefrontCatalogTests(TestCase):
             self.assertEqual(data["total_products"], 2)
             self.assertEqual([p["id"] for p in data["products"]], [self.cigar.pk])
             self.assertEqual(data["pagination"]["previous"], "/catalog?box=25&sort=length")
+
+            for path in ("/catalog", "/catalog?page=2"):
+                payload = pages[path]
+                StorePage.objects.create(path=path, payload=payload, rendered_payload=payload,
+                    desired_hash=semantic_hash(payload), rendered_hash=semantic_hash(payload),
+                    html=f'<html><link rel="canonical" href="https://shop.example{path}"></html>')
+            for filters in ({"box": "25"}, {"brand": self.brand.slug}, {"sort": "length"}):
+                with self.subTest(filters=filters):
+                    response = self.client.get("/catalog", {**filters, "page": "2"})
+                    self.assertContains(response, 'href="https://shop.example/catalog"')
+                    self.assertEqual(response["X-Robots-Tag"], "noindex, nofollow")
+                    data_response = page_data(self.factory.get("/api/storefront/page/", {"path": "/catalog", **filters, "page": "2"}))
+                    self.assertEqual(json.loads(data_response.content)["path"], "/catalog")
+                    cached = self.client.get("/catalog", {**filters, "page": "2"}, HTTP_IF_NONE_MATCH=response["ETag"])
+                    self.assertEqual(cached.status_code, 304)
+                    self.assertEqual(cached["X-Robots-Tag"], "noindex, nofollow")
+            response = self.client.get("/catalog", {"page": "2"})
+            self.assertContains(response, 'href="https://shop.example/catalog?page=2"')
+            self.assertNotIn("X-Robots-Tag", response)
+            for filters in ({"box": "25", "page": "99"}, {"q": "absent", "page": "2"}):
+                self.assertEqual(self.client.get("/catalog", filters).status_code, 404)
 
     def test_translated_search_recognizes_chinese_brand_and_vitola_without_changing_output_language(self):
         self.add_home_translation("en")

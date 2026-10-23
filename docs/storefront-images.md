@@ -18,6 +18,9 @@ DJANGO_DEBUG=True TELEGRAM_NOTIFICATIONS_ENABLED=False .venv/bin/python manage.p
 
 命令拒绝向 `DEBUG=False` 或名为 `cigars.db` 的数据库写入。生产发布仍按仓库部署流程单独进行；不能通过修改 DEBUG 来绕过生产权限。
 
+获准首次生产发布时，使用 [商城发布入口](storefront-operations.md#渲染与启用生产操作另需授权)
+中的 `publish_storefront_catalog`，其独立生产门禁和事务覆盖同一份已审图片、翻译与缺失上架记录。
+
 项目已有构建和页面刷新命令：
 
 ```bash

@@ -10,12 +10,24 @@ import tarfile
 from tempfile import TemporaryDirectory
 
 
+# Referenced directly by the SSR document and shared store components, so Vite's
+# hashed-asset manifest does not enumerate these required public files.
+STOREFRONT_PUBLIC_ASSETS = (
+    'startup-loader.js', 'favicon-96.png', 'logo-opening.webp',
+    'logo-motion.webp', 'logo-opening-motion-v2.svg', 'habanos-specialist.png',
+)
+
+
 def validate_build(root):
     manifest = json.loads((root / '.vite/manifest.json').read_text())
     if not manifest or not any(chunk.get('isEntry') for chunk in manifest.values()):
         raise ValueError('Frontend manifest has no entry point')
-    if 'src/storefront/client.tsx' in manifest and not (root / 'storefront-render/render.mjs').is_file():
-        raise ValueError('Frontend artifact is missing the storefront renderer')
+    if 'src/storefront/client.tsx' in manifest:
+        if not (root / 'storefront-render/render.mjs').is_file():
+            raise ValueError('Frontend artifact is missing the storefront renderer')
+        for name in STOREFRONT_PUBLIC_ASSETS:
+            if not (root / name).is_file():
+                raise ValueError(f'Missing storefront public asset: {name}')
     for chunk in manifest.values():
         for name in [chunk['file'], *chunk.get('css', []), *chunk.get('assets', [])]:
             path = PurePosixPath(name)

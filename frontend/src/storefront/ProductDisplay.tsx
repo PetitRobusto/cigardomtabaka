@@ -3,7 +3,7 @@ import type { StoreLocale, StorePageData, StoreProduct } from "./types";
 import { catalogPath, productLink } from "./browsing";
 import { useStoreModal } from "./Modal";
 import { ReferencePrice } from "./ReferencePrice";
-import { offerImages } from "./productImages";
+import { chooseOffer, offerImages } from "./productImages";
 
 type Labels = Record<string, string>;
 const languageTag = { zh: "zh-CN", ru: "ru-RU", en: "en" };
@@ -11,7 +11,6 @@ type Offer = StoreProduct["offers"][number];
 function offerKey(offer: Offer) { return offer.sale_unit === "stick" ? "stick" : String(offer.box_size); }
 function offerLabel(offer: Offer, labels: Labels) { return offer.sale_unit === "stick" ? labels.single : `${offer.box_size} ${labels.box}`; }
 function priceUnit(offer: Offer | undefined, labels: Labels) { return offer?.sale_unit === "stick" ? labels.perStick : labels.perBox; }
-function chooseOffer(offers: StoreProduct["offers"]) { return offers.find((item) => item.in_stock) || offers.find((item) => item.price_rub) || offers[0]; }
 
 export function Availability({ value, labels }: { value: StoreProduct["availability"]; labels: Labels }) {
   return <span className={`status store-availability store-availability-${value}`}>{value === "in_stock" ? labels.inStock : value === "out_of_stock" ? labels.outOfStock : labels.catalog}</span>;
@@ -31,7 +30,7 @@ function rememberScroll() {
   try { sessionStorage.setItem(`cdt:store-scroll:${location.pathname}${location.search}`, String(window.scrollY)); } catch { /* Browsing still works without storage. */ }
 }
 
-function ProductImage({ src, alt, ...rest }: { src: string; alt: string; loading?: "lazy"; "data-gallery-main"?: string }) {
+function ProductImage({ src, alt, ...rest }: { src: string; alt: string; loading?: "lazy" | "eager"; fetchPriority?: "high"; "data-gallery-main"?: string }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   return failedUrl === src ? <span className="store-image-failure" role="img" aria-label={alt}>{alt}</span> : <img src={src} alt={alt} onError={() => setFailedUrl(src)} {...rest} />;
 }
@@ -67,7 +66,8 @@ export function ProductPage({ product, page, labels, returnPath }: { product: St
   const requestedBoxes = returnPath ? new URL(returnPath, "https://store.invalid").searchParams.getAll("box") : [];
   const matchingOffers = product.offers.filter((item) => requestedBoxes.includes(offerKey(item)));
   const offer = product.offers.find((item) => offerKey(item) === selectedOffer) || chooseOffer(matchingOffers) || chooseOffer(product.offers);
-  const images = offerImages(product, offer).map((item) => item.url);
+  const imageVariants = offerImages(product, offer);
+  const images = imageVariants.map((item) => item.url);
   const selection = `${product.id}:${offer ? offerKey(offer) : "catalog"}`;
   const image = activeImage?.selection === selection && images.includes(activeImage.url) ? activeImage.url : images[0];
   const availability = product.availability === "catalog" ? "catalog" : offer ? offer.in_stock ? "in_stock" : "out_of_stock" : product.availability;
@@ -76,9 +76,9 @@ export function ProductPage({ product, page, labels, returnPath }: { product: St
     <a className="backlink store-return-link" href={returnPath || catalogPath(page.locale)}>← {labels.previous}</a>
     <article className="detail store-product-detail">
       <div className="store-product-detail-gallery" aria-label={labels.productImages}>
-        {image ? <button className="gal-main store-product-detail-media" type="button" onClick={lightbox.show} aria-label={labels.openImage}><ProductImage src={image} alt={product.name} data-gallery-main="true" /></button> : <div className="gal-main store-image-placeholder">{product.brand}</div>}
+        {image ? <button className="gal-main store-product-detail-media" type="button" onClick={lightbox.show} aria-label={labels.openImage}><ProductImage src={image} alt={product.name} loading="eager" fetchPriority="high" data-gallery-main="true" /></button> : <div className="gal-main store-image-placeholder">{product.brand}</div>}
         {image && <p className="gal-cap">{imageCaption(product, image, labels)}</p>}
-        {images.length > 1 && <div className="thumbs store-gallery-thumbs" aria-label={labels.productImages}>{images.map((source, index) => <button className={`thumb store-gallery-thumb${source === image ? " on" : ""}`} type="button" key={source} aria-label={`${imageCaption(product, source, labels)} ${index + 1}`} aria-pressed={source === image} onClick={() => setActiveImage({ selection, url: source })}><img src={source} alt="" /></button>)}</div>}
+        {images.length > 1 && <div className="thumbs store-gallery-thumbs" aria-label={labels.productImages}>{imageVariants.map(({ url: source, thumbnail_url }, index) => <button className={`thumb store-gallery-thumb${source === image ? " on" : ""}`} type="button" key={source} aria-label={`${imageCaption(product, source, labels)} ${index + 1}`} aria-pressed={source === image} onClick={() => setActiveImage({ selection, url: source })}><img src={thumbnail_url || source} alt="" loading="lazy" decoding="async" /></button>)}</div>}
       </div>
       <div className="d-info store-product-detail-copy">
         <p className="store-product-brand">{product.brand_slug ? <a className="d-brand" href={brandPath(product, page.locale)}>{product.brand}</a> : product.brand}</p>

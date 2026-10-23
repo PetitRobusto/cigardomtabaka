@@ -16,10 +16,11 @@ RULES = {
     "placeholder_content": ("error", "替换测试占位文案，核实后再发布；不要自动生成商品事实。"),
     "missing_metadata": ("error", "补齐页面标题和搜索摘要。"),
     "missing_home_body": ("error", "补齐首页正文并核实发布。"),
-    "missing_body": ("warning", "核查正文是否足以解释品牌或商品；旧目录不要仅为字数补文案。"),
+    "missing_body": ("warning", "核查商品正文是否足以解释商品；旧目录不要仅为字数补文案。"),
     "minimal_product_body": ("warning", "正文仅重复名称或摘要，请人工检查是否缺少有价值的商品资料。"),
     "empty_brand": ("warning", "品牌列表为空；确认保留资料页的价值，不自动删除历史 URL。"),
     "orphan_product": ("warning", "商品未出现在首页、目录或品牌列表；核查是否需要资料归档入口。"),
+    "translation_fallback": ("warning", "页面使用翻译回退内容，可浏览但不收录；如需收录，应核实并发布目标语言内容。"),
     "store_details_unverified": ("warning", "门店资料尚未核实；核实后在后台确认。"),
     "missing_store_details": ("warning", "核实并补充门店地址、电话、地图、营业时间或实拍；不得编造。"),
 }
@@ -42,12 +43,21 @@ def audit_pages(pages, *, details_verified, sample_limit=5):
     linked_products = {
         product["path"]
         for page in pages.values()
-        if page.get("kind") in {"home", "brand"} and not page.get("filters")
+        if page.get("kind") in {"home", "brand"} and not page.get("filters") and page.get("indexable", True)
         for product in page.get("products", [])
         if product.get("path")
     }
     checked_sites = set()
+    locales = {}
     for path, page in sorted(pages.items()):
+        locale = page.get("locale")
+        totals = locales.setdefault(locale, {"page_count": 0, "indexable_page_count": 0, "fallback_page_count": 0})
+        totals["page_count"] += 1
+        totals["indexable_page_count"] += bool(page.get("indexable", True))
+        fallback = page.get("translation_complete") is False
+        totals["fallback_page_count"] += fallback
+        if fallback and not page.get("indexable", True):
+            add("translation_fallback", path, ["translation_complete", "indexable"])
         # Page 2+ repeats reviewed content; report each underlying page only once.
         if page.get("pagination", {}).get("page", 1) > 1:
             continue
@@ -58,7 +68,7 @@ def audit_pages(pages, *, details_verified, sample_limit=5):
         missing = [field for field in ("title", "description") if not text[field].strip()]
         if missing:
             add("missing_metadata", path, missing)
-        if not text["body"].strip() and page.get("view") != "catalog":
+        if not text["body"].strip() and page.get("kind") != "brand" and page.get("view") != "catalog":
             code = "missing_home_body" if page.get("kind") == "home" else "missing_body"
             add(code, path, ["body"])
         elif page.get("kind") == "product" and not placeholder_fields:
@@ -69,9 +79,8 @@ def audit_pages(pages, *, details_verified, sample_limit=5):
                 add("minimal_product_body", path, ["body"])
         if page.get("kind") == "brand" and not page.get("total_products", len(page.get("products", []))):
             add("empty_brand", path)
-        if page.get("kind") == "product" and path not in linked_products:
+        if page.get("kind") == "product" and page.get("indexable", True) and path not in linked_products:
             add("orphan_product", path)
-        locale = page.get("locale")
         if locale not in checked_sites:
             checked_sites.add(locale)
             site = page.get("site") or {}
@@ -88,7 +97,9 @@ def audit_pages(pages, *, details_verified, sample_limit=5):
                        "action": action, "samples": matches[:sample_limit]})
     counts = {level: sum(issue["count"] for issue in issues if issue["severity"] == level)
               for level in ("error", "warning")}
-    return {"schema_version": 1, "page_count": len(pages), "ready": counts["error"] == 0,
+    return {"schema_version": 1, "page_count": len(pages),
+            "indexable_page_count": sum(total["indexable_page_count"] for total in locales.values()),
+            "locales": dict(sorted(locales.items())), "ready": counts["error"] == 0,
             "counts": counts, "issues": issues}
 
 
@@ -110,7 +121,11 @@ class Command(BaseCommand):
             self.stdout.write(json.dumps(report, ensure_ascii=False, indent=2))
         else:
             counts = report["counts"]
-            self.stdout.write(f"检查 {report['page_count']} 页：{counts['error']} 个阻塞项，{counts['warning']} 个待核查项。")
+            self.stdout.write(f"检查 {report['page_count']} 页，其中 {report['indexable_page_count']} 页允许收录："
+                              f"{counts['error']} 个阻塞项，{counts['warning']} 个待核查项。")
+            for locale, totals in report["locales"].items():
+                self.stdout.write(f"  {locale}: {totals['page_count']} 页，允许收录 {totals['indexable_page_count']} 页，"
+                                  f"翻译回退 {totals['fallback_page_count']} 页。")
             for issue in report["issues"]:
                 self.stdout.write(f"[{issue['severity']}] {issue['code']} ({issue['count']}): {issue['action']}")
                 for sample in issue["samples"]:

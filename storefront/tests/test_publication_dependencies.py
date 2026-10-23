@@ -9,6 +9,7 @@ from cigars.models import Brand, Cigar, PurchaseBatch
 from cigars.tests.inventory_fixtures import create_purchase_batch
 from storefront.catalog import allowed_payload, build_pages, public_dependencies, semantic_hash
 from storefront.models import ProductListing, StorePage, StoreSettings, StoreTranslation
+from storefront.public_details import PUBLIC_DETAILS
 
 
 @override_settings(STOREFRONT_ENABLED=True, STOREFRONT_ORIGIN="http://testserver")
@@ -66,6 +67,26 @@ class TranslationPublicationDependenciesTests(TestCase):
                 self.assertNotIn("审核正文".encode(), response.content)
                 self.assertNotIn(path, self.sitemap_paths())
 
+    def test_sitemap_ignores_internal_unknown_filtered_and_unrendered_cache_rows(self):
+        public_paths = {'/', self.brand_path, self.product_path}
+        for path in public_paths:
+            self.cache(path)
+        # Even active cached HTML is insufficient: the URL must be a current
+        # public catalogue page, never a staff page or a customer secret link.
+        payload = build_pages()['/']
+        for path in ('/admin/', '/login', '/library', '/prices', '/inventory',
+                     '/sales', '/accounting', '/reports/monthly', '/help',
+                     '/api/brands/', '/privnote', '/p/customer-secret',
+                     '/unknown', '/?q=test', self.brand_path + '?box=25'):
+            self.cache(path, deepcopy(payload))
+        self.assertEqual(self.sitemap_paths(), public_paths)
+        for missing_field in ('active', 'html', 'rendered_hash'):
+            with self.subTest(missing_field=missing_field):
+                self.cache(self.product_path)
+                StorePage.objects.filter(path=self.product_path).update(
+                    **{missing_field: False if missing_field == 'active' else ''})
+                self.assertEqual(self.sitemap_paths(), public_paths - {self.product_path})
+
     def test_product_translation_revocation_hides_detail_and_visible_cards_until_rebuilt(self):
         translation = self.translation("product", self.cigar.pk)
         paths = [self.product_path, self.brand_path, "/"]
@@ -112,7 +133,7 @@ class TranslationPublicationDependenciesTests(TestCase):
         self.assert_unservable([self.product_path, self.brand_path])
         for path in [self.product_path, self.brand_path]:
             payload = self.cache(path)
-            self.assertEqual(payload["site"]["hours"], "")
+            self.assertEqual(payload["site"]["hours"], PUBLIC_DETAILS["hours"]["zh"])
             self.assertNotContains(self.client.get(path), self.home.hours)
             self.assertIn(path, self.sitemap_paths())
 

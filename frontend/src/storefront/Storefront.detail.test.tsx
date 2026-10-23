@@ -39,9 +39,9 @@ describe("storefront product detail", () => {
     expect(screen.getByText("В наличии")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Цена" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Связаться" }).getAttribute("href")).toBe("#store-contact");
-    expect(container.querySelector(".site-footer-contacts a[href^=tel]")?.getAttribute("href")).toBe("tel:+79296384878");
+    expect(container.querySelector(".site-footer-contacts a[href^=tel]")?.getAttribute("href")).toBe("tel:+70000000000");
     expect(container.querySelector("#store-contact button")).toBeNull();
-    expect(container.querySelector(".site-footer-contacts")?.textContent).toContain("cigardomtabaka");
+    expect(container.querySelector(".site-footer-contacts")?.textContent).toContain("cigar-contact");
     expect(container.querySelector(".store-description")?.textContent).toBe("Русское описание товара");
     const contactListener = vi.fn();
     window.addEventListener("cdt:store-contact", contactListener, { once: true });

@@ -51,6 +51,22 @@ class FrontendArtifactTests(SimpleTestCase):
             install(self.artifact, self.sha, self.destination)
         self.assert_old_build()
 
+    def test_retains_old_hashed_assets_for_cached_storefront_pages(self):
+        assets = self.destination / 'assets'
+        assets.mkdir()
+        (assets / 'storefront-abcd1234.js').write_text('old cached page entry')
+        (assets / 'unhashed.js').write_text('do not retain')
+        install(self.artifact, self.sha, self.destination)
+        self.assertEqual((self.destination / 'assets/storefront-abcd1234.js').read_text(), 'old cached page entry')
+        self.assertFalse((self.destination / 'assets/unhashed.js').exists())
+
+    def test_storefront_manifest_requires_renderer(self):
+        (self.source / '.vite/manifest.json').write_text(json.dumps({
+            'src/storefront/client.tsx': {'file': 'assets/app.js', 'isEntry': True},
+        }))
+        with self.assertRaisesRegex(ValueError, 'renderer'):
+            pack(self.source, self.artifact, self.sha)
+
     def rewrite_archive(self, members):
         archive = self.artifact / 'frontend.tar.gz'
         with tarfile.open(archive, 'w:gz') as bundle:

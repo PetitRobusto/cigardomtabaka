@@ -7,7 +7,7 @@ from django.test.utils import iter_test_cases
 
 class CiPartitionTests(SimpleTestCase):
     def test_backend_groups_cover_every_test_exactly_once(self):
-        labels = ['cigars', 'privnote', 'accounting', 'cigardomtabaka_backend']
+        labels = ['cigars', 'privnote', 'accounting', 'cigardomtabaka_backend', 'storefront']
 
         def discover(**options):
             return list(iter_test_cases(DiscoverRunner(verbosity=0, **options).build_suite(labels)))

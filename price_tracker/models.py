@@ -150,6 +150,7 @@ class ExchangeRate(models.Model):
     rate = models.FloatField('汇率（1单位兑CNY）')
     date = models.DateField('日期', auto_now_add=True)
     fetched_at = models.DateTimeField('获取时间', auto_now_add=True)
+    source_updated_at = models.DateTimeField('来源汇率更新时间', null=True, blank=True)
 
     class Meta:
         ordering = ['-date', 'currency']

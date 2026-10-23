@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'privnote',
     'price_tracker',
     'accounting',
+    'storefront',
 ]
 
 MIDDLEWARE = [
@@ -93,6 +94,11 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Enable only after rendering the public artifact set and verifying store content.
+STOREFRONT_ENABLED = os.getenv('STOREFRONT_ENABLED', 'false').lower() in ('true', '1', 'yes')
+STOREFRONT_ORIGIN = os.getenv('STOREFRONT_ORIGIN', 'https://cigardomtabaka.com').rstrip('/')
+STOREFRONT_RENDERER = BASE_DIR / 'static' / 'frontend' / 'storefront-render' / 'render.mjs'
 
 AUTH_USER_MODEL = 'cigars.User'
 

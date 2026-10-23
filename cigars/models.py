@@ -1736,6 +1736,7 @@ class CigarPrice(models.Model):
     box_size = models.IntegerField('包装支数')
     wholesale_price = models.IntegerField('批发价/盒(CNY)', help_text='人民币批发价')
     retail_price = models.IntegerField('零售价/盒(CNY)', null=True, blank=True)
+    retail_price_rub = models.DecimalField('商城零售价/盒(RUB)', max_digits=12, decimal_places=2, null=True, blank=True)
     sort_order = models.IntegerField('排序', default=0)
     is_active = models.BooleanField('启用', default=True)
     can_preorder = models.BooleanField('可预购', default=False)
@@ -1747,6 +1748,7 @@ class CigarPrice(models.Model):
         verbose_name = '雪茄定价'
         verbose_name_plural = '雪茄定价'
         unique_together = ('cigar', 'box_size')
+        constraints = [models.CheckConstraint(condition=models.Q(retail_price_rub__isnull=True) | models.Q(retail_price_rub__gt=0), name='cigar_retail_rub_positive')]
 
     def __str__(self):
         return f'{self.cigar} · {self.box_size}支/盒 · 批发¥{self.wholesale_price}'

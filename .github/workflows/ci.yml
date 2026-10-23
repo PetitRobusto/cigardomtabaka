@@ -58,7 +58,7 @@ jobs:
           DJANGO_SECRET_KEY: ci-test-key
         run: |
           set +e
-          python3 manage.py test cigars privnote accounting cigardomtabaka_backend \
+          python3 manage.py test cigars privnote accounting cigardomtabaka_backend storefront \
             --settings=cigardomtabaka_backend.settings_test \
             ${{ matrix.selection }} \
             --parallel=1 \
@@ -120,6 +120,21 @@ jobs:
       - name: Build frontend with typecheck
         working-directory: frontend
         run: npm run build
+
+      - name: Setup Python for storefront integration
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Verify built storefront with Django
+        env:
+          DJANGO_DEBUG: "True"
+          DJANGO_SECRET_KEY: ci-test-key
+        run: |
+          python3 -m pip install -r requirements.txt
+          python3 manage.py test storefront.tests.test_render_integration \
+            --settings=cigardomtabaka_backend.settings_test --verbosity=1
 
       - name: Package verified frontend
         run: python3 deploy/frontend_artifact.py pack static/frontend frontend-artifact "$GITHUB_SHA"

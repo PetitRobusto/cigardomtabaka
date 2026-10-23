@@ -127,6 +127,13 @@ jobs:
             echo "=== restart gunicorn ==="
             sudo systemctl restart gunicorn
 
+            echo "=== restart storefront worker if enabled ==="
+            # Reload Python catalog code and reconcile the newly installed renderer.
+            # Keep an uninstalled or deliberately disabled storefront worker disabled.
+            if sudo systemctl is-enabled --quiet storefront-worker.service || sudo systemctl is-active --quiet storefront-worker.service; then
+              sudo systemctl restart storefront-worker.service
+            fi
+
             echo "=== reload nginx ==="
             sudo nginx -t && sudo systemctl reload nginx
 

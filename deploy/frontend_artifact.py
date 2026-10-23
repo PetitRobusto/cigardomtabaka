@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import re
+import shutil
 import tarfile
 from tempfile import TemporaryDirectory
 
@@ -13,6 +14,8 @@ def validate_build(root):
     manifest = json.loads((root / '.vite/manifest.json').read_text())
     if not manifest or not any(chunk.get('isEntry') for chunk in manifest.values()):
         raise ValueError('Frontend manifest has no entry point')
+    if 'src/storefront/client.tsx' in manifest and not (root / 'storefront-render/render.mjs').is_file():
+        raise ValueError('Frontend artifact is missing the storefront renderer')
     for chunk in manifest.values():
         for name in [chunk['file'], *chunk.get('css', []), *chunk.get('assets', [])]:
             path = PurePosixPath(name)
@@ -71,6 +74,21 @@ def install(artifact, sha, destination):
         previous = staging / 'previous'
         if destination.is_symlink():
             raise ValueError('Frontend destination must not be a symlink')
+        # Cached HTML still references immutable chunks from the previous build.
+        # Retain only hashed static assets, never old entry points or renderers.
+        old_assets = destination / 'assets'
+        if old_assets.is_dir() and not old_assets.is_symlink():
+            for source in old_assets.rglob('*'):
+                if source.is_symlink() or not source.is_file():
+                    continue
+                if not re.search(r'-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$', source.name):
+                    continue
+                if any(parent.is_symlink() for parent in source.parents if parent != destination.parent):
+                    continue
+                target = release / 'assets' / source.relative_to(old_assets)
+                if not target.exists():
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(source, target)
         if destination.exists():
             destination.rename(previous)
         try:

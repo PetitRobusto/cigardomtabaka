@@ -1,10 +1,12 @@
 import json
+import re
 
 from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import render, redirect
+from django.http import Http404
 from django.views.generic import RedirectView, TemplateView
 from urllib.parse import urlencode, urlsplit
 
@@ -33,6 +35,18 @@ SITE_DESCRIPTIONS = json.loads(
     (settings.BASE_DIR / 'frontend' / 'seo-descriptions.json').read_text(encoding='utf-8')
 )
 
+# Keep these page routes aligned with frontend/src/App.tsx and businessRoutes.ts.
+# A namespace prefix is insufficient: unknown children otherwise become soft 404s.
+SPA_PAGE_PATHS = frozenset({
+    '/inventory', '/inventory/purchases',
+    '/sales', '/sales/receipts', '/sales/customers',
+    '/accounting', '/accounting/day1',
+    '/accounting/reports/monthly', '/accounting/reports/contributions',
+    '/reports/monthly', '/reports/contributions',
+    '/help', '/prices', '/prices/alerts', '/privnote', '/login',
+})
+SPA_PARAMETER_PATH = re.compile(r'/(?:prices/cigar/[0-9]+(?:/[^/]+)?|p/[^/]+)')
+
 
 def admin_login_redirect(request):
     if request.user.is_authenticated:
@@ -48,6 +62,16 @@ def admin_login_redirect(request):
 
 def spa_index(request):
     """Catch-all SPA entry point"""
+    if settings.STOREFRONT_ENABLED:
+        from storefront.views import page
+        public_path = request.path in ('/', '/catalog', '/catalog/') or request.path.startswith(('/ru', '/en', '/brand/', '/cigar/'))
+        if public_path:
+            return page(request)
+        # Unknown URLs must not become indexable 200 responses with an empty SPA.
+        spa_path = request.path.removesuffix('/')
+        staff_or_existing = spa_path in SPA_PAGE_PATHS or SPA_PARAMETER_PATH.fullmatch(spa_path)
+        if not staff_or_existing:
+            raise Http404
     dev_host = urlsplit(request.build_absolute_uri()).hostname or 'localhost'
     if ':' in dev_host:
         dev_host = f'[{dev_host}]'
@@ -59,10 +83,15 @@ def spa_index(request):
     })
 
 
+def robots(request):
+    return render(request, 'robots.txt', {
+        'storefront_sitemap': settings.STOREFRONT_ORIGIN + '/sitemap-storefront.xml' if settings.STOREFRONT_ENABLED else '',
+    }, content_type='text/plain; charset=utf-8')
+
+
 urlpatterns = [
-    path('robots.txt', TemplateView.as_view(
-        template_name='robots.txt', content_type='text/plain; charset=utf-8',
-    ), name='robots'),
+    path('robots.txt', robots, name='robots'),
+    path('', include('storefront.urls')),
     path('yandex_b944c5e69a8995a8.html', TemplateView.as_view(
         template_name='yandex_b944c5e69a8995a8.html',
     ), name='yandex_verification'),

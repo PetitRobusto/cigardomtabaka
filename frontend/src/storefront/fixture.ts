@@ -1,0 +1,33 @@
+import type { StorePageData } from "./types";
+
+export const backendPageFixture: StorePageData = {
+  locale: "en",
+  kind: "product",
+  path: "/en/cigar/5/cohiba-robustos",
+  title: "Test Cigar | CigarDomTabaka",
+  description: "A product description",
+  body: "A <strong>bold</strong> cigar & a safe string: </script><script>alert(1)</script>",
+  site: { name: "CigarDomTabaka", address: "Moscow", phone: "+7 000 000 00 00", wechat: "cigar-contact", map_url: "https://maps.example/store", photo: "", points_of_sales: "", hours: "" },
+  products: [],
+  product: {
+    id: 5,
+    name: "Cohiba Robustos",
+    english_name: "Cohiba Robustos",
+    brand: "Cohiba",
+    brand_slug: "cohiba",
+    path: "/en/cigar/5/cohiba-robustos",
+    description: "A <strong>bold</strong> cigar & a safe string: </script><script>alert(1)</script>",
+    aliases: [],
+    image_url: null,
+    images: [],
+    vitola: "Robustos",
+    length: 124,
+    ring_gauge: 50,
+    availability: "out_of_stock",
+    offers: [{ box_size: 25, price_rub: "12345.00", in_stock: false }],
+  },
+  brands: [],
+  alternates: [{ locale: "en", path: "/en/cigar/5/cohiba-robustos" }, { locale: "ru", path: "/ru/cigar/5/cohiba-robustos" }, { locale: "zh", path: "/zh/cigar/5/cohiba-robustos" }],
+  breadcrumbs: [{ label: "Cohiba", path: "/en/brand/cohiba" }],
+  pagination: { page: 1, total_pages: 1, previous: null, next: null },
+};

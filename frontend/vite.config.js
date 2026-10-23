@@ -23,6 +23,7 @@ export default defineConfig({
     emptyOutDir: true,
     manifest: true,
     rollupOptions: {
+      input: { app: 'index.html', storefront: 'src/storefront/client.tsx' },
       output: {
         entryFileNames: "assets/[name]-[hash].js",
         chunkFileNames: "assets/[name]-[hash].js",

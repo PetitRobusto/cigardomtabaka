@@ -9,3 +9,4 @@ Disallow: /sales
 Disallow: /accounting
 Disallow: /reports/
 Disallow: /help
+{% if storefront_sitemap %}Sitemap: {{ storefront_sitemap }}{% endif %}

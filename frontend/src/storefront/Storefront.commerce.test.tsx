@@ -251,7 +251,7 @@ describe("B2 commerce browsing", () => {
     ] } };
     const { container } = render(<Storefront page={page} ageConfirmed />);
     expect(container.querySelector(".d-price")?.textContent).toContain("Ask for price");
-    fireEvent.click(screen.getByRole("button", { name: "25 ct./box" }));
+    fireEvent.click(screen.getByRole("button", { name: /^25 ct\.\/box/ }));
     expect(screen.getByText("Temporarily unavailable")).toBeTruthy();
     expect(container.querySelector('[data-price-rub="12345.00"]')).toBeTruthy();
   });
@@ -331,11 +331,11 @@ describe("B2 commerce browsing", () => {
     rerender(<Storefront page={{ ...backendPageFixture, product }} currentUrl={`${product.path}?from=${encodeURIComponent("/en/catalog?box=stick")}`} ageConfirmed />);
     expect(container.querySelector(".d-price")?.textContent).toContain("Ask for price");
     expect(container.querySelector(".d-price")?.textContent).toContain("per cigar");
-    expect(screen.getByRole("button", { name: "Single cigar" }).getAttribute("aria-pressed")).toBe("true");
-    fireEvent.click(screen.getByRole("button", { name: "10 ct./box" }));
+    expect(screen.getByRole("button", { name: /^Single cigar/ }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: /^10 ct\.\/box/ }));
     expect(container.querySelector('.d-price [data-price-rub="100.00"]')).toBeTruthy();
     expect(container.querySelector(".d-price")?.textContent).toContain("per box");
-    fireEvent.click(screen.getByRole("button", { name: "Single cigar" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Single cigar/ }));
     expect(container.querySelector(".d-price [data-price-rub]")).toBeNull();
   });
 });

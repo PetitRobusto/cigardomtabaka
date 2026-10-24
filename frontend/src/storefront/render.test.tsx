@@ -6,6 +6,28 @@ import publicDetails from "../../../storefront/public_details.json";
 
 
 describe("storefront server renderer", () => {
+  it("renders each packaging price without JavaScript while the default stocked box remains inquiry-only", () => {
+    const page = { ...backendPageFixture, product: { ...backendPageFixture.product!, availability: "in_stock" as const, offers: [
+      { box_size: 10, price_rub: "108000.00", in_stock: false },
+      { box_size: 25, price_rub: null, in_stock: true },
+      { sale_unit: "stick" as const, box_size: null, price_rub: null, in_stock: true },
+    ] } };
+    const html = renderStorePage({ page, origin: "https://shop.example", assets: { js: [], css: [] } });
+    const visible = html.split('<script id="store-data"')[0];
+    const options = visible.match(/<button class="d-boxopt"[\s\S]*?<\/button>/g)!;
+    expect(options).toHaveLength(3);
+    expect(options[0]).toContain('10 ct./box');
+    expect(options[0]).toContain('data-price-rub="108000.00"');
+    expect(options[0]).toContain('Temporarily unavailable');
+    expect(options[0]).toContain('aria-pressed="false"');
+    expect(options[1]).toContain('25 ct./box');
+    expect(options[1]).toContain('aria-pressed="true"');
+    expect(options[1]).not.toContain('data-price-rub');
+    expect(options[2]).not.toContain('data-price-rub');
+    const selectedPrice = visible.match(/<section class="d-price">[\s\S]*?<\/section>/)![0];
+    expect(selectedPrice).toContain('Ask for price');
+    expect(selectedPrice).not.toContain('data-price-rub');
+  });
   it.each(['zh', 'ru', 'en'] as const)("renders confirmed contact details and machine-readable hours without JavaScript in %s", (locale) => {
     const page = { ...backendPageFixture, locale, content_locale: locale, site: { ...backendPageFixture.site,
       address: publicDetails.address[locale], hours: publicDetails.hours[locale] } };

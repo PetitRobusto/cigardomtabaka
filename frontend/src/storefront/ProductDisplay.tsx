@@ -16,10 +16,20 @@ export function Availability({ value, labels }: { value: StoreProduct["availabil
   return <span className={`status store-availability store-availability-${value}`}>{value === "in_stock" ? labels.inStock : value === "out_of_stock" ? labels.outOfStock : labels.catalog}</span>;
 }
 
-export function Price({ amount, locale, labels }: { amount: string; locale: StoreLocale; labels: Labels }) {
+function RubPrice({ amount, locale }: { amount: string; locale: StoreLocale }) {
   const number = Number(amount);
   const display = Number.isFinite(number) ? new Intl.NumberFormat(languageTag[locale], { style: "currency", currency: "RUB", currencyDisplay: "narrowSymbol", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(number) : amount;
-  return <><span className="store-price-rub" data-price-rub={amount}>{display}</span><ReferencePrice amount={amount} locale={locale} label={labels.referenceShort} /></>;
+  return <span className="store-price-rub" data-price-rub={amount}>{display}</span>;
+}
+
+export function Price({ amount, locale, labels }: { amount: string; locale: StoreLocale; labels: Labels }) {
+  return <><RubPrice amount={amount} locale={locale} /><ReferencePrice amount={amount} locale={locale} label={labels.referenceShort} /></>;
+}
+
+function OfferOption({ offer, locale, labels, catalog }: { offer: Offer; locale: StoreLocale; labels: Labels; catalog: boolean }) {
+  // All packaging prices must be readable in the initial HTML, even when the
+  // default in-stock option has no price. Never borrow another box's price.
+  return <>{offerLabel(offer, labels)}{offer.price_rub && <> · <RubPrice amount={offer.price_rub} locale={locale} /></>} · {catalog ? labels.catalog : offer.in_stock ? labels.inStock : labels.outOfStock}</>;
 }
 
 function brandPath(product: StoreProduct, locale: StoreLocale) {
@@ -84,7 +94,7 @@ export function ProductPage({ product, page, labels, returnPath }: { product: St
         <h1>{product.name}</h1>
         <div className="d-status"><Availability value={availability} labels={labels} /></div>
         <section className="d-price"><h2>{labels.price}</h2><div className="pv"><strong className="store-price">{offer?.price_rub ? <Price amount={offer.price_rub} locale={page.locale} labels={labels} /> : labels.ask}</strong><span className="pu">RUB ₽ · {priceUnit(offer, labels)}</span></div></section>
-        {product.offers.length > 0 && <section className="d-box store-offers"><h2 className="d-h">{labels.packaging}</h2><div className="store-box-options">{product.offers.length === 1 ? <span className="d-boxopt" aria-label={labels.selectedPackaging}>{offerLabel(offer, labels)}</span> : product.offers.map((item) => <button className="d-boxopt" type="button" key={offerKey(item)} aria-pressed={offerKey(offer) === offerKey(item)} onClick={() => { setSelectedOffer(offerKey(item)); setActiveImage(null); }}>{offerLabel(item, labels)}</button>)}</div></section>}
+        {product.offers.length > 0 && <section className="d-box store-offers"><h2 className="d-h">{labels.packaging}</h2><div className="store-box-options">{product.offers.length === 1 ? <span className="d-boxopt" aria-label={labels.selectedPackaging}>{offerLabel(offer, labels)}</span> : product.offers.map((item) => <button className="d-boxopt" type="button" key={offerKey(item)} aria-pressed={offerKey(offer) === offerKey(item)} onClick={() => { setSelectedOffer(offerKey(item)); setActiveImage(null); }}><OfferOption offer={item} locale={page.locale} labels={labels} catalog={product.availability === "catalog"} /></button>)}</div></section>}
         <p className="d-contact"><a className="store-contact-link" href="#store-contact">{labels.contact}</a></p>
         <h2 className="d-h store-spec-title">{labels.details}</h2>
         <dl className="spec store-specs">{product.vitola && <div><dt>{labels.vitola}</dt><dd>{product.vitola}</dd></div>}{product.length !== null && <div><dt>{labels.length}</dt><dd>{product.length} mm</dd></div>}{product.ring_gauge !== null && <div><dt>{labels.ringGauge}</dt><dd>RG {product.ring_gauge}</dd></div>}{offer && <div><dt>{labels.packaging}</dt><dd>{offerLabel(offer, labels)}</dd></div>}</dl>

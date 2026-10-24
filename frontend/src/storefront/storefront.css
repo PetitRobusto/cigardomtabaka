@@ -146,7 +146,7 @@ img{ display:block; max-width:100%; }
 .crumb a:hover{ color:var(--accent); }
 .cat-head{ padding:10px 0 2px; }
 .cat-head h1{ font-family:var(--font-display); font-size:clamp(22px,4.4vw,28px); font-weight:600; }
-.cat-head .intro{ margin-top:5px; color:var(--muted); font-size:12.5px; }
+.cat-head .intro{ margin-top:5px; color:var(--muted); font-size:12.5px; white-space:pre-line; }
 .toolband{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:10px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); margin:12px 0 14px; }
 .count{ color:var(--muted); font-family:var(--font-mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; }
 .toolband .sp{ flex:1; }
@@ -293,7 +293,7 @@ input,select{font:inherit}
 .store-price-rub{font-variant-numeric:tabular-nums}
 .store-price-reference{display:block;font:11px var(--font-mono);color:var(--muted)}
 .store-box-options{display:flex;flex-wrap:wrap;gap:8px}
-.d-boxopt{min-height:44px}
+.d-boxopt{min-height:44px;max-width:100%;flex-wrap:wrap;gap:0 4px}
 .d-boxopt[aria-pressed=false]{color:var(--fg);border-color:var(--border);background:var(--surface)}
 .store-spec-title{margin-top:26px}
 .spec{margin-top:10px}

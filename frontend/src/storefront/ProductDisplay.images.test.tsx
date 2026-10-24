@@ -61,7 +61,7 @@ describe("sale unit photos", () => {
     expect(main()?.getAttribute("fetchpriority")).toBe("high");
     expect(main()?.getAttribute("loading")).toBe("eager");
     expect(document.querySelectorAll(".store-gallery-thumb")).toHaveLength(0);
-    fireEvent.click(screen.getByRole("button", { name: "Single cigar" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Single cigar/ }));
     expect(main()?.getAttribute("src")).toBe("/single.jpg");
     expect(document.querySelectorAll(".store-gallery-thumb")).toHaveLength(2);
     expect(Array.from(document.querySelectorAll('.store-gallery-thumb img')).map((img) => img.getAttribute('src')))
@@ -69,10 +69,10 @@ describe("sale unit photos", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cigar 2" }));
     expect(main()?.getAttribute("src")).toBe("/single-second.jpg");
     expect(document.querySelector(".store-lightbox img")?.getAttribute("src")).toBe("/single-second.jpg");
-    fireEvent.click(screen.getByRole("button", { name: "25 ct./box" }));
+    fireEvent.click(screen.getByRole("button", { name: /^25 ct\.\/box/ }));
     expect(main()?.getAttribute("src")).toBe("/box25.jpg");
     expect(document.querySelectorAll(".store-gallery-thumb")).toHaveLength(0);
-    fireEvent.click(screen.getByRole("button", { name: "Single cigar" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Single cigar/ }));
     expect(main()?.getAttribute("src")).toBe("/single.jpg");
   });
 
@@ -86,7 +86,7 @@ describe("sale unit photos", () => {
   it("does not substitute another box count, an unknown package, or a single when a photo is missing", () => {
     const missing = { ...product, image_variants: product.image_variants!.filter((image) => image.box_size !== 25) };
     const { container } = render(<Storefront page={{ ...backendPageFixture, product: missing }} ageConfirmed />);
-    fireEvent.click(screen.getByRole("button", { name: "25 ct./box" }));
+    fireEvent.click(screen.getByRole("button", { name: /^25 ct\.\/box/ }));
     expect(main()).toBeNull();
     expect(container.querySelector(".store-product-detail-gallery .store-image-placeholder")).not.toBeNull();
     expect(container.querySelector(".store-lightbox img")).toBeNull();
@@ -111,7 +111,7 @@ describe("sale unit photos", () => {
 
   it("does not carry a single selection into another product opened from a box card", () => {
     const { rerender } = render(<Storefront page={{ ...backendPageFixture, product }} ageConfirmed />);
-    fireEvent.click(screen.getByRole("button", { name: "Single cigar" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Single cigar/ }));
     expect(main()?.getAttribute("src")).toBe("/single.jpg");
     const next = { ...product, id: 6, path: "/en/cigar/6/another-cigar" };
     rerender(<Storefront page={{ ...backendPageFixture, path: next.path, product: next }} ageConfirmed />);
@@ -123,7 +123,7 @@ describe("sale unit photos", () => {
     fireEvent.error(main()!);
     expect(main()).toBeNull();
     expect(document.querySelector(".store-product-detail-gallery .store-image-failure")).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Single cigar" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Single cigar/ }));
     expect(main()?.getAttribute("src")).toBe("/single.jpg");
   });
 });

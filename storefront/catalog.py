@@ -7,6 +7,7 @@ import unicodedata
 import hashlib
 import json
 from collections import Counter, defaultdict
+from decimal import Decimal
 from urllib.parse import urlsplit, urlencode
 from django.db.models import Q, Sum
 
@@ -972,7 +973,18 @@ def search_products(query: str, locale: str = "zh", limit: int | None = 20,
     return [product for _, product in selected]
 
 
-BROWSING_PARAMETERS = ("q", "brand", "box", "sort")
+RANGE_PARAMETERS = ("length_min", "length_max", "ring_min", "ring_max", "price_min", "price_max")
+BROWSING_PARAMETERS = ("q", "brand", "box", "sort", *RANGE_PARAMETERS, "stock_only")
+
+
+def _browse_ranges(params):
+    # Bound input size and reject non-finite, negative or malformed amounts.
+    ranges = {}
+    for key in RANGE_PARAMETERS:
+        value = params.get(key, "").strip()
+        if len(value) <= 16 and re.fullmatch(r"(?:\d+(?:\.\d{1,2})?|\.\d{1,2})", value):
+            ranges[key] = value
+    return ranges
 
 
 def browse_page(payload: dict, params, pages: dict[str, dict]) -> dict:
@@ -984,6 +996,8 @@ def browse_page(payload: dict, params, pages: dict[str, dict]) -> dict:
     query = params.get("q", "").strip()
     brands = list(dict.fromkeys(params.getlist("brand")))
     boxes = list(dict.fromkeys(params.getlist("box")))
+    ranges = _browse_ranges(params)
+    stock_only = params.get("stock_only") == "1"
     sort = params.get("sort", "catalog")
     if sort not in {"catalog", "name", "length"}:
         sort = "catalog"
@@ -992,12 +1006,34 @@ def browse_page(payload: dict, params, pages: dict[str, dict]) -> dict:
         rows = [p for p in rows if p["id"] in matching]
     if brands:
         rows = [p for p in rows if p["brand_slug"] in brands]
-    if boxes:
-        rows = [p for p in rows if any(
-            (o.get("sale_unit") == "stick" and o["in_stock"] and "stick" in boxes)
-            or (o["box_size"] is not None and str(o["box_size"]) in boxes)
-            for o in p["offers"]
-        )]
+    for prefix, field in (("length", "length"), ("ring", "ring_gauge")):
+        for suffix in ("min", "max"):
+            bound = ranges.get(f"{prefix}_{suffix}")
+            if bound is not None:
+                limit = Decimal(bound)
+                rows = [p for p in rows if p.get(field) is not None and (
+                    Decimal(str(p[field])) >= limit if suffix == "min" else Decimal(str(p[field])) <= limit
+                )]
+    price_min = Decimal(ranges["price_min"]) if "price_min" in ranges else None
+    price_max = Decimal(ranges["price_max"]) if "price_max" in ranges else None
+
+    def offer_matches(offer):
+        key = "stick" if offer.get("sale_unit") == "stick" else str(offer["box_size"])
+        if boxes and (key not in boxes or (key == "stick" and not offer["in_stock"])):
+            return False
+        if stock_only and not offer["in_stock"]:
+            return False
+        if price_min is not None or price_max is not None:
+            if offer.get("price_rub") is None:
+                return False
+            price = Decimal(offer["price_rub"])
+            if (price_min is not None and price < price_min) or (price_max is not None and price > price_max):
+                return False
+        return True
+
+    if boxes or stock_only or price_min is not None or price_max is not None:
+        # Packaging, price and availability must match the same actual offer.
+        rows = [p for p in rows if any(offer_matches(o) for o in p["offers"])]
     if sort == "name":
         rows.sort(key=lambda p: (normalize_search_text(p["name"]), p["id"]))
     elif sort == "length":
@@ -1010,7 +1046,14 @@ def browse_page(payload: dict, params, pages: dict[str, dict]) -> dict:
     if number != pagination["page"]:
         from django.http import Http404
         raise Http404
-    pairs = [(key, value) for key in BROWSING_PARAMETERS for value in params.getlist(key) if value]
+    filters = {"q": query, "brands": brands, "boxes": boxes, "sort": sort,
+               **ranges, **({"stock_only": True} if stock_only else {})}
+    pairs = [
+        *([("q", query)] if query else []),
+        *(("brand", brand) for brand in brands), *(("box", box) for box in boxes),
+        *([("sort", sort)] if sort != "catalog" else []),
+        *ranges.items(), *([("stock_only", "1")] if stock_only else []),
+    ]
     def url(page_number):
         values = [*pairs, *([("page", page_number)] if page_number > 1 else [])]
         return base + ("?" + urlencode(values) if values else "")
@@ -1020,7 +1063,7 @@ def browse_page(payload: dict, params, pages: dict[str, dict]) -> dict:
         **payload,
         "products": rows[(number - 1) * PAGE_SIZE:number * PAGE_SIZE],
         "total_products": len(rows), "pagination": pagination,
-        "filters": {"q": query, "brands": brands, "boxes": boxes, "sort": sort},
+        "filters": filters,
     }
 
 

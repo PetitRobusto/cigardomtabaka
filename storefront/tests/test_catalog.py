@@ -439,6 +439,20 @@ class StorefrontCatalogTests(TestCase):
                 response = page_data(self.factory.get("/api/storefront/page/", {"path": "/catalog", **invalid}))
                 self.assertEqual(json.loads(response.content)["products"], [])
 
+    def test_new_filter_parameters_trigger_live_catalog_filtering(self):
+        self.add_home_translation()
+        ProductListing.objects.create(cigar=self.cigar, published=True)
+        for criteria, expected in [
+            ({"length_min": "124", "length_max": "124", "ring_min": "50", "ring_max": "50", "price_min": "12345.67", "price_max": "12345.67", "stock_only": "1"}, [self.cigar.pk]),
+            ({"length_min": "125"}, []), ({"ring_max": "49"}, []),
+            ({"price_max": "12345.66"}, []), ({"stock_only": "1"}, [self.cigar.pk]),
+        ]:
+            with self.subTest(criteria=criteria):
+                response = page_data(self.factory.get("/api/storefront/page/", {"path": "/catalog", **criteria}))
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual([p["id"] for p in json.loads(response.content)["products"]], expected)
+                self.assertIn("noindex", response["X-Robots-Tag"])
+
     def test_brand_search_stays_within_brand_and_sorts_before_pagination(self):
         self.add_home_translation()
         cigars = Cigar.objects.bulk_create([

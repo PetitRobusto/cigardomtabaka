@@ -15,8 +15,8 @@ export function BrandBrowse({ page, labels, filters = emptyFilters }: { page: St
   if (!brands.length) return null;
   const base = catalogPath(page.locale);
   const isHome = page.kind === "home" && page.view !== "catalog" && !page.filters && page.pagination.page === 1;
-  const visibleBrands = brands.slice(0, 10);
-  const additionalBrands = brands.slice(10);
+  const visibleBrands = brands.slice(0, 6);
+  const additionalBrands = brands.slice(6);
   const renderBrands = (items: Brand[]) => items.map((brand) => {
     const selected = filters.brands.includes(brand.slug);
     const next = selected && filters.brands.length === 1 ? [] : [brand.slug];

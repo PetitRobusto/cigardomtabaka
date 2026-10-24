@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from "react";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { AGE_CONFIRMATION_KEY } from "./ageConfirmation";
 import { AGE_CONFIRMATION_TTL } from "../features/customer/preferences";
@@ -120,11 +120,20 @@ it("serializes combined repeated GET filters into the page-data request", async 
   fireEvent.click(document.getElementById("desktop-brand-davidoff")!);
   fireEvent.click(document.getElementById("desktop-box-10")!);
   fireEvent.click(document.getElementById("desktop-box-25")!);
+  const sidebar = document.querySelector('.store-desktop-filters')!;
+  fireEvent.click(within(sidebar as HTMLElement).getByRole('button', { name: '120–145' }));
+  fireEvent.click(within(sidebar as HTMLElement).getByRole('button', { name: '≤ 42' }));
+  fireEvent.change(within(sidebar as HTMLElement).getByRole('slider', { name: /Min$/ }), { target: { value: '1' } });
+  fireEvent.change(within(sidebar as HTMLElement).getByRole('slider', { name: /Max$/ }), { target: { value: '5' } });
+  fireEvent.click(sidebar.querySelector('[name="stock_only"]')!);
   fireEvent.submit(document.querySelector(".store-desktop-filters")!);
 
   await waitFor(() => expect(fetch.mock.calls.some(([input]) => {
     const request = new URL(String(input), location.origin);
-    return request.pathname === "/api/storefront/page/" && request.searchParams.getAll("brand").join(",") === "cohiba,davidoff" && request.searchParams.getAll("box").join(",") === "10,25";
+    return request.pathname === "/api/storefront/page/" && request.searchParams.getAll("brand").join(",") === "cohiba,davidoff" && request.searchParams.getAll("box").join(",") === "10,25"
+      && request.searchParams.get('length_min') === '120' && request.searchParams.get('length_max') === '145' && request.searchParams.get('ring_max') === '42'
+      && request.searchParams.get('price_min') === '5000' && request.searchParams.get('price_max') === '50000'
+      && request.searchParams.get('stock_only') === '1';
   })).toBe(true));
 });
 

@@ -9,7 +9,7 @@ import { isCurrentRate } from "./rates";
 import { ReferencePrices } from "./ReferencePrice";
 import { installStoreNavigation, savedStoreScroll, STORE_NAVIGATION_EVENT, type NavigationKind } from "./navigation";
 import { clearStoreMetadata, markStoreNavigationFailure, updateStoreMetadata } from "./metadata";
-import { homePath } from "./browsing";
+import { browsingKeys, homePath } from "./browsing";
 import type { StorePageData, StoreRates } from "./types";
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
@@ -136,7 +136,7 @@ export function LiveStorefront({ initialPage, origin }: { initialPage: StorePage
     navigationKind.current = "initial";
     Promise.resolve().then(() => { if (active && kind !== "initial") { setLoading(true); setRefreshFailed(false); } });
     const params = new URLSearchParams({ path: requested.pathname });
-    requested.searchParams.forEach((value, key) => { if (["q", "brand", "box", "sort", "page"].includes(key)) params.append(key, value); });
+    requested.searchParams.forEach((value, key) => { if (key === "page" || browsingKeys.includes(key)) params.append(key, value); });
     fetch(`/api/storefront/page/?${params.toString()}`, { headers: { Accept: "application/json" }, signal: controller.signal })
       .then(async (response) => {
         if (!active) return null;

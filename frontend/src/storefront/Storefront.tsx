@@ -4,10 +4,11 @@ import { SiteFooter } from "../components/site/SiteFooter";
 import type { User } from "../store/authStore";
 import type { StoreLocale, StorePageData } from "./types";
 import { storeCopy } from "./copy";
-import { catalogPath, filtersFromSearch, homePath, safeBrowsePath, type BrowseFilters } from "./browsing";
+import { browsingKeys, catalogPath, extraFilterFields, filtersFromSearch, homePath, safeBrowsePath, type BrowseFilters } from "./browsing";
 import { ProductCard, ProductPage } from "./ProductDisplay";
 import { CatalogResults } from "./CatalogFilters";
 import { BrandBrowse, BrandMark } from "./BrandBrowse";
+import { HomeHero } from "./HomeHero";
 import { languageOptions } from "../features/customer/messages";
 
 const langTag: Record<StoreLocale, string> = { zh: "zh-CN", ru: "ru-RU", en: "en" };
@@ -22,7 +23,7 @@ function languageLinks(page: StorePageData, currentUrl: string) {
       const from = safeBrowsePath(current.searchParams.get("from"), item.locale);
       if (from) url.searchParams.set("from", from);
     } else {
-      for (const key of ["q", "brand", "box", "sort"]) {
+      for (const key of browsingKeys) {
         const values = current.searchParams.getAll(key);
         if (values.length) { url.searchParams.delete(key); values.forEach((value) => url.searchParams.append(key, value)); }
       }
@@ -50,7 +51,7 @@ export function Storefront({ page, currentUrl = page.path, ageConfirmed = false,
   const crumbs = page.breadcrumbs.filter((crumb) => crumb.path !== homePath(page.locale));
   return <>
     <SiteHeader locale={page.locale} user={user} pathname={current.pathname} languages={links} query={filters.q}
-      searchFields={[...filters.brands.map((value) => ({ name: 'brand', value })), ...filters.boxes.map((value) => ({ name: 'box', value })), ...(filters.sort !== 'catalog' ? [{ name: 'sort', value: filters.sort }] : [])]}
+      searchFields={[...filters.brands.map((value) => ({ name: 'brand', value })), ...filters.boxes.map((value) => ({ name: 'box', value })), ...extraFilterFields(filters), ...(filters.sort !== 'catalog' ? [{ name: 'sort', value: filters.sort }] : [])]}
       inert={!ageConfirmed} onLogout={onLogout} currency={currency} currencyLabel={labels.currency} onCurrencyChange={onCurrencyChange}>
       <div className="mast-r2"><nav className="catnav" aria-label={labels.catalogPage}><button type="button" popoverTarget="store-brands-menu" onClick={(event) => {
         const menu = document.getElementById('store-brands-menu');
@@ -70,11 +71,12 @@ export function Storefront({ page, currentUrl = page.path, ageConfirmed = false,
 }
 
 function HomePage({ page, labels }: Props) {
+  const catalogUrl = catalogPath(page.locale);
+  const stockUrl = `${catalogPath(page.locale)}?stock_only=1`;
   return <>
-    <section className="home-head"><div><div className="kicker">{page.site.name}</div><h1>{page.title}</h1>{(page.body || page.description) && <p>{page.body || page.description}</p>}</div><a className="btn-pri" href={catalogPath(page.locale)}>{labels.browseStock} →</a></section>
+    <HomeHero locale={page.locale} catalogUrl={catalogUrl} stockUrl={stockUrl} />
     <BrandBrowse page={page} labels={labels} />
-    <section className="sec store-section"><div className="sec-h"><h2>{labels.stockProducts}</h2><a href={catalogPath(page.locale)}>{labels.allProducts} →</a></div><div className="grid store-product-grid">{page.products.map((product) => <ProductCard key={product.id} product={product} locale={page.locale} labels={labels} from={homePath(page.locale)} />)}</div>{page.products.length === 0 && <p className="store-empty-note">{labels.noResults}</p>}</section>
-    <Pagination page={page} labels={labels} />
+    <section className="sec store-section"><div className="sec-h"><h2>{labels.stockProducts}</h2><a className="store-stock-link" href={stockUrl}>{labels.browseStock} →</a></div><div className="grid store-product-grid store-home-stock-grid">{page.products.slice(0, 6).map((product) => <ProductCard key={product.id} product={product} locale={page.locale} labels={labels} from={homePath(page.locale)} />)}</div>{page.products.length === 0 && <p className="store-empty-note">{labels.noResults}</p>}</section>
   </>;
 }
 
@@ -82,7 +84,7 @@ function CatalogPage({ page, labels, filters, currentUrl }: Props & { filters: B
   return <>
     <section className="cat-head"><h1>{filters.q ? `${labels.searchResults}: “${filters.q}”` : page.title}</h1>{page.kind === "brand" && (page.body || page.description) && <p className="intro">{page.body || page.description}</p>}</section>
     <BrandBrowse page={page} labels={labels} filters={filters} />
-    <CatalogResults page={page} labels={labels} filters={filters}>{page.products.length > 0 ? <div className="grid store-product-grid">{page.products.map((product) => <ProductCard key={product.id} product={product} locale={page.locale} labels={labels} from={currentUrl} selectedBoxes={filters.boxes} />)}</div> : <section className="empty"><h2>{labels.noResults}</h2><p>{labels.noResultsBody}</p><a className="store-filter-reset" href={page.path.split("?")[0]}>{labels.reset}</a></section>}<Pagination page={page} labels={labels} /></CatalogResults>
+    <CatalogResults page={page} labels={labels} filters={filters}>{page.products.length > 0 ? <div className="grid store-product-grid">{page.products.map((product) => <ProductCard key={product.id} product={product} locale={page.locale} labels={labels} from={currentUrl} filters={filters} />)}</div> : <section className="empty"><h2>{labels.noResults}</h2><p>{labels.noResultsBody}</p><a className="store-filter-reset" href={page.path.split("?")[0]}>{labels.reset}</a></section>}<Pagination page={page} labels={labels} /></CatalogResults>
   </>;
 }
 

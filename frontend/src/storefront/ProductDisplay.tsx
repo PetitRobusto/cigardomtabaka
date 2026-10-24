@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { StoreLocale, StorePageData, StoreProduct } from "./types";
-import { catalogPath, productLink } from "./browsing";
+import { catalogPath, emptyFilters, filtersFromSearch, matchingOffers, productLink, type BrowseFilters } from "./browsing";
 import { useStoreModal } from "./Modal";
 import { ReferencePrice } from "./ReferencePrice";
 import { chooseOffer, offerImages } from "./productImages";
@@ -35,8 +35,8 @@ function ProductImage({ src, alt, ...rest }: { src: string; alt: string; loading
   return failedUrl === src ? <span className="store-image-failure" role="img" aria-label={alt}>{alt}</span> : <img src={src} alt={alt} onError={() => setFailedUrl(src)} {...rest} />;
 }
 
-export function ProductCard({ product, locale, labels, from, selectedBoxes = [] }: { product: StoreProduct; locale: StoreLocale; labels: Labels; from?: string; selectedBoxes?: string[] }) {
-  const offers = selectedBoxes.length ? product.offers.filter((item) => selectedBoxes.includes(offerKey(item))) : product.offers;
+export function ProductCard({ product, locale, labels, from, selectedBoxes = [], filters }: { product: StoreProduct; locale: StoreLocale; labels: Labels; from?: string; selectedBoxes?: string[]; filters?: BrowseFilters }) {
+  const offers = matchingOffers(product.offers, filters || { ...emptyFilters, boxes: selectedBoxes });
   if (selectedBoxes.length && !offers.length) return null;
   const offer = chooseOffer(offers);
   const image = offerImages(product, offer)[0];
@@ -63,9 +63,8 @@ export function ProductPage({ product, page, labels, returnPath }: { product: St
   const [selectedOffer, setSelectedOffer] = useState<string | null>(null);
   const lightboxRef = useRef<HTMLDialogElement>(null);
   const lightbox = useStoreModal(lightboxRef);
-  const requestedBoxes = returnPath ? new URL(returnPath, "https://store.invalid").searchParams.getAll("box") : [];
-  const matchingOffers = product.offers.filter((item) => requestedBoxes.includes(offerKey(item)));
-  const offer = product.offers.find((item) => offerKey(item) === selectedOffer) || chooseOffer(matchingOffers) || chooseOffer(product.offers);
+  const requestedFilters = returnPath ? filtersFromSearch(new URL(returnPath, "https://store.invalid").search) : emptyFilters;
+  const offer = product.offers.find((item) => offerKey(item) === selectedOffer) || chooseOffer(matchingOffers(product.offers, requestedFilters)) || chooseOffer(product.offers);
   const imageVariants = offerImages(product, offer);
   const images = imageVariants.map((item) => item.url);
   const selection = `${product.id}:${offer ? offerKey(offer) : "catalog"}`;

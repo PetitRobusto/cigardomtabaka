@@ -1,0 +1,192 @@
+.store-home-hero {
+  position: relative;
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+}
+
+.store-home-hero__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  align-items: center;
+  gap: 36px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 56px 16px 34px;
+}
+
+.store-home-hero__copy { min-width: 0; }
+.store-home-hero__kicker {
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+}
+.store-home-hero__rule { width: 44px; height: 2px; margin: 16px 0 18px; background: var(--gold); }
+.store-home-hero__title {
+  font-family: var(--font-display);
+  font-size: clamp(31px, 4.6vw, 52px);
+  font-weight: 600;
+  line-height: 1.28;
+  letter-spacing: .01em;
+  text-wrap: balance;
+}
+.store-home-hero__title em { color: var(--accent); font-style: normal; }
+.store-home-hero__lead {
+  max-width: 44ch;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 14.5px;
+  line-height: 1.75;
+  text-wrap: pretty;
+}
+.store-home-hero__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.store-home-hero__facts li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .04em;
+}
+.store-home-hero__facts li::before { width: 5px; height: 5px; flex: none; background: var(--gold); content: ""; }
+.store-home-hero__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; margin-top: 26px; }
+.store-home-hero__primary,
+.store-home-hero__secondary {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  font-size: 13.5px;
+  font-weight: 650;
+  text-decoration: none;
+}
+.store-home-hero__primary {
+  gap: 8px;
+  padding: 11px 24px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--surface);
+  transition: background var(--dur) ease;
+}
+.store-home-hero__primary:hover { background: var(--accent-hover); }
+.store-home-hero__secondary {
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+  transition: color var(--dur) ease, border-color var(--dur) ease;
+}
+.store-home-hero__secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+.store-home-hero__stage { position: relative; min-height: 460px; }
+.store-home-hero__cigar {
+  position: absolute;
+  z-index: 1;
+  margin: 0;
+  opacity: 1;
+  mix-blend-mode: multiply;
+  --float-scale: 1;
+  transform-origin: center;
+  transition: scale 220ms ease, translate 220ms ease;
+}
+.store-home-hero__cigar a { display: block; border-radius: 3px; }
+.store-home-hero__cigar img { display: block; width: 100%; height: auto; mix-blend-mode: multiply; }
+.store-home-hero__cigar::after {
+  position: absolute;
+  z-index: -1;
+  right: 8%;
+  bottom: -4.5%;
+  left: 8%;
+  height: 9%;
+  background: radial-gradient(ellipse at center, rgba(44, 36, 22, .3), rgba(44, 36, 22, 0) 68%);
+  content: "";
+  filter: blur(5px);
+  opacity: .55;
+  transition: opacity 220ms ease, scale 220ms ease;
+}
+.store-home-hero__number { display: none; }
+.store-home-hero__cigar--bhk56 { top: 2%; left: 0; z-index: 5; width: 96%; rotate: -7deg; }
+.store-home-hero__cigar--siglo { top: 23%; left: 14%; z-index: 4; width: 82%; rotate: 3.5deg; }
+.store-home-hero__cigar--casilda { top: 44%; left: 1%; z-index: 3; width: 74%; rotate: -3deg; }
+.store-home-hero__cigar--bhk52 { top: 62%; left: 19%; z-index: 2; width: 66%; rotate: 6deg; }
+.store-home-hero__cigar--ingenios { top: 80%; left: 5%; z-index: 1; width: 58%; rotate: -4.5deg; }
+/* Independent full cycles and negative phases keep the display settled on first paint. */
+.store-home-hero__cigar--bhk56 { --float-time: 11.3s; --float-phase: -2.8s; --float-start: -22px; --float-end: 15px; --float-mid: -3px; }
+.store-home-hero__cigar--siglo { --float-time: 7.9s; --float-phase: -4.9s; --float-start: 17px; --float-end: -19px; --float-mid: 5px; }
+.store-home-hero__cigar--casilda { --float-time: 14.1s; --float-phase: -10.7s; --float-start: -14px; --float-end: 21px; --float-mid: 2px; }
+.store-home-hero__cigar--bhk52 { --float-time: 9.7s; --float-phase: -1.1s; --float-start: 20px; --float-end: -12px; --float-mid: -5px; }
+.store-home-hero__cigar--ingenios { --float-time: 16.3s; --float-phase: -9.2s; --float-start: -18px; --float-end: 12px; --float-mid: 4px; }
+.store-home-hero__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 20px;
+  max-width: 1120px;
+  margin: -2px auto 0;
+  padding: 0 16px 20px;
+}
+.store-home-hero__legend span { color: var(--muted); font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .06em; }
+.store-home-hero__legend b { margin-right: 6px; color: var(--gold); font-weight: 700; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .store-home-hero__cigar:focus-within { translate: 0 -5px; scale: 1.035; }
+  .store-home-hero__cigar img {
+    animation: store-home-hero-drift var(--float-time) cubic-bezier(.45, 0, .55, 1) var(--float-phase) infinite;
+  }
+}
+
+.store-home-hero__cigar:focus-within {
+  z-index: 8;
+}
+.store-home-hero__cigar:focus-within::after { opacity: 1; scale: 1.12; }
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .store-home-hero__cigar:hover {
+    z-index: 8;
+    translate: 0 -5px;
+    scale: 1.035;
+  }
+  .store-home-hero__cigar:hover::after { opacity: 1; scale: 1.12; }
+  .store-home-hero__cigar a:focus-visible { outline: 2px solid var(--gold); outline-offset: 6px; }
+  .store-home-hero__primary:hover,
+  .store-home-hero__secondary:hover { transform: translateY(-1px); }
+}
+
+@keyframes store-home-hero-drift {
+  0%, 100% { translate: 0 calc(var(--float-start) * var(--float-scale)); }
+  42% { translate: 0 calc(var(--float-end) * var(--float-scale)); }
+  73% { translate: 0 calc(var(--float-mid) * var(--float-scale)); }
+}
+
+@media (max-width: 899px) {
+  .store-home-hero__inner { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 40px 16px 30px; }
+  .store-home-hero__stage { min-height: 320px; margin-top: 10px; }
+  .store-home-hero__legend { gap: 4px 14px; }
+}
+
+@media (max-width: 899px) {
+  .store-home-hero__cigar { --float-scale: .55; }
+}
+
+@media (max-width: 420px) {
+  .store-home-hero__stage { min-height: 270px; }
+  .store-home-hero__title { font-size: clamp(29px, 8vw, 38px); }
+  .store-home-hero__legend { gap: 5px 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .store-home-hero__cigar,
+  .store-home-hero__cigar::after,
+  .store-home-hero__cigar img,
+  .store-home-hero__primary,
+  .store-home-hero__secondary { animation: none !important; transition: none !important; }
+  .store-home-hero__cigar { translate: 0 0 !important; scale: 1 !important; }
+}

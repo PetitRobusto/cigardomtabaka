@@ -13,6 +13,8 @@ const en = {
   storeContact: "Store contact",
   searchAction: "Search",
   packaging: "Packaging", single: "Single cigar", perStick: "per cigar", selectedPackaging: "Selected packaging",
+  dimensions: "Dimensions", priceRange: "Price (RUB)", packagePrice: "Price per package", minimum: "Min", maximum: "Max", stockOnly: "In stock only",
+  anyRange: "Any", noUpperLimit: "No upper limit", currentRange: "Current range", clearPriceRange: "Clear price range", dimensionUpTo: "≤ {value}", dimensionFrom: "≥ {value}",
   loadingPage: "Loading page…", navigationError: "The page could not be loaded. Your current view is still available.", retry: "Try again", pageUnavailable: "Page unavailable",
 };
 
@@ -35,6 +37,8 @@ export const commerceCopy: Record<"zh" | "ru" | "en", CommerceCopy> = {
     storeContact: "门店联系",
     searchAction: "搜索",
     packaging: "包装", single: "单支", perStick: "每支", selectedPackaging: "已选包装",
+    dimensions: "尺寸", priceRange: "价格 (RUB)", packagePrice: "每个包装售价", minimum: "最低", maximum: "最高", stockOnly: "只看现货",
+    anyRange: "不限", noUpperLimit: "无上限", currentRange: "当前范围", clearPriceRange: "清除价格区间", dimensionUpTo: "≤ {value}", dimensionFrom: "≥ {value}",
     loadingPage: "正在加载页面…", navigationError: "页面暂时未能加载，当前内容已保留。", retry: "重试", pageUnavailable: "页面暂不可用",
   },
   ru: {
@@ -52,6 +56,8 @@ export const commerceCopy: Record<"zh" | "ru" | "en", CommerceCopy> = {
     storeContact: "Контакты магазина",
     searchAction: "Найти",
     packaging: "Упаковка", single: "Поштучно", perStick: "за сигару", selectedPackaging: "Выбранная упаковка",
+    dimensions: "Размеры", priceRange: "Цена (RUB)", packagePrice: "Цена за упаковку", minimum: "От", maximum: "До", stockOnly: "Только в наличии",
+    anyRange: "Любой", noUpperLimit: "Без верхней границы", currentRange: "Текущий диапазон", clearPriceRange: "Сбросить диапазон цен", dimensionUpTo: "≤ {value}", dimensionFrom: "≥ {value}",
     loadingPage: "Загрузка страницы…", navigationError: "Не удалось загрузить страницу. Текущий вид сохранён.", retry: "Повторить", pageUnavailable: "Страница недоступна",
   },
 };

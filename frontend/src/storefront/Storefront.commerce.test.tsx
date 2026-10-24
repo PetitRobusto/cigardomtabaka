@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { Storefront } from "./Storefront";
 import { BrandBrowse, BrandMark } from "./BrandBrowse";
@@ -92,7 +92,7 @@ describe("B2 commerce browsing", () => {
     expect(url.searchParams.get("brand")).toBe("cohiba");
   });
 
-  it("starts with ten brands and keeps the remaining brand links expandable and filterable", () => {
+  it("starts with six brands and keeps the remaining brand links expandable and filterable", () => {
     const allBrands = [...brands, ...Array.from({ length: 14 }, (_, index) => ({
       name: `Brand ${index}`, english_name: `Brand ${index}`, slug: `brand-${index}`, path: `/en/brand/brand-${index}`,
     }))];
@@ -103,9 +103,9 @@ describe("B2 commerce browsing", () => {
     const visibleLinks = brandArea.querySelectorAll(":scope > .store-brand-logo-grid .store-brand-logo-link");
     const extraLinks = brandArea.querySelectorAll(".store-brand-extra .store-brand-logo-link");
     const toggle = screen.getByRole("button", { name: "Show more brands" });
-    expect(visibleLinks).toHaveLength(10);
-    expect(extraLinks).toHaveLength(10);
-    expect(Array.from(visibleLinks).map((link) => link.textContent)).toEqual(allBrands.slice(0, 10).map((brand) => brand.name));
+    expect(visibleLinks).toHaveLength(6);
+    expect(extraLinks).toHaveLength(14);
+    expect(Array.from(visibleLinks).map((link) => link.textContent)).toEqual(allBrands.slice(0, 6).map((brand) => brand.name));
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     expect(toggle.getAttribute("aria-controls")).toBe("store-brand-extra");
     expect(brandArea.querySelector(".store-brand-extra")?.hasAttribute("inert")).toBe(true);
@@ -121,12 +121,90 @@ describe("B2 commerce browsing", () => {
     expect(container.querySelector('[popoverTarget="store-box-menu"]')).toBeNull();
     expect(container.querySelector("#store-box-menu")).toBeNull();
     rerender(<Storefront page={page} ageConfirmed />);
+    expect(container.querySelectorAll('.store-brand-browser > .store-brand-logo-grid a')).toHaveLength(6);
+    expect(container.querySelectorAll('.store-desktop-filters fieldset:first-child > label')).toHaveLength(6);
+    expect(container.querySelector('.store-facet-more')?.hasAttribute('open')).toBe(false);
+    expect(container.querySelector('.store-packaging-filter')?.hasAttribute('open')).toBe(false);
     const catalogLastBrandLink = Array.from(container.querySelectorAll<HTMLAnchorElement>(".store-brand-logo-link")).find((link) => link.textContent?.includes("Brand 13"))!;
     expect(new URL(catalogLastBrandLink.href).searchParams.get("brand")).toBe("brand-13");
     expect(container.querySelectorAll('.store-desktop-filters input[name="brand"]')).toHaveLength(20);
     expect(container.querySelector('.store-desktop-filters input[value="stick"]')).not.toBeNull();
     expect(container.querySelector('.store-desktop-filters input[value="25"]')).not.toBeNull();
     expect(container.querySelector('[popoverTarget="store-box-menu"]')).toBeNull();
+  });
+
+  it("limits the home stock shelf to six and links directly to all in-stock results", () => {
+    const products = Array.from({ length: 14 }, (_, id) => ({ ...backendPageFixture.product!, id }));
+    const page = { ...catalog(), view: undefined, path: "/en/", products, pagination: { page: 1, total_pages: 2, previous: null, next: "/en/?page=2" } };
+    const { container } = render(<Storefront page={page} ageConfirmed />);
+    expect(container.querySelectorAll('.store-home-stock-grid .store-product-card')).toHaveLength(6);
+    expect(container.querySelector('.store-stock-link')?.getAttribute('href')).toBe('/en/catalog?stock_only=1');
+    expect(container.querySelector('.store-pagination')).toBeNull();
+  });
+
+  it("preserves new criteria in desktop, mobile, search, sorting, languages and removable chips", () => {
+    const filters = { q: "", brands: [], boxes: ["10"], sort: "catalog", length_min: "120", ring_max: "56", price_min: "100", price_max: "500", stock_only: true };
+    const { container } = render(<Storefront page={{ ...catalog(), filters }} currentUrl="/en/catalog?box=10&length_min=120&ring_max=56&price_min=100&price_max=500&stock_only=1" ageConfirmed />);
+    for (const selector of ['.store-desktop-filters', '.store-filter-dialog form', '.store-sort-form', 'form[role="search"]']) {
+      const form = container.querySelector<HTMLFormElement>(selector)!;
+      expect(form, selector).not.toBeNull();
+      const data = new FormData(form);
+      expect(data.get('stock_only')).toBe('1');
+      expect(data.get('length_min')).toBe('120');
+      expect(data.get('ring_max')).toBe('56');
+      expect(data.get('price_min')).toBe('100');
+      expect(data.get('price_max')).toBe('500');
+      expect(data.getAll('box')).toEqual(['10']);
+    }
+    const remove = screen.getByRole('link', { name: 'Remove filter: In stock only' }) as HTMLAnchorElement;
+    expect(new URL(remove.href).searchParams.has('stock_only')).toBe(false);
+    expect(new URL(remove.href).searchParams.get('price_min')).toBe('100');
+    fireEvent.click(screen.getByRole('button', { name: 'Language' }));
+    const translated = new URL(container.querySelector<HTMLAnchorElement>('.site-language-menu a[lang="ru"]')!.href);
+    expect(translated.searchParams.get('stock_only')).toBe('1');
+    expect(translated.searchParams.get('length_min')).toBe('120');
+    expect(translated.searchParams.get('price_max')).toBe('500');
+    fireEvent.click(container.querySelector('.store-filter-dialog .store-filter-reset')!);
+    const reset = new FormData(container.querySelector<HTMLFormElement>('.store-filter-dialog form')!);
+    expect(reset.has('stock_only')).toBe(false);
+    expect(reset.get('price_min')).toBe('');
+    expect(reset.getAll('box')).toEqual([]);
+  });
+
+  it("displays the offer matching price and stock filters in the card and detail", () => {
+    const product = { ...backendPageFixture.product!, offers: [
+      { box_size: 10, price_rub: "100.00", in_stock: true },
+      { box_size: 25, price_rub: "250.00", in_stock: true },
+      { box_size: 50, price_rub: "300.00", in_stock: false },
+    ] };
+    const filters = { q: "", brands: [], boxes: [], sort: "catalog", price_min: "200", stock_only: true };
+    const from = '/en/catalog?price_min=200&stock_only=1';
+    const { container, rerender } = render(<Storefront page={{ ...catalog(), products: [product], filters }} currentUrl={from} ageConfirmed />);
+    expect(container.querySelector('.store-product-card [data-price-rub="250.00"]')).toBeTruthy();
+    expect(container.querySelectorAll('.store-product-card .boxtag')).toHaveLength(1);
+    rerender(<Storefront page={{ ...backendPageFixture, product }} currentUrl={`${product.path}?from=${encodeURIComponent(from)}`} ageConfirmed />);
+    expect(container.querySelector('.d-price [data-price-rub="250.00"]')).toBeTruthy();
+  });
+
+  it("uses dimension presets and a price slider with one removable chip per complete range", () => {
+    const filters = { q: "", brands: ["cohiba"], boxes: ["10"], sort: "length", length_min: "120", length_max: "145", ring_min: "48", ring_max: "54", price_min: "5000", price_max: "50000", stock_only: true };
+    const { container } = render(<Storefront page={{ ...catalog(), filters }} ageConfirmed />);
+    const sidebar = container.querySelector<HTMLFormElement>('.store-desktop-filters')!;
+    expect(sidebar.querySelector('input[type="number"]')).toBeNull();
+    expect(within(sidebar).getAllByRole('slider')).toHaveLength(2);
+    fireEvent.click(within(sidebar).getByRole('button', { name: '145–165' }));
+    const data = new FormData(sidebar);
+    expect(data.get('length_min')).toBe('145');
+    expect(data.get('length_max')).toBe('165');
+    expect(data.get('price_min')).toBe('5000');
+    const remove = screen.getByRole('link', { name: 'Remove filter: Length 120–145 mm' }) as HTMLAnchorElement;
+    const params = new URL(remove.href).searchParams;
+    expect(params.has('length_min')).toBe(false);
+    expect(params.has('length_max')).toBe(false);
+    expect(params.get('ring_min')).toBe('48');
+    expect(params.get('price_max')).toBe('50000');
+    expect(params.get('stock_only')).toBe('1');
+    expect(params.getAll('brand')).toEqual(['cohiba']);
   });
 
   it.each([

@@ -31,7 +31,11 @@ export type StorePageData = {
   kind: "home" | "brand" | "product";
   view?: "catalog";
   total_products?: number;
-  filters?: { q: string; brands: string[]; boxes: string[]; sort: string };
+  filters?: {
+    q: string; brands: string[]; boxes: string[]; sort: string;
+    length_min?: string; length_max?: string; ring_min?: string; ring_max?: string;
+    price_min?: string; price_max?: string; stock_only?: boolean;
+  };
   navigation?: { brands: Array<{ name: string; english_name?: string; slug: string; path: string }>; box_sizes: number[]; has_sticks?: boolean };
   filter_options?: { brands: Array<{ name: string; english_name?: string; slug: string; path: string }>; box_sizes: number[]; has_sticks?: boolean };
   path: string;

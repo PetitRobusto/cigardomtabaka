@@ -3,10 +3,15 @@ import { browseUrl, filtersFromSearch, safeBrowsePath } from "./browsing";
 
 describe("storefront browsing state", () => {
   it("round trips combined filters and safely encodes search without keeping stale page numbers", () => {
-    const state = { q: "BHK & 52", brands: ["cohiba", "partagas"], boxes: ["10", "25"], sort: "length" };
+    const state = { q: "BHK & 52", brands: ["cohiba", "partagas"], boxes: ["10", "25"], sort: "length", length_min: "100", length_max: "160", ring_min: "40", ring_max: "56", price_min: "0", price_max: "12345.67", stock_only: true };
     const url = browseUrl("/catalog?page=3", state);
     expect(filtersFromSearch(url.split("?")[1])).toEqual(state);
     expect(url).not.toContain("page=");
+  });
+  it("ignores malformed ranges and only enables stock for the explicit flag", () => {
+    for (const value of ['NaN', 'Infinity', '-1', '1e5', 'abc', '12345678901234567', '1.234']) {
+      expect(filtersFromSearch(`price_min=${value}&length_max=${value}&stock_only=0`)).toEqual({ q: '', brands: [], boxes: [], sort: 'catalog' });
+    }
   });
   it("keeps the same list and filters when switching languages", () => {
     expect(safeBrowsePath("/ru/brand/cohiba?q=BHK&box=10&sort=name&page=2", "en")).toBe("/en/brand/cohiba?q=BHK&box=10&sort=name");

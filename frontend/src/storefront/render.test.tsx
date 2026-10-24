@@ -72,7 +72,7 @@ describe("storefront server renderer", () => {
     };
     const html = renderStorePage({ page: home, origin: "https://shop.example", assets: { js: [], css: [] } });
     expect(html).toContain('class="site-brand" href="/"');
-    expect(html).toContain('class="btn-pri" href="/catalog"');
+    expect(html).toContain('class="store-home-hero__secondary" href="/catalog?stock_only=1"');
     expect(html).toContain('"@type":"WebSite","name":"CigarDomTabaka","url":"https://shop.example/"');
     expect(html).not.toContain('"@type":"BreadcrumbList"');
     expect(html).toContain("10");

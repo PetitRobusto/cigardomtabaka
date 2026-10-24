@@ -1,7 +1,30 @@
-import type { StoreLocale, StorePageData } from "./types";
+import type { StoreLocale, StorePageData, StoreProduct } from "./types";
 
 export type BrowseFilters = NonNullable<StorePageData["filters"]>;
 export const emptyFilters: BrowseFilters = { q: "", brands: [], boxes: [], sort: "catalog" };
+export const rangeKeys = ["length_min", "length_max", "ring_min", "ring_max", "price_min", "price_max"] as const;
+export const browsingKeys = ["q", "brand", "box", "sort", ...rangeKeys, "stock_only"];
+
+export function extraFilterFields(filters: BrowseFilters): Array<{ name: string; value: string }> {
+  return [
+    ...rangeKeys.flatMap((name) => filters[name] ? [{ name, value: filters[name]! }] : []),
+    ...(filters.stock_only ? [{ name: "stock_only", value: "1" }] : []),
+  ];
+}
+
+export function matchingOffers(offers: StoreProduct["offers"], filters: BrowseFilters) {
+  return offers.filter((offer) => {
+    const key = offer.sale_unit === "stick" ? "stick" : String(offer.box_size);
+    if (filters.boxes.length && !filters.boxes.includes(key)) return false;
+    if (filters.stock_only && !offer.in_stock) return false;
+    if (filters.price_min || filters.price_max) {
+      if (offer.price_rub === null || !Number.isFinite(Number(offer.price_rub))) return false;
+      if (filters.price_min && Number(offer.price_rub) < Number(filters.price_min)) return false;
+      if (filters.price_max && Number(offer.price_rub) > Number(filters.price_max)) return false;
+    }
+    return true;
+  });
+}
 
 export function homePath(locale: StoreLocale): string { return locale === "zh" ? "/" : `/${locale}/`; }
 export function catalogPath(locale: StoreLocale): string { return `${locale === "zh" ? "" : `/${locale}`}/catalog`; }
@@ -9,7 +32,11 @@ export function catalogPath(locale: StoreLocale): string { return `${locale === 
 export function filtersFromSearch(search: string): BrowseFilters {
   const params = new URLSearchParams(search);
   const sort = params.get("sort") || "catalog";
-  return { q: params.get("q") || "", brands: params.getAll("brand"), boxes: params.getAll("box"), sort: ["catalog", "name", "length"].includes(sort) ? sort : "catalog" };
+  const ranges = Object.fromEntries(rangeKeys.flatMap((key) => {
+    const value = params.get(key)?.trim();
+    return value && /^(?:\d+(?:\.\d{1,2})?|\.\d{1,2})$/.test(value) && value.length <= 16 ? [[key, value]] : [];
+  }));
+  return { q: params.get("q") || "", brands: params.getAll("brand"), boxes: params.getAll("box"), sort: ["catalog", "name", "length"].includes(sort) ? sort : "catalog", ...ranges, ...(params.get("stock_only") === "1" ? { stock_only: true } : {}) };
 }
 
 export function browseUrl(path: string, filters: BrowseFilters): string {
@@ -17,6 +44,7 @@ export function browseUrl(path: string, filters: BrowseFilters): string {
   if (filters.q.trim()) params.set("q", filters.q.trim());
   filters.brands.forEach((brand) => params.append("brand", brand));
   filters.boxes.forEach((box) => params.append("box", box));
+  extraFilterFields(filters).forEach(({ name, value }) => params.set(name, value));
   if (filters.sort !== "catalog") params.set("sort", filters.sort);
   return path.split("?")[0] + (params.size ? `?${params}` : "");
 }

@@ -2,7 +2,7 @@ from urllib.robotparser import RobotFileParser
 
 from django.test import SimpleTestCase, override_settings
 
-from cigardomtabaka_backend.urls import STAFF_PAGE_PREFIXES, SPA_PAGE_PATHS, is_staff_page_path
+from cigardomtabaka_backend.urls import STAFF_PAGE_PREFIXES
 
 
 class RobotsTests(SimpleTestCase):
@@ -25,7 +25,7 @@ class RobotsTests(SimpleTestCase):
         self.assertEqual(response['Content-Type'], 'text/plain; charset=utf-8')
         self.assertEqual(response.content, b'')
 
-    def test_public_pages_are_crawlable_and_internal_paths_are_disallowed(self):
+    def test_public_pages_are_crawlable_and_generic_private_paths_are_disallowed(self):
         response = self.client.get('/robots.txt')
         rules = RobotFileParser()
         rules.parse(response.content.decode().splitlines())
@@ -36,17 +36,11 @@ class RobotsTests(SimpleTestCase):
             '/ru/cigar/1/cohiba', '/sitemap-storefront.xml',
             '/static/frontend/assets/app.js', '/media/cigars/cohiba.jpg',
             '/yandex_b944c5e69a8995a8.html',
+            '/login', '/login/',
         )
         disallowed = (
-            '/admin', '/admin/', '/admin/login/', '/api', '/api/brands/', '/privnote', '/privnote/api/access/',
-            '/p/customer-token', '/login', '/inventory', '/inventory/purchases',
-            '/sales', '/sales/customers', '/accounting', '/accounting/day1',
-            '/accounting/reports/monthly', '/reports', '/reports/monthly', '/help',
-            '/library', '/library/brand/cohiba', '/library/cigar/1/cohiba',
-            '/prices', '/prices/alerts', '/prices/cigar/1/cohiba',
+            '/admin', '/admin/', '/admin/login/', '/api', '/api/brands/', '/p/customer-token',
         )
-        disallowed += tuple(STAFF_PAGE_PREFIXES)
-        disallowed += tuple(path for path in SPA_PAGE_PATHS if is_staff_page_path(path))
         for agent in ('YandexBot', 'Googlebot', 'ExampleBot'):
             for path in allowed:
                 with self.subTest(agent=agent, allowed=path):
@@ -54,6 +48,12 @@ class RobotsTests(SimpleTestCase):
             for path in disallowed:
                 with self.subTest(agent=agent, disallowed=path):
                     self.assertFalse(rules.can_fetch(agent, path))
+
+    def test_robots_does_not_publish_internal_business_paths(self):
+        response = self.client.get('/robots.txt')
+        for path in STAFF_PAGE_PREFIXES:
+            with self.subTest(path=path):
+                self.assertNotContains(response, path)
 
     @override_settings(STOREFRONT_ENABLED=True, STOREFRONT_ORIGIN='https://shop.example/')
     def test_robots_lists_only_the_public_storefront_sitemap(self):

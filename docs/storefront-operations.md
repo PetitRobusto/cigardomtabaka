@@ -95,8 +95,13 @@ locale/alternate 与图片替代文本；商品分享图取规范页面默认盒
 `/sitemap-storefront.xml` 仅从当前公开商城目录生成：三语首页、目录、品牌、商品及有效分页；
 页面还须具备有效预渲染内容、公开依赖和允许索引的状态。管理页、登录、API、Privnote、
 客户私密链接、筛选 URL 和未知路径不进入 sitemap，即使存在同路径的历史缓存记录。
-`/robots.txt` 自动使用后端管理页面前缀列表禁止抓取（包括 `/library` 和 `/prices`），
-另排除 admin、API、登录和客户私密链接；商城正文、静态资源及商品图片仍可抓取。
+请求只计算轻量规范路径集合，不重建商品卡片、报价、图片和 SEO 数据；逐次校验当前
+公开依赖后，以最终 URL、lastmod 和规范 origin 作为 XML 缓存键，并支持 ETag/304。
+内容撤回、删除、分页缩减和翻译失效优先于缓存；lastmod 仍取成功发布的内容日期。
+Nginx HTTP/HTTPS 模板启用 XML gzip 和 `Vary: Accept-Encoding`，生产配置需同步才会生效。
+`/robots.txt` 只排除 `/admin`、`/api` 和 `/p/`，不再列出内部业务模块名称。
+后台 SPA、登录页和私密文档壳返回 `X-Robots-Tag: noindex, nofollow` 和 `no-store`；
+登录页允许抓取，以便爬虫读取 noindex。商城正文、静态资源及商品图片仍可抓取。
 robots 是爬虫抓取规则，实际后台访问仍由已有登录及员工权限检查保护。
 
 ## 渲染与启用（生产操作另需授权）
@@ -177,7 +182,8 @@ python3 deploy/verify_storefront_http.py https://cigardomtabaka.com \
 默认检查中俄英首页、favicon 和启动脚本响应、robots、sitemap、真实 404 及可选 www
 永久跳转；不跟随跳转掩盖错误，不发送登录凭据，不修改服务器或业务数据。
 同时拒绝 sitemap 中的管理/私密地址、筛选参数、非规范分页和未知路径；检查 robots
-确实排除了现有管理路径，且没有禁止所检查的商城资源。公共路由新增时应同步此验收工具。
+保留通用私密路径限制、允许读取登录页 noindex，且没有禁止所检查的商城资源；
+同时验证登录响应的 noindex。公共路由新增时应同步此验收工具。
 输出 JSON，全部通过退出 0，有错误退出 1；网络超时也作为失败记录。
 可重复传 `--path /实际品牌路径`、`--path /实际商品路径`、`--path '/catalog?page=2'`
 覆盖真实存在且允许收录的样例。不要把有意 noindex 的筛选或语言回退页传作收录样例。

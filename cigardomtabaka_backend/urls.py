@@ -90,13 +90,13 @@ def spa_index(request):
             raise Http404
     if is_staff_page_path(request.path):
         if not request.user.is_authenticated:
-            return redirect(f'/login/?{urlencode({"next": request.get_full_path()})}')
+            return private_page_response(redirect(f'/login/?{urlencode({"next": request.get_full_path()})}'))
         if not request.user.is_staff:
-            return redirect('/')
+            return private_page_response(redirect('/'))
     dev_host = urlsplit(request.build_absolute_uri()).hostname or 'localhost'
     if ':' in dev_host:
         dev_host = f'[{dev_host}]'
-    return render(request, 'spa_index.html', {
+    response = render(request, 'spa_index.html', {
         'debug': settings.DEBUG,
         'vite_origin': f'{request.scheme}://{dev_host}:5173',
         'app_runtime_config': {
@@ -106,11 +106,20 @@ def spa_index(request):
         # The current page content is Chinese; translations are reserved for localized pages.
         'site_description': SITE_DESCRIPTIONS['zh-CN'],
     })
+    if (is_staff_page_path(request.path) or request.path.rstrip('/') == '/login'
+            or request.path.startswith('/p/')):
+        return private_page_response(response)
+    return response
+
+
+def private_page_response(response):
+    response['X-Robots-Tag'] = 'noindex, nofollow'
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 def robots(request):
     return render(request, 'robots.txt', {
-        'staff_page_prefixes': STAFF_PAGE_PREFIXES,
         'storefront_sitemap': settings.STOREFRONT_ORIGIN.rstrip('/') + '/sitemap-storefront.xml' if settings.STOREFRONT_ENABLED else '',
     }, content_type='text/plain; charset=utf-8')
 

@@ -2,7 +2,4 @@ User-agent: *
 Disallow: /admin
 Disallow: /api
 Disallow: /p/
-Disallow: /login
-{% for prefix in staff_page_prefixes %}Disallow: {{ prefix }}
-{% endfor %}
 {% if storefront_sitemap %}Sitemap: {{ storefront_sitemap }}{% endif %}

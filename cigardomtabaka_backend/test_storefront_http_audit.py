@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 
-from deploy.verify_storefront_http import PRIVATE_PATHS, Response, audit, fetch, public_indexable_url
+from deploy.verify_storefront_http import PRIVATE_PATHS, ROBOTS_DISALLOWED_PATHS, Response, audit, fetch, public_indexable_url
 
 
 class StorefrontHttpAuditTests(SimpleTestCase):
@@ -44,8 +44,9 @@ class StorefrontHttpAuditTests(SimpleTestCase):
         pages[self.origin + "/sitemap-storefront.xml"] = Response(200, {"content-type": "application/xml"},
             f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{locations}</urlset>')
         pages[self.origin + "/robots.txt"] = Response(200, {"content-type": "text/plain"},
-            "User-agent: *\n" + "".join(f"Disallow: {path}\n" for path in PRIVATE_PATHS)
+            "User-agent: *\n" + "".join(f"Disallow: {path}\n" for path in ROBOTS_DISALLOWED_PATHS)
             + f"Sitemap: {self.origin}/sitemap-storefront.xml\n")
+        pages[self.origin + '/login'] = Response(200, {'x-robots-tag': 'noindex, nofollow'}, 'login')
         pages[self.origin + "/static/frontend/favicon-96.png"] = Response(200, {"content-type": "image/png"}, "image")
         pages[self.origin + "/static/frontend/startup-loader.js?v=test"] = Response(200, {"content-type": "application/javascript"}, "script")
         pages[self.origin + "/__seo_audit_missing_page__"] = Response(404, {"content-type": "text/html"}, "missing")
@@ -58,7 +59,7 @@ class StorefrontHttpAuditTests(SimpleTestCase):
         self.assertTrue(report["ready"])
         self.assertEqual(report["issues"], [])
         self.assertEqual(report["sitemap_url_count"], 4)
-        self.assertEqual(len(report["checked_urls"]), 10)
+        self.assertEqual(len(report["checked_urls"]), 11)
 
     def test_old_spa_with_200_for_every_url_cannot_pass_release_checks(self):
         old_spa = Response(200, {"content-type": "text/html"}, '<html><head><title>Store</title></head><body><div id="root"></div></body></html>')
@@ -86,7 +87,7 @@ class StorefrontHttpAuditTests(SimpleTestCase):
         report = audit(self.origin, request=responses.__getitem__)
         self.assertFalse(report["ready"])
         self.assertEqual({issue["code"] for issue in report["issues"]},
-                         {"invalid_sitemap", "robots_blocks_pages", "robots_blocks_resources"})
+                         {"invalid_sitemap", "robots_blocks_pages", "robots_blocks_resources", "robots_blocks_login_noindex"})
 
     def test_network_failures_are_reported_and_no_automatic_repair_is_attempted(self):
         requested = []
@@ -97,7 +98,7 @@ class StorefrontHttpAuditTests(SimpleTestCase):
 
         report = audit(self.origin, request=unavailable)
         self.assertFalse(report["ready"])
-        self.assertEqual(len(requested), 6)
+        self.assertEqual(len(requested), 7)
         self.assertTrue(all(issue["code"] == "request_failed" for issue in report["issues"]))
 
     def test_sitemap_rejects_private_filtered_and_noncanonical_urls(self):
@@ -115,15 +116,23 @@ class StorefrontHttpAuditTests(SimpleTestCase):
             with self.subTest(public_path=path):
                 self.assertTrue(public_indexable_url(self.origin + path, self.origin))
 
-    def test_robots_must_exclude_staff_and_allow_rendering_resources(self):
+    def test_robots_must_exclude_generic_private_paths_and_allow_rendering_resources(self):
         responses = self.responses()
         robots = responses[self.origin + '/robots.txt']
-        robots.body = robots.body.replace('Disallow: /library\n', '')
+        robots.body = robots.body.replace('Disallow: /api/\n', '')
         robots.body += 'Disallow: /static/\n'
         report = audit(self.origin, request=responses.__getitem__)
         self.assertFalse(report['ready'])
         self.assertEqual({issue['code'] for issue in report['issues']},
                          {'robots_allows_private_paths', 'robots_blocks_resources'})
+
+    def test_login_requires_readable_noindex(self):
+        responses = self.responses()
+        responses[self.origin + '/login'].headers = {}
+        responses[self.origin + '/robots.txt'].body += 'Disallow: /login\n'
+        report = audit(self.origin, request=responses.__getitem__)
+        self.assertEqual({issue['code'] for issue in report['issues']},
+                         {'login_indexable', 'robots_blocks_login_noindex'})
 
     def test_invalid_origins_and_off_site_sample_paths_fail_before_requests(self):
         def unexpected_request(url):

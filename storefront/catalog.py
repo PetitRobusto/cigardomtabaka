@@ -6,7 +6,7 @@ import re
 import unicodedata
 import hashlib
 import json
-from collections import defaultdict
+from collections import Counter, defaultdict
 from urllib.parse import urlsplit, urlencode
 from django.db.models import Q, Sum
 
@@ -371,7 +371,7 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
     Discovery shelves depend on inventory history and live stock, not the whole
     legacy directory. Keep those dependencies plus the requested product in all
     locales so recommendations, pagination and hreflang match the full build.
-    Workers and sitemaps omit requested_path to retain every public detail URL.
+    Workers omit requested_path to retain every public detail URL.
     """
     brands = _brand_rows()
     store = StoreSettings.objects.filter(pk=1).first()
@@ -616,6 +616,38 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
 
 def _catalog_path(locale):
     return _locale_prefix(locale) + "/catalog"
+
+
+def public_page_paths(dependencies: dict) -> set[str]:
+    """Current canonical URLs without building product cards, offers or SEO data.
+
+    This is only URL eligibility. The sitemap must also validate each stored
+    artifact with allowed_payload before exposing it.
+    """
+    cigars = list(Cigar.objects.filter(deleted_at__isnull=True).exclude(
+        pk__in=dependencies["withdrawn"],
+    ).only("pk", "brand", "english_name", "release_type", "release_name"))
+    public_ids = {cigar.pk for cigar in cigars}
+    historical_ids = public_ids & dependencies["known_inventory"]
+    stock_ids = {cigar_id for cigar_id, _ in _available_boxes()} | set(_available_sticks())
+    home_count = len(public_ids & dependencies["published"] & stock_ids)
+    brand_counts = Counter(cigar.brand for cigar in cigars if cigar.pk in historical_ids)
+    product_slugs = [(cigar.pk, _product_slug(cigar)) for cigar in cigars]
+    paths = set()
+
+    def add_pages(base, count):
+        numbers, _ = _pagination(1, count, base)
+        paths.update(base if number == 1 else f"{base}?page={number}" for number in numbers)
+
+    for locale in LOCALES:
+        paths.update(_product_path(locale, cigar_id, slug) for cigar_id, slug in product_slugs)
+        for brand_name, slug in dependencies["brand_slugs"].items():
+            add_pages(_brand_path(locale, slug), brand_counts[brand_name])
+        # Non-Chinese home pages exist as fallback pages even without a translation.
+        if locale != "zh" or ("home", "home", "zh") in dependencies["translations"]:
+            add_pages(_home_path(locale), home_count)
+            add_pages(_catalog_path(locale), len(historical_ids))
+    return paths
 
 
 def _add_browsing_context(pages, brands, brand_translations, known_inventory):

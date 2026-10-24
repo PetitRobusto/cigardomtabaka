@@ -51,6 +51,8 @@ class StorefrontSpaRouteTests(TestCase):
                     with self.subTest(path=base_path + suffix, method=method):
                         response = getattr(self.client, method)(base_path + suffix)
                         self.assertEqual(response.status_code, 200)
+                        self.assertEqual(response['X-Robots-Tag'], 'noindex, nofollow')
+                        self.assertEqual(response['Cache-Control'], 'no-store')
                         if method == 'get':
                             self.assertContains(response, '<div id="root"></div>')
                         else:
@@ -75,6 +77,7 @@ class StorefrontSpaRouteTests(TestCase):
                 with self.subTest(path=path):
                     response = self.client.get(path)
                     self.assertEqual(response.content, b'public catalogue')
+                    self.assertNotIn('X-Robots-Tag', response)
                     self.assertEqual(page.call_args.args[0].path, path)
 
     @override_settings(STOREFRONT_ENABLED=False)
@@ -94,9 +97,18 @@ class StorefrontSpaRouteTests(TestCase):
         response = self.client.get('/library/brand/cohiba')
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response['Location'], '/login/?next=%2Flibrary%2Fbrand%2Fcohiba')
+        self.assertEqual(response['X-Robots-Tag'], 'noindex, nofollow')
 
         regular = get_user_model().objects.create_user(username='spa-regular')
         self.client.force_login(regular)
         response = self.client.get('/prices/alerts')
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response['Location'], '/')
+        self.assertEqual(response['X-Robots-Tag'], 'noindex, nofollow')
+
+    def test_anonymous_login_is_crawlable_but_not_indexable(self):
+        self.client.logout()
+        response = self.client.get('/login')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['X-Robots-Tag'], 'noindex, nofollow')
+        self.assertEqual(response['Cache-Control'], 'no-store')

@@ -8,13 +8,15 @@ from decimal import Decimal, InvalidOperation
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 from django.conf import settings
+from django.core.cache import cache
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect
 from django.utils import timezone
+from django.utils.cache import get_conditional_response
 from django.views.decorators.http import require_safe
 
 from price_tracker.models import ExchangeRate
-from .catalog import BROWSING_PARAMETERS, allowed_payload, browse_page, build_pages, public_dependencies, resolve_path, search_products, semantic_hash
+from .catalog import BROWSING_PARAMETERS, allowed_payload, browse_page, build_pages, public_dependencies, public_page_paths, resolve_path, search_products, semantic_hash
 from .models import StorePage
 
 
@@ -158,21 +160,36 @@ def search(request):
 def sitemap(request):
     if not _enabled():
         _not_found()
-    root = Element("urlset", xmlns="http://www.sitemaps.org/schemas/sitemap/0.9")
-    active_paths = set(StorePage.objects.filter(active=True, rendered_hash__gt="", html__gt="").values_list("path", flat=True))
-    pages = build_pages()
     dependencies = public_dependencies()
-    page_rows = {row.path: row for row in StorePage.objects.filter(path__in=active_paths).only(
+    paths = public_page_paths(dependencies)
+    entries = []
+    rows = StorePage.objects.filter(active=True, rendered_hash__gt="", html__gt="").values_list(
         "path", "rendered_payload", "rendered_changed_at",
-    )}
-    for path in sorted(pages):
-        row = page_rows.get(path)
-        if (path not in active_paths or not row or not allowed_payload(row.rendered_payload, dependencies)
-                or not row.rendered_payload.get("indexable")):
+    ).order_by("path")
+    for path, payload, changed_at in rows.iterator(chunk_size=200):
+        if (path not in paths or not allowed_payload(payload, dependencies)
+                or not payload.get("indexable")):
             continue
-        node = SubElement(root, "url")
-        SubElement(node, "loc").text = settings.STOREFRONT_ORIGIN.rstrip("/") + path
-        if row.rendered_changed_at:
-            SubElement(node, "lastmod").text = row.rendered_changed_at.date().isoformat()
-    content = tostring(root, encoding="utf-8", xml_declaration=True)
-    return HttpResponse(content, content_type="application/xml; charset=utf-8", headers={"Cache-Control": "no-cache"})
+        entries.append((path, changed_at.date().isoformat() if changed_at else None))
+    origin = settings.STOREFRONT_ORIGIN.rstrip("/")
+    # Revalidate live eligibility before consulting the cache or returning 304.
+    # No signal/TTL gap can keep revoked pages in a cached sitemap.
+    digest = semantic_hash({"version": 1, "origin": origin, "entries": entries})
+    etag = '"' + digest + '"'
+    response = get_conditional_response(request, etag=etag)
+    if response is None:
+        key = "storefront:sitemap:" + digest
+        content = cache.get(key)
+        if content is None:
+            root = Element("urlset", xmlns="http://www.sitemaps.org/schemas/sitemap/0.9")
+            for path, lastmod in entries:
+                node = SubElement(root, "url")
+                SubElement(node, "loc").text = origin + path
+                if lastmod:
+                    SubElement(node, "lastmod").text = lastmod
+            content = tostring(root, encoding="utf-8", xml_declaration=True)
+            cache.set(key, content, timeout=300)
+        response = HttpResponse(content, content_type="application/xml; charset=utf-8")
+    response["ETag"] = etag
+    response["Cache-Control"] = "no-cache"
+    return response

@@ -19,6 +19,8 @@ PRIVATE_PATHS = (
     "/admin/", "/api/", "/login", "/library", "/inventory", "/sales",
     "/accounting", "/reports", "/help", "/prices", "/privnote", "/p/seo-audit",
 )
+# Internal business paths intentionally aren't advertised in the public file.
+ROBOTS_DISALLOWED_PATHS = ("/admin/", "/api/", "/p/seo-audit")
 
 
 def public_indexable_url(url, origin):
@@ -201,10 +203,18 @@ def audit(origin, *, www_origin=None, extra_paths=(), request=fetch):
         for agent in ("Googlebot", "YandexBot"):
             if any(not parser.can_fetch(agent, origin + path) for path in paths):
                 problem(robots_url, "robots_blocks_pages", agent)
-            if any(parser.can_fetch(agent, origin + path) for path in PRIVATE_PATHS):
+            if any(parser.can_fetch(agent, origin + path) for path in ROBOTS_DISALLOWED_PATHS):
                 problem(robots_url, "robots_allows_private_paths", agent)
             if any(not parser.can_fetch(agent, url) for url in resource_urls):
                 problem(robots_url, "robots_blocks_resources", agent)
+        if not parser.can_fetch("Googlebot", origin + "/login"):
+            problem(robots_url, "robots_blocks_login_noindex", "Crawlers must be able to read the login page noindex")
+    login_url = origin + "/login"
+    login = get(login_url)
+    if login:
+        directives = {value.strip().lower() for value in login.headers.get("x-robots-tag", "").split(",")}
+        if login.status != 200 or not directives.intersection({"noindex", "none"}):
+            problem(login_url, "login_indexable", "Login must return 200 with X-Robots-Tag: noindex")
     missing_url = origin + "/__seo_audit_missing_page__"
     missing = get(missing_url)
     if missing and missing.status != 404:

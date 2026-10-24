@@ -39,7 +39,8 @@ python3 deploy/verify_storefront_http.py https://cigardomtabaka.com \
 
 可用重复的 `--path` 参数补充实际品牌、商品和分页样例。检查返回非零时核查 JSON 报告，
 不要把旧 SPA 的 200 响应视作 SEO 上线成功。此工具不启用商城、不重启服务、不写生产数据。
-它也拒绝 sitemap 中的管理、私密、筛选或非规范地址，并检查 robots 的管理路径排除和资源抓取规则。
+它也拒绝 sitemap 中的管理、私密、筛选或非规范地址，并检查 robots 的通用私密路径限制、
+资源抓取规则和可抓取登录页的 noindex；robots 不再公布内部业务路径。
 
 部署在替换代码前以 `www-data` 只读运行 `deploy/check_database_integrity.py cigars.db`，
 检查 SQLite 外键完整性（包含已提交 WAL）。发现孤儿、数据库不可读或检查失败时停止；

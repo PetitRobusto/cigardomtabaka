@@ -33,14 +33,14 @@ describe("B2 commerce browsing", () => {
     expect(container.querySelector(".store-price-rub")?.textContent).toBe(formatted(12345.67));
   });
 
-  it("shows the latest arrivals in backend order in a separate six-product home row", () => {
-    const latest = Array.from({ length: 8 }, (_, index) => ({ ...backendPageFixture.product!, id: 100 + index, name: `Arrival ${index}`, path: `/en/cigar/${100 + index}/arrival` }));
+  it("shows the latest arrivals in backend order in a separate home carousel capped at twelve", () => {
+    const latest = Array.from({ length: 14 }, (_, index) => ({ ...backendPageFixture.product!, id: 100 + index, name: `Arrival ${index}`, path: `/en/cigar/${100 + index}/arrival` }));
     const page = { ...catalog(), view: undefined, path: "/en/", latest_products: latest };
     const { container, rerender } = render(<Storefront page={page} ageConfirmed />);
     const row = container.querySelector(".store-latest-products")!;
     expect(within(row as HTMLElement).getByRole("heading", { name: "New arrivals" })).toBeTruthy();
-    expect(Array.from(row.querySelectorAll(".pcard-name"), (node) => node.textContent)).toEqual(latest.slice(0, 6).map((product) => product.name));
-    expect(container.querySelectorAll(".store-product-card")).toHaveLength(7);
+    expect(Array.from(row.querySelectorAll(".pcard-name"), (node) => node.textContent)).toEqual(latest.slice(0, 12).map((product) => product.name));
+    expect(container.querySelectorAll(".store-product-card")).toHaveLength(13);
     rerender(<Storefront page={{ ...page, view: "catalog" }} ageConfirmed />);
     expect(container.querySelector(".store-latest-products")).toBeNull();
   });
@@ -155,11 +155,11 @@ describe("B2 commerce browsing", () => {
     expect(container.querySelector('[popoverTarget="store-box-menu"]')).toBeNull();
   });
 
-  it("limits the home stock shelf to six and links directly to all in-stock results", () => {
+  it("limits the home stock carousel to twelve and links directly to all in-stock results", () => {
     const products = Array.from({ length: 14 }, (_, id) => ({ ...backendPageFixture.product!, id }));
     const page = { ...catalog(), view: undefined, path: "/en/", products, pagination: { page: 1, total_pages: 2, previous: null, next: "/en/?page=2" } };
     const { container } = render(<Storefront page={page} ageConfirmed />);
-    expect(container.querySelectorAll('.store-home-stock-grid .store-product-card')).toHaveLength(6);
+    expect(container.querySelectorAll('.store-stock-products .store-product-card')).toHaveLength(12);
     expect(container.querySelector('.store-stock-link')?.getAttribute('href')).toBe('/en/catalog?stock_only=1');
     expect(container.querySelector('.store-pagination')).toBeNull();
   });

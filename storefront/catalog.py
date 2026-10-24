@@ -199,7 +199,7 @@ def _published_listings() -> set[int]:
     return set(ProductListing.objects.filter(published=True, withdrawn=False).values_list("cigar_id", flat=True))
 
 
-def _latest_purchase_product_ids(listing_ids: set[int], limit: int = 6) -> list[int]:
+def _latest_purchase_product_ids(listing_ids: set[int], limit: int = 12) -> list[int]:
     """Return public products ordered by their latest unreversed receipt business date.
 
     PurchaseBatch.purchased_at is a row creation timestamp, not the date the

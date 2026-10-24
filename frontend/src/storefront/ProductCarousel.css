@@ -1,0 +1,15 @@
+.store-carousel { --carousel-per-view: 5; --carousel-gap: 12px; }
+.store-carousel .sec-h { align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.store-carousel__actions { display: flex; align-items: center; gap: 10px; max-width: 100%; margin-left: auto; }
+.store-carousel__controls { display: flex; flex: none; gap: 10px; }
+.store-carousel__controls[hidden] { display: none; }
+.store-carousel__arrow { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex: none; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--fg); transition: border-color var(--dur) ease, box-shadow var(--dur) ease; }
+.store-carousel__arrow:hover:not(:disabled) { border-color: var(--gold); box-shadow: var(--shadow); }
+.store-carousel__arrow:disabled { opacity: .35; cursor: default; }
+.store-carousel__all { display: inline-flex; align-items: center; min-width: 0; min-height: 44px; padding: 0 6px; }
+.store-carousel__viewport.store-product-grid { position: relative; display: flex; gap: var(--carousel-gap); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; padding-block: 4px 12px; }
+.store-carousel__viewport::-webkit-scrollbar { display: none; }
+.store-carousel__viewport > .pcard { min-width: 0; flex: 0 0 calc((100% - (var(--carousel-per-view) - 1) * var(--carousel-gap)) / var(--carousel-per-view)); scroll-snap-align: start; }
+.store-carousel__viewport:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+@media (min-width: 600px) and (max-width: 1023px) { .store-carousel { --carousel-per-view: 3; } }
+@media (max-width: 599px) { .store-carousel { --carousel-per-view: 1.8; --carousel-gap: 11px; } }

@@ -122,9 +122,6 @@ img{ display:block; max-width:100%; }
 .home-head{ padding:30px 0 22px; border-bottom:1px solid var(--border); display:flex; align-items:flex-end; justify-content:space-between; gap:18px; flex-wrap:wrap; }
 .home-head h1{ margin-top:8px; font-family:var(--font-display); font-size:clamp(24px,4.6vw,30px); font-weight:600; }
 .home-head p{ margin-top:6px; color:var(--muted); font-size:13px; max-width:56ch; }
-.store-home-stock-grid{grid-template-columns:repeat(6,minmax(0,1fr))}
-.sec-h .store-stock-link{display:inline-flex;align-items:center;min-height:44px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;color:var(--accent)}
-@media(max-width:1000px){.store-home-stock-grid{grid-template-columns:repeat(6,minmax(170px,1fr));overflow-x:auto;scroll-snap-type:x proximity;padding-bottom:12px}.store-home-stock-grid>.pcard{scroll-snap-align:start}}
 .btn-pri{ display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:10px 20px; border-radius:6px; background:var(--accent); color:#fff; font-size:13.5px; font-weight:650; text-decoration:none; transition:background var(--dur) ease; }
 .btn-pri:hover{ background:var(--accent-hover); }
 .sec{ padding:26px 0 4px; }

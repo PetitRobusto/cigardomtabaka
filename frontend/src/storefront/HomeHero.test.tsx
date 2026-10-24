@@ -8,9 +8,9 @@ afterEach(cleanup);
 
 describe("storefront home hero", () => {
   it.each([
-    ["zh", "逾 50 种古巴雪茄，藏于莫斯科"],
-    ["en", "Over 50 Cuban cigars, kept in Moscow's"],
-    ["ru", "Более 50 кубинских сигар в московском"],
+    ["zh", "在莫斯科，探索古巴雪茄的魅力"],
+    ["en", "In Moscow, discover the charm of"],
+    ["ru", "Откройте для себя в Москве"],
   ] as const)("renders the %s hero copy and five keyboard reachable catalog links", (locale, title) => {
     const catalogUrl = locale === "zh" ? "/catalog" : `/${locale}/catalog`;
     const stockUrl = `${catalogUrl}?stock_only=1`;

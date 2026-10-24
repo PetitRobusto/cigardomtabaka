@@ -9,6 +9,7 @@ import { ProductCard, ProductPage } from "./ProductDisplay";
 import { CatalogResults } from "./CatalogFilters";
 import { BrandBrowse, BrandMark } from "./BrandBrowse";
 import { HomeHero } from "./HomeHero";
+import { ProductCarousel } from "./ProductCarousel";
 import { languageOptions } from "../features/customer/messages";
 
 const langTag: Record<StoreLocale, string> = { zh: "zh-CN", ru: "ru-RU", en: "en" };
@@ -76,8 +77,8 @@ function HomePage({ page, labels }: Props) {
   return <>
     <HomeHero locale={page.locale} catalogUrl={catalogUrl} stockUrl={stockUrl} />
     <BrandBrowse page={page} labels={labels} />
-    <section className="sec store-section"><div className="sec-h"><h2>{labels.stockProducts}</h2><a className="store-stock-link" href={stockUrl}>{labels.browseStock} →</a></div><div className="grid store-product-grid store-home-stock-grid">{page.products.slice(0, 6).map((product) => <ProductCard key={product.id} product={product} locale={page.locale} labels={labels} from={homePath(page.locale)} />)}</div>{page.products.length === 0 && <p className="store-empty-note">{labels.noResults}</p>}</section>
-    <section className="sec store-section store-latest-products" aria-labelledby="store-latest-title"><div className="sec-h"><h2 id="store-latest-title">{labels.latestProducts}</h2><a href={catalogUrl}>{labels.allProducts} →</a></div><div className="grid store-product-grid store-home-stock-grid">{(page.latest_products || []).slice(0, 6).map((product) => <ProductCard key={product.id} product={product} locale={page.locale} labels={labels} from={homePath(page.locale)} />)}</div>{!page.latest_products?.length && <p className="store-empty-note">{labels.noResults}</p>}</section>
+    <ProductCarousel products={page.products} locale={page.locale} labels={labels} title={labels.stockProducts} href={stockUrl} linkLabel={labels.browseStock} sectionClass="store-stock-products" linkClass="store-stock-link" />
+    <ProductCarousel products={page.latest_products || []} locale={page.locale} labels={labels} title={labels.latestProducts} href={catalogUrl} linkLabel={labels.allProducts} sectionClass="store-latest-products" />
   </>;
 }
 

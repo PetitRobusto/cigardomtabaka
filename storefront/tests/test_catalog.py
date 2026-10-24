@@ -350,9 +350,7 @@ class StorefrontCatalogTests(TestCase):
     def test_home_latest_products_use_effective_receipt_dates_and_public_listing_rules(self):
         self.add_home_translation()
         received = []
-        dates = [date(2026, 8, 10), date(2026, 8, 11), date(2026, 8, 12),
-                 date(2026, 8, 13), date(2026, 8, 14), date(2026, 8, 15),
-                 date(2026, 8, 16)]
+        dates = [date(2026, 8, day) for day in range(10, 23)]
         for index, receipt_date in enumerate(dates):
             cigar = Cigar.objects.create(
                 brand=self.brand.english_name, english_name=f"Receipt Cigar {index}",
@@ -377,31 +375,33 @@ class StorefrontCatalogTests(TestCase):
             )
 
         unpublished = Cigar.objects.create(brand=self.brand.english_name, english_name="Unpublished")
-        self.receive_purchase(unpublished, date(2026, 8, 20), key="storefront-unpublished")
+        self.receive_purchase(unpublished, date(2026, 8, 23), key="storefront-unpublished")
         ProductListing.objects.create(cigar=unpublished, published=False)
         withdrawn = Cigar.objects.create(brand=self.brand.english_name, english_name="Withdrawn")
-        self.receive_purchase(withdrawn, date(2026, 8, 21), key="storefront-withdrawn")
+        self.receive_purchase(withdrawn, date(2026, 8, 24), key="storefront-withdrawn")
         ProductListing.objects.create(cigar=withdrawn, published=False, withdrawn=True)
         deleted = Cigar.objects.create(brand=self.brand.english_name, english_name="Deleted")
-        self.receive_purchase(deleted, date(2026, 8, 22), key="storefront-deleted")
+        self.receive_purchase(deleted, date(2026, 8, 25), key="storefront-deleted")
         ProductListing.objects.create(cigar=deleted, published=True)
         deleted.deleted_at = timezone.now()
         deleted.save(update_fields=["deleted_at"])
         reversed_cigar = Cigar.objects.create(brand=self.brand.english_name, english_name="Reversed")
         reversed_order, _ = self.receive_purchase(
-            reversed_cigar, date(2026, 8, 24), key="storefront-reversed",
+            reversed_cigar, date(2026, 8, 26), key="storefront-reversed",
         )
         ProductListing.objects.create(cigar=reversed_cigar, published=True)
         reverse_received_purchase_order(
-            purchase_order_id=reversed_order.pk, business_date=date(2026, 8, 25),
+            purchase_order_id=reversed_order.pk, business_date=date(2026, 8, 27),
             operator=self.receipt_operator, idempotency_key="storefront-reversed-action",
             reason="测试撤销",
         )
 
         home = build_pages()["/"]
-        expected = [received[i].pk for i in (6, 5, 4, 3, 2, 1)]
+        expected = [received[i].pk for i in range(12, 0, -1)]
         self.assertEqual([row["id"] for row in home["latest_products"]], expected)
-        self.assertEqual(home["latest_products"][5]["availability"], "out_of_stock")
+        self.assertEqual(len(home["latest_products"]), 12)
+        self.assertEqual(len({row["id"] for row in home["latest_products"]}), 12)
+        self.assertEqual(home["latest_products"][-1]["availability"], "out_of_stock")
         self.assertNotIn(unpublished.pk, [row["id"] for row in home["latest_products"]])
         self.assertNotIn(withdrawn.pk, [row["id"] for row in home["latest_products"]])
         self.assertNotIn(reversed_cigar.pk, [row["id"] for row in home["latest_products"]])

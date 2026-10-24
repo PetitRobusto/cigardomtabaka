@@ -20,9 +20,9 @@ const heroCopy: Record<StoreLocale, {
 }> = {
   zh: {
     kicker: "莫斯科古巴雪茄专业服务商",
-    title: "逾 50 种古巴雪茄，藏于莫斯科",
-    titleAccent: "专业茄房",
-    lead: "CigarDomTabaka 莫斯科门店：正品保证，平价销售。从 BHK、世纪 6 号到千里达，探索古巴雪茄的经典与限量系列。价格与现货情况请洽门店。",
+    title: "在莫斯科，",
+    titleAccent: "探索古巴雪茄的魅力",
+    lead: "CigarDomTabaka位于莫斯科市西南区的加加林区，超过50种古巴雪茄，Habanos Point认证门店，从高希霸Behike、高希霸世纪 6 号到千里达创建，探索古巴雪茄的经典与限量系列，专业茄房储存，正品平价销售。",
     facts: ["正品保证", "平价销售", "专业茄房", "莫斯科门店"],
     contact: "联系门店",
     browseStock: "浏览现货",
@@ -31,9 +31,9 @@ const heroCopy: Record<StoreLocale, {
   },
   en: {
     kicker: "Moscow's Cuban cigar specialists",
-    title: "Over 50 Cuban cigars, kept in Moscow's",
-    titleAccent: "professional humidor",
-    lead: "CigarDomTabaka in Moscow: authentic cigars at fair prices. Explore classic and limited releases, from Behike and Siglo VI to Trinidad. Contact the shop for current prices and availability.",
+    title: "In Moscow, discover the charm of",
+    titleAccent: "Cuban cigars",
+    lead: "Located in the Gagarinsky District of southwest Moscow, CigarDomTabaka is a Habanos Point certified shop offering over 50 Cuban cigars. From Cohiba Behike and Cohiba Siglo VI to Trinidad Fundadores, explore classic and limited releases, stored in a professional humidor and sold at fair prices with authenticity guaranteed.",
     facts: ["Authenticity guaranteed", "Fair prices", "Professional humidor", "Moscow shop"],
     contact: "Contact the shop",
     browseStock: "Browse in-stock cigars",
@@ -42,9 +42,9 @@ const heroCopy: Record<StoreLocale, {
   },
   ru: {
     kicker: "Специалисты по кубинским сигарам в Москве",
-    title: "Более 50 кубинских сигар в московском",
-    titleAccent: "профессиональном хьюмидоре",
-    lead: "Магазин CigarDomTabaka в Москве: подлинные сигары по доступным ценам. Откройте для себя классические и лимитированные серии — от Behike и Siglo VI до Trinidad. Узнайте актуальные цены и наличие в магазине.",
+    title: "Откройте для себя в Москве",
+    titleAccent: "очарование кубинских сигар",
+    lead: "CigarDomTabaka находится в Гагаринском районе на юго-западе Москвы. В сертифицированном магазине Habanos Point представлено более 50 кубинских сигар — от Cohiba Behike и Cohiba Siglo VI до Trinidad Fundadores. Откройте для себя классические и лимитированные серии: профессиональное хранение в хьюмидоре, гарантия подлинности и доступные цены.",
     facts: ["Гарантия подлинности", "Доступные цены", "Профессиональный хьюмидор", "Магазин в Москве"],
     contact: "Связаться с магазином",
     browseStock: "Сигары в наличии",
@@ -101,7 +101,7 @@ export function HomeHero({ locale, catalogUrl, stockUrl }: HomeHeroProps) {
           <p className="store-home-hero__kicker">{copy.kicker}</p>
           <div className="store-home-hero__rule" aria-hidden="true" />
           <h1 className="store-home-hero__title" id="store-home-hero-title">
-            {copy.title} <em>{copy.titleAccent}</em>
+            {copy.title}{locale === "zh" ? "" : " "}<em>{copy.titleAccent}</em>
           </h1>
           <p className="store-home-hero__lead">{copy.lead}</p>
           <ul className="store-home-hero__facts">

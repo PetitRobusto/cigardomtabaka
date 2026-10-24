@@ -5,15 +5,18 @@ import { Lock, User } from 'lucide-react';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { brandLogoUrl } from '../utils/brandAssets';
 import { safeLoginDestination } from '../utils/routeGuard';
+import loginCopy from '../../login-page.json';
 
 export default function LoginPage() {
   const { setMeta } = usePageMeta();
 
   useEffect(() => {
     setMeta({
-      title: '登录',
-      breadcrumbs: [{ label: '登录' }],
+      title: '账号登录',
+      breadcrumbs: [{ label: '账号登录' }],
     });
+    document.title = loginCopy.title;
+    document.querySelector('meta[name="description"]')?.setAttribute('content', loginCopy.description);
   }, [setMeta]);
 
   const [username, setUsername] = useState('');
@@ -53,17 +56,20 @@ export default function LoginPage() {
         <div className="flex flex-col items-center mb-8">
           <img src={brandLogoUrl} alt="CigarDomTabaka" width="120" height="120" className="w-[120px] h-[120px] mb-4 object-contain" />
           <h1 className="text-xl font-display font-semibold text-fg">CigarDomTabaka</h1>
-          <p className="text-sm text-muted mt-1">内部管理系统</p>
+          <p className="text-sm text-muted mt-1 text-center">{loginCopy.subtitle}</p>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs text-muted mb-1.5">用户名</label>
+            <label htmlFor="login-username" className="block text-xs text-muted mb-1.5">用户名</label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
               <input
                 type="text"
+                id="login-username"
+                name="username"
+                autoComplete="username"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 required
@@ -73,11 +79,14 @@ export default function LoginPage() {
             </div>
           </div>
           <div>
-            <label className="block text-xs text-muted mb-1.5">密码</label>
+            <label htmlFor="login-password" className="block text-xs text-muted mb-1.5">密码</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
               <input
                 type="password"
+                id="login-password"
+                name="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
@@ -101,6 +110,7 @@ export default function LoginPage() {
             {loading ? '登录中…' : '登录'}
           </button>
         </form>
+        <p className="mt-5 text-center text-sm text-muted">{loginCopy.registration}</p>
       </div>
     </div>
   );

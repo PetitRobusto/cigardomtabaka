@@ -15,9 +15,11 @@ describe('shared site footer', () => {
     const footer = within(container.querySelector('footer')!);
     expect(footer.getByRole('img', { name: 'CigarDomTabaka' })).toBeTruthy();
     expect(footer.getByText(publicDetails.address.zh)).toBeTruthy();
-    expect(footer.getByRole('link', { name: publicDetails.address.zh }).getAttribute('href')).toBe('https://yandex.com/maps/-/CXVaV4nN');
+    expect(footer.queryByRole('link', { name: publicDetails.address.zh })).toBeNull();
+    expect(new URL(footer.getByTitle('门店位置地图').getAttribute('src')!).searchParams.get('pt')).toBe(`${publicDetails.map_point.join(',')},pm2rdm`);
+    expect(footer.getByRole('link', { name: '在 Yandex 地图中打开' }).getAttribute('href')).toBe(publicDetails.map_url);
     expect(footer.getByRole('link', { name: '+7 929 638-48-78' }).getAttribute('href')).toBe('tel:+79296384878');
-    expect(footer.getByText('WeChat: cigardomtabaka')).toBeTruthy();
+    expect(footer.getByText('cigardomtabaka')).toBeTruthy();
     expect(footer.getByRole('link', { name: 'Telegram: +79296384878' }).getAttribute('href')).toBe('https://t.me/+79296384878');
     expect(footer.getByRole('link', { name: 'WhatsApp: +79296384878' }).getAttribute('href')).toBe('https://wa.me/79296384878');
     expect(footer.getByRole('img', { name: 'Habanos Specialist' })).toBeTruthy();
@@ -29,7 +31,14 @@ describe('shared site footer', () => {
     const { container } = render(<Storefront page={page} ageConfirmed />);
     const footer = within(container.querySelector('footer')!);
     expect(footer.getByText(publicDetails.address[locale])).toBeTruthy();
-    expect(footer.getByRole('link', { name: publicDetails.address[locale] }).getAttribute('href')).toBe('https://yandex.com/maps/-/CXVaV4nN');
+    expect(footer.queryByRole('link', { name: publicDetails.address[locale] })).toBeNull();
+    const map = container.querySelector('iframe')!;
+    const embed = new URL(map.getAttribute('src')!);
+    expect(embed.searchParams.get('pt')).toBe(`${publicDetails.map_point.join(',')},pm2rdm`);
+    expect(embed.searchParams.get('ll')).toBe(publicDetails.map_point.join(','));
+    expect(embed.searchParams.get('lang')).toBe(locale === 'ru' ? 'ru_RU' : 'en_RU');
+    expect(map.getAttribute('loading')).toBe('lazy');
+    expect(map.getAttribute('title')).toBeTruthy();
     expect(footer.getByText(publicDetails.hours[locale])).toBeTruthy();
     expect(footer.getByRole('link', { name: publicDetails.phone }).getAttribute('href')).toBe('tel:+79296384878');
     expect(footer.getByRole('link', { name: 'WhatsApp: +79296384878' }).getAttribute('href')).toBe('https://wa.me/79296384878');
@@ -55,12 +64,14 @@ describe('shared site footer', () => {
     const store = structured.find((item) => item['@type'] === 'Store')!;
     expect(footer.getByRole('img', { name: String(store.name) })).toBeTruthy();
     const address = (store.address as { streetAddress: string }).streetAddress;
-    expect(footer.getByRole('link', { name: address }).getAttribute('href')).toBe(store.hasMap);
+    expect(footer.getByText(address)).toBeTruthy();
+    expect(footer.queryByRole('link', { name: address })).toBeNull();
+    expect(container.querySelector('iframe')).toBeNull();
     expect(footer.getByText(String(store.openingHours))).toBeTruthy();
     const phone = footer.getByRole('link', { name: String(store.telephone) });
     expect(phone.getAttribute('href')).toBe('tel:+79991234567');
-    expect(footer.getByText('WeChat: verified-store')).toBeTruthy();
-    expect(footer.getByRole('link', { name: 'WeChat: verified-store' }).getAttribute('title')).toBe('WeChat: verified-store');
+    expect(footer.getByText('verified-store')).toBeTruthy();
+    expect(footer.queryByRole('link', { name: 'verified-store' })).toBeNull();
     expect(footer.getByRole('link', { name: 'Telegram: +79296384878' }).getAttribute('href')).toBe('https://t.me/+79296384878');
     expect(footer.getByRole('link', { name: 'WhatsApp: +79296384878' }).getAttribute('href')).toBe('https://wa.me/79296384878');
     expect(footer.getByRole('img', { name: 'Habanos Specialist' })).toBeTruthy();
@@ -71,5 +82,30 @@ describe('shared site footer', () => {
     phone.addEventListener('click', (event) => event.preventDefault(), { once: true });
     fireEvent.click(phone);
     expect(contact.mock.calls[0]?.[0]).toMatchObject({ detail: { kind: 'phone', locale: 'ru', product_id: '5' } });
+  });
+
+  it.each(['https://maps.example/store', 'https://yandex.com.evil.example/maps/-/CXVaV4nN', 'javascript:alert(1)', 'invalid-url'])('retains readable contact details without embedding an unsupported map URL (%s)', (map_url) => {
+    const { container } = render(<SiteFooter site={{ address: 'Verified address', map_url }} />);
+    expect(within(container).getByText('Verified address')).toBeTruthy();
+    expect(container.querySelector('iframe')).toBeNull();
+  });
+
+  it('shows the configured WeChat account on hover, focus and touch, then dismisses it without leaving the page', () => {
+    const { container } = render(<SiteFooter site={{ wechat: 'verified-wechat' }} />);
+    const footer = within(container.querySelector('footer')!);
+    const trigger = footer.getByRole('button', { name: '微信' });
+    expect(footer.queryByRole('tooltip')).toBeNull();
+    fireEvent.mouseEnter(trigger.parentElement!);
+    expect(within(footer.getByRole('tooltip')).getByText('verified-wechat')).toBeTruthy();
+    fireEvent.mouseLeave(trigger.parentElement!);
+    expect(footer.queryByRole('tooltip')).toBeNull();
+    fireEvent.focus(trigger);
+    expect(footer.getByRole('tooltip')).toBeTruthy();
+    fireEvent.keyDown(trigger, { key: 'Escape' });
+    expect(footer.queryByRole('tooltip')).toBeNull();
+    fireEvent.click(trigger);
+    expect(footer.getByRole('tooltip')).toBeTruthy();
+    fireEvent.pointerDown(document.body);
+    expect(footer.queryByRole('tooltip')).toBeNull();
   });
 });

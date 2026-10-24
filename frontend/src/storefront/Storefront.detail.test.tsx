@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Storefront } from "./Storefront";
 import { backendPageFixture } from "./fixture";
+
+afterEach(cleanup);
 
 describe("storefront product detail", () => {
   it("shows one contain-ready source image and switches it with keyboard-operable thumbnails", () => {
@@ -26,7 +28,7 @@ describe("storefront product detail", () => {
     expect(document.querySelector('[data-gallery-main]')?.getAttribute("src")).not.toBe("/media/thumb.jpg");
   });
 
-  it("passes backend-localized Russian copy through and renders contact details without buttons", () => {
+  it("passes backend-localized Russian copy through and renders phone contact with a WeChat disclosure", () => {
     const page = {
       ...backendPageFixture,
       locale: "ru" as const,
@@ -40,7 +42,7 @@ describe("storefront product detail", () => {
     expect(screen.getByRole("heading", { name: "Цена" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Связаться" }).getAttribute("href")).toBe("#store-contact");
     expect(container.querySelector(".site-footer-contacts a[href^=tel]")?.getAttribute("href")).toBe("tel:+70000000000");
-    expect(container.querySelector("#store-contact button")).toBeNull();
+    expect(container.querySelector("#store-contact button")?.textContent).toBe("WeChat");
     expect(container.querySelector(".site-footer-contacts")?.textContent).toContain("cigar-contact");
     expect(container.querySelector(".store-description")?.textContent).toBe("Русское описание товара");
     const contactListener = vi.fn();

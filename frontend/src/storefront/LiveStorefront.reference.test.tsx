@@ -21,7 +21,8 @@ it("recalculates reference prices when switching boxes and single-cigar inquiry"
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => setTimeout(() => callback(0), 0));
   const { container } = render(<LiveStorefront initialPage={page} />);
   fireEvent.click(container.querySelector('[data-age-confirm]')!);
-  fireEvent.click(container.querySelector('[data-store-currency="CNY"]')!);
+  fireEvent.click(screen.getByRole("button", { name: "Reference currency" }));
+  fireEvent.click(screen.getByRole("menuitemradio", { name: "CNY ¥" }));
   await waitFor(() => expect(container.querySelector(".d-price [data-reference-price]")?.textContent).toContain("10.00"));
   fireEvent.click(screen.getByRole("button", { name: "25 ct./box" }));
   expect(container.querySelector(".d-price [data-reference-price]")?.textContent).toContain("25.00");
@@ -29,8 +30,14 @@ it("recalculates reference prices when switching boxes and single-cigar inquiry"
   expect(container.querySelector(".d-price [data-reference-price]")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "10 ct./box" }));
   expect(container.querySelector(".d-price [data-reference-price]")?.textContent).toContain("10.00");
-  fireEvent.click(container.querySelector('[data-store-currency="USD"]')!);
+  fireEvent.click(screen.getByRole("button", { name: "Reference currency" }));
+  fireEvent.click(screen.getByRole("menuitemradio", { name: "USD $" }));
   expect(container.querySelector(".d-price [data-reference-price]")?.textContent).toContain("2.00");
   fireEvent.click(screen.getByRole("button", { name: "25 ct./box" }));
   expect(container.querySelector(".d-price [data-reference-price]")?.textContent).toContain("5.00");
+  fireEvent.click(screen.getByRole("button", { name: "Reference currency" }));
+  fireEvent.click(screen.getByRole("menuitemradio", { name: "RUB ₽" }));
+  expect(container.querySelector(".d-price [data-reference-price]:not([hidden])")).toBeNull();
+  expect(container.querySelector('.d-price')?.textContent).toContain('250');
+  expect(container.querySelector('[data-rates-note]')?.hasAttribute('hidden')).toBe(true);
 });

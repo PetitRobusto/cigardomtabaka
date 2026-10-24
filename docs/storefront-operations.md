@@ -35,8 +35,10 @@ WhatsApp 是独立配置的既有联系渠道，不从门店电话号码推导�
 周一至周六 12:00–20:00，周日 12:00–16:00，均为莫斯科当地时间。
 门店电话为 `+7 929 638-48-78`，WhatsApp 同号，链接为 `https://wa.me/79296384878`。
 电话同步到 JSON-LD `telephone`；WhatsApp 作为单独确认的账号维护，不随后台电话覆盖值自动改变。
-Yandex 地图采用业主提供的 `https://yandex.com/maps/-/CXVaV4nN`，三语地址链接与
-JSON-LD `hasMap` 共用此链接。Google Maps 暂无门店条目，不生成或推测 Google 链接。
+Yandex 地图采用业主提供的 `https://yandex.com/maps/-/CXVaV4nN`；页脚直接嵌入地图，
+“在 Yandex 地图中打开”按钮与 JSON-LD `hasMap` 共用原链接。地图 pin 取该地址页面
+入口 `6` 的坐标 `[37.54550950795893, 55.6935711668604]`，由 `public_details.json`
+统一维护，不使用分享视窗的中心代替入口位置。Google Maps 暂无门店条目，不生成或推测 Google 链接。
 中文保留俄文街名以便地图检索，英语使用 Molodyozhnaya 转写。时间对外展示本地化文案，
 JSON-LD 使用 `Mo-Sa 12:00-20:00`、`Su 12:00-16:00`。
 这些已确认的默认值不依赖其他门店资料的整体审核；未核实的自定义电话、地图及图片等仍不进入
@@ -103,6 +105,15 @@ Nginx HTTP/HTTPS 模板启用 XML gzip 和 `Vary: Accept-Encoding`，生产配�
 后台 SPA、登录页和私密文档壳返回 `X-Robots-Tag: noindex, nofollow` 和 `no-store`；
 登录页允许抓取，以便爬虫读取 noindex。商城正文、静态资源及商品图片仍可抓取。
 robots 是爬虫抓取规则，实际后台访问仍由已有登录及员工权限检查保护。
+
+登录页通过 `frontend/login-page.json` 共用服务端与 React 品牌标题、简介和“注册暂未开放”文案。
+语言菜单顺序统一为俄语、英语、中文；参考货币与语言共用按钮、菜单及选中态样式。
+页脚微信与 Telegram、WhatsApp 同组；悬停、聚焦或点击微信可显示配置账号，Esc、移出焦点
+或点击其他区域可关闭。账号卡暂不放占位二维码，后续可替换为正式微信二维码素材。
+
+本地测试服务使用 `--noreload` 时，更新 Python 代码后需同步重启 Web 与渲染 worker，
+避免旧 Web 校验器拒绝新 worker 的页面。先在独立目录构建，再保留旧哈希资源安装新资源、
+刷新预渲染，并验证三语首页和引用资源均为 200 后再提供测试入口。
 
 ## 渲染与启用（生产操作另需授权）
 

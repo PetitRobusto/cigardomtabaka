@@ -185,13 +185,14 @@ it("keeps currency and age confirmation across navigation, then retries a failed
   }));
   mount();
   fireEvent.click(document.querySelector('[data-age-confirm]')!);
-  fireEvent.click(document.querySelector('[data-store-currency="CNY"]')!);
+  fireEvent.click(screen.getByRole("button", { name: "Reference currency" }));
+  fireEvent.click(screen.getByRole("menuitemradio", { name: "CNY ¥" }));
   fireEvent.click(document.querySelector('.catnav a[href="/en/catalog"]')!);
   const retry = await screen.findByRole("button", { name: /try again/i });
   fireEvent.click(retry);
   await screen.findByRole("heading", { name: "English catalog | CigarDomTabaka" });
 
-  expect(document.querySelector('[data-store-currency="CNY"]')?.getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByRole("button", { name: "Reference currency" }).textContent).toContain("CNY ¥");
   expect(document.querySelector('[data-age-gate]')?.hasAttribute("hidden")).toBe(true);
   expect(catalogAttempts).toBe(2);
 });

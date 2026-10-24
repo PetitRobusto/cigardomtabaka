@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 're
 import { ChevronDown, LayoutGrid, Package, CircleDollarSign, ClipboardList, Menu, Search, Globe, LogIn, LogOut } from 'lucide-react';
 import type { User } from '../../store/authStore';
 import { siteDockLogoUrl as brandDockLogoUrl } from './siteAssets';
-import { customerMessages, languageNames, type CustomerLocale } from '../../features/customer/messages';
+import { customerMessages, languageNames, languageOptions, type CustomerLocale } from '../../features/customer/messages';
 import { useCustomerPreferences } from '../../features/customer/preferences';
 import { mobileNavItems } from '../layout/mobileNav';
 import { isAppNavPathActive } from '../layout/appSections';
@@ -21,6 +21,8 @@ const managementLinks = [
 ];
 type LanguageLink = { locale: CustomerLocale; path: string };
 type Navigate = (path: string) => void;
+type Currency = 'RUB' | 'CNY' | 'USD';
+const currencies: Record<Currency, string> = { RUB: 'RUB ₽', CNY: 'CNY ¥', USD: 'USD $' };
 
 function SiteLink({ href, onNavigate, children, ...props }: {
   href: string; onNavigate?: Navigate; children: ReactNode; className?: string; 'aria-current'?: 'page';
@@ -34,27 +36,41 @@ function SiteLink({ href, onNavigate, children, ...props }: {
 }
 
 export function SiteHeader({ locale = 'zh', user = null, pathname = '/', languages = [], query = '',
-  searchFields = [], inert = false, onLogout, onNavigate, children, storeLocale = locale }: {
+  searchFields = [], inert = false, onLogout, onNavigate, children, storeLocale = locale, currency, currencyLabel, onCurrencyChange }: {
   locale?: CustomerLocale; storeLocale?: CustomerLocale; user?: User | null; pathname?: string; languages?: LanguageLink[];
   query?: string; searchFields?: Array<{ name: string; value: string }>; inert?: boolean;
   onLogout?: () => void; onNavigate?: Navigate; children?: ReactNode;
+  currency?: Currency; currencyLabel?: string; onCurrencyChange?: (currency: Currency) => void;
 }) {
   const copy = labels[locale]; const text = customerMessages[locale];
   const home = storeLocale === 'zh' ? '/' : `/${storeLocale}/`;
-  const [openedMenu, setOpenedMenu] = useState<{ kind: 'tools' | 'language'; path: string } | null>(null);
+  const orderedLanguages = [...languages].sort((a, b) => languageOptions.indexOf(a.locale) - languageOptions.indexOf(b.locale));
+  const [openedMenu, setOpenedMenu] = useState<{ kind: 'tools' | 'language' | 'currency'; path: string } | null>(null);
   const menu = openedMenu?.path === pathname ? openedMenu.kind : null;
-  const setMenu = (kind: 'tools' | 'language' | null) => setOpenedMenu(kind ? { kind, path: pathname } : null);
+  const setMenu = (kind: 'tools' | 'language' | 'currency' | null) => setOpenedMenu(kind ? { kind, path: pathname } : null);
   const root = useRef<HTMLElement>(null);
   const toolsButton = useRef<HTMLButtonElement>(null);
   const languageButton = useRef<HTMLButtonElement>(null);
+  const currencyButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!menu) return;
-    const close = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpenedMenu(null); };
+    if (menu === 'currency') root.current?.querySelector<HTMLButtonElement>('#site-currency-menu [aria-checked=true]')?.focus();
+    const close = (event: PointerEvent) => { if (!root.current?.querySelector('.site-menu')?.parentElement?.contains(event.target as Node)) setOpenedMenu(null); };
     document.addEventListener('pointerdown', close);
     return () => document.removeEventListener('pointerdown', close);
   }, [menu]);
   return <header ref={root} className="site-header" inert={inert || undefined} onKeyDown={(event) => {
-    if (event.key === 'Escape' && menu) { (menu === 'tools' ? toolsButton : languageButton).current?.focus(); setMenu(null); }
+    if (event.key === 'Escape' && menu) { (menu === 'tools' ? toolsButton : menu === 'currency' ? currencyButton : languageButton).current?.focus(); setMenu(null); }
+    if (event.key === 'ArrowDown' && event.target === currencyButton.current && menu !== 'currency') {
+      event.preventDefault(); setMenu('currency'); return;
+    }
+    if (menu === 'currency' && (event.target === currencyButton.current || root.current?.querySelector('#site-currency-menu')?.contains(event.target as Node)) && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+      event.preventDefault();
+      const items = Array.from(root.current?.querySelectorAll<HTMLButtonElement>('#site-currency-menu button') ?? []);
+      const index = items.indexOf(document.activeElement as HTMLButtonElement);
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (index + (event.key === 'ArrowUp' ? -1 : 1) + items.length) % items.length;
+      items[next]?.focus();
+    }
   }}>
     <div className="site-header-main">
       <a className="site-brand" href={home} aria-label="CigarDomTabaka"><img src={brandDockLogoUrl} data-startup-logo-target width="45" height="45" alt="" /><span>CigarDomTabaka</span></a>
@@ -71,9 +87,15 @@ export function SiteHeader({ locale = 'zh', user = null, pathname = '/', languag
         <button type="submit">{copy.submit}</button>
       </form>
       <div className="site-account">
+        {currency && <div className="site-menu-wrap" onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setOpenedMenu(current => current?.kind === 'currency' ? null : current);
+        }}>
+          <button ref={currencyButton} className="site-language-button" type="button" data-store-currency={currency} aria-label={currencyLabel} aria-haspopup="menu" aria-expanded={menu === 'currency'} aria-controls="site-currency-menu" onClick={() => setMenu(menu === 'currency' ? null : 'currency')}><CircleDollarSign aria-hidden="true" /><span>{currencies[currency]}</span><ChevronDown aria-hidden="true" /></button>
+          {menu === 'currency' && <div id="site-currency-menu" className="site-menu site-language-menu" role="menu" aria-label={currencyLabel}>{(Object.keys(currencies) as Currency[]).map((code) => <button key={code} type="button" role="menuitemradio" aria-checked={currency === code} onClick={() => { onCurrencyChange?.(code); setMenu(null); currencyButton.current?.focus(); }}>{currencies[code]}</button>)}</div>}
+        </div>}
         {languages.length > 0 && <div className="site-menu-wrap" data-customer-language>
           <button ref={languageButton} className="site-language-button" type="button" aria-label={text.language} aria-expanded={menu === 'language'} aria-controls="site-language-menu" onClick={() => setMenu(menu === 'language' ? null : 'language')}><Globe aria-hidden="true" /><span>{languageNames[locale]}</span><ChevronDown aria-hidden="true" /></button>
-          {menu === 'language' && <div id="site-language-menu" className="site-menu site-language-menu">{languages.map((item) => <a key={item.locale} href={item.path} lang={item.locale === 'zh' ? 'zh-CN' : item.locale} aria-current={locale === item.locale ? 'page' : undefined} onClick={() => { useCustomerPreferences.getState().selectLocale(item.locale); setMenu(null); }}>{languageNames[item.locale]}</a>)}</div>}
+          {menu === 'language' && <div id="site-language-menu" className="site-menu site-language-menu">{orderedLanguages.map((item) => <a key={item.locale} href={item.path} lang={item.locale === 'zh' ? 'zh-CN' : item.locale} aria-current={locale === item.locale ? 'page' : undefined} onClick={() => { useCustomerPreferences.getState().selectLocale(item.locale); setMenu(null); }}>{languageNames[item.locale]}</a>)}</div>}
         </div>}
         {user ? <><span className="site-username">{user.username}</span><button type="button" aria-label={text.logout} onClick={onLogout}><LogOut aria-hidden="true" /></button></> : <a className="site-login" href={`/login?${new URLSearchParams({ next: pathname })}`} aria-label={text.login}><LogIn aria-hidden="true" /><span>{text.login}</span></a>}
       </div>

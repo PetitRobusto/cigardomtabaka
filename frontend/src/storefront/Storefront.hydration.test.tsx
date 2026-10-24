@@ -22,7 +22,7 @@ describe("storefront hydration", () => {
     expect(container.querySelector('[data-age-gate="true"]')).not.toBeNull();
     expect(container.querySelector(".store-main")?.hasAttribute("inert")).toBe(true);
     expect(container.querySelector('.store-languages a[lang="en"]')?.textContent).toBe("English");
-    expect(container.querySelector('[data-store-currency="RUB"]')?.getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector('[data-store-currency="RUB"]')?.textContent).toContain("RUB ₽");
     expect(errors).toEqual([]);
     await act(async () => root!.unmount());
     container.remove();

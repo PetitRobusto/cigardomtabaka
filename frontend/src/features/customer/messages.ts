@@ -1,7 +1,7 @@
 export type CustomerLocale = 'zh' | 'en' | 'ru';
 
 export const languageNames: Record<CustomerLocale, string> = { en: 'English', ru: 'Русский', zh: '简体中文' };
-export const languageOptions: CustomerLocale[] = ['en', 'ru', 'zh'];
+export const languageOptions: CustomerLocale[] = ['ru', 'en', 'zh'];
 
 const zh = {
   language: '语言', brands: '品牌', home: '首页', login: '登录', logout: '退出',
@@ -16,6 +16,7 @@ const zh = {
   cuba: '古巴', havana: '哈瓦那', global: '全球', value: '价值', volume: '走量', series: '系列', cigarUnit: '款雪茄', ringGauge: '环径',
   storeTagline: '专业、正品、平价', storeCredential: '莫斯科持证雪茄服务商',
   storeQualification: '专业门店资质', certifiedRetailer: '认证零售商', copyright: '版权所有。',
+  storeAddress: '门店地址', storeHours: '营业时间', storePhone: '电话', storeWechat: '微信', storeSocial: '在线联系', storeMap: '门店位置地图', storeMapOpen: '在 Yandex 地图中打开',
   ageKicker: '年龄确认', ageTitle: '是否已满18岁？',
   ageBody: '本站内容涉及烟草制品，仅向成年访客开放。请确认您已年满18周岁。',
   ageYes: '是的，我已满18岁', ageNo: '未满18岁', ageNote: '您可以随时通过顶部入口切换语言。',
@@ -39,6 +40,7 @@ export const customerMessages: Record<CustomerLocale, Messages> = {
     cuba: 'Cuba', havana: 'Havana', global: 'Global', value: 'Value', volume: 'Volume', series: 'Series', cigarUnit: 'Cigars', ringGauge: 'ring gauge',
     storeTagline: 'Expertise · Authenticity · Fair prices', storeCredential: 'Licensed cigar specialist in Moscow',
     storeQualification: 'Specialist retailer credentials', certifiedRetailer: 'Certified Retailer', copyright: 'All rights reserved.',
+    storeAddress: 'Visit us', storeHours: 'Opening hours', storePhone: 'Phone', storeWechat: 'WeChat', storeSocial: 'Messengers', storeMap: 'Store location map', storeMapOpen: 'Open in Yandex Maps',
     ageKicker: 'Age confirmation', ageTitle: 'Are you 18 or older?',
     ageBody: 'This site covers tobacco products and is intended for adult visitors only. Please confirm that you are at least 18 years old.',
     ageYes: 'Yes, I am 18 or older', ageNo: 'I am under 18', ageNote: 'You can change the language at the top of this page.',
@@ -58,6 +60,7 @@ export const customerMessages: Record<CustomerLocale, Messages> = {
     cuba: 'Куба', havana: 'Гавана', global: 'Глобальный', value: 'Доступный', volume: 'Массовый', series: 'Серии', cigarUnit: 'Сигары', ringGauge: 'ринг гейдж',
     storeTagline: 'Профессионализм · Подлинность · Доступные цены', storeCredential: 'Лицензированный сигарный магазин в Москве',
     storeQualification: 'Сертифицированный специализированный магазин', certifiedRetailer: 'Сертифицированный ритейлер', copyright: 'Все права защищены.',
+    storeAddress: 'Адрес магазина', storeHours: 'Часы работы', storePhone: 'Телефон', storeWechat: 'WeChat', storeSocial: 'Мессенджеры', storeMap: 'Карта расположения магазина', storeMapOpen: 'Открыть в Яндекс Картах',
     ageKicker: 'Подтверждение возраста', ageTitle: 'Вам уже исполнилось 18 лет?',
     ageBody: 'Сайт посвящён табачным изделиям и предназначен только для совершеннолетних посетителей. Подтвердите, что вам исполнилось 18 лет.',
     ageYes: 'Да, мне есть 18 лет', ageNo: 'Мне нет 18 лет', ageNote: 'Язык можно изменить в верхней части страницы.',

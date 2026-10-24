@@ -112,3 +112,12 @@ class StorefrontSpaRouteTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['X-Robots-Tag'], 'noindex, nofollow')
         self.assertEqual(response['Cache-Control'], 'no-store')
+
+    def test_login_brand_metadata_is_present_without_javascript(self):
+        self.client.logout()
+        for path in ('/login', '/login/?next=/en/'):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertContains(response, '<title>账号登录 · CigarDomTabaka 莫斯科雪茄专营店</title>')
+                self.assertContains(response, '注册暂未开放。')
+                self.assertEqual(response['X-Robots-Tag'], 'noindex, nofollow')

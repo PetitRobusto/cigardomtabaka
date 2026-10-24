@@ -52,7 +52,7 @@ describe("B2 commerce browsing", () => {
     expect(Array.from(brandArea.querySelectorAll(".store-brand-logo-link")).map((link) => link.textContent)).toEqual(brands.map((brand) => brand.name));
     expect(Array.from(brandArea.querySelectorAll(".store-brand-logo-link")).map((link) => link.getAttribute("href"))).toEqual(brands.map((brand) => brand.path));
     expect(container.querySelectorAll("#store-contact")).toHaveLength(1);
-    expect(container.querySelector("#store-contact button")).toBeNull();
+    expect(container.querySelector("#store-contact button")?.textContent).toBe("WeChat");
     expect(container.querySelector('[popoverTarget="store-box-menu"]')).toBeNull();
     expect(screen.queryByText("Browse by box size")).toBeNull();
   });

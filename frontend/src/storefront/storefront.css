@@ -225,9 +225,6 @@ input,select{font:inherit}
 .catnav{flex:1;min-width:0;margin:0;padding:0 4px}
 .catnav>button{flex:none;min-height:44px;padding:8px 12px;font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap}
 .catnav>a{white-space:nowrap}
-.store-reference-control{display:flex;flex:none;align-items:center;padding-right:10px}
-.store-reference-control button{min-height:44px;min-width:38px;padding:6px;color:var(--muted);font:11px var(--font-mono)}
-.store-reference-control button[aria-pressed=true]{color:var(--fg);font-weight:700;text-decoration:underline;text-underline-offset:5px}
 .store-category-menu{display:none;position:fixed;inset:auto;top:112px;left:max(16px,calc((100vw - 1088px)/2));max-width:calc(100vw - 32px);max-height:70vh;overflow:auto;width:280px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);box-shadow:var(--shadow);color:var(--fg)}
 .store-category-menu:popover-open{display:block}
 .store-category-menu a{display:flex;align-items:center;gap:12px;min-height:44px;padding:8px 10px;text-decoration:none;font-size:13px}

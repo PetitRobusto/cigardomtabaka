@@ -9,7 +9,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="{{ site_description }}">
-<title>CigarDomTabaka</title>
+<title>{{ page_title|default:"CigarDomTabaka" }}</title>
 <link rel="icon" type="image/png" sizes="96x96" href="{% static 'frontend/favicon-96.png' %}">
 <link rel="preload" as="image" href="{% if debug %}{{ vite_origin }}/static/frontend/logo-motion.webp{% else %}{{ logo_url }}{% endif %}" type="image/webp" fetchpriority="high">
 <link rel="preload" as="image" href="{% if debug %}{{ vite_origin }}/static/frontend/logo-opening-motion-v2.svg{% else %}{{ opening_logo_url }}{% endif %}" type="image/svg+xml">

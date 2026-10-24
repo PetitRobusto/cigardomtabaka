@@ -1,36 +1,60 @@
-/* Scoped equivalents of the original footer utilities for the standalone store bundle. */
+/* Layout source: storefront-footer-20261024 in the CigarDomTabaka design project. */
 .site-footer { margin-top:auto; background:#f5efe8; border-top:2px solid #7a1f2e; color:#2c2416; }
 .site-footer *, .site-footer *::before, .site-footer *::after { box-sizing:border-box; }
 .site-footer a { color:inherit; text-decoration:none; }
+.site-footer a:focus-visible,.site-footer button:focus-visible { outline:2px solid #b87a3a; outline-offset:3px; }
 .site-footer-inner { max-width:1280px; margin:auto; padding:40px 24px; }
-.site-footer-top { display:flex; flex-direction:column; gap:20px; padding-bottom:32px; border-bottom:1px solid #e8e0d6; }
-.site-footer-brand { display:flex; align-items:center; gap:16px; }
+.site-footer-top { display:grid; grid-template-columns:minmax(0,1fr); gap:32px; padding-bottom:32px; border-bottom:1px solid #e8e0d6; }
+.site-footer-info { min-width:0; }
+.site-footer-brand { display:flex; align-items:center; gap:14px; }
 .site-footer-brand > img { width:72px; height:72px; object-fit:contain; flex-shrink:0; }
-.site-footer-brand > div { min-width:0; overflow-wrap:break-word; }
-.site-footer-brand > div > div:first-child { font-family:Georgia,"Songti SC","Noto Serif SC",serif; font-size:22px; font-weight:600; letter-spacing:.025em; }
+.site-footer-brand > div { min-width:0; overflow-wrap:anywhere; }
+.site-footer-brand > div > div:first-child { font-family:Georgia,"Songti SC","Noto Serif SC",serif; font-size:22px; font-weight:600; line-height:1.2; }
 .site-footer-brand > div > div:last-child { margin-top:4px; font-family:Georgia,"Songti SC","Noto Serif SC",serif; font-style:italic; font-size:13px; color:#8a7e6e; }
-.site-footer-contacts { display:flex; flex-direction:column; gap:12px; }
-.site-footer-contacts > div { display:flex; align-items:center; gap:8px; font-size:13px; }
-.site-footer-contacts svg { width:15px; height:15px; color:#7a1f2e; flex-shrink:0; }
+.site-footer-contacts { display:grid; grid-template-columns:minmax(0,1fr); gap:20px 28px; margin-top:24px; }
+.site-footer-group { min-width:0; font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+.site-footer-group h2 { margin:0 0 7px; color:#8a7e6e; font-size:11px; font-weight:600; letter-spacing:.08em; }
+.site-footer-group address { font-style:normal; }
+.site-footer-group p { margin:0; }
+.site-footer-phone { display:inline-flex; align-items:center; min-height:44px; font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:15px; font-weight:600; }
+.site-footer-phone:hover { color:#7a1f2e; }
+.site-footer-social-group { grid-column:1/-1; }
+.site-footer-social { display:flex; gap:10px; flex-wrap:wrap; }
+.site-footer-social a,.site-footer-social button { display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:9px 16px; border:1px solid #e8e0d6; border-radius:999px; background:#fff; color:inherit; font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; transition:border-color .15s,color .15s; }
+.site-footer-social a:hover,.site-footer-social button:hover,.site-footer-social button[aria-expanded=true] { border-color:#b87a3a; color:#7a1f2e; }
+.site-footer-social svg { width:15px; height:15px; flex-shrink:0; }
+.site-footer-social a svg:last-child { width:12px; height:12px; color:#8a7e6e; }
+.site-footer-wechat-contact { position:relative; }
+.site-footer-wechat-card { position:absolute; z-index:10; bottom:calc(100% + 10px); left:0; width:230px; max-width:calc(100vw - 48px); padding:16px; border:1px solid #e8e0d6; border-radius:6px; background:#fff; box-shadow:0 8px 24px #2c24161a; }
+.site-footer-wechat-card::after { content:""; position:absolute; inset:100% 0 auto; height:10px; }
+.site-footer-wechat-card span { display:block; margin-bottom:6px; color:#8a7e6e; font-size:11px; }
+.site-footer-wechat-card strong { font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:14px; font-weight:600; }
+.site-footer-wechat-card[hidden] { display:none; }
+.site-footer-map { position:relative; min-width:0; min-height:250px; overflow:hidden; border:1px solid #e8e0d6; border-radius:6px; background:#faf8f5; }
+.site-footer-map iframe { display:block; width:100%; height:100%; min-height:250px; border:0; }
+.site-footer-map-open { position:absolute; top:12px; left:12px; z-index:1; display:flex; align-items:center; gap:6px; max-width:calc(100% - 24px); min-height:40px; padding:8px 12px; border:1px solid #e8e0d6; border-radius:6px; background:#fff; box-shadow:0 2px 8px #2c24161a; font-size:12px; font-weight:600; }
+.site-footer-map-open:hover { color:#7a1f2e; border-color:#b87a3a; }
+.site-footer-map-open svg { width:14px; height:14px; flex-shrink:0; }
 .site-footer-credential { display:flex; flex-direction:column; gap:16px; padding:24px 0; border-bottom:1px solid #e8e0d6; }
-.site-footer-credential > div { display:flex; align-items:center; gap:16px; }
+.site-footer-credential > div { display:flex; align-items:center; gap:16px; min-width:0; }
 .site-footer-credential img { width:56px; height:70px; object-fit:contain; flex-shrink:0; }
+.site-footer-credential > div > div { min-width:0; overflow-wrap:anywhere; }
 .site-footer-credential > div > div > div { font-family:Georgia,"Songti SC","Noto Serif SC",serif; font-size:16px; font-weight:600; letter-spacing:.025em; }
 .site-footer-credential p { margin:4px 0 0; font-size:12px; font-weight:600; letter-spacing:.14em; color:#7a1f2e; }
 .site-footer-credential > span { color:#7a1f2e; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.18em; }
-.site-footer-bottom { display:flex; flex-direction:column; align-items:flex-start; gap:16px; padding-top:24px; }
-.site-footer-bottom > div:first-child { font-size:12px; color:#8a7e6e; }
-.site-footer-bottom > div:last-child { display:flex; gap:12px; }
-.site-footer-bottom a { display:grid; place-items:center; width:38px; height:38px; border-radius:50%; border:1px solid #2c2416; background:#2c2416; transition:background .2s,transform .2s; }
-.site-footer-bottom a:hover { background:#7a1f2e; border-color:#7a1f2e; transform:translateY(-2px); }
-.site-footer-bottom svg { width:18px; height:18px; fill:#f5efe8; }
+.site-footer-bottom { padding-top:20px; font-size:12px; color:#8a7e6e; }
+@media(min-width:560px) {
+  .site-footer-contacts { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
 @media(min-width:640px) {
   .site-footer-inner { padding-inline:32px; }
-  .site-footer-brand > img { width:120px; height:120px; margin-right:16px; }
-  .site-footer-contacts { flex-direction:row; gap:28px; }
-  .site-footer-credential,.site-footer-bottom { flex-direction:row; align-items:center; justify-content:space-between; }
+  .site-footer-credential { flex-direction:row; align-items:center; justify-content:space-between; }
 }
-@media(min-width:768px) {
+@media(min-width:900px) {
   .site-footer-inner { padding-block:48px; }
-  .site-footer-top { flex-direction:row; align-items:center; justify-content:space-between; gap:32px; }
+  .site-footer-top-with-map { grid-template-columns:minmax(0,1fr) minmax(320px,430px); gap:44px; }
+  .site-footer-map,.site-footer-map iframe { min-height:330px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .site-footer-social a,.site-footer-social button { transition:none; }
 }

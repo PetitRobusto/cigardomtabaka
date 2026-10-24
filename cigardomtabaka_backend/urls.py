@@ -34,6 +34,9 @@ from privnote.views import (
 SITE_DESCRIPTIONS = json.loads(
     (settings.BASE_DIR / 'frontend' / 'seo-descriptions.json').read_text(encoding='utf-8')
 )
+LOGIN_PAGE_COPY = json.loads(
+    (settings.BASE_DIR / 'frontend' / 'login-page.json').read_text(encoding='utf-8')
+)
 
 # Keep these page routes aligned with frontend/src/App.tsx and businessRoutes.ts.
 # A namespace prefix is insufficient: unknown children otherwise become soft 404s.
@@ -96,6 +99,7 @@ def spa_index(request):
     dev_host = urlsplit(request.build_absolute_uri()).hostname or 'localhost'
     if ':' in dev_host:
         dev_host = f'[{dev_host}]'
+    is_login = request.path.rstrip('/') == '/login'
     response = render(request, 'spa_index.html', {
         'debug': settings.DEBUG,
         'vite_origin': f'{request.scheme}://{dev_host}:5173',
@@ -104,7 +108,8 @@ def spa_index(request):
             'djangoOrigin': request.build_absolute_uri('/').rstrip('/'),
         },
         # The current page content is Chinese; translations are reserved for localized pages.
-        'site_description': SITE_DESCRIPTIONS['zh-CN'],
+        'page_title': LOGIN_PAGE_COPY['title'] if is_login else 'CigarDomTabaka',
+        'site_description': LOGIN_PAGE_COPY['description'] if is_login else SITE_DESCRIPTIONS['zh-CN'],
     })
     if (is_staff_page_path(request.path) or request.path.rstrip('/') == '/login'
             or request.path.startswith('/p/')):

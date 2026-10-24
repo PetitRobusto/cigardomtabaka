@@ -63,7 +63,7 @@ describe('customer storefront experience', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Language' }));
     const menu = document.getElementById('site-language-menu')!;
     const links = Array.from(menu.querySelectorAll<HTMLAnchorElement>('a'));
-    expect(new Set(links.map((link) => link.lang))).toEqual(new Set(['zh-CN', 'ru', 'en']));
+    expect(links.map((link) => link.lang)).toEqual(['ru', 'en', 'zh-CN']);
     expect(menu.querySelector('a[lang="ru"]')?.getAttribute('href'))
       .toBe('/ru/cigar/5/cohiba-robustos?from=%2Fru%2Fcatalog#store-contact');
     expect(menu.querySelector('a[lang="zh-CN"]')?.getAttribute('href'))

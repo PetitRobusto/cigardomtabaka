@@ -52,4 +52,31 @@ describe('unified site navigation', () => {
     const { container } = render(<StaffDock user={{ ...staff, is_staff: false }} pathname="/" />);
     expect(container.innerHTML).toBe('');
   });
+
+  it('opens one dropdown at a time and supports currency selection, keyboard dismissal and outside clicks', () => {
+    const onCurrencyChange = vi.fn();
+    render(<SiteHeader locale="en" languages={backendPageFixture.alternates} currency="RUB" currencyLabel="Reference currency" onCurrencyChange={onCurrencyChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Language' }));
+    expect(Array.from(document.querySelectorAll('#site-language-menu a')).map((link) => link.textContent)).toEqual(['Русский', 'English', '简体中文']);
+    const trigger = screen.getByRole('button', { name: 'Reference currency' });
+    fireEvent.click(trigger);
+    expect(document.getElementById('site-language-menu')).toBeNull();
+    expect(screen.getByRole('menuitemradio', { name: 'RUB ₽' }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' });
+    expect(document.activeElement?.textContent).toBe('CNY ¥');
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'CNY ¥' }));
+    expect(onCurrencyChange).toHaveBeenCalledWith('CNY');
+    expect(document.getElementById('site-currency-menu')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    expect(document.getElementById('site-currency-menu')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    fireEvent.click(trigger);
+    fireEvent.pointerDown(document.body);
+    expect(document.getElementById('site-currency-menu')).toBeNull();
+    fireEvent.click(trigger);
+    fireEvent.blur(screen.getByRole('menuitemradio', { name: 'RUB ₽' }), { relatedTarget: screen.getByRole('searchbox') });
+    expect(document.getElementById('site-currency-menu')).toBeNull();
+  });
 });

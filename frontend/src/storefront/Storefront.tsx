@@ -8,6 +8,7 @@ import { catalogPath, filtersFromSearch, homePath, safeBrowsePath, type BrowseFi
 import { ProductCard, ProductPage } from "./ProductDisplay";
 import { CatalogResults } from "./CatalogFilters";
 import { BrandBrowse, BrandMark } from "./BrandBrowse";
+import { languageOptions } from "../features/customer/messages";
 
 const langTag: Record<StoreLocale, string> = { zh: "zh-CN", ru: "ru-RU", en: "en" };
 type Labels = Record<string, string>;
@@ -15,7 +16,7 @@ type Props = { page: StorePageData; labels: Labels };
 
 function languageLinks(page: StorePageData, currentUrl: string) {
   const current = new URL(currentUrl, "https://store.invalid");
-  return (page.browsing_alternates || page.alternates).map((item) => {
+  return [...(page.browsing_alternates || page.alternates)].sort((a, b) => languageOptions.indexOf(a.locale) - languageOptions.indexOf(b.locale)).map((item) => {
     const url = new URL(item.path, "https://store.invalid");
     if (page.kind === "product") {
       const from = safeBrowsePath(current.searchParams.get("from"), item.locale);
@@ -50,8 +51,11 @@ export function Storefront({ page, currentUrl = page.path, ageConfirmed = false,
   return <>
     <SiteHeader locale={page.locale} user={user} pathname={current.pathname} languages={links} query={filters.q}
       searchFields={[...filters.brands.map((value) => ({ name: 'brand', value })), ...filters.boxes.map((value) => ({ name: 'box', value })), ...(filters.sort !== 'catalog' ? [{ name: 'sort', value: filters.sort }] : [])]}
-      inert={!ageConfirmed} onLogout={onLogout}>
-      <div className="mast-r2"><nav className="catnav" aria-label={labels.catalogPage}><button type="button" popoverTarget="store-brands-menu">{labels.brands} ▾</button><a href={catalogPath(page.locale)}>{labels.stockProducts}</a><a href="#store-contact">{labels.storeContact}</a></nav><div className="store-reference-control" role="group" aria-label={labels.currency}>{(["RUB", "CNY", "USD"] as const).map((code) => <button key={code} type="button" data-store-currency={code} aria-pressed={currency === code} onClick={() => onCurrencyChange?.(code)}>{code}</button>)}</div></div>
+      inert={!ageConfirmed} onLogout={onLogout} currency={currency} currencyLabel={labels.currency} onCurrencyChange={onCurrencyChange}>
+      <div className="mast-r2"><nav className="catnav" aria-label={labels.catalogPage}><button type="button" popoverTarget="store-brands-menu" onClick={(event) => {
+        const menu = document.getElementById('store-brands-menu');
+        if (menu) menu.style.top = `${event.currentTarget.getBoundingClientRect().bottom + 8}px`;
+      }}>{labels.brands} ▾</button><a href={catalogPath(page.locale)}>{labels.stockProducts}</a><a href="#store-contact">{labels.storeContact}</a></nav></div>
       <nav popover="auto" id="store-brands-menu" className="store-category-menu" aria-label={labels.brands}>{page.navigation?.brands.map((brand) => <a key={brand.slug} href={brand.path}><BrandMark brand={brand} /></a>)}</nav>
       <small className="store-rates-note" data-rates-note hidden>{labels.ratesNote}</small>
     </SiteHeader>

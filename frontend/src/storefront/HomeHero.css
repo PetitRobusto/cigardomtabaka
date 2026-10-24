@@ -126,11 +126,11 @@
 .store-home-hero__cigar--bhk52 { --float-time: 9.7s; --float-phase: -1.1s; --float-start: 20px; --float-end: -12px; --float-mid: -5px; }
 .store-home-hero__cigar--ingenios { --float-time: 16.3s; --float-phase: -9.2s; --float-start: -18px; --float-end: 12px; --float-mid: 4px; }
 /* Sway runs separately from vertical drift so the motion stays loose and varied. */
-.store-home-hero__cigar--bhk56 { --sway-time: 13.7s; --sway-phase: -6.2s; --sway-angle: 4deg; }
-.store-home-hero__cigar--siglo { --sway-time: 10.9s; --sway-phase: -1.8s; --sway-angle: -4.5deg; }
-.store-home-hero__cigar--casilda { --sway-time: 17.3s; --sway-phase: -8.4s; --sway-angle: 5deg; }
-.store-home-hero__cigar--bhk52 { --sway-time: 12.7s; --sway-phase: -4.6s; --sway-angle: -4deg; }
-.store-home-hero__cigar--ingenios { --sway-time: 19.1s; --sway-phase: -12.3s; --sway-angle: 4.5deg; }
+.store-home-hero__cigar--bhk56 { --sway-time: 13.7s; --sway-phase: -6.2s; --sway-angle: 3deg; }
+.store-home-hero__cigar--siglo { --sway-time: 10.9s; --sway-phase: -1.8s; --sway-angle: -3.5deg; }
+.store-home-hero__cigar--casilda { --sway-time: 17.3s; --sway-phase: -8.4s; --sway-angle: 4deg; }
+.store-home-hero__cigar--bhk52 { --sway-time: 12.7s; --sway-phase: -4.6s; --sway-angle: -3deg; }
+.store-home-hero__cigar--ingenios { --sway-time: 19.1s; --sway-phase: -12.3s; --sway-angle: 3.5deg; }
 .store-home-hero__legend {
   display: flex;
   flex-wrap: wrap;

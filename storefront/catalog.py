@@ -9,7 +9,7 @@ import json
 from collections import Counter, defaultdict
 from decimal import Decimal
 from urllib.parse import urlsplit, urlencode
-from django.db.models import Q, Sum
+from django.db.models import Max, OuterRef, Q, Subquery, Sum
 
 from cigars.models import Brand, Cigar, CigarPrice, PurchaseBatch
 from .models import ProductListing, StoreSettings, StoreTranslation
@@ -199,6 +199,45 @@ def _published_listings() -> set[int]:
     return set(ProductListing.objects.filter(published=True, withdrawn=False).values_list("cigar_id", flat=True))
 
 
+def _latest_purchase_product_ids(listing_ids: set[int], limit: int = 6) -> list[int]:
+    """Return public products ordered by their latest unreversed receipt business date.
+
+    PurchaseBatch.purchased_at is a row creation timestamp, not the date the
+    goods arrived. The posted purchase receipt ledger transaction is the
+    authoritative source for that business date. Legacy receipts without a
+    receipt ledger transaction are intentionally omitted.
+    """
+    if not listing_ids or limit <= 0:
+        return []
+
+    from accounting.models import LedgerTransaction
+
+    receipt_date = LedgerTransaction.objects.filter(
+        idempotency_key=OuterRef("purchase_order_item__purchase_order__arrival_idempotency_key"),
+        transaction_type=LedgerTransaction.TransactionType.PURCHASE_RECEIPT,
+        status=LedgerTransaction.Status.POSTED,
+        reversed_by__isnull=True,
+    ).values("business_date")[:1]
+    return list(
+        PurchaseBatch.objects.filter(
+            source=PurchaseBatch.Source.PURCHASE,
+            reversed_at__isnull=True,
+            quantity__gt=0,
+            cigar_id__in=listing_ids,
+            cigar__deleted_at__isnull=True,
+            purchase_order_item__purchase_order__deleted_at__isnull=True,
+            purchase_order_item__purchase_order__status="received",
+            purchase_order_item__purchase_order__legacy_received=False,
+        )
+        .annotate(receipt_business_date=Subquery(receipt_date))
+        .exclude(receipt_business_date__isnull=True)
+        .values("cigar_id")
+        .annotate(latest_business_date=Max("receipt_business_date"))
+        .order_by("-latest_business_date", "cigar_id")
+        .values_list("cigar_id", flat=True)[:limit]
+    )
+
+
 def _product_data(cigar: Cigar, locale: str, translation: StoreTranslation | None,
                   brands: dict[str, Brand], stock: dict[tuple[int, int], int],
                   listings: set[int], prices: dict[int, list[CigarPrice]],
@@ -343,7 +382,7 @@ def _translation_dependencies(page: dict, translations: dict) -> list[list[str]]
     custom_hours = page["site"].get("hours") not in ("", PUBLIC_DETAILS["hours"][page["locale"]])
     if home_translation and (page["kind"] == "home" or page["locale"] != "zh" or custom_hours):
         used.add(("home", "home", home_translation.locale))
-    products = [*page["products"]]
+    products = [*page["products"], *(page.get("latest_products") or [])]
     if page["product"]:
         products.append(page["product"])
     for product in products:
@@ -379,9 +418,11 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
     stock = _available_boxes()
     stick_stock = _available_sticks()
     known_inventory = _known_inventory()
+    listings = _published_listings()
+    latest_product_ids = _latest_purchase_product_ids(listings)
     cigar_query = Cigar.objects.filter(deleted_at__isnull=True)
     if requested_path is not None:
-        needed = known_inventory | {cigar_id for cigar_id, _ in stock} | set(stick_stock)
+        needed = known_inventory | {cigar_id for cigar_id, _ in stock} | set(stick_stock) | set(latest_product_ids)
         cleaned = _clean_path(urlsplit(requested_path or "/").path)
         match = re.fullmatch(r"(?:/(?:ru|en))?/cigar/(\d+)(?:/[^/]*)?/?", cleaned)
         if match:
@@ -391,7 +432,6 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
                 needed.add(product_id)
         cigar_query = cigar_query.filter(pk__in=needed)
     cigars = list(cigar_query.select_related().prefetch_related("images"))
-    listings = _published_listings()
     prices_by_cigar = defaultdict(list)
     for price in CigarPrice.objects.filter(is_active=True, cigar_id__in=[cigar.pk for cigar in cigars]).order_by("sort_order", "box_size"):
         prices_by_cigar[price.cigar_id].append(price)
@@ -519,6 +559,8 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
         rows.sort(key=lambda p: (p["brand_slug"], p["english_name"].casefold(), p["id"]))
         home = _home_path(locale)
         _, pagination = _pagination(1, len(rows), home)
+        latest_products = [products_by_locale[locale][cigar_id] for cigar_id in latest_product_ids
+                           if cigar_id in products_by_locale[locale]]
         discoverable_brand_slugs = {
             product["brand_slug"]
             for candidate in result.values()
@@ -554,11 +596,12 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
             "total_products": len(rows),
             "title": home_copy["title"], "description": home_copy["description"], "body": home_copy["body"],
             "site": _site_data(locale, translation, store),
-            "products": rows[:PAGE_SIZE], "product": None, "brands": visible_brands,
+            "products": rows[:PAGE_SIZE], "latest_products": latest_products,
+            "product": None, "brands": visible_brands,
             "alternates": _alternates(paths), "breadcrumbs": [{"label": home_copy["title"], "path": home}],
             "pagination": pagination,
         }
-        complete = _page_translation_complete(locale, translations, products=rows)
+        complete = _page_translation_complete(locale, translations, products=[*rows, *latest_products])
         _set_page_language(result[home], complete)
         if locale != "zh" and not exact_translation:
             result[home]["translation_complete"] = False
@@ -566,6 +609,7 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
         for page_number in range(2, pagination["total_pages"] + 1):
             page_url = f"{home}?page={page_number}"
             page_copy = dict(result[home])
+            page_copy.pop("latest_products", None)
             page_copy["path"] = page_url
             page_copy["products"] = rows[(page_number - 1) * PAGE_SIZE:page_number * PAGE_SIZE]
             _, page_copy["pagination"] = _pagination(page_number, len(rows), home)
@@ -577,7 +621,7 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
     # SEO alternates include only fully reviewed target-language pages. The UI
     # switcher continues to expose every locale, including fallback pages.
     for page in result.values():
-        visible_products = [*page["products"]]
+        visible_products = [*page["products"], *(page.get("latest_products") or [])]
         if page.get("product"):
             visible_products.append(page["product"])
         complete = page["locale"] == "zh" or (
@@ -689,6 +733,7 @@ def _add_browsing_context(pages, brands, brand_translations, known_inventory):
                 **home, "path": path, "view": "catalog", "title": title,
                 "total_products": len(catalog),
                 "products": catalog[(number - 1) * PAGE_SIZE:number * PAGE_SIZE],
+                "latest_products": [],
                 "breadcrumbs": [{"label": home["title"], "path": home["path"]}, {"label": title, "path": base}],
                 "pagination": current,
                 "alternates": [{"locale": alt["locale"], "path": _catalog_path(alt["locale"])} for alt in home["alternates"]],
@@ -767,6 +812,7 @@ def public_dependencies() -> dict:
     withdrawn = set(ProductListing.objects.filter(withdrawn=True).values_list("cigar_id", flat=True))
     published = set(ProductListing.objects.filter(published=True, withdrawn=False).values_list("cigar_id", flat=True))
     known_inventory = _known_inventory()
+    latest_products = _latest_purchase_product_ids(published)
     brand_slugs = dict(Brand.objects.values_list("english_name", "slug"))
     discoverable = known_inventory - withdrawn
     return {
@@ -774,6 +820,7 @@ def public_dependencies() -> dict:
         "withdrawn": withdrawn,
         "published": published,
         "known_inventory": known_inventory,
+        "latest_products": latest_products,
         "discoverable_brands": {
             brand_slugs[cigars[cigar_id]] for cigar_id in discoverable
             if cigar_id in cigars and cigars[cigar_id] in brand_slugs
@@ -838,9 +885,20 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
                     or payload.get("brand_translation_complete") != has_translation("brand", slug, locale)):
                 return False
     listed_products = list(payload.get("products") or [])
-    if any(product.get("id") not in dependencies["known_inventory"] for product in listed_products):
+    latest_products = list(payload.get("latest_products") or [])
+    is_home_frontpage = (
+        kind == "home" and payload.get("view") != "catalog"
+        and payload.get("path") == _home_path(locale)
+    )
+    if is_home_frontpage and (
+        "latest_products" not in payload
+        or [row.get("id") for row in latest_products] != dependencies["latest_products"]
+    ):
         return False
-    products = list(listed_products)
+    products_to_validate = [*listed_products, *latest_products]
+    if any(product.get("id") not in dependencies["known_inventory"] for product in products_to_validate):
+        return False
+    products = list(products_to_validate)
     if payload.get("product"):
         products.append(payload["product"])
     for product in products:

@@ -18,7 +18,7 @@ export function Availability({ value, labels }: { value: StoreProduct["availabil
 
 export function Price({ amount, locale, labels }: { amount: string; locale: StoreLocale; labels: Labels }) {
   const number = Number(amount);
-  const display = Number.isFinite(number) ? new Intl.NumberFormat(languageTag[locale], { style: "currency", currency: "RUB", maximumFractionDigits: 2 }).format(number) : amount;
+  const display = Number.isFinite(number) ? new Intl.NumberFormat(languageTag[locale], { style: "currency", currency: "RUB", currencyDisplay: "narrowSymbol", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(number) : amount;
   return <><span className="store-price-rub" data-price-rub={amount}>{display}</span><ReferencePrice amount={amount} locale={locale} label={labels.referenceShort} /></>;
 }
 

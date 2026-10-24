@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 import json
 
@@ -6,7 +6,15 @@ from django.db import IntegrityError, transaction
 from django.test import RequestFactory, TestCase, override_settings
 from django.utils import timezone
 
-from cigars.models import Brand, Cigar, CigarImage, CigarPrice, PurchaseBatch
+from accounting.models import Day1Initialization, FundAccount, LedgerPosting
+from accounting.purchase_actions import (
+    pay_purchase_order, receive_paid_purchase_order, reverse_received_purchase_order,
+)
+from accounting.services import record_opening_balance
+from cigars.models import (
+    Brand, Cigar, CigarImage, CigarPrice, PurchaseBatch, PurchaseOrder,
+    PurchaseOrderItem, Supplier, User,
+)
 from cigars.tests.inventory_fixtures import create_purchase_batch, force_inventory_update
 from price_tracker.models import ExchangeRate
 
@@ -67,6 +75,47 @@ class StorefrontCatalogTests(TestCase):
             title=f"Reviewed {locale} brand", description="Reviewed brand description",
             body="Reviewed brand body", published=True,
         )
+
+    def receive_purchase(self, cigar, business_date, *, key):
+        """Create a real posted receipt so the test exercises its business date."""
+        operator = getattr(self, "receipt_operator", None)
+        if operator is None:
+            operator = User.objects.create_user(
+                username=f"storefront-receipt-{User.objects.count()}", is_staff=True,
+            )
+            self.receipt_operator = operator
+            Day1Initialization.objects.create(
+                singleton_key="company", status=Day1Initialization.Status.COMPLETED,
+                business_date=date(2026, 8, 10), completed_by=operator,
+            )
+            self.receipt_account = FundAccount.objects.create(
+                name="商城测试卢布账户", currency=FundAccount.Currency.RUB,
+                creation_idempotency_key="storefront-receipt-fund", custodian=operator,
+            )
+            record_opening_balance(
+                self.receipt_account, Decimal("100000.00"), Decimal("12000.00"),
+                LedgerPosting.Category.OPENING_CAPITAL, date(2026, 8, 10), operator,
+                "storefront-receipt-opening",
+            )
+        supplier, _ = Supplier.objects.get_or_create(name="商城测试供应商")
+        order = PurchaseOrder.objects.create(
+            supplier=supplier, rub_total=Decimal("100.00"), operator=operator,
+            draft_business_date=business_date,
+        )
+        PurchaseOrderItem.objects.create(
+            purchase_order=order, cigar=cigar, quantity=25, box_size=25,
+            box_quantity=1, unit_price_rub_per_box=Decimal("100.00"),
+            packaging_status=PurchaseOrderItem.PackagingStatus.UNREPRESENTABLE,
+        )
+        pay_purchase_order(
+            purchase_order_id=order.pk, rub_account_id=self.receipt_account.pk,
+            business_date=business_date, operator=operator, idempotency_key=f"{key}-payment",
+        )
+        batches = receive_paid_purchase_order(
+            purchase_order_id=order.pk, business_date=business_date, operator=operator,
+            idempotency_key=f"{key}-receipt",
+        )
+        return order, batches
 
     def test_legacy_chinese_catalog_exposes_no_offer_until_listing_published(self):
         path = f"/cigar/{self.cigar.pk}/test-brand-test-cigar"
@@ -297,6 +346,145 @@ class StorefrontCatalogTests(TestCase):
         ProductListing.objects.create(cigar=self.cigar, published=True)
         home = build_pages()["/"]
         self.assertEqual([row["id"] for row in home["products"]], [self.cigar.pk])
+
+    def test_home_latest_products_use_effective_receipt_dates_and_public_listing_rules(self):
+        self.add_home_translation()
+        received = []
+        dates = [date(2026, 8, 10), date(2026, 8, 11), date(2026, 8, 12),
+                 date(2026, 8, 13), date(2026, 8, 14), date(2026, 8, 15),
+                 date(2026, 8, 16)]
+        for index, receipt_date in enumerate(dates):
+            cigar = Cigar.objects.create(
+                brand=self.brand.english_name, english_name=f"Receipt Cigar {index}",
+                name=f"进货雪茄 {index}",
+            )
+            self.receive_purchase(cigar, receipt_date, key=f"storefront-order-{index}")
+            ProductListing.objects.create(cigar=cigar, published=True)
+            received.append(cigar)
+
+        # Current stock is not required for the new-arrivals shelf once a
+        # product has a valid public listing and receipt history.
+        sold_out = received[1]
+        force_inventory_update(
+            PurchaseBatch.objects.filter(cigar=sold_out), remaining=0,
+            available_box_quantity=0, available_stick_quantity=0,
+            remaining_cost_cny=Decimal("0.00"),
+        )
+        # Deliberately make row creation time disagree with the receipt date.
+        for index, cigar in enumerate(received):
+            force_inventory_update(PurchaseBatch.objects.filter(cigar=cigar),
+                purchased_at=timezone.now() + timedelta(days=len(received) - index),
+            )
+
+        unpublished = Cigar.objects.create(brand=self.brand.english_name, english_name="Unpublished")
+        self.receive_purchase(unpublished, date(2026, 8, 20), key="storefront-unpublished")
+        ProductListing.objects.create(cigar=unpublished, published=False)
+        withdrawn = Cigar.objects.create(brand=self.brand.english_name, english_name="Withdrawn")
+        self.receive_purchase(withdrawn, date(2026, 8, 21), key="storefront-withdrawn")
+        ProductListing.objects.create(cigar=withdrawn, published=False, withdrawn=True)
+        deleted = Cigar.objects.create(brand=self.brand.english_name, english_name="Deleted")
+        self.receive_purchase(deleted, date(2026, 8, 22), key="storefront-deleted")
+        ProductListing.objects.create(cigar=deleted, published=True)
+        deleted.deleted_at = timezone.now()
+        deleted.save(update_fields=["deleted_at"])
+        reversed_cigar = Cigar.objects.create(brand=self.brand.english_name, english_name="Reversed")
+        reversed_order, _ = self.receive_purchase(
+            reversed_cigar, date(2026, 8, 24), key="storefront-reversed",
+        )
+        ProductListing.objects.create(cigar=reversed_cigar, published=True)
+        reverse_received_purchase_order(
+            purchase_order_id=reversed_order.pk, business_date=date(2026, 8, 25),
+            operator=self.receipt_operator, idempotency_key="storefront-reversed-action",
+            reason="测试撤销",
+        )
+
+        home = build_pages()["/"]
+        expected = [received[i].pk for i in (6, 5, 4, 3, 2, 1)]
+        self.assertEqual([row["id"] for row in home["latest_products"]], expected)
+        self.assertEqual(home["latest_products"][5]["availability"], "out_of_stock")
+        self.assertNotIn(unpublished.pk, [row["id"] for row in home["latest_products"]])
+        self.assertNotIn(withdrawn.pk, [row["id"] for row in home["latest_products"]])
+        self.assertNotIn(reversed_cigar.pk, [row["id"] for row in home["latest_products"]])
+        self.assertNotIn(deleted.pk, [row["id"] for row in home["latest_products"]])
+
+    def test_home_latest_only_product_translation_is_a_live_cache_dependency(self):
+        self.add_home_translation()
+        self.add_home_translation("en")
+        self.add_home_translation("ru")
+        self.add_brand_translation("en")
+        self.add_brand_translation("ru")
+        latest = Cigar.objects.create(
+            brand=self.brand.english_name, english_name="Latest Translation Only",
+            name="最新翻译依赖",
+        )
+        self.receive_purchase(latest, date(2026, 8, 23), key="storefront-latest-translation")
+        ProductListing.objects.create(cigar=latest, published=True)
+        force_inventory_update(
+            PurchaseBatch.objects.filter(cigar=latest), remaining=0,
+            available_box_quantity=0, available_stick_quantity=0,
+            remaining_cost_cny=Decimal("0.00"),
+        )
+        translation = StoreTranslation.objects.create(
+            kind="product", key=str(latest.pk), locale="zh", title="新上架翻译",
+            description="已审核摘要", body="已审核正文", published=True,
+        )
+        for locale in ("en", "ru"):
+            StoreTranslation.objects.create(
+                kind="product", key=str(latest.pk), locale=locale,
+                title=f"Latest product {locale}", description=f"Reviewed {locale} summary",
+                body=f"Reviewed {locale} content", published=True,
+            )
+
+        home = build_pages()["/"]
+        latest_ids = [row["id"] for row in home["latest_products"]]
+        self.assertIn(latest.pk, latest_ids)
+        self.assertNotIn(latest.pk, [row["id"] for row in home["products"]])
+        self.assertIn(["product", str(latest.pk), "zh"], home["translation_dependencies"])
+        self.assertTrue(allowed_payload(home))
+
+        catalog_pages = build_pages()
+        self.assertEqual(catalog_pages["/catalog"]["latest_products"], [])
+        self.assertTrue(allowed_payload(catalog_pages["/catalog"]))
+        self.assertTrue(allowed_payload(catalog_pages["/en/catalog"]))
+
+        stocked = Cigar.objects.bulk_create([
+            Cigar(brand=self.brand.english_name, english_name=f"Paged Product {index:02}")
+            for index in range(25)
+        ])
+        for cigar in stocked:
+            create_purchase_batch(
+                source=PurchaseBatch.Source.OPENING, cigar=cigar,
+                quantity=1, remaining=1, physical_remaining=1, box_size=None,
+                unit_cost_cny=Decimal("1.00"),
+            )
+            ProductListing.objects.create(cigar=cigar, published=True)
+        paginated_home = build_pages()["/?page=2"]
+        self.assertNotIn("latest_products", paginated_home)
+        self.assertTrue(allowed_payload(paginated_home))
+
+        english_translation = StoreTranslation.objects.get(
+            kind="product", key=str(latest.pk), locale="en",
+        )
+        english_translation.published = False
+        english_translation.save(update_fields=["published"])
+        untranslated_home = build_pages()["/en/"]
+        self.assertFalse(untranslated_home["translation_complete"])
+        self.assertTrue(allowed_payload(untranslated_home))
+        english_translation.published = True
+        english_translation.save(update_fields=["published"])
+
+        translation.published = False
+        translation.save(update_fields=["published"])
+        self.assertFalse(allowed_payload(home))
+        translation.published = True
+        translation.save(update_fields=["published"])
+        refreshed_home = build_pages()["/"]
+        self.assertTrue(allowed_payload(refreshed_home))
+        listing = ProductListing.objects.get(cigar=latest)
+        listing.published = False
+        listing.withdrawn = True
+        listing.save(update_fields=["published", "withdrawn"])
+        self.assertFalse(allowed_payload(refreshed_home))
 
     def test_pagination_urls_are_explicit_and_use_canonical_self_paths(self):
         cigars = Cigar.objects.bulk_create([

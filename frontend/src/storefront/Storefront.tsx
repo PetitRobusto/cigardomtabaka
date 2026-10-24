@@ -77,6 +77,7 @@ function HomePage({ page, labels }: Props) {
     <HomeHero locale={page.locale} catalogUrl={catalogUrl} stockUrl={stockUrl} />
     <BrandBrowse page={page} labels={labels} />
     <section className="sec store-section"><div className="sec-h"><h2>{labels.stockProducts}</h2><a className="store-stock-link" href={stockUrl}>{labels.browseStock} →</a></div><div className="grid store-product-grid store-home-stock-grid">{page.products.slice(0, 6).map((product) => <ProductCard key={product.id} product={product} locale={page.locale} labels={labels} from={homePath(page.locale)} />)}</div>{page.products.length === 0 && <p className="store-empty-note">{labels.noResults}</p>}</section>
+    <section className="sec store-section store-latest-products" aria-labelledby="store-latest-title"><div className="sec-h"><h2 id="store-latest-title">{labels.latestProducts}</h2><a href={catalogUrl}>{labels.allProducts} →</a></div><div className="grid store-product-grid store-home-stock-grid">{(page.latest_products || []).slice(0, 6).map((product) => <ProductCard key={product.id} product={product} locale={page.locale} labels={labels} from={homePath(page.locale)} />)}</div>{!page.latest_products?.length && <p className="store-empty-note">{labels.noResults}</p>}</section>
   </>;
 }
 

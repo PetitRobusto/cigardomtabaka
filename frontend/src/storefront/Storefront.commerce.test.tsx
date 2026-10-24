@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Storefront } from "./Storefront";
 import { BrandBrowse, BrandMark } from "./BrandBrowse";
 import { storeCopy } from "./copy";
+import { Price } from "./ProductDisplay";
 import { backendPageFixture } from "./fixture";
 import type { StorePageData } from "./types";
 
@@ -23,6 +24,27 @@ function catalog(): StorePageData {
 }
 
 describe("B2 commerce browsing", () => {
+  it.each(["zh", "ru", "en"] as const)("keeps integer prices compact and retains fractional amounts in %s", (locale) => {
+    const { container, rerender } = render(<Price amount="12345.00" locale={locale} labels={storeCopy[locale]} />);
+    const formatted = (value: number) => new Intl.NumberFormat({ zh: "zh-CN", ru: "ru-RU", en: "en" }[locale], { style: "currency", currency: "RUB", currencyDisplay: "narrowSymbol", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(value);
+    expect(container.querySelector(".store-price-rub")?.textContent).toBe(formatted(12345));
+    expect(container.querySelector(".store-price-rub")?.textContent).not.toContain("RUB");
+    rerender(<Price amount="12345.67" locale={locale} labels={storeCopy[locale]} />);
+    expect(container.querySelector(".store-price-rub")?.textContent).toBe(formatted(12345.67));
+  });
+
+  it("shows the latest arrivals in backend order in a separate six-product home row", () => {
+    const latest = Array.from({ length: 8 }, (_, index) => ({ ...backendPageFixture.product!, id: 100 + index, name: `Arrival ${index}`, path: `/en/cigar/${100 + index}/arrival` }));
+    const page = { ...catalog(), view: undefined, path: "/en/", latest_products: latest };
+    const { container, rerender } = render(<Storefront page={page} ageConfirmed />);
+    const row = container.querySelector(".store-latest-products")!;
+    expect(within(row as HTMLElement).getByRole("heading", { name: "New arrivals" })).toBeTruthy();
+    expect(Array.from(row.querySelectorAll(".pcard-name"), (node) => node.textContent)).toEqual(latest.slice(0, 6).map((product) => product.name));
+    expect(container.querySelectorAll(".store-product-card")).toHaveLength(7);
+    rerender(<Storefront page={{ ...page, view: "catalog" }} ageConfirmed />);
+    expect(container.querySelector(".store-latest-products")).toBeNull();
+  });
+
   it.each([
     ["Partagás", "partagás"], ["Bolívar", "bolívar"], ["Ramón Allones", "ramón-allones"],
     ["José L. Piedra", "josé-l-piedra"], ["Diplomáticos", "diplomáticos"], ["Juan López", "juan-lópez"],

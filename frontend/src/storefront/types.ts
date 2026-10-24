@@ -54,6 +54,7 @@ export type StorePageData = {
     hours: string;
   };
   products: StoreProduct[];
+  latest_products?: StoreProduct[];
   product?: StoreProduct | null;
   brands: Array<{ name: string; slug: string; path: string; count?: number }>;
   alternates: Array<{ locale: StoreLocale; path: string }>;

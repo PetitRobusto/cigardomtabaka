@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest import skipUnless
 from unittest.mock import patch
 
+from bs4 import BeautifulSoup
 from django.conf import settings
 from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
@@ -67,6 +68,43 @@ class PrepareCohibaContentTests(TestCase):
         self.assertEqual((genios["id"], genios["box_size"], genios["action"]), (102, 10, "create"))
         self.assertEqual(genios["created_wholesale_cny_per_box"], 11000)
         self.assertEqual(genios["after_rub_per_box"], "130000.00")
+
+    def test_content_only_never_reads_or_writes_prices_and_is_idempotent(self):
+        before = self.snapshot()
+        out = io.StringIO()
+        with patch('storefront.management.commands.prepare_cohiba_content.CigarPrice.objects.select_for_update',
+                   side_effect=AssertionError('Content-only must not access prices')):
+            call_command('prepare_cohiba_content', content_only=True, apply=True, stdout=out)
+        report = json.loads(out.getvalue())
+        self.assertEqual(report['prices'], [])
+        self.assertEqual(report['changed_rows'], 15)
+        after = self.snapshot()
+        for model in (Cigar, CigarPrice, ProductListing, PurchaseBatch, StockMovement):
+            self.assertEqual(before[model._meta.label], after[model._meta.label])
+        out = io.StringIO()
+        call_command('prepare_cohiba_content', content_only=True, apply=True, stdout=out)
+        self.assertEqual(json.loads(out.getvalue())['changed_rows'], 0)
+
+    def test_supporting_articles_are_explicit_and_preserve_business_data(self):
+        for pk, name, length, ring in [(105, 'BHK 52', 119, 52), (107, 'BHK 56', 166, 56)]:
+            Cigar.objects.create(pk=pk, brand='Cohiba', english_name=name, length=length, ring_gauge=ring)
+        before = self.snapshot()
+        call_command('prepare_cohiba_content', content_only=True, include_supporting=True,
+                     apply=True, stdout=io.StringIO())
+        self.assertEqual(StoreTranslation.objects.filter(cigar_id__in=[105,107], published=False).count(), 6)
+        call_command('prepare_cohiba_content', content_only=True, include_supporting=True,
+                     publish_supporting=True, apply=True, stdout=io.StringIO())
+        self.assertEqual(StoreTranslation.objects.filter(cigar_id__in=[105,107], published=True).count(), 6)
+        after = self.snapshot()
+        for model in (Cigar, CigarPrice, ProductListing, PurchaseBatch, StockMovement):
+            self.assertEqual(before[model._meta.label], after[model._meta.label])
+        # A changed identity aborts the entire batch without overwriting copy.
+        Cigar.objects.filter(pk=107).update(length=1)
+        before = self.snapshot()
+        with self.assertRaises(CommandError):
+            call_command('prepare_cohiba_content', content_only=True, include_supporting=True,
+                         apply=True, stdout=io.StringIO())
+        self.assertEqual(self.snapshot(), before)
 
     def test_apply_exact_prices_preserves_business_facts_and_second_apply_is_noop(self):
         unrelated = CigarPrice.objects.create(cigar=self.cigars[102], box_size=25,
@@ -214,7 +252,16 @@ class PrepareCohibaContentTests(TestCase):
             with self.subTest(path=path):
                 html = rendered[path]
                 visible = html.split('<script id="store-data"')[0]
-                self.assertIn(f'<h1>{page["title"]}</h1>', visible)
+                document = BeautifulSoup(visible, 'html.parser')
+                self.assertEqual([heading.get_text() for heading in document.select('h1')], [page['title']])
+                self.assertEqual(document.title.get_text(), page['seo_title'])
+                if page['kind'] == 'brand':
+                    self.assertIsNotNone(document.select_one('h1 img.store-brand-logo'))
+                    self.assertIsNone(document.select_one('.store-brand-browser'))
+                    links = {link['href'].split('?')[0] for link in document.select('a[href]')}
+                    for product_path, product_page in targets.items():
+                        if product_page['kind'] == 'product' and product_page['locale'] == page['locale']:
+                            self.assertIn(product_path, links)
                 self.assertIn(page["body"], visible)
                 self.assertIn('rel="canonical"', visible)
                 self.assertIn(f'href="{settings.STOREFRONT_ORIGIN}{path}"', visible)

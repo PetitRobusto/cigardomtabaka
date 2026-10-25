@@ -2,6 +2,7 @@ import type { StoreLocale, StorePageData } from "./types";
 import { storeCopy } from "./copy";
 import publicDetails from "../../../storefront/public_details.json";
 import { chooseOffer, offerImages } from "./productImages";
+import { browsingKeys } from "./browsing";
 
 export function storePageTitle(page: StorePageData): string {
   return page.seo_title?.trim() || page.title;
@@ -77,7 +78,7 @@ export function updateStoreMetadata(page: StorePageData, origin: string, request
     link.hreflang = item.locale === "zh" ? "zh-CN" : item.locale;
     link.href = new URL(item.path, origin).toString(); document.head.append(link);
   }
-  meta("robots", page.indexable === false || ["q", "brand", "box", "sort"].some((key) => requested.searchParams.get(key)) ? "noindex, nofollow" : null);
+  meta("robots", page.indexable === false || browsingKeys.some((key) => requested.searchParams.get(key)) ? "noindex, nofollow" : null);
   document.head.querySelectorAll('meta[property^="og:"]').forEach((element) => element.remove());
   for (const [property, content] of storeOpenGraph(page, origin)) {
     const element = document.createElement("meta");

@@ -38,3 +38,11 @@ React SPA；公开商城使用同一仓库的独立 React 入口，由 Node 离�
 页面输出 `translation_complete`、`content_locale` 和 `indexable`；使用回退内容的页面保持可浏览，
 但返回 noindex 且不进入 sitemap/hreflang。界面语言切换仍提供三语路径。发布翻译可以让页面
 重新进入索引，撤回、删除及缓存依赖校验仍优先于旧 HTML。
+
+2026-10-25 补充及用户复审修订：商品多语资料通过 `StoreTranslation.cigar` 显式关联
+Cigar，在商品详情页读取。品牌页只保留品牌介绍与商品列表，移除重复的型号资料区
+和页内品牌浏览区；品牌切换保留顶部菜单。销售货架仍读取库存事实。
+品牌导航进入稳定 `/brand/:slug`，目录复选框仍使用筛选参数。
+空品牌壳（无商品或正文）保持可浏览但 noindex；
+首页第 2 页起为重复目录入口，noindex，正式目录分页维持原索引策略。详见
+[高希霸试点与验证记录](../cohiba-seo-pilot.md)。

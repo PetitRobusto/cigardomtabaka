@@ -83,9 +83,12 @@ function HomePage({ page, labels }: Props) {
 }
 
 function CatalogPage({ page, labels, filters, currentUrl }: Props & { filters: BrowseFilters; currentUrl: string }) {
+  const currentBrand = page.kind === "brand"
+    ? page.navigation?.brands.find((brand) => brand.path === page.path.split("?")[0])
+    : undefined;
   return <>
-    <section className="cat-head"><h1>{filters.q ? `${labels.searchResults}: “${filters.q}”` : page.title}</h1>{page.kind === "brand" && (page.body || page.description) && <p className="intro">{page.body || page.description}</p>}</section>
-    <BrandBrowse page={page} labels={labels} filters={filters} />
+    <section className="cat-head"><h1 className={currentBrand && !filters.q ? "store-brand-heading" : undefined}>{filters.q ? `${labels.searchResults}: “${filters.q}”` : currentBrand ? <BrandMark brand={{ ...currentBrand, name: page.title }} /> : page.title}</h1>{page.kind === "brand" && (page.body || page.description) && <p className="intro">{page.body || page.description}</p>}</section>
+    <BrandBrowse page={page} labels={labels} />
     <CatalogResults page={page} labels={labels} filters={filters}>{page.products.length > 0 ? <div className="grid store-product-grid">{page.products.map((product) => <ProductCard key={product.id} product={product} locale={page.locale} labels={labels} from={currentUrl} filters={filters} />)}</div> : <section className="empty"><h2>{labels.noResults}</h2><p>{labels.noResultsBody}</p><a className="store-filter-reset" href={page.path.split("?")[0]}>{labels.reset}</a></section>}<Pagination page={page} labels={labels} /></CatalogResults>
   </>;
 }

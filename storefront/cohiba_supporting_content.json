@@ -1,0 +1,61 @@
+{
+  "source": "https://www.habanos.com/en/news/nace-cohiba-behike-la-linea-mas-exclusiva-de-habanos-s-a-en/",
+  "products": [
+    {
+      "id": 105,
+      "english_name": "BHK 52",
+      "length": 119,
+      "ring_gauge": 52,
+      "release_type": "",
+      "release_name": "",
+      "translations": {
+        "zh": {
+          "title": "高希霸贝伊可 BHK 52",
+          "description": "高希霸贝伊可 BHK 52 是 Behike 系列的宽环径手工雪茄，配方加入稀少的 Medio Tiempo 烟叶，在哈瓦那 El Laguito 工厂卷制。",
+          "body": "高希霸贝伊可 BHK 52 属于 2010 年推出的 Behike 系列。其配方加入 Medio Tiempo 烟叶，这种来自日晒烟草植株顶部的稀少烟叶，是贝伊可区别于其他系列的重要特点。\n\nBHK 52 在哈瓦那 El Laguito 工厂以长芯全手工卷制，采用 119 毫米、52 环径的紧凑宽环径造型。",
+          "aliases": "贝伊可 BHK52 Behike52 Cohiba"
+        },
+        "en": {
+          "title": "Cohiba Behike BHK 52",
+          "description": "Cohiba Behike BHK 52 is a broad-ring handmade cigar blended with scarce Medio Tiempo tobacco and rolled at Havana’s El Laguito factory.",
+          "body": "BHK 52 belongs to the Behike line introduced in 2010. Its blend includes Medio Tiempo, a scarce leaf from the top of sun-grown tobacco plants and a defining feature of Behike.\n\nMade entirely by hand with long filler at Havana’s El Laguito factory, BHK 52 has a compact, broad-ring format measuring 119 mm with a ring gauge of 52.",
+          "aliases": "BHK52 Behike52 Cohiba"
+        },
+        "ru": {
+          "title": "Cohiba Behike BHK 52",
+          "description": "Cohiba Behike BHK 52 — сигара ручной скрутки с широким кольцевым калибром и редким листом Medio Tiempo в смеси, изготовленная на фабрике El Laguito.",
+          "body": "BHK 52 входит в линию Behike, представленную в 2010 году. В её смесь добавляют Medio Tiempo — редкий лист с верхушки табака, выращенного на солнце, ставший отличительной чертой Behike.\n\nBHK 52 изготавливается полностью вручную с длинной начинкой на гаванской фабрике El Laguito. Компактный широкий формат имеет длину 119 мм и кольцевой калибр 52.",
+          "aliases": "Бехике Бехикe BHK52 Behike52 Cohiba"
+        }
+      }
+    },
+    {
+      "id": 107,
+      "english_name": "BHK 56",
+      "length": 166,
+      "ring_gauge": 56,
+      "release_type": "",
+      "release_name": "",
+      "translations": {
+        "zh": {
+          "title": "高希霸贝伊可 BHK 56",
+          "description": "高希霸贝伊可 BHK 56 采用宽环径长茄身与长芯手工工艺，配方融入稀少的 Medio Tiempo 烟叶，展现 Behike 系列的用叶特点。",
+          "body": "高希霸贝伊可 BHK 56 是一款宽环径长芯雪茄。配方中的 Medio Tiempo 烟叶生长在部分日晒烟草植株的顶部，产量稀少，为 Behike 系列带来鲜明的个性。\n\n烟叶选自古巴 Vuelta Abajo 产区的 San Juan y Martínez 与 San Luis，在哈瓦那 El Laguito 工厂全手工卷制。茄身长 166 毫米，环径 56，呈现舒展、饱满的造型。",
+          "aliases": "贝伊可 BHK56 Behike56 Cohiba"
+        },
+        "en": {
+          "title": "Cohiba Behike BHK 56",
+          "description": "Cohiba Behike BHK 56 combines an elongated, broad-ring format with handmade long-filler construction and the scarce Medio Tiempo leaf that defines Behike.",
+          "body": "BHK 56 is an elongated, broad-ring cigar whose blend includes Medio Tiempo. This scarce leaf grows at the top of only some sun-grown tobacco plants and gives the Behike line its distinctive character.\n\nTobacco is selected from San Juan y Martínez and San Luis in Cuba’s Vuelta Abajo region and rolled entirely by hand at Havana’s El Laguito factory. The format measures 166 mm with a ring gauge of 56.",
+          "aliases": "BHK56 Behike56 Cohiba"
+        },
+        "ru": {
+          "title": "Cohiba Behike BHK 56",
+          "description": "Cohiba Behike BHK 56 сочетает удлинённый широкий формат, ручную скрутку с длинной начинкой и редкий лист Medio Tiempo, характерный для линии Behike.",
+          "body": "BHK 56 — удлинённая сигара с широким кольцевым калибром, в смесь которой входит Medio Tiempo. Этот редкий лист появляется на верхушках лишь части растений табака, выращенного на солнце, и придаёт линии Behike особый характер.\n\nТабак отбирают в San Juan y Martínez и San Luis, в кубинском регионе Vuelta Abajo. Сигара полностью скручивается вручную на гаванской фабрике El Laguito. Длина — 166 мм, кольцевой калибр — 56.",
+          "aliases": "Бехике Бехикe BHK56 Behike56 Cohiba"
+        }
+      }
+    }
+  ]
+}

@@ -75,14 +75,25 @@ class StorefrontSeoTests(SimpleTestCase):
                 self.assertEqual(page["description"], "Reviewed product description.")
 
     def test_brand_titles_and_pagination_are_localized_without_rewriting_paths(self):
-        for locale, label, number_label in [("zh", "雪茄目录", "第 2 页"), ("ru", "Каталог сигар", "Страница 2"), ("en", "Cigar catalogue", "Page 2")]:
+        for locale, title, number_label in [("zh", "Cohiba — 雪茄目录", "第 2 页"), ("ru", "Сигары Cohiba в Москве", "Страница 2"), ("en", "Cohiba — Cigar catalogue", "Page 2")]:
             with self.subTest(locale=locale):
                 page = self.page(locale=locale, kind="brand", title="Cohiba", product=None,
                                  path="/brand/cohiba?page=2", pagination={"page": 2})
                 self.enrich(page)
-                self.assertEqual(page["seo_title"], f"Cohiba — {label} — {number_label} | CigarDomTabaka")
+                self.assertEqual(page["seo_title"], f"{title} — {number_label} | CigarDomTabaka")
                 self.assertEqual(page["path"], "/brand/cohiba?page=2")
                 self.assertEqual(page["description"], "Reviewed product description.")
+
+    def test_russian_brand_local_title_preserves_visible_content_and_other_page_types(self):
+        for brand in ["Cohiba", "H. Upmann"]:
+            with self.subTest(brand=brand):
+                page = self.page(locale="ru", kind="brand", title=brand, product=None)
+                original = deepcopy(page)
+                self.enrich(page)
+                self.assertEqual(page["seo_title"], f"Сигары {brand} в Москве | CigarDomTabaka")
+                self.assertEqual({key: value for key, value in page.items() if key != "seo_title"}, original)
+        product = self.enrich(self.page(locale="ru"))
+        self.assertEqual(product["seo_title"], "Cohiba Genios — Характеристики | CigarDomTabaka")
 
     def test_catalogue_has_own_description_and_paginated_search_title(self):
         for locale, label, number_label in [("zh", "雪茄目录", "第 3 页"), ("ru", "Каталог сигар", "Страница 3"), ("en", "Cigar catalogue", "Page 3")]:

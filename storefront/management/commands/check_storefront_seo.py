@@ -11,6 +11,8 @@ from storefront.models import StoreSettings
 
 PLACEHOLDER = re.compile(r"test[\s_-]*preview|测试预览|合成占位|тестов[а-яё]*\s+предпросмотр", re.IGNORECASE)
 RULES = {
+    "missing_target": ("error", "指定验收页面不存在，请核对正式路径。"),
+    "target_not_indexable": ("error", "指定页面尚不满足收录条件，请核对翻译及内容依赖。"),
     "no_pages": ("error", "没有可公开页面；先核实并发布首页及对应内容。"),
     "missing_home": ("error", "中文首页 / 尚未公开；核实首页内容并发布，旧目录页面不能代替商城首页。"),
     "placeholder_content": ("error", "替换测试占位文案，核实后再发布；不要自动生成商品事实。"),
@@ -26,15 +28,21 @@ RULES = {
 }
 
 
-def audit_pages(pages, *, details_verified, sample_limit=5):
+def audit_pages(pages, *, details_verified, sample_limit=5, paths=None):
     findings = defaultdict(list)
 
     def add(code, path, fields=()):
         findings[code].append({"path": path, "fields": list(fields)})
 
+    selected = {path: pages[path] for path in paths if path in pages} if paths else pages
+    for path in paths or []:
+        if path not in pages:
+            add('missing_target', path)
+        elif not pages[path].get('indexable', True):
+            add('target_not_indexable', path, ['indexable'])
     if not pages:
         add("no_pages", "/")
-    else:
+    elif not paths:
         home = pages.get("/") or {}
         if home.get("kind") != "home" or home.get("locale") != "zh" or home.get("view") == "catalog":
             add("missing_home", "/")
@@ -43,13 +51,13 @@ def audit_pages(pages, *, details_verified, sample_limit=5):
     linked_products = {
         product["path"]
         for page in pages.values()
-        if page.get("kind") in {"home", "brand"} and not page.get("filters") and page.get("indexable", True)
-        for product in page.get("products", [])
+        if not page.get("filters") and page.get("indexable", True)
+        for product in [*page.get("products", []), *page.get("latest_products", [])]
         if product.get("path")
     }
     checked_sites = set()
     locales = {}
-    for path, page in sorted(pages.items()):
+    for path, page in sorted(selected.items()):
         locale = page.get("locale")
         totals = locales.setdefault(locale, {"page_count": 0, "indexable_page_count": 0, "fallback_page_count": 0})
         totals["page_count"] += 1
@@ -77,7 +85,8 @@ def audit_pages(pages, *, details_verified, sample_limit=5):
             # A heuristic for editorial review, never an indexability decision.
             if body in {str(product.get("name") or "").strip(), text["description"].strip()}:
                 add("minimal_product_body", path, ["body"])
-        if page.get("kind") == "brand" and not page.get("total_products", len(page.get("products", []))):
+        if (page.get("kind") == "brand" and not page.get("total_products", len(page.get("products", [])))
+                and not text['body'].strip()):
             add("empty_brand", path)
         if page.get("kind") == "product" and page.get("indexable", True) and path not in linked_products:
             add("orphan_product", path)
@@ -97,7 +106,7 @@ def audit_pages(pages, *, details_verified, sample_limit=5):
                        "action": action, "samples": matches[:sample_limit]})
     counts = {level: sum(issue["count"] for issue in issues if issue["severity"] == level)
               for level in ("error", "warning")}
-    return {"schema_version": 1, "page_count": len(pages),
+    return {"schema_version": 1, "page_count": len(selected),
             "indexable_page_count": sum(total["indexable_page_count"] for total in locales.values()),
             "locales": dict(sorted(locales.items())), "ready": counts["error"] == 0,
             "counts": counts, "issues": issues}
@@ -110,13 +119,14 @@ class Command(BaseCommand):
         parser.add_argument("--json", action="store_true", help="输出稳定结构的 JSON 报告。")
         parser.add_argument("--strict", action="store_true", help="发现明确内容阻塞项时以非零状态退出；警告不阻塞。")
         parser.add_argument("--sample-limit", type=int, default=5, help="每类问题最多显示的样例数（默认 5）。")
+        parser.add_argument('--path', action='append', default=[], help='只验收指定正式页面，可重复；缺失或不可收录均阻塞。')
 
     def handle(self, *args, **options):
         if options["sample_limit"] < 1:
             raise CommandError("--sample-limit 必须大于 0。")
         report = audit_pages(build_pages(),
                              details_verified=StoreSettings.objects.filter(pk=1, details_verified=True).exists(),
-                             sample_limit=options["sample_limit"])
+                             sample_limit=options["sample_limit"], paths=options['path'])
         if options["json"]:
             self.stdout.write(json.dumps(report, ensure_ascii=False, indent=2))
         else:

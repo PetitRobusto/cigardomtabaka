@@ -23,6 +23,10 @@ class StoreTranslationAdmin(admin.ModelAdmin):
     list_display = ['title', 'kind', 'key', 'locale', 'published', 'updated_at']
     list_filter = ['locale', 'kind', 'published']
     search_fields = ['title', 'key', 'aliases']
+    autocomplete_fields = ['cigar']
+
+    def get_readonly_fields(self, request, obj=None):
+        return ['key', 'kind', 'cigar'] if obj and obj.kind == 'product' else []
 
 
 @admin.register(StorePage)

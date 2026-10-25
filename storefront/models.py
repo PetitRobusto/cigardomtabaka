@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models.functions import Cast
 from django.utils import timezone
 
 
@@ -41,7 +42,9 @@ class ProductListing(models.Model):
 
 class StoreTranslation(models.Model):
     kind = models.CharField('页面类型', max_length=10, choices=[('home', '首页'), ('brand', '品牌'), ('product', '商品')])
-    key = models.CharField('首页填 home；品牌填 slug；商品填 ID', max_length=120)
+    key = models.CharField('首页填 home；品牌填 slug；商品由关联自动填写', max_length=120, blank=True)
+    cigar = models.ForeignKey('cigars.Cigar', on_delete=models.CASCADE, null=True, blank=True,
+                              related_name='store_translations', verbose_name='商品')
     locale = models.CharField('语言', max_length=2, choices=LOCALES)
     title = models.CharField('页面标题', max_length=180)
     description = models.CharField('搜索摘要', max_length=400)
@@ -52,15 +55,52 @@ class StoreTranslation(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=['kind', 'key', 'locale'], name='store_translation_unique')]
+        constraints = [
+            models.UniqueConstraint(fields=['kind', 'key', 'locale'], name='store_translation_unique'),
+            models.UniqueConstraint(fields=['cigar', 'locale'], name='store_product_translation_unique'),
+            models.CheckConstraint(
+                condition=(models.Q(kind='product', cigar__isnull=False,
+                                    key=Cast('cigar_id', models.CharField()))
+                           | (~models.Q(kind='product') & models.Q(cigar__isnull=True))),
+                name='store_translation_product_identity',
+            ),
+        ]
+
+    def _normalize_identity(self):
+        if self.kind != 'product':
+            if self.cigar_id is not None:
+                raise ValidationError({'cigar': '只有商品资料可以关联商品。'})
+            return
+        key = str(self.key or '')
+        if self.cigar_id is None:
+            if not key.isascii() or not key.isdecimal() or len(key) > 19:
+                raise ValidationError({'key': '商品 ID 无效。'})
+            self.cigar_id = int(key)
+        if key and (not key.isascii() or not key.isdecimal() or int(key) != self.cigar_id):
+            raise ValidationError({'key': '商品 ID 与关联商品不一致。'})
+        self.key = str(self.cigar_id)
+
+    def full_clean(self, *args, **kwargs):
+        self._normalize_identity()
+        return super().full_clean(*args, **kwargs)
+
+    def save(self, *args, **kwargs):
+        self._normalize_identity()
+        if kwargs.get('update_fields'):
+            kwargs['update_fields'] = set(kwargs['update_fields']) | {'key', 'cigar'}
+        return super().save(*args, **kwargs)
 
     def clean(self):
         from cigars.models import Brand, Cigar
+        self._normalize_identity()
         valid = self.kind == 'home' and self.key == 'home'
         if self.kind == 'brand':
             valid = Brand.objects.filter(slug=self.key).exists()
         elif self.kind == 'product':
-            valid = self.key.isdigit() and Cigar.objects.filter(pk=int(self.key), deleted_at__isnull=True).exists()
+            valid = Cigar.objects.filter(pk=self.cigar_id, deleted_at__isnull=True).exists()
+            if not valid:
+                # Product admin forms deliberately hide the derived key/FK.
+                raise ValidationError('关联商品不存在或已删除。')
         if not valid:
             raise ValidationError({'key': '页面对象不存在。'})
         required = (self.title, self.description) if self.kind == 'brand' else (self.title, self.description, self.body)

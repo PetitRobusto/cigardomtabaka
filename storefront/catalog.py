@@ -344,7 +344,7 @@ def _alternates(paths_by_locale: dict[str, str]) -> list[dict[str, str]]:
 
 def _published_translations() -> dict[tuple[str, str, str], StoreTranslation]:
     return {
-        (row.kind, row.key, row.locale): row
+        (row.kind, str(row.cigar_id) if row.kind == 'product' else row.key, row.locale): row
         for row in StoreTranslation.objects.filter(published=True)
         if all(value.strip() for value in (row.title, row.description))
         and (row.kind == "brand" or bool(row.body.strip()))
@@ -372,6 +372,15 @@ def _set_page_language(page: dict, complete: bool) -> None:
     page["translation_complete"] = complete
     page["content_locale"] = locale_content_locale(page["locale"], complete)
     page["indexable"] = page["locale"] == "zh" or complete
+
+
+def _indexable_content(page: dict) -> bool:
+    """Exclude empty brand shells and the duplicate home stock-pagination view."""
+    if page['kind'] == 'brand':
+        return bool(page.get('products') or str(page.get('body') or '').strip())
+    if page['kind'] == 'home' and page.get('view') != 'catalog':
+        return page.get('pagination', {}).get('page', 1) == 1
+    return True
 
 
 def _translation_dependencies(page: dict, translations: dict) -> list[list[str]]:
@@ -420,6 +429,7 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
     known_inventory = _known_inventory()
     listings = _published_listings()
     latest_product_ids = _latest_purchase_product_ids(listings)
+    translations = _published_translations()
     cigar_query = Cigar.objects.filter(deleted_at__isnull=True)
     if requested_path is not None:
         needed = known_inventory | {cigar_id for cigar_id, _ in stock} | set(stick_stock) | set(latest_product_ids)
@@ -436,7 +446,6 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
     for price in CigarPrice.objects.filter(is_active=True, cigar_id__in=[cigar.pk for cigar in cigars]).order_by("sort_order", "box_size"):
         prices_by_cigar[price.cigar_id].append(price)
 
-    translations = _published_translations()
     brand_translations = {
         locale: {
             key: row
@@ -633,6 +642,7 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
             and (page["kind"] != "brand" or page.get("brand_translation_complete", False))
         )
         _set_page_language(page, complete)
+        page['indexable'] = page['indexable'] and _indexable_content(page)
         page["translation_dependencies"] = _translation_dependencies(page, translations)
 
     # All target pages must have their final indexability before hreflang is built.
@@ -815,6 +825,7 @@ def public_dependencies() -> dict:
     latest_products = _latest_purchase_product_ids(published)
     brand_slugs = dict(Brand.objects.values_list("english_name", "slug"))
     discoverable = known_inventory - withdrawn
+    translations = _published_translations()
     return {
         "cigars": cigars,
         "withdrawn": withdrawn,
@@ -825,15 +836,24 @@ def public_dependencies() -> dict:
             brand_slugs[cigars[cigar_id]] for cigar_id in discoverable
             if cigar_id in cigars and cigars[cigar_id] in brand_slugs
         },
-        "translations": set(_published_translations()),
+        "translations": set(translations),
+        "brand_bodies": {(row.key, row.locale) for row in translations.values()
+                         if row.kind == 'brand' and row.body.strip()},
         "brand_slugs": brand_slugs,
         "details_verified": StoreSettings.objects.filter(pk=1, details_verified=True).exists(),
     }
 
 
+def _brand_has_content(slug, locale, dependencies):
+    return (slug in dependencies['discoverable_brands']
+            or (slug, locale) in dependencies['brand_bodies']
+            or (locale != 'zh' and ('brand', slug, locale) not in dependencies['translations']
+                and (slug, 'en') in dependencies['brand_bodies']))
+
+
 def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
     """Reject cached HTML as soon as any referenced content is revoked."""
-    if not isinstance(payload, dict) or not payload.get("path"):
+    if not isinstance(payload, dict) or not payload.get("path") or "model_articles" in payload:
         return False
     locale = payload.get("locale")
     kind = payload.get("kind")
@@ -857,6 +877,7 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
     has_translation = lambda translation_kind, key, translation_locale: (
         translation_kind, str(key), translation_locale,
     ) in translations
+    content_indexable = _indexable_content(payload)
     for brand_row in payload.get("navigation", {}).get("brands", []):
         if brand_row.get("slug") not in dependencies["brand_slugs"].values():
             return False
@@ -879,6 +900,7 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
         slug = payload.get("path", "").split("?")[0].rstrip("/").split("/")[-1]
         if slug not in dependencies["brand_slugs"].values():
             return False
+        content_indexable = _brand_has_content(slug, locale, dependencies)
         if locale != "zh":
             expected_brand_locale = locale if has_translation("brand", slug, locale) else "en"
             if (payload.get("brand_content_locale") != expected_brand_locale
@@ -935,7 +957,7 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
             return False
         if payload["content_locale"] != (locale if expected_complete else "en"):
             return False
-        if payload["indexable"] != expected_complete:
+        if payload["indexable"] != (expected_complete and content_indexable):
             return False
         if kind == "home":
             expected_home_locale = locale if exact_home else ("en" if has_translation("home", "home", "en") else None)
@@ -943,7 +965,7 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
             if actual_home_locale != expected_home_locale:
                 return False
     else:
-        if not payload["translation_complete"] or payload["content_locale"] != "zh" or not payload["indexable"]:
+        if not payload["translation_complete"] or payload["content_locale"] != "zh" or payload['indexable'] != content_indexable:
             return False
     site = payload.get("site") or {}
     custom_hours = site.get("hours", "") not in ("", PUBLIC_DETAILS["hours"][locale])
@@ -961,6 +983,8 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
         alternate_locale = alternate.get("locale")
         if alternate_locale == locale or alternate_locale not in LOCALES:
             continue
+        if kind == 'brand' and not _brand_has_content(slug, alternate_locale, dependencies):
+            return False
         if alternate_locale != "zh" and (
             not has_translation("home", "home", alternate_locale)
             or any(not has_translation("product", product.get("id"), alternate_locale)

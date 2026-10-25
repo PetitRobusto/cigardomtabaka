@@ -1,5 +1,7 @@
 # 高希霸首批 SEO 内容与盒价
 
+> 最新实施（2026-10-25）：数据库关联、正式品牌导航、商品关联资料和 SEO 修复见 [高希霸试点记录](cohiba-seo-pilot.md)。本轮使用 `--content-only`，不重新写入本文历史盒价。
+
 > 状态更新（2026-10-24）：本文保留下方俄中阶段的本地工作记录。英文补充和三语最新验证已完成，结果见 [cohiba-plan-status.md](cohiba-plan-status.md)。当前仍不执行上线；本文涉及发布的历史说明不构成执行授权。
 
 范围：俄语优先，中文同步；Cohiba 品牌及 Genios、Mágicos、Siglo II、Siglo III 共 10 个页面。

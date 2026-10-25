@@ -17,6 +17,7 @@ COPY = {
     },
     "ru": {
         "catalog": "Каталог сигар",
+        "brand_title": "Сигары {brand} в Москве",
         "catalog_description": "Каталог сигар {site}: информация о моделях, характеристики и опубликованные цены по брендам. Уточняйте наличие в магазине.",
         "information": "Информация о сигаре",
         "specifications": "Характеристики",
@@ -91,7 +92,10 @@ def enrich_page_metadata(pages):
             label = "specifications_prices" if has_specs and has_price else "specifications" if has_specs else "prices" if has_price else "information"
             title = " — ".join(filter(None, [title, copy[label]]))
         elif page.get("kind") == "brand":
-            title = " — ".join(filter(None, [title, copy["catalog"]]))
+            # Russian brand pages serve the Moscow store's brand searches.
+            # Keep this in metadata: the reviewed brand history stays unchanged.
+            title = (copy["brand_title"].format(brand=title) if "brand_title" in copy
+                     else " — ".join(filter(None, [title, copy["catalog"]])))
 
         number = (page.get("pagination") or {}).get("page", 1)
         if isinstance(number, int) and number > 1:

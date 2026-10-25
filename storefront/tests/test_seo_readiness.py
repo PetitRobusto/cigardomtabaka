@@ -26,6 +26,21 @@ def page(path, *, kind="home", **changes):
 
 
 class SeoAuditTests(SimpleTestCase):
+    def test_scoped_audit_blocks_missing_and_noindex_targets_without_requiring_home(self):
+        pages = {'/brand/cohiba': page('/brand/cohiba', kind='brand', indexable=False)}
+        result = self.audit(pages, paths=['/brand/cohiba', '/brand/missing'])
+        self.assertFalse(result['ready'])
+        self.assertEqual({row['code'] for row in result['issues']}, {'missing_target', 'target_not_indexable'})
+        pages['/brand/cohiba']['indexable'] = True
+        self.assertTrue(self.audit(pages, paths=['/brand/cohiba'])['ready'])
+
+    def test_visible_products_count_as_internal_links(self):
+        target = '/cigar/1/model'
+        for field in ('products', 'latest_products'):
+            pages = {'/': page('/'), '/brand/cohiba': page('/brand/cohiba', kind='brand', **{field: [{'path': target}]}),
+                     target: page(target, kind='product', product={'name': 'Model'})}
+            self.assertNotIn('orphan_product', {row['code'] for row in self.audit(pages)['issues']})
+
     def audit(self, pages, **kwargs):
         return audit_pages(pages, details_verified=True, **kwargs)
 
@@ -116,7 +131,7 @@ class SeoAuditTests(SimpleTestCase):
         self.assertIn("orphan_product", {issue["code"] for issue in self.audit(paths)["issues"]})
 
     def test_deterministic_counts_and_bounded_samples(self):
-        paths = {f"/brand/{i}": page(f"/brand/{i}", kind="brand") for i in range(10)}
+        paths = {f"/brand/{i}": page(f"/brand/{i}", kind="brand", body="") for i in range(10)}
         report = self.audit(paths, sample_limit=2)
         issue = next(issue for issue in report["issues"] if issue["code"] == "empty_brand")
         self.assertEqual(issue["count"], 10)

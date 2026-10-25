@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django import forms
+from storefront.models import StoreTranslation
 
 from .models import (
     Cigar, CigarImage, Customer, User, Brand,
@@ -30,8 +32,30 @@ class UserGuideProgressAdmin(admin.ModelAdmin):
     search_fields = ('user__username', 'user__first_name', 'user__telegram_id')
 
 
+class ProductTranslationForm(forms.ModelForm):
+    class Meta:
+        model = StoreTranslation
+        fields = ['locale', 'title', 'description', 'body', 'aliases', 'published']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.instance.kind = 'product'
+
+
+class ProductTranslationInline(admin.StackedInline):
+    model = StoreTranslation
+    form = ProductTranslationForm
+    extra = 0
+    fields = ['locale', 'title', 'description', 'body', 'aliases', 'published']
+    verbose_name_plural = '商城三语商品资料'
+
+    def has_add_permission(self, request, obj=None):
+        return obj is not None and super().has_add_permission(request, obj)
+
+
 @admin.register(Cigar)
 class CigarAdmin(admin.ModelAdmin):
+    inlines = [ProductTranslationInline]
     list_display = ['brand', 'name', 'english_name', 'vitola', 'vitola_cn', 'common_name_cn', 'length', 'ring_gauge', 'origin', 'status', 'release_type_cn', 'parent']
     list_editable = ['name']
     list_filter = ['brand', 'origin', 'status', 'release_type', 'parent']

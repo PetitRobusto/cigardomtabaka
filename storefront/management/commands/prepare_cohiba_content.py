@@ -1,6 +1,7 @@
 """Prepare the owner's four confirmed box prices and reviewed trilingual copy."""
 
 import json
+import hashlib
 import re
 from decimal import Decimal
 from pathlib import Path
@@ -52,10 +53,13 @@ def read_content():
 
 
 class Command(BaseCommand):
-    help = "预览高希霸15条三语内容与4个确认盒价；--apply仅写开发库，不改变发布或库存状态。"
+    help = "预览高希霸资料与确认盒价；--content-only 跳过价格，--apply 仅写开发库。"
 
     def add_arguments(self, parser):
         parser.add_argument("--apply", action="store_true")
+        parser.add_argument("--content-only", action="store_true", help="只更新资料，不读取或写入定价。")
+        parser.add_argument("--include-supporting", action="store_true", help="同时核对 BHK 52/56 品牌页依赖资料，需 --content-only。")
+        parser.add_argument("--publish-supporting", action="store_true", help="发布已核对的 BHK 资料，仅用于开发预览。")
 
     def _guard_apply(self):
         name = str(connection.settings_dict.get("NAME") or "")
@@ -80,8 +84,12 @@ class Command(BaseCommand):
         before = {field: getattr(row, field) for field in COPY_FIELDS} if row else None
         if row and before == values:
             return row, False, {"kind": kind, "key": key, "locale": locale, "action": "unchanged", "published": row.published}
-        if row and (row.hours or row.aliases or any(getattr(row, field) != baseline[field]
-                                                   for field in ("title", "description", "body"))):
+        previous_hashes = json.loads(CONTENT_PATH.with_name('cohiba_content_previous_hashes.json').read_text())
+        previous_reviewed = (before is not None and
+                            hashlib.sha256(json.dumps(before, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+                            in previous_hashes.get(f'{kind}/{key}/{locale}', []))
+        if row and (row.hours or (not previous_reviewed and (row.aliases or any(getattr(row, field) != baseline[field]
+                                                   for field in ("title", "description", "body"))))):
             raise CommandError(f"{kind}/{key}/{locale} 已有自定义内容；整批停止，不覆盖。")
         if row is None:
             row = StoreTranslation(kind=kind, key=key, locale=locale, published=False)
@@ -96,6 +104,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         applying = options["apply"]
+        if options['include_supporting'] and not options['content_only']:
+            raise CommandError('--include-supporting 必须同时使用 --content-only。')
+        if options['publish_supporting'] and not options['include_supporting']:
+            raise CommandError('--publish-supporting 必须同时使用 --include-supporting。')
         if applying:
             self._guard_apply()
         try:
@@ -124,6 +136,8 @@ class Command(BaseCommand):
                         if changed:
                             updates.append((row, COPY_FIELDS))
 
+                    if options['content_only']:
+                        continue
                     price = CigarPrice.objects.select_for_update().filter(cigar=cigar, box_size=entry["box_size"]).first()
                     target = Decimal(entry["retail_price_rub"])
                     before = str(price.retail_price_rub) if price and price.retail_price_rub is not None else None
@@ -155,6 +169,34 @@ class Command(BaseCommand):
                         "listing_withdrawn": bool(listing and listing.withdrawn),
                     })
 
+                if options['include_supporting']:
+                    supporting = json.loads(CONTENT_PATH.with_name('cohiba_supporting_content.json').read_text())['products']
+                    expected = {105: ('BHK 52', 119, 52), 107: ('BHK 56', 166, 56)}
+                    if len(supporting) != 2 or {item['id'] for item in supporting} != set(expected):
+                        raise CommandError('BHK 资料清单范围不符。')
+                    for entry in supporting:
+                        if tuple(entry[k] for k in ('english_name', 'length', 'ring_gauge')) != expected[entry['id']]:
+                            raise CommandError('BHK 资料规格与核实来源不符。')
+                        cigar = Cigar.objects.select_for_update().filter(pk=entry['id'], deleted_at__isnull=True).first()
+                        if (not cigar or cigar.brand != 'Cohiba' or cigar.release_type or cigar.release_name
+                                or any(getattr(cigar, field) != entry[field] for field in ('english_name', 'length', 'ring_gauge'))):
+                            raise CommandError(f"BHK 商品 id={entry['id']} 身份不符；整批停止。")
+                        if set(entry['translations']) != {'zh', 'ru', 'en'}:
+                            raise CommandError('BHK 资料须包含三语。')
+                        for locale, values in entry['translations'].items():
+                            if set(values) != set(COPY_FIELDS) or not all(isinstance(v, str) and v.strip() for v in values.values()):
+                                raise CommandError('BHK 资料字段不完整。')
+                            row, changed, report = self._translation('product', str(cigar.pk), locale, values, _product_translation(cigar, locale))
+                            if options['publish_supporting'] and not row.published:
+                                row.published = True
+                                changed = True
+                                report['action'] = 'publish_reviewed'
+                                report['published'] = True
+                            row.full_clean()
+                            translations.append(report)
+                            if changed:
+                                updates.append((row, (*COPY_FIELDS, 'published')))
+
                 # All identities, content and financial conflicts have been checked
                 # before the first write. Signals enqueue refresh only on commit.
                 if applying:
@@ -167,6 +209,7 @@ class Command(BaseCommand):
             raise CommandError(f"高希霸内容校验失败，未写入：{exc}") from exc
         self.stdout.write(json.dumps({
             "mode": "apply" if applying else "dry-run", "changed_rows": len(updates),
+            "content_only": options['content_only'],
             "translations": translations, "prices": prices,
-            "note": "发布状态与库存保持原值；启用价格或写入内容不等于生产已上线。",
+            "note": "库存与商品上架状态保持原值；仅 --publish-supporting 可发布 BHK 资料，开发写入不等于生产已上线。",
         }, ensure_ascii=False, indent=2))

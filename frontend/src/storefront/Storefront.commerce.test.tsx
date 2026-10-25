@@ -24,6 +24,20 @@ function catalog(): StorePageData {
 }
 
 describe("B2 commerce browsing", () => {
+  it("keeps the brand page to its introduction and product grid", () => {
+    const page: StorePageData = { ...catalog(), kind: "brand", view: undefined, path: "/en/brand/cohiba", body: "Brand introduction" };
+    const { container } = render(<Storefront page={page} ageConfirmed />);
+    expect(container.querySelector(".cat-head")?.textContent).toContain("Brand introduction");
+    expect(container.querySelector('.cat-head h1 img')?.getAttribute('src')).toBe('/media/brand_logos/cohiba.jpg');
+    expect(container.querySelector('.cat-head h1')?.textContent).toBe(page.title);
+    expect(container.querySelectorAll(".store-product-grid .pcard")).toHaveLength(1);
+    expect(container.querySelector(".store-model-articles")).toBeNull();
+    expect(container.querySelector(".store-brand-browser")).toBeNull();
+    expect(container.querySelector('.store-desktop-filters input[name="brand"]')).toBeNull();
+    expect(container.querySelector('.store-filter-dialog input[name="brand"]')).toBeNull();
+    expect(container.querySelector('.store-desktop-filters')?.textContent).not.toContain("Brands");
+    expect(container.querySelector('#store-brands-menu a[href="/en/brand/cohiba"]')).not.toBeNull();
+  });
   it.each(["zh", "ru", "en"] as const)("keeps integer prices compact and retains fractional amounts in %s", (locale) => {
     const { container, rerender } = render(<Price amount="12345.00" locale={locale} labels={storeCopy[locale]} />);
     const formatted = (value: number) => new Intl.NumberFormat({ zh: "zh-CN", ru: "ru-RU", en: "en" }[locale], { style: "currency", currency: "RUB", currencyDisplay: "narrowSymbol", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(value);
@@ -89,13 +103,13 @@ describe("B2 commerce browsing", () => {
     }
   });
 
-  it("preserves search, packaging and sort when switching a catalog brand", () => {
+  it("navigates to the clean brand page when switching brands from filtered results", () => {
     const filters = { q: "Robusto", brands: ["cohiba"], boxes: ["25"], sort: "length" };
-    const { container } = render(<BrandBrowse page={{ ...catalog(), filters }} labels={storeCopy.en} filters={filters} />);
+    const { container } = render(<BrandBrowse page={{ ...catalog(), filters }} labels={storeCopy.en} />);
     const link = container.querySelector<HTMLAnchorElement>('.store-brand-logo-link[href*="montecristo"]')!;
     const url = new URL(link.href);
-    expect(url.pathname).toBe("/en/catalog");
-    expect(Object.fromEntries(url.searchParams)).toEqual({ q: "Robusto", brand: "montecristo", box: "25", sort: "length" });
+    expect(url.pathname).toBe("/en/brand/montecristo");
+    expect(url.search).toBe("");
   });
 
   it("submits combined criteria as native GET fields and keeps them through language switches", () => {
@@ -148,7 +162,8 @@ describe("B2 commerce browsing", () => {
     expect(container.querySelector('.store-facet-more')?.hasAttribute('open')).toBe(false);
     expect(container.querySelector('.store-packaging-filter')?.hasAttribute('open')).toBe(false);
     const catalogLastBrandLink = Array.from(container.querySelectorAll<HTMLAnchorElement>(".store-brand-logo-link")).find((link) => link.textContent?.includes("Brand 13"))!;
-    expect(new URL(catalogLastBrandLink.href).searchParams.get("brand")).toBe("brand-13");
+    expect(new URL(catalogLastBrandLink.href).pathname).toBe("/en/brand/brand-13");
+    expect(new URL(catalogLastBrandLink.href).search).toBe("");
     expect(container.querySelectorAll('.store-desktop-filters input[name="brand"]')).toHaveLength(20);
     expect(container.querySelector('.store-desktop-filters input[value="stick"]')).not.toBeNull();
     expect(container.querySelector('.store-desktop-filters input[value="25"]')).not.toBeNull();

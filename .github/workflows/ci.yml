@@ -134,6 +134,7 @@ jobs:
         run: |
           python3 -m pip install -r requirements.txt
           python3 manage.py test storefront.tests.test_render_integration \
+            storefront.tests.test_prepare_cohiba_content \
             --settings=cigardomtabaka_backend.settings_test --verbosity=1
 
       - name: Package verified frontend

@@ -56,6 +56,12 @@
 - `/privnote/` 和 `/p/:token/` 走 React；后端只提供 JSON API。修改全局导航时同时检查桌面导航和移动底部导航。
 - 新 UI、布局、配色或整体视觉方向先在既有 OpenDesign 项目 `CigarDomTabaka`（slug `cigardomtabaka`）预览；先读取项目已有设计和 `brand-spec.md`，每次设计使用独立 conversation/run。纯功能、类型、文案和明确小修复可直接改 React。
 - OpenDesign 只能通过当前会话已注册并暴露的 MCP 工具调用，不得直接请求 OpenDesign daemon HTTP API。若 MCP 未注册或未暴露，说明阻塞原因并请用户启用；不得用 `curl`、`fetch` 或其他 HTTP 调用绕过。
+- OpenDesign 的设计生成必须使用 Claude Code。先通过已注册工具确认可用运行器，启动时明确选择 Claude Code；不得使用 Codex，也不得在失败时自动切换到 Codex。Claude Code 不可用时说明阻塞原因。
+
+### SEO 计划与迭代
+
+- 后续 SEO 任务先阅读 [`docs/seo-roadmap.md`](docs/seo-roadmap.md)，沿用其中的目标、已验证现状、任务编号与阻塞记录；任务结束时更新状态、证据、日期和下一步。
+- 本地实现、线上生效、搜索引擎收录与排名效果分别记录；不要把历史开发库告警当作当前生产缺口，也不要将计划中的发布步骤视为部署授权。
 
 ### Privnote
 

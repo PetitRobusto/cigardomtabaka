@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { backendPageFixture } from "./fixture";
 import { renderStorePage } from "./render";
 import { clearStoreMetadata, storeStructuredData, updateStoreMetadata } from "./metadata";
+import { browsingKeys } from "./browsing";
 
 function setUpHead() {
   document.head.innerHTML = `
@@ -28,6 +29,13 @@ afterEach(() => {
 });
 
 describe("storefront metadata", () => {
+  it.each(browsingKeys)("blocks indexing for the %s filter and restores it on clean navigation", (key) => {
+    const page = { ...backendPageFixture, indexable: true };
+    updateStoreMetadata(page, "https://shop.example", new URL(`https://shop.example${page.path}?${key}=1`));
+    expect(document.head.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe("noindex, nofollow");
+    updateStoreMetadata(page, "https://shop.example", new URL(`https://shop.example${page.path}`));
+    expect(document.head.querySelector('meta[name="robots"]')).toBeNull();
+  });
   it.each(['zh', 'ru', 'en'] as const)('keeps localized sharing metadata identical before and after hydration in %s', (locale) => {
     const page = { ...backendPageFixture, locale, product: { ...backendPageFixture.product!,
       name: 'Cigar & "box"', image_url: '/single-thumb.jpg', images: ['/single.jpg', '/box25.jpg'],

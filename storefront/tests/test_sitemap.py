@@ -134,7 +134,9 @@ class SitemapTests(TestCase):
         ProductListing.objects.bulk_create([ProductListing(cigar=cigar, published=True) for cigar in items])
         pages = self.publish()
         first = self.client.get(self.url)
-        self.assertIn('/?page=2', self.paths(first))
+        self.assertNotIn('/?page=2', self.paths(first))
+        self.assertIn('/catalog?page=2', self.paths(first))
+        self.assertIn('noindex', self.client.get('/?page=2')['X-Robots-Tag'])
         for path in ('/?page=1', '/?page=02', '/?page=999', '/catalog?q=test'):
             payload = deepcopy(pages['/'])
             payload['path'] = path
@@ -144,6 +146,9 @@ class SitemapTests(TestCase):
         # dependencies still exist, but home pagination must shrink immediately.
         force_inventory_update(PurchaseBatch.objects.all(), available_stick_quantity=0)
         current = self.client.get(self.url, HTTP_IF_NONE_MATCH=first['ETag'])
+        # Home page 2 was already excluded, so the indexable URL set is unchanged.
+        self.assertEqual(current.status_code, 304)
+        current = self.client.get(self.url)
         paths = self.paths(current)
         self.assertNotIn('/?page=2', paths)
         self.assertIn('/catalog?page=2', paths)

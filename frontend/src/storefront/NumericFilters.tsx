@@ -82,13 +82,23 @@ export function DimensionPresets({ kind, filters, onChange, labels, locale }: Nu
       <strong>{minText} – {maxText}</strong>
     </div>
     <div className="numeric-dimension__presets" role="group" aria-label={title}>
-      {presets.map((preset) => <button
+      {presets.map((preset, index) => <button
         className="numeric-dimension__preset"
         type="button"
         key={preset.key}
         aria-pressed={selectedKey === preset.key}
         onClick={() => selectPreset(preset)}
-      >{preset.label}</button>)}
+      >
+        <span className="numeric-dimension__icon" aria-hidden="true">
+          <span
+            className={`numeric-dimension__${kind === "ring" ? "dot" : "bar"}${index === 0 ? " is-any" : ""}`}
+            style={kind === "ring"
+              ? { width: [14, 9, 11, 14, 17][index], height: [14, 9, 11, 14, 17][index] }
+              : { width: [30, 27, 33, 38, 42][index] }}
+          />
+        </span>
+        <span>{preset.label}</span>
+      </button>)}
     </div>
     <HiddenBounds minName={minName} maxName={maxName} minValue={currentMin} maxValue={currentMax} />
   </fieldset>;

@@ -35,20 +35,12 @@
 .site-footer-map-open { position:absolute; top:12px; left:12px; z-index:1; display:flex; align-items:center; gap:6px; max-width:calc(100% - 24px); min-height:40px; padding:8px 12px; border:1px solid #e8e0d6; border-radius:6px; background:#fff; box-shadow:0 2px 8px #2c24161a; font-size:12px; font-weight:600; }
 .site-footer-map-open:hover { color:#7a1f2e; border-color:#b87a3a; }
 .site-footer-map-open svg { width:14px; height:14px; flex-shrink:0; }
-.site-footer-credential { display:flex; flex-direction:column; gap:16px; padding:24px 0; border-bottom:1px solid #e8e0d6; }
-.site-footer-credential > div { display:flex; align-items:center; gap:16px; min-width:0; }
-.site-footer-credential img { width:56px; height:70px; object-fit:contain; flex-shrink:0; }
-.site-footer-credential > div > div { min-width:0; overflow-wrap:anywhere; }
-.site-footer-credential > div > div > div { font-family:Georgia,"Songti SC","Noto Serif SC",serif; font-size:16px; font-weight:600; letter-spacing:.025em; }
-.site-footer-credential p { margin:4px 0 0; font-size:12px; font-weight:600; letter-spacing:.14em; color:#7a1f2e; }
-.site-footer-credential > span { color:#7a1f2e; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.18em; }
 .site-footer-bottom { padding-top:20px; font-size:12px; color:#8a7e6e; }
 @media(min-width:560px) {
   .site-footer-contacts { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 @media(min-width:640px) {
   .site-footer-inner { padding-inline:32px; }
-  .site-footer-credential { flex-direction:row; align-items:center; justify-content:space-between; }
 }
 @media(min-width:900px) {
   .site-footer-inner { padding-block:48px; }

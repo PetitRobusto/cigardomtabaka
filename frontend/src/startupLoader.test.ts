@@ -127,7 +127,7 @@ describe('server-rendered loader default', () => {
     expect(markup).toContain(' hidden');
     expect(markup).toContain('/static/frontend/logo-opening-motion-v2.svg');
     expect(markup).toContain('/static/frontend/logo-motion.webp');
-    expect(markup).toContain('/static/frontend/habanos-specialist.png');
+    expect(markup).not.toContain('/static/frontend/habanos-specialist.png');
     expect(markup).not.toContain('cdt-starting');
   });
 });
@@ -138,6 +138,8 @@ describe('startup language matching', () => {
     const shell = new DOMParser().parseFromString(html, 'text/html');
     document.body.innerHTML = `${shell.getElementById('startup-loader')!.outerHTML}<div id="root"></div><script id="cdt-app-runtime-config" type="application/json">${JSON.stringify({ storefrontEnabled })}</script>`;
     expect(document.getElementById('startup-loader')!.hidden).toBe(true);
+    expect(shell.querySelector('img[alt="Habanos Specialist"]')).toBeNull();
+    expect(shell.querySelector('link[href*="habanos-specialist"]')).toBeNull();
     window.eval(script);
   }
 
@@ -150,7 +152,7 @@ describe('startup language matching', () => {
       expect(root.hidden).toBe(false);
       expect(root.lang).toBe(locale === 'zh' ? 'zh-CN' : locale);
       expect(root.getAttribute('aria-label')).toBe(text.loading);
-      expect(root.querySelector('.cdt-startup__status-label')!.textContent).toBe(text.storeCredential);
+      expect(root.querySelector('.cdt-startup__status-label')!.textContent).toBe(text.loading);
       await vi.advanceTimersByTimeAsync(10_000);
       expect(root.querySelector('.cdt-startup__status-label')!.textContent).toBe(text.loading);
       const retry = root.querySelector<HTMLButtonElement>('.cdt-startup__retry')!;
@@ -166,7 +168,7 @@ describe('startup language matching', () => {
     window.history.replaceState({}, '', '/en/');
     window.localStorage.setItem('cdt.customer.language', 'ru');
     installLoader('store-root', locale);
-    expect(document.querySelector('.cdt-startup__status-label')!.textContent).toBe(customerMessages[locale].storeCredential);
+    expect(document.querySelector('.cdt-startup__status-label')!.textContent).toBe(customerMessages[locale].loading);
   });
 
   it('uses saved customer preferences for the legacy customer homepage', () => {

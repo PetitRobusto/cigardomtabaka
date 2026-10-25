@@ -1,6 +1,6 @@
 import { ArrowUpRight, MessageCircle, Send } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
-import { siteLogoUrl as brandLogoUrl, siteCredentialUrl as habanosSpecialistLogoUrl } from './siteAssets';
+import { siteLogoUrl as brandLogoUrl } from './siteAssets';
 import { customerMessages, type CustomerLocale } from '../../features/customer/messages';
 import publicDetails from '../../../../storefront/public_details.json';
 import './site-footer.css';
@@ -120,17 +120,6 @@ export function SiteFooter({ locale = 'zh', customerPage = false, inert = false,
             <iframe src={mapEmbed} title={text.storeMap} width="560" height="330" loading="lazy" allowFullScreen />
             <a className="site-footer-map-open" href={mapUrl} target="_blank" rel="noopener noreferrer">{text.storeMapOpen}<ArrowUpRight aria-hidden="true" /></a>
           </div>}
-        </div>
-
-        <div className="site-footer-credential">
-          <div>
-            <img src={habanosSpecialistLogoUrl} alt="Habanos Specialist" width="173" height="216" loading="lazy" decoding="async" />
-            <div>
-              <div>{text.storeCredential}</div>
-              <p>{text.storeQualification}</p>
-            </div>
-          </div>
-          <span>{customerPage ? text.certifiedRetailer : 'Certificated Retailer'}</span>
         </div>
 
         <div className="site-footer-bottom">

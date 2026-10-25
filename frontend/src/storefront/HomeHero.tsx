@@ -30,7 +30,7 @@ const heroCopy: Record<StoreLocale, {
     stageLabel: "雪茄陈列",
   },
   en: {
-    kicker: "Moscow's Cuban cigar specialists",
+    kicker: "Cuban cigars in Moscow",
     title: "In Moscow, discover the charm of",
     titleAccent: "Cuban cigars",
     lead: "Located in the Gagarinsky District of southwest Moscow, CigarDomTabaka is a Habanos Point certified shop offering over 50 Cuban cigars. From Cohiba Behike and Cohiba Siglo VI to Trinidad Fundadores, explore classic and limited releases, stored in a professional humidor and sold at fair prices with authenticity guaranteed.",

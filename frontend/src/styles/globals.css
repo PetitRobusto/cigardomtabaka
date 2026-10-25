@@ -82,14 +82,6 @@
     text-align: center;
   }
 
-  .cdt-loader__specialist {
-    display: block;
-    width: 34px;
-    height: auto;
-    flex: none;
-    user-select: none;
-    -webkit-user-drag: none;
-  }
 
   .cdt-loader__status-copy {
     display: inline-flex;
@@ -207,7 +199,6 @@
 @media (max-height: 420px) {
   .cdt-loader__motion-logo { width: 132px; }
   .cdt-loader__status { margin-top: 18px; font-size: 13px; }
-  .cdt-loader__specialist { width: 28px; }
 }
 
 @keyframes cdt-loading-dot {

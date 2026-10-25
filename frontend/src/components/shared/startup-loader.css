@@ -17,7 +17,6 @@ body { color: #2c2416; background: #faf8f5; font-family: -apple-system, BlinkMac
 #startup-loader[data-logo-ready="true"] .cdt-startup__logo { visibility: visible; opacity: 1; }
 .cdt-startup__logo--docking { position: relative; }
 .cdt-startup__status { display: flex; min-height: 44px; margin: 30px 0 0; align-items: center; justify-content: center; gap: 10px; color: #2c2416; font-size: 15px; font-weight: 600; line-height: 1.5; letter-spacing: .04em; }
-.cdt-startup__specialist { display: block; width: 34px; height: auto; flex: none; user-select: none; -webkit-user-drag: none; }
 .cdt-startup__status-copy { display: inline-flex; align-items: center; justify-content: center; }
 .cdt-loading-dots { display: inline-flex; width: 22px; margin-left: 4px; align-items: center; justify-content: space-between; }
 .cdt-loading-dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: .25; animation: cdt-loading-dot 1.2s ease-in-out infinite; }
@@ -33,12 +32,10 @@ body { color: #2c2416; background: #faf8f5; font-family: -apple-system, BlinkMac
 @media (max-width: 520px) {
   .cdt-startup__logo { width: 156px; }
   .cdt-startup__status { font-size: 13px; letter-spacing: .025em; }
-  .cdt-startup__specialist { width: 30px; }
 }
 @media (max-height: 420px) {
   .cdt-startup__logo { width: 132px; }
   .cdt-startup__status { margin-top: 18px; font-size: 13px; }
-  .cdt-startup__specialist { width: 28px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cdt-starting.cdt-revealing #root,

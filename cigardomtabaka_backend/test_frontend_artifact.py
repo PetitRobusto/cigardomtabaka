@@ -15,7 +15,7 @@ class FrontendArtifactTests(SimpleTestCase):
     sha = 'a' * 40
     storefront_public_assets = (
         'startup-loader.js', 'favicon-96.png', 'logo-opening.webp',
-        'logo-motion.webp', 'logo-opening-motion-v2.svg', 'habanos-specialist.png',
+        'logo-motion.webp', 'logo-opening-motion-v2.svg',
     )
 
     def setUp(self):

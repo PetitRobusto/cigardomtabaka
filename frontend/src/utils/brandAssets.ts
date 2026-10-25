@@ -15,7 +15,3 @@ export const brandMotionLogoUrl = moduleOrigin === 'null'
 export const brandDockLogoUrl = moduleOrigin === 'null'
   ? `${base}logo-motion.webp`
   : new URL(`${base}logo-motion.webp`, moduleOrigin).href;
-
-export const habanosSpecialistLogoUrl = moduleOrigin === 'null'
-  ? `${base}habanos-specialist.png`
-  : new URL(`${base}habanos-specialist.png`, moduleOrigin).href;

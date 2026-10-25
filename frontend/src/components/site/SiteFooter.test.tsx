@@ -22,7 +22,7 @@ describe('shared site footer', () => {
     expect(footer.getByText('cigardomtabaka')).toBeTruthy();
     expect(footer.getByRole('link', { name: 'Telegram: +79296384878' }).getAttribute('href')).toBe('https://t.me/+79296384878');
     expect(footer.getByRole('link', { name: 'WhatsApp: +79296384878' }).getAttribute('href')).toBe('https://wa.me/79296384878');
-    expect(footer.getByRole('img', { name: 'Habanos Specialist' })).toBeTruthy();
+    expect(footer.queryByRole('img', { name: 'Habanos Specialist' })).toBeNull();
   });
 
   it.each(['zh', 'ru', 'en'] as const)('shows the confirmed address and Moscow hours in %s with matching SEO data', (locale) => {
@@ -40,6 +40,8 @@ describe('shared site footer', () => {
     expect(map.getAttribute('loading')).toBe('lazy');
     expect(map.getAttribute('title')).toBeTruthy();
     expect(footer.getByText(publicDetails.hours[locale])).toBeTruthy();
+    expect(container.querySelector('.site-footer-credential')).toBeNull();
+    expect(footer.queryByRole('img', { name: 'Habanos Specialist' })).toBeNull();
     expect(footer.getByRole('link', { name: publicDetails.phone }).getAttribute('href')).toBe('tel:+79296384878');
     expect(footer.getByRole('link', { name: 'WhatsApp: +79296384878' }).getAttribute('href')).toBe('https://wa.me/79296384878');
     const structured = storeStructuredData(page, 'https://shop.example') as Array<Record<string, unknown>>;
@@ -74,7 +76,7 @@ describe('shared site footer', () => {
     expect(footer.queryByRole('link', { name: 'verified-store' })).toBeNull();
     expect(footer.getByRole('link', { name: 'Telegram: +79296384878' }).getAttribute('href')).toBe('https://t.me/+79296384878');
     expect(footer.getByRole('link', { name: 'WhatsApp: +79296384878' }).getAttribute('href')).toBe('https://wa.me/79296384878');
-    expect(footer.getByRole('img', { name: 'Habanos Specialist' })).toBeTruthy();
+    expect(footer.queryByRole('img', { name: 'Habanos Specialist' })).toBeNull();
     expect(container.querySelector('.site-footer-bottom')?.textContent).toContain('© Verified Store.');
 
     const contact = vi.fn();

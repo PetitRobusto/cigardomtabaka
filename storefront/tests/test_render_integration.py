@@ -58,8 +58,10 @@ class PrerenderIntegrationTests(TestCase):
             if path.endswith('catalog'):
                 prefix = '' if locale == 'zh' else f'/{locale}'
                 self.assertContains(response, f'href="{prefix}/cigar/{self.cigar.pk}/cohiba-robustos?from=')
-            # The unified site retains the original credential footer and loader.
-            self.assertContains(response, 'Habanos Specialist')
+            # Public pages retain one header/footer without specialist credentials.
+            self.assertNotContains(response, 'Habanos Specialist')
+            self.assertNotContains(response, 'habanos-specialist.png')
+            self.assertNotContains(response, 'site-footer-credential')
             self.assertContains(response, '<header ', count=1)
             self.assertContains(response, '<footer ', count=1)
             self.assertNotContains(response, 'id="site-management-menu"')

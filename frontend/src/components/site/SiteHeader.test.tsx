@@ -15,7 +15,7 @@ describe('unified site navigation', () => {
     expect(container.querySelectorAll('header')).toHaveLength(1);
     expect(container.querySelectorAll('footer')).toHaveLength(1);
     expect(screen.getByRole('search')).toBeTruthy();
-    expect(screen.getByRole('img', { name: 'Habanos Specialist' })).toBeTruthy();
+    expect(screen.queryByRole('img', { name: 'Habanos Specialist' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Telegram: +79296384878' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Management' })).toBeNull();
     expect(screen.queryByRole('navigation', { name: '移动应用导航' })).toBeNull();

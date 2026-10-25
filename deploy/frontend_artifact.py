@@ -14,7 +14,7 @@ from tempfile import TemporaryDirectory
 # hashed-asset manifest does not enumerate these required public files.
 STOREFRONT_PUBLIC_ASSETS = (
     'startup-loader.js', 'favicon-96.png', 'logo-opening.webp',
-    'logo-motion.webp', 'logo-opening-motion-v2.svg', 'habanos-specialist.png',
+    'logo-motion.webp', 'logo-opening-motion-v2.svg',
 )
 
 

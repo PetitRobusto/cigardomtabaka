@@ -23,17 +23,17 @@ afterEach(() => {
 });
 
 describe('AppLayout navigation', () => {
-  it('shows the store credential in the footer', () => {
+  it('omits specialist credentials from the footer', () => {
     render(
       <MemoryRouter initialEntries={['/']}>
         <PageMetaProvider><AppLayout><div>页面内容</div></AppLayout></PageMetaProvider>
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('img', { name: 'Habanos Specialist' })).not.toBeNull();
-    expect(screen.getByText('莫斯科持证雪茄服务商')).not.toBeNull();
-    expect(screen.getByText('专业门店资质')).not.toBeNull();
-    expect(screen.getByText('Certificated Retailer')).not.toBeNull();
+    expect(screen.queryByRole('img', { name: 'Habanos Specialist' })).toBeNull();
+    expect(screen.queryByText('莫斯科持证雪茄服务商')).toBeNull();
+    expect(screen.queryByText('专业门店资质')).toBeNull();
+    expect(screen.queryByText('Certificated Retailer')).toBeNull();
     expect(screen.queryByText(/Habanos Specialist ·/)).toBeNull();
   });
 

@@ -35,9 +35,8 @@ export function StartupLoader({ locale }: StartupLoaderProps): ReactElement {
           aria-hidden="true"
         />
         <div className="cdt-startup__status" role="status" aria-live="polite" aria-atomic="true">
-          <img className="cdt-startup__specialist" src="/static/frontend/habanos-specialist.png" width="173" height="216" alt="Habanos Specialist" />
           <span className="cdt-startup__status-copy">
-            <span className="cdt-startup__status-label">{messages.storeCredential}</span>
+            <span className="cdt-startup__status-label">{messages.loading}</span>
             <span className="cdt-loading-dots" aria-hidden="true"><i /><i /><i /></span>
           </span>
         </div>

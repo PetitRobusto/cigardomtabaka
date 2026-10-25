@@ -13,9 +13,9 @@
   // This script also starts before React in the static/Django shells. Keep its
   // small recovery dictionary aligned with customerMessages (covered by tests).
   var messages = {
-    zh: { intro: '莫斯科持证雪茄服务商', loading: '页面内容加载中…', failed: '数据加载失败', retry: '重新加载' },
-    ru: { intro: 'Лицензированный сигарный магазин в Москве', loading: 'Загрузка страницы…', failed: 'Не удалось загрузить данные', retry: 'Повторить' },
-    en: { intro: 'Licensed cigar specialist in Moscow', loading: 'Loading page…', failed: 'Could not load data', retry: 'Reload' }
+    zh: { intro: '页面内容加载中…', loading: '页面内容加载中…', failed: '数据加载失败', retry: '重新加载' },
+    ru: { intro: 'Загрузка страницы…', loading: 'Загрузка страницы…', failed: 'Не удалось загрузить данные', retry: 'Повторить' },
+    en: { intro: 'Loading page…', loading: 'Loading page…', failed: 'Could not load data', retry: 'Reload' }
   };
 
   function resolveLocale() {

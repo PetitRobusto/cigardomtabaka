@@ -1,35 +1,74 @@
-"""Verify deploy service restart behavior without invoking a real service manager."""
+"""Exercise the workflow's cache gate and service order with a fake service manager."""
 import os
 from pathlib import Path
 import subprocess
 from tempfile import TemporaryDirectory
+from textwrap import dedent
 import unittest
 
 
 class StorefrontWorkerDeployTests(unittest.TestCase):
-    def test_existing_worker_restarts_without_enabling_or_installing_service(self):
+    def run_workflow(self, **overrides):
         workflow = Path(__file__).resolve().parents[1] / '.github/workflows/deploy.yml'
         proposed = workflow.read_text()
-        start = proposed.index('if sudo systemctl is-enabled --quiet storefront-worker.service')
-        block = proposed[start:proposed.index('\n', proposed.index('fi', start))]
-        mock = '''sudo() {
+        pause = proposed[proposed.index('            DEPLOY_STAGE=pause-storefront-worker'):
+                         proposed.index('            DEPLOY_STAGE=install-code-and-migrations')]
+        finish = proposed[proposed.index('            # A successful render command'):
+                          proposed.index('            echo "=== reload nginx ==="')]
+        self.assertLess(proposed.index('DEPLOY_STAGE=pause-storefront-worker'),
+                        proposed.index('git reset --hard "$DEPLOY_SHA"'))
+        mock = '''
+        STOREFRONT_DEPLOY=false
+        check_count=0
+        sudo() {
           case "$*" in
             "systemctl is-enabled --quiet storefront-worker.service") return "$ENABLED_STATUS" ;;
             "systemctl is-active --quiet storefront-worker.service") return "$ACTIVE_STATUS" ;;
-            "systemctl restart storefront-worker.service") printf 'restart\\n' >> "$CALLS"; return "$RESTART_STATUS" ;;
+            "systemctl stop storefront-worker.service") printf 'stop\\n' >> "$CALLS"; return "$STOP_STATUS" ;;
+            *"manage.py render_storefront") printf 'render\\n' >> "$CALLS"; return "$RENDER_STATUS" ;;
+            *"manage.py check_storefront_cache")
+              printf 'check\\n' >> "$CALLS"
+              check_count=$((check_count + 1))
+              test "$check_count" -gt "$CHECK_FAILURES" ;;
+            "systemctl restart gunicorn") printf 'web\\n' >> "$CALLS"; return "$WEB_STATUS" ;;
+            "systemctl restart storefront-worker.service") printf 'worker\\n' >> "$CALLS"; return "$WORKER_STATUS" ;;
             *) return 99 ;;
           esac
         }
         '''
-        for enabled, active, restart, expected_call, expected_status in (
-            (0, 1, 0, True, 0), (1, 0, 0, True, 0), (1, 1, 0, False, 0), (0, 1, 7, True, 7),
-        ):
-            with self.subTest(enabled=enabled, active=active, restart=restart), TemporaryDirectory() as directory:
-                calls = Path(directory) / 'calls'
-                env = {**os.environ, 'CALLS': str(calls), 'ENABLED_STATUS': str(enabled), 'ACTIVE_STATUS': str(active), 'RESTART_STATUS': str(restart)}
-                result = subprocess.run(['bash', '-e', '-c', mock + block], env=env, capture_output=True, text=True)
-                self.assertEqual(result.returncode, expected_status, result.stderr)
-                self.assertEqual(calls.exists(), expected_call)
+        with TemporaryDirectory() as directory:
+            calls = Path(directory) / 'calls'
+            controls = dict(ENABLED_STATUS='0', ACTIVE_STATUS='0', STOP_STATUS='0', RENDER_STATUS='0',
+                            CHECK_FAILURES='0', WEB_STATUS='0', WORKER_STATUS='0')
+            controls.update({key: str(value) for key, value in overrides.items()})
+            env = {**os.environ, **controls, 'CALLS': str(calls)}
+            result = subprocess.run(['bash', '-e', '-c', dedent(mock) + dedent(pause) + dedent(finish)],
+                                    env=env, capture_output=True, text=True)
+            return result.returncode, calls.read_text().splitlines() if calls.exists() else []
+
+    def test_enabled_or_active_worker_is_paused_verified_and_restored(self):
+        for enabled, active in [(0, 0), (0, 1), (1, 0)]:
+            with self.subTest(enabled=enabled, active=active):
+                self.assertEqual(self.run_workflow(ENABLED_STATUS=enabled, ACTIVE_STATUS=active),
+                                 (0, ['stop', 'render', 'check', 'web', 'worker']))
+
+    def test_disabled_inactive_worker_is_not_enabled_or_started(self):
+        self.assertEqual(self.run_workflow(ENABLED_STATUS=1, ACTIVE_STATUS=1), (0, ['web']))
+
+    def test_failures_do_not_blindly_restore_worker_or_continue_switching(self):
+        for controls, expected in [
+            ({'STOP_STATUS': 7}, (7, ['stop'])),
+            ({'RENDER_STATUS': 7}, (7, ['stop', 'render'])),
+            ({'WEB_STATUS': 7}, (7, ['stop', 'render', 'check', 'web'])),
+            ({'WORKER_STATUS': 7}, (7, ['stop', 'render', 'check', 'web', 'worker'])),
+        ]:
+            with self.subTest(controls=controls):
+                self.assertEqual(self.run_workflow(**controls), expected)
+
+    def test_stale_generations_retry_whole_render_and_never_bypass_gate(self):
+        attempts = ['render', 'check'] * 3
+        self.assertEqual(self.run_workflow(CHECK_FAILURES=2), (0, ['stop', *attempts, 'web', 'worker']))
+        self.assertEqual(self.run_workflow(CHECK_FAILURES=99), (1, ['stop', *attempts]))
 
 
 if __name__ == '__main__':

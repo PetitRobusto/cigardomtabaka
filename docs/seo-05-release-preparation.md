@@ -1,6 +1,6 @@
 # SEO-05：已有新版内容的发布准备
 
-日期：2026-10-25 UTC。状态：发布准备与本地验证已完成；生产发布待授权、准确 SHA 的远程 CI 及生产预检，尚未部署。总入口：[SEO 路线图](seo-roadmap.md)。
+日期：2026-10-25 UTC。状态：用户已明确授权上线；本地验证、独立复审和生产预检通过，等待准确 SHA 的远程 CI 与部署验收。总入口：[SEO 路线图](seo-roadmap.md)。
 
 ## 1. 本次契约与范围
 
@@ -70,14 +70,16 @@
 
 ## 4. 发布物与生产数据预检
 
-**以下是后续取得部署/生产资料修改授权后的步骤，本轮没有执行。**
+用户已在本次会话明确要求部署上线。以下预检已执行，代码与文案仍须按第 5 节完成发布和线上验收。
+
+生产预检（2026-10-25 19:55:40 UTC）：旧 SHA `4833ad18966916d32aeca5506b8b8c9ea95f8508`，一致备份及前值快照保存在服务器 `/var/backups/cigardomtabaka/seo05-20261025-f3ad9c4/`，完整性与外键检查通过；180 条商品译文身份合法，4 款 Cigar 身份正确，5 条俄语资料均已发布；`0003` 尚待部署应用。Web/worker 均运行中。4,260 个活动缓存无旧字段或渲染错误，但其中 35 页将受新版空品牌/首页分页索引规则影响，因此本次流水线新增全量预渲染和缓存门禁。
 
 发布候选需包含已有 Cohiba 实现的完整依赖，不能只复制 JSON：`storefront/models.py`、`0003_product_translation_identity.py`、商品/翻译 Admin、catalog/readiness 规则、共享前端、metadata、内容清单及相应测试。变化来源见 [试点记录](cohiba-seo-pilot.md)。本轮另含上节的 SEO 标题与 CI 回归修复。
 
 1. 人工核对本次候选 diff，保留其他未提交工作；排除 ZIP、数据库、媒体、`.env` 和本地构建产物。当前工作区包含此前多轮修改，不能将全部 dirty 文件自动视为本轮改动。
 2. 固定通过完整远程 CI 的准确 commit SHA 与其制品；记录旧 SHA、商城开关和 worker 状态。本地工作区构建不是该 SHA 的 CI 发布制品。
 3. 迁移前以 SQLite backup API 或 `.backup` 获取一致备份并验证可读。运行既有数据库完整性检查，再对**全部** product 翻译执行下面的只读身份预检；不自动清理异常记录。
-4. 导出目标 5 条俄语译文的原值、身份、发布状态及内容摘要哈希，与批准 JSON 对照。检查四个 Cigar 的英文身份、尺寸和版本字段，确保没有错指纪念款。生产目前是否已应用 `0003` 以生产迁移表为准，本轮没有后台访问证据。
+4. 导出目标 5 条俄语译文的原值、身份、发布状态及内容摘要哈希，与批准 JSON 对照。检查四个 Cigar 的英文身份、尺寸和版本字段，确保没有错指纪念款。生产迁移情况以实际迁移表为准；部署后再次确认 `0003`。
 
 迁移前只读预检不依赖新 ORM 字段，可在生产项目根目录使用实际数据库路径执行：
 
@@ -107,9 +109,9 @@ PY
 
 ## 5. 内容更新、缓存切换与验收顺序
 
-- 读取实际服务/Nginx 配置，确定切换顺序。现有 Deploy 在重启 Web 后启动 worker，**不等待**所有缓存生成。预检若发现缓存不兼容，应使用明确获准的短维护窗口，迁移、内容更新、同步渲染及受控 HTTP 验收通过后再恢复访问；当前线上样本没有证明必须维护。仓库没有可直接套用的维护开关，不凭模板覆盖生产 Nginx。
-- 通过现有流水线部署准确 CI SHA（含迁移、制品、静态资源）。如安排同步渲染，暂停 worker 避免并发，再恢复其原有运行状态。
-- 在 `/admin/storefront/storetranslation/` 按批准清单更新 **5 条俄语资料**的四个文案字段。优先使用独立翻译后台，避免连带保存 Cigar 主记录。现有草稿不顺手勾发布；未预期内容冲突立即暂停该条，重新比对。Admin 记录操作者、时间与字段名，**不保存完整旧正文**，因此前后快照不可省略。
+- 已读取实际服务状态。本次 Deploy 在替换代码前暂停既有 worker，安装准确 CI SHA、迁移及已验证制品，同步生成全量缓存并运行 `check_storefront_cache`，通过后才重启 Web 和恢复 worker。门禁校验实际 payload、desired/rendered hash、资源、renderer 与刷新 revision；最多重试三轮，失败停止，不盲目启动新 worker。旧 Web 在生成期间继续服务；原子缓存更新至 Web 重启之间仍可能使上述 35 页短暂返回 503，不宣称零停机，不改 Nginx 配置。
+- 代码上线且 HTTP 正常后，暂停 worker，通过受限命令 `publish_cohiba_russian_copy` 维护固定 **5 条俄语资料**。先将 dry-run JSON 保存到上述备份目录，与批准清单和前值快照比对，再用该报告的 `--expected-digest`、现有 active staff `--actor`、稳定 `--operation-id`、已部署准确 `--commit-sha` 执行 `--apply`。资料身份、发布状态或预览摘要变化会整批停止。
+- 命令通过单一事务更新四个文案字段及时间戳，审计保存 Agent 来源、业务日期、操作者、SHA 和完整前后值；重复执行无差异则不写入。不修改价格、库存、上架或中英文资料。10 项命令测试及独立审查通过；缓存与服务失败路径合计 19 项目标测试通过。
 - 不在生产运行 `prepare_cohiba_content --apply` 或绕过其开发库限制；不运行 `publish_storefront_catalog` 代替更新（它是首次目录导入，可能建上架记录/导图片且保留旧译文）。`--publish-supporting` 也不在本次生产范围。
 - 保存后核对 5 条资料身份和发布状态、四个文案字段与批准内容完全相同；留存前后快照、操作者、时间、准确 SHA。再次执行相同维护应无差异；不批量重存无变化记录。
 
@@ -117,6 +119,7 @@ PY
 
 ```bash
 sudo -u www-data env DJANGO_DEBUG=False venv/bin/python manage.py render_storefront
+sudo -u www-data env DJANGO_DEBUG=False venv/bin/python manage.py check_storefront_cache
 sudo -u www-data env DJANGO_DEBUG=False venv/bin/python manage.py check_storefront_seo --json --strict \
   --path /ru/brand/cohiba \
   --path /ru/cigar/102/cohiba-genios \
@@ -125,7 +128,7 @@ sudo -u www-data env DJANGO_DEBUG=False venv/bin/python manage.py check_storefro
   --path /ru/cigar/98/cohiba-siglo-iii
 ```
 
-随后运行 [全量缓存 generation_hash 验收](storefront-operations.md#发布验收门禁)，检查所有公开页面与当前 payload、renderer、资源构建一致。`render_storefront` 退出 0、进程 active 或只读内容检查通过都不能独立证明缓存完成。
+缓存门禁通过后恢复 worker，并完成 [公开 HTTP 验收](storefront-operations.md#发布验收门禁)。`render_storefront` 退出 0、进程 active 或只读内容检查通过都不能独立证明缓存完成。
 
 ```bash
 python3 deploy/verify_storefront_http.py https://cigardomtabaka.com \

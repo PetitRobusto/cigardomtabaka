@@ -65,13 +65,26 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           timeout: 60s
-          command_timeout: 10m
+          command_timeout: 20m
           envs: DEPLOY_SHA,DEPLOY_RUN_ID,DEPLOY_ATTEMPT
           script: |
             set -e
             cd /opt/cigardomtabaka
             ARTIFACT_DIR="/tmp/cigardomtabaka-frontend-${DEPLOY_RUN_ID}-${DEPLOY_ATTEMPT}"
-            trap 'rm -rf -- "$ARTIFACT_DIR"' EXIT
+            DEPLOY_STAGE=artifact-validation
+            STOREFRONT_DEPLOY=false
+            cleanup() {
+              status=$?
+              if [ "$status" -ne 0 ]; then
+                echo "Deploy failed during $DEPLOY_STAGE. Inspect Web/cache state before retrying."
+                if [ "$STOREFRONT_DEPLOY" = true ]; then
+                  echo "Storefront worker is not automatically restored after failure."
+                fi
+              fi
+              rm -rf -- "$ARTIFACT_DIR"
+              exit "$status"
+            }
+            trap cleanup EXIT
 
             # Fail before changing code or database if this is not the verified build.
             venv/bin/python "$ARTIFACT_DIR/frontend_artifact.py" verify "$ARTIFACT_DIR" "$DEPLOY_SHA"
@@ -91,6 +104,15 @@ jobs:
             # Check the actual production DB before replacing code. Never delete
             # orphan records as a deployment side effect; remediation is separate.
             sudo -u www-data venv/bin/python "$ARTIFACT_DIR/check_database_integrity.py" cigars.db
+
+            # Keep the old Web process on its cached pages while preparing the
+            # new generation. Do not let an old worker load a new renderer.
+            DEPLOY_STAGE=pause-storefront-worker
+            if sudo systemctl is-enabled --quiet storefront-worker.service || sudo systemctl is-active --quiet storefront-worker.service; then
+              STOREFRONT_DEPLOY=true
+              sudo systemctl stop storefront-worker.service
+            fi
+            DEPLOY_STAGE=install-code-and-migrations
             git reset --hard "$DEPLOY_SHA"
 
             echo "=== pip install ==="
@@ -126,17 +148,38 @@ jobs:
             echo "=== collectstatic ==="
             DJANGO_DEBUG=False python manage.py collectstatic --noinput
 
+            # A successful render command can still leave a pending generation
+            # after concurrent edits. Verify it and retry a bounded number of times.
+            if [ "$STOREFRONT_DEPLOY" = true ]; then
+              for attempt in 1 2 3; do
+                DEPLOY_STAGE=render-storefront
+                sudo -u www-data env DJANGO_DEBUG=False venv/bin/python manage.py render_storefront
+                DEPLOY_STAGE=verify-storefront-cache
+                if sudo -u www-data env DJANGO_DEBUG=False venv/bin/python manage.py check_storefront_cache; then
+                  break
+                fi
+                if [ "$attempt" -eq 3 ]; then
+                  echo "Storefront cache did not converge; Web restart withheld."
+                  exit 1
+                fi
+              done
+            fi
+
             echo "=== restart gunicorn ==="
+            DEPLOY_STAGE=restart-web
             sudo systemctl restart gunicorn
 
             echo "=== restart storefront worker if enabled ==="
-            # Reload Python catalog code and reconcile the newly installed renderer.
-            # Keep an uninstalled or deliberately disabled storefront worker disabled.
-            if sudo systemctl is-enabled --quiet storefront-worker.service || sudo systemctl is-active --quiet storefront-worker.service; then
+            # Preserve active-only workers as well as enabled workers. Never
+            # enable/install a disabled and inactive storefront as a deploy side effect.
+            DEPLOY_STAGE=restore-storefront-worker
+            if [ "$STOREFRONT_DEPLOY" = true ]; then
               sudo systemctl restart storefront-worker.service
             fi
 
             echo "=== reload nginx ==="
-            sudo nginx -t && sudo systemctl reload nginx
+            DEPLOY_STAGE=reload-nginx
+            sudo nginx -t
+            sudo systemctl reload nginx
 
             echo "=== deploy done ==="

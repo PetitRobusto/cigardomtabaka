@@ -47,7 +47,14 @@ python3 deploy/verify_storefront_http.py https://cigardomtabaka.com \
 不会再自动删除历史图片或价格记录。异常数据须单独诊断和获准修复，不能绕过门禁。
 迁移和 collectstatic 显式使用 `DJANGO_DEBUG=False`，避免落入默认开发环境。
 
-工作流完成仅代表安装与服务重启成功。商城首次启用还必须完成
+对于已经 enabled 或 active 的商城 worker，Deploy 会在替换代码前暂停它，
+安装代码和制品后同步渲染，并用 `check_storefront_cache` 核对全部当前页面的实际内容、
+构建哈希和稳定刷新版本；最多三轮，通过后才重启 Web、恢复 worker。
+disabled 且 inactive 的 worker 不会被自动启用。失败报告具体阶段，不盲目启动新 worker；
+需核实代码、迁移和缓存状态后处理，不把重启当作回滚。SSH 部署超时为 20 分钟。
+预渲染期间旧 Web 继续服务；不兼容的缓存更新与 Web 重启间仍可能短暂返回 503。
+
+工作流完成代表安装、适用的缓存门禁与服务重启成功。商城首次启用还必须完成
 [商城发布验收](../docs/storefront-operations.md#发布验收门禁)，包括缓存代次、HTTPS www、HTTP 结果和回退准备。
 当前工作流不会安装 Nginx 模板、创建 worker 服务或自动启用商城。
 `deploy/nginx-https.conf` 是按现有生产证书路径准备的 HTTPS 配置，包含 www 规范跳转；

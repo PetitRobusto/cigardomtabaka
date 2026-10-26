@@ -23,47 +23,60 @@ class StorefrontSeoTests(SimpleTestCase):
         enrich_page_metadata({page["path"]: page})
         return page
 
-    def test_product_title_contains_brand_without_changing_display_or_reviewed_content(self):
-        page = self.page()
-        original = deepcopy(page)
-        self.enrich(page)
-        self.assertEqual(page["seo_title"], "Cohiba Genios — Specifications | CigarDomTabaka")
-        self.assertEqual({key: value for key, value in page.items() if key != "seo_title"}, original)
-
-    def test_product_titles_use_each_locale_and_only_advertise_published_prices(self):
-        for locale, expected in [("zh", "规格与价格"), ("ru", "Характеристики и цены"), ("en", "Specifications and prices")]:
+    def test_product_titles_use_local_moscow_wording_without_changing_display_or_reviewed_content(self):
+        expected_by_locale = {
+            "zh": "Cohiba Genios — 莫斯科雪茄 | CigarDomTabaka",
+            "ru": "Cohiba Genios — сигары в Москве | CigarDomTabaka",
+            "en": "Cohiba Genios — Cigars in Moscow | CigarDomTabaka",
+        }
+        for locale, expected in expected_by_locale.items():
             with self.subTest(locale=locale):
                 page = self.page(locale=locale)
-                page["product"]["offers"] = [{"price_rub": "123.45", "in_stock": False}]
+                original = deepcopy(page)
                 self.enrich(page)
-                self.assertEqual(page["seo_title"], f"Cohiba Genios — {expected} | CigarDomTabaka")
-                self.assertNotIn("in stock", page["seo_title"].lower())
+                self.assertEqual(page["seo_title"], expected)
+                self.assertEqual({key: value for key, value in page.items() if key != "seo_title"}, original)
 
-    def test_missing_invalid_or_nonpositive_prices_do_not_create_price_claims(self):
-        for price in [None, "", "broken", "NaN", "Infinity", "-10", "0"]:
-            with self.subTest(price=price):
+    def test_product_search_title_is_independent_of_specs_price_and_stock(self):
+        expected = "Cohiba Genios — Cigars in Moscow | CigarDomTabaka"
+        variants = [
+            {"vitola": "Robusto", "length": 140, "ring_gauge": 52,
+             "offers": [], "availability": "out_of_stock"},
+            {"vitola": "", "length": None, "ring_gauge": None,
+             "offers": [{"price_rub": "123.45", "in_stock": True}], "availability": "in_stock"},
+            {"vitola": "Churchill", "length": 200, "ring_gauge": 60,
+             "offers": [{"price_rub": "0", "in_stock": False}], "availability": "out_of_stock"},
+        ]
+        for product_data in variants:
+            with self.subTest(product_data=product_data):
                 page = self.page()
-                page["product"]["offers"] = [{"price_rub": price}]
+                page["product"].update(product_data)
                 self.enrich(page)
-                self.assertNotIn("prices", page["seo_title"])
+                self.assertEqual(page["seo_title"], expected)
 
     def test_brand_is_not_duplicated_for_existing_case_or_punctuation_variants(self):
         page = self.page()
         page["product"].update(name="H. UPMANN No. 2", brand="H Upmann")
         self.enrich(page)
-        self.assertEqual(page["seo_title"], "H. UPMANN No. 2 — Specifications | CigarDomTabaka")
+        self.assertEqual(page["seo_title"], "H. UPMANN No. 2 — Cigars in Moscow | CigarDomTabaka")
 
     def test_brand_matching_does_not_confuse_partial_words(self):
         page = self.page()
         page["product"].update(name="Cohibana", brand="Cohiba")
         self.enrich(page)
-        self.assertTrue(page["seo_title"].startswith("Cohiba Cohibana —"))
+        self.assertEqual(page["seo_title"], "Cohiba Cohibana — Cigars in Moscow | CigarDomTabaka")
 
     def test_chinese_brand_without_separating_whitespace_is_not_duplicated(self):
         page = self.page(locale="zh")
         page["product"].update(name="高希霸世纪二号", brand="高希霸")
         self.enrich(page)
-        self.assertEqual(page["seo_title"], "高希霸世纪二号 — 规格资料 | CigarDomTabaka")
+        self.assertEqual(page["seo_title"], "高希霸世纪二号 — 莫斯科雪茄 | CigarDomTabaka")
+
+    def test_product_names_with_accents_and_embedded_brand_are_not_duplicated(self):
+        page = self.page()
+        page["product"].update(name="Cohiba Mágicos Maduro 5", brand="Cohiba")
+        self.enrich(page)
+        self.assertEqual(page["seo_title"], "Cohiba Mágicos Maduro 5 — Cigars in Moscow | CigarDomTabaka")
 
     def test_home_preserves_reviewed_title_without_repeating_site(self):
         for title in ["Cigars in Moscow | CigarDomTabaka", "Cigars in Moscow"]:
@@ -93,7 +106,7 @@ class StorefrontSeoTests(SimpleTestCase):
                 self.assertEqual(page["seo_title"], f"Сигары {brand} в Москве | CigarDomTabaka")
                 self.assertEqual({key: value for key, value in page.items() if key != "seo_title"}, original)
         product = self.enrich(self.page(locale="ru"))
-        self.assertEqual(product["seo_title"], "Cohiba Genios — Характеристики | CigarDomTabaka")
+        self.assertEqual(product["seo_title"], "Cohiba Genios — сигары в Москве | CigarDomTabaka")
 
     def test_catalogue_has_own_description_and_paginated_search_title(self):
         for locale, label, number_label in [("zh", "雪茄目录", "第 3 页"), ("ru", "Каталог сигар", "Страница 3"), ("en", "Cigar catalogue", "Page 3")]:
@@ -106,10 +119,23 @@ class StorefrontSeoTests(SimpleTestCase):
                 self.assertNotEqual(page["description"], "Reviewed product description.")
                 self.assertEqual(page["title"], "Display catalogue")
 
-    def test_incomplete_product_uses_neutral_information_and_fallback_site(self):
+    def test_incomplete_product_uses_localized_title_and_fallback_site(self):
         page = self.page(product={"english_name": "Genios"}, site={})
         self.enrich(page)
-        self.assertEqual(page["seo_title"], "Genios — Cigar information | CigarDomTabaka")
+        self.assertEqual(page["seo_title"], "Genios — Cigars in Moscow | CigarDomTabaka")
+
+    def test_new_products_receive_localized_title_without_a_product_specific_override(self):
+        for locale, expected in [
+            ("zh", "H. Upmann Half Corona — 莫斯科雪茄 | CigarDomTabaka"),
+            ("ru", "H. Upmann Half Corona — сигары в Москве | CigarDomTabaka"),
+            ("en", "H. Upmann Half Corona — Cigars in Moscow | CigarDomTabaka"),
+        ]:
+            with self.subTest(locale=locale):
+                page = self.page(locale=locale, title="Half Corona", product={
+                    "name": "Half Corona", "english_name": "Half Corona", "brand": "H. Upmann",
+                })
+                self.enrich(page)
+                self.assertEqual(page["seo_title"], expected)
 
     def test_enrichment_is_idempotent(self):
         page = self.page(kind="brand", title="Cohiba", product=None, pagination={"page": 2})
@@ -135,7 +161,7 @@ class StorefrontSeoTests(SimpleTestCase):
         self.assertEqual(page['seo_title'], 'Mágicos — Page 2 | CigarDomTabaka')
         for value in ('', '  '):
             page = self.enrich(self.page(seo_title_override=value))
-            self.assertEqual(page['seo_title'], 'Cohiba Genios — Specifications | CigarDomTabaka')
+            self.assertEqual(page['seo_title'], 'Cohiba Genios — Cigars in Moscow | CigarDomTabaka')
 
     def test_derived_catalog_does_not_inherit_home_override(self):
         page = self.enrich(self.page(kind='home', view='catalog', seo_title_override='Homepage only'))

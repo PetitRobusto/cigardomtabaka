@@ -1,6 +1,5 @@
 """Search metadata derived from public page data, without changing display names."""
 
-from decimal import Decimal, InvalidOperation
 import re
 import unicodedata
 
@@ -9,29 +8,20 @@ COPY = {
     "zh": {
         "catalog": "雪茄目录",
         "catalog_description": "浏览 {site} 的雪茄目录，按品牌查看商品资料、规格与已公布的报价；请联系门店确认当前供应情况。",
-        "information": "雪茄资料",
-        "specifications": "规格资料",
-        "prices": "资料与价格",
-        "specifications_prices": "规格与价格",
+        "product_locality": "莫斯科雪茄",
         "page": "第 {number} 页",
     },
     "ru": {
         "catalog": "Каталог сигар",
         "brand_title": "Сигары {brand} в Москве",
         "catalog_description": "Каталог сигар {site}: информация о моделях, характеристики и опубликованные цены по брендам. Уточняйте наличие в магазине.",
-        "information": "Информация о сигаре",
-        "specifications": "Характеристики",
-        "prices": "Информация и цены",
-        "specifications_prices": "Характеристики и цены",
+        "product_locality": "сигары в Москве",
         "page": "Страница {number}",
     },
     "en": {
         "catalog": "Cigar catalogue",
         "catalog_description": "Browse the {site} cigar catalogue by brand for product information, specifications and published prices. Contact the store to confirm availability.",
-        "information": "Cigar information",
-        "specifications": "Specifications",
-        "prices": "Information and prices",
-        "specifications_prices": "Specifications and prices",
+        "product_locality": "Cigars in Moscow",
         "page": "Page {number}",
     },
 }
@@ -54,17 +44,6 @@ def _contains_name(title, name):
     if re.search(r"[\u3400-\u9fff]", name):
         return name in title
     return title == name or f" {name} " in f" {title} "
-
-
-def _has_public_price(product):
-    for offer in product.get("offers") or []:
-        try:
-            price = Decimal(str(offer.get("price_rub")))
-        except (InvalidOperation, TypeError, ValueError):
-            continue
-        if price.is_finite() and price > 0:
-            return True
-    return False
 
 
 def enrich_page_metadata(pages):
@@ -92,10 +71,7 @@ def enrich_page_metadata(pages):
             brand = _text(product.get("brand"))
             if brand and not _contains_name(title, brand):
                 title = f"{brand} {title}".strip()
-            has_specs = bool(product.get("vitola") or product.get("length") or product.get("ring_gauge"))
-            has_price = _has_public_price(product)
-            label = "specifications_prices" if has_specs and has_price else "specifications" if has_specs else "prices" if has_price else "information"
-            title = " — ".join(filter(None, [title, copy[label]]))
+            title = " — ".join(filter(None, [title, copy["product_locality"]]))
         elif page.get("kind") == "brand":
             # Russian brand pages serve the Moscow store's brand searches.
             # Keep this in metadata: the reviewed brand history stays unchanged.

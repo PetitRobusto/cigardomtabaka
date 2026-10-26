@@ -220,8 +220,12 @@ urlpatterns = [
     path('privnote/api/quote-products/', privnote_quote_products, name='privnote_quote_products'),
     path('privnote/api/upload-image/', privnote_upload_image, name='privnote_upload_image'),
     # SPA catch-all (must be last)
-    re_path(r'^(?!admin/|api/|static/|media/).*$', spa_index, name='spa_index'),
+    re_path(r'^(?!admin/|api(?:/|$)|privnote/api(?:/|$)|static/|media/).*$', spa_index, name='spa_index'),
 ]
+
+# Serve a React-rendered localized error artifact while preserving Django's
+# real 404 status. API namespace misses stay JSON through the same handler.
+handler404 = 'cigardomtabaka_backend.error_views.not_found'
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

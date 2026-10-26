@@ -1,6 +1,6 @@
 # SEO-14：公开商品范围与 sitemap 发布核验
 
-日期：2026-10-26 UTC。状态：本地实现与验证完成，用户已授权上线；进入提交与 CI/CD，生产结果待验收。
+日期：2026-10-26 UTC。状态：已上线并完成生产验收；搜索引擎重新抓取与收录效果待观察。
 
 ## 需求与边界
 
@@ -52,6 +52,31 @@ CI/CD 的顺序为：新代码和制品 → 同步预渲染（更新 sitemap 来
 不靠手工改 XML 或伪造 lastmod。对本次生效环境的商城 worker 延续既有 enabled/active 条件；
 不会作为部署副作用开启原本关闭的商城。
 
-2026-10-26 用户明确授权上线这些修复。下一步提交并等待 CI/CD，按准确 CI SHA 部署，核对真实生产
-商品数、缓存和 sitemap；生产 URL 数不能直接套用开发副本的 252。随后取得新的 GSC URL 明细，
-跟踪核心俄语页的抓取、索引与 Google canonical，允许旧数据库详情的索引数量随重新抓取下降。
+## 正式发布与线上验收
+
+用户于 2026-10-26 明确授权上线。生产已部署准确提交
+`eb951e4f3845fcb4649ebf8edd02a529a72ae821`；[CI 40323974139](https://github.com/PetitRobusto/cigardomtabaka/actions/runs/40323974139)
+及 [Deploy 40324626589](https://github.com/PetitRobusto/cigardomtabaka/actions/runs/40324626589) 均成功。
+Gunicorn 和 storefront worker 正常运行，生产受版本控制文件干净。
+
+- 生产 60 个公开商品、255 个活动缓存页面；`check_storefront_cache` 全部匹配。
+- `check_storefront_sitemap` 验证 **252 个允许索引的规范 URL** 与实际集合完全一致。255 是渲染页面数，252 是可索引数，不混用；也不能据数字相同把生产验收当作开发副本结果。
+- 三语首页、目录、Cohiba 品牌和四款试点共 21 页，以及静态资源、sitemap、robots、登录 noindex、随机地址 404、www 跳转共 **28 URL 检查无异常**。验收报告临时文件 `/tmp/seo14-production-http.json`。
+- 另验证未发布型号 `/cigar/1/bolivar-belicosos-finos` 的三语 HTML 和页面 API，6 项均返回 404。
+- Cigar、StockMovement、LedgerTransaction、SalesOrder、SalesOrderItem、PurchaseOrderItem、ProductListing、StoreTranslation 与发布前备份逐行哈希一致。
+
+一致备份均用 SQLite backup API，并校验完整性及外键；备份目录 0700、文件 0600：
+
+- 发布前 `/opt/cigardomtabaka/backups/seo14-predeploy-20261026T123609Z/`。
+- 发布后 `/opt/cigardomtabaka/backups/seo14-postdeploy-20261026T124845Z/`。
+
+**同期价格变更单独记录：** 发布前后比较发现 CigarPrice 新增 12 行、修改 26 行。
+新增行的 `created_at` 为 12:36:47 UTC，早于 CI push 的 12:37:34；已有行的
+`updated_at` 仍是旧日期，无法确定这 26 行的修改时间或来源。可见字段差异为
+`can_preorder`、`wholesale_price`、`is_active`。核查部署、预渲染、缓存/sitemap 检查路径
+均没有写 CigarPrice；本次未回滚或改动这些价格数据，发布后备份已保留它们。
+不能声称所有业务表均与旧备份一致，也不能直接用旧备份覆盖这些同期变更。
+
+下一步取得新的 GSC URL 明细，跟踪核心俄语页的抓取、索引与 Google canonical，
+允许旧数据库详情的索引数量随重新抓取下降。新 404 视觉页面另见
+[SEO-15](seo-15-not-found.md)，因 OpenDesign MCP 超时未随本次上线。

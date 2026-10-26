@@ -13,6 +13,7 @@ class BrandLandingNavigationTests(TestCase):
     def setUp(self):
         self.brand = Brand.objects.create(english_name="Cohiba", name="高希霸", slug="cohiba")
         self.cigar = Cigar.objects.create(brand="Cohiba", english_name="Genios", name="天才")
+        ProductListing.objects.create(cigar=self.cigar, published=True)
         create_purchase_batch(
             source="opening", cigar=self.cigar, quantity=25, remaining=0,
             physical_remaining=0, box_size=25, unit_cost_cny=Decimal("1"),

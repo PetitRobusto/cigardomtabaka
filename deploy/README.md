@@ -49,13 +49,20 @@ python3 deploy/verify_storefront_http.py https://cigardomtabaka.com \
 
 对于已经 enabled 或 active 的商城 worker，Deploy 会在替换代码前暂停它，
 安装代码和制品后同步渲染，并用 `check_storefront_cache` 核对全部当前页面的实际内容、
-构建哈希和稳定刷新版本；最多三轮，通过后才重启 Web、恢复 worker。
+构建哈希和稳定刷新版本；随后用 `check_storefront_sitemap` 对比实时 sitemap 与当前
+可索引页面集合（含新发布商品），通过后才重启 Web、恢复 worker。缺失 URL、额外 URL、
+重复 URL、非规范 URL 或 XML 异常都会阻止发布完成。命令只读取当前资格和真实 sitemap，
+不会写入或伪造 XML；缺少必需翻译的商品仍为 noindex 并排除在 sitemap 外。
 disabled 且 inactive 的 worker 不会被自动启用。失败报告具体阶段，不盲目启动新 worker；
 需核实代码、迁移和缓存状态后处理，不把重启当作回滚。SSH 部署超时为 20 分钟。
 预渲染期间旧 Web 继续服务；不兼容的缓存更新与 Web 重启间仍可能短暂返回 503。
 
 工作流完成代表安装、适用的缓存门禁与服务重启成功。商城首次启用还必须完成
 [商城发布验收](../docs/storefront-operations.md#发布验收门禁)，包括缓存代次、HTTPS www、HTTP 结果和回退准备。
+单独核对刚发布商品时，可在已更新代码和数据库的环境运行
+`manage.py check_storefront_sitemap --require-path /cigar/<id>/<slug>`；重复传入参数可核对多条路径。
+该参数要求商品当前已发布、可索引且已进入实时 sitemap，缺翻译或仍为 noindex 时会失败。
+发布门禁只保证本地 sitemap 与当前公开页面资格一致，不保证搜索引擎已抓取、收录或排名。
 当前工作流不会安装 Nginx 模板、创建 worker 服务或自动启用商城。
 `deploy/nginx-https.conf` 是按现有生产证书路径准备的 HTTPS 配置，包含 www 规范跳转；
 仅在核对实际证书覆盖两个域名、备份现有配置并通过 `nginx -t` 后安装。

@@ -60,12 +60,9 @@ class RequestCatalogTests(TestCase):
             response = self.client.get("/api/storefront/page/", {
                 "path": f"/en/cigar/{target.pk}/old-slug",
             })
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["product"]["id"], target.pk)
+        self.assertEqual(response.status_code, 404)
         built_ids = {call.args[0].pk for call in build.call_args_list}
-        self.assertEqual(built_ids, {c.pk for c in self.cigars} | {target.pk})
-        self.assertTrue(response.json()["path"].endswith("cohiba-directory-0"))
-        self.assertIn("noindex", response["X-Robots-Tag"])
+        self.assertEqual(built_ids, {c.pk for c in self.cigars})
 
     def test_requests_read_price_stock_and_withdrawal_changes_immediately(self):
         cigar = self.cigars[0]

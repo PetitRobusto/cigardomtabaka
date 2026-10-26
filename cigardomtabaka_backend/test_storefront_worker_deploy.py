@@ -1,4 +1,4 @@
-"""Exercise the workflow's cache gate and service order with a fake service manager."""
+"""Exercise the workflow's storefront gates and service order with a fake service manager."""
 import os
 from pathlib import Path
 import subprocess
@@ -30,6 +30,7 @@ class StorefrontWorkerDeployTests(unittest.TestCase):
               printf 'check\\n' >> "$CALLS"
               check_count=$((check_count + 1))
               test "$check_count" -gt "$CHECK_FAILURES" ;;
+            *"manage.py check_storefront_sitemap") printf 'sitemap\\n' >> "$CALLS"; return "$SITEMAP_STATUS" ;;
             "systemctl restart gunicorn") printf 'web\\n' >> "$CALLS"; return "$WEB_STATUS" ;;
             "systemctl restart storefront-worker.service") printf 'worker\\n' >> "$CALLS"; return "$WORKER_STATUS" ;;
             *) return 99 ;;
@@ -39,7 +40,7 @@ class StorefrontWorkerDeployTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             calls = Path(directory) / 'calls'
             controls = dict(ENABLED_STATUS='0', ACTIVE_STATUS='0', STOP_STATUS='0', RENDER_STATUS='0',
-                            CHECK_FAILURES='0', WEB_STATUS='0', WORKER_STATUS='0')
+                            CHECK_FAILURES='0', SITEMAP_STATUS='0', WEB_STATUS='0', WORKER_STATUS='0')
             controls.update({key: str(value) for key, value in overrides.items()})
             env = {**os.environ, **controls, 'CALLS': str(calls)}
             result = subprocess.run(['bash', '-e', '-c', dedent(mock) + dedent(pause) + dedent(finish)],
@@ -50,7 +51,7 @@ class StorefrontWorkerDeployTests(unittest.TestCase):
         for enabled, active in [(0, 0), (0, 1), (1, 0)]:
             with self.subTest(enabled=enabled, active=active):
                 self.assertEqual(self.run_workflow(ENABLED_STATUS=enabled, ACTIVE_STATUS=active),
-                                 (0, ['stop', 'render', 'check', 'web', 'worker']))
+                                 (0, ['stop', 'render', 'check', 'sitemap', 'web', 'worker']))
 
     def test_disabled_inactive_worker_is_not_enabled_or_started(self):
         self.assertEqual(self.run_workflow(ENABLED_STATUS=1, ACTIVE_STATUS=1), (0, ['web']))
@@ -59,15 +60,17 @@ class StorefrontWorkerDeployTests(unittest.TestCase):
         for controls, expected in [
             ({'STOP_STATUS': 7}, (7, ['stop'])),
             ({'RENDER_STATUS': 7}, (7, ['stop', 'render'])),
-            ({'WEB_STATUS': 7}, (7, ['stop', 'render', 'check', 'web'])),
-            ({'WORKER_STATUS': 7}, (7, ['stop', 'render', 'check', 'web', 'worker'])),
+            ({'SITEMAP_STATUS': 7}, (7, ['stop', 'render', 'check', 'sitemap'])),
+            ({'WEB_STATUS': 7}, (7, ['stop', 'render', 'check', 'sitemap', 'web'])),
+            ({'WORKER_STATUS': 7}, (7, ['stop', 'render', 'check', 'sitemap', 'web', 'worker'])),
         ]:
             with self.subTest(controls=controls):
                 self.assertEqual(self.run_workflow(**controls), expected)
 
     def test_stale_generations_retry_whole_render_and_never_bypass_gate(self):
         attempts = ['render', 'check'] * 3
-        self.assertEqual(self.run_workflow(CHECK_FAILURES=2), (0, ['stop', *attempts, 'web', 'worker']))
+        self.assertEqual(self.run_workflow(CHECK_FAILURES=2),
+                         (0, ['stop', *attempts, 'sitemap', 'web', 'worker']))
         self.assertEqual(self.run_workflow(CHECK_FAILURES=99), (1, ['stop', *attempts]))
 
 

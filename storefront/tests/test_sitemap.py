@@ -1,5 +1,6 @@
 """Sitemap eligibility, revalidation and bounded catalog work."""
 
+import io
 from copy import deepcopy
 from datetime import timedelta
 from decimal import Decimal
@@ -7,6 +8,7 @@ from unittest.mock import patch
 from xml.etree.ElementTree import fromstring
 
 from django.core.cache import cache
+from django.core.management import CommandError, call_command
 from django.db import connection
 from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
@@ -169,3 +171,27 @@ class SitemapTests(TestCase):
         self.assertContains(other, 'https://other.example')
         with override_settings(STOREFRONT_ENABLED=False):
             self.assertEqual(self.client.get(self.url, HTTP_IF_NONE_MATCH=first['ETag']).status_code, 404)
+
+    def test_release_command_tracks_new_publication_render_and_withdrawal(self):
+        product_path = next(
+            path for path, payload in build_pages().items()
+            if payload['kind'] == 'product' and payload['locale'] == 'zh' and payload['indexable']
+        )
+        # A newly published product is not release-ready until its sitemap row is rendered.
+        with self.assertRaisesMessage(CommandError, '缺少'):
+            call_command('check_storefront_sitemap', stdout=io.StringIO())
+
+        pages = self.publish()
+        fallback_paths = [path for path, payload in pages.items()
+                          if payload['kind'] == 'product' and payload['locale'] != 'zh'
+                          and not payload['indexable']]
+        self.assertTrue(fallback_paths)
+        self.assertNotIn(fallback_paths[0], self.paths(self.client.get(self.url)))
+        call_command('check_storefront_sitemap', stdout=io.StringIO())
+
+        # Old cached product rows may remain in storage; current eligibility removes them.
+        self.listing.withdrawn = True
+        self.listing.save(update_fields=['withdrawn'])
+        self.publish()
+        self.assertNotIn(product_path, self.paths(self.client.get(self.url)))
+        call_command('check_storefront_sitemap', stdout=io.StringIO())

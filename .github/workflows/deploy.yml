@@ -163,6 +163,8 @@ jobs:
                   exit 1
                 fi
               done
+              DEPLOY_STAGE=verify-storefront-sitemap
+              sudo -u www-data env DJANGO_DEBUG=False venv/bin/python manage.py check_storefront_sitemap
             fi
 
             echo "=== restart gunicorn ==="

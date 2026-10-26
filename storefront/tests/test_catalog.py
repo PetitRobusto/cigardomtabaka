@@ -39,6 +39,7 @@ class StorefrontCatalogTests(TestCase):
             ring_gauge=50,
             image_url="https://images.example/cigar.jpg",
         )
+        self.listing = ProductListing.objects.create(cigar=self.cigar, published=True)
         self.batch = create_purchase_batch(
             source=PurchaseBatch.Source.OPENING,
             cigar=self.cigar,
@@ -117,9 +118,11 @@ class StorefrontCatalogTests(TestCase):
         )
         return order, batches
 
-    def test_legacy_chinese_catalog_exposes_no_offer_until_listing_published(self):
+    def test_legacy_chinese_record_is_private_until_listing_published(self):
         path = f"/cigar/{self.cigar.pk}/test-brand-test-cigar"
-        product = build_pages()[path]["product"]
+        self.listing.delete()
+        self.assertNotIn(path, build_pages())
+        product = _product_data(self.cigar, "zh", None, {self.brand.slug: self.brand}, {}, set(), {}, set(), {}, {})
         self.assertEqual(product["name"], "测试雪茄")
         self.assertEqual(product["availability"], "catalog")
         self.assertEqual(product["offers"], [])
@@ -286,6 +289,7 @@ class StorefrontCatalogTests(TestCase):
             for index in range(25)
         ]))
         for cigar in translated_cigars[1:]:
+            ProductListing.objects.create(cigar=cigar, published=True)
             create_purchase_batch(
                 source=PurchaseBatch.Source.OPENING, cigar=cigar,
                 quantity=1, remaining=1, physical_remaining=1, box_size=None,
@@ -336,14 +340,17 @@ class StorefrontCatalogTests(TestCase):
         ])
         path = f"/cigar/{self.cigar.pk}/test-brand-test-cigar"
         product = build_pages()[path]["product"]
-        self.assertEqual(product["availability"], "catalog")
+        self.assertEqual(product["availability"], "in_stock")
 
     def test_home_requires_approved_translation_and_only_lists_published_stock(self):
+        self.listing.published = False
+        self.listing.save(update_fields=["published"])
         self.assertNotIn("/", build_pages())
         self.add_home_translation()
         home = build_pages()["/"]
         self.assertEqual(home["products"], [])
-        ProductListing.objects.create(cigar=self.cigar, published=True)
+        self.listing.published = True
+        self.listing.save(update_fields=["published"])
         home = build_pages()["/"]
         self.assertEqual([row["id"] for row in home["products"]], [self.cigar.pk])
 
@@ -492,6 +499,7 @@ class StorefrontCatalogTests(TestCase):
             for index in range(25)
         ])
         for cigar in cigars:
+            ProductListing.objects.create(cigar=cigar, published=True)
             create_purchase_batch(
                 source=PurchaseBatch.Source.OPENING, cigar=cigar,
                 quantity=1, remaining=1, physical_remaining=1, box_size=None,
@@ -549,7 +557,7 @@ class StorefrontCatalogTests(TestCase):
 
     def test_page_data_etag_and_current_publication_guard(self):
         self.add_home_translation()
-        listing = ProductListing.objects.create(cigar=self.cigar, published=True)
+        listing = self.listing
         payload = build_pages()["/"]
         store_page = StorePage.objects.create(
             path="/", payload=payload, rendered_payload=payload,
@@ -584,7 +592,6 @@ class StorefrontCatalogTests(TestCase):
 
     def test_stock_catalog_has_its_own_routes_and_publication_dependencies(self):
         home = self.add_home_translation()
-        ProductListing.objects.create(cigar=self.cigar, published=True)
         pages = build_pages()
         catalog = pages["/catalog"]
         self.assertEqual(catalog["view"], "catalog")
@@ -613,7 +620,6 @@ class StorefrontCatalogTests(TestCase):
 
     def test_catalog_combines_brand_box_and_vitola_search_with_no_false_results(self):
         self.add_home_translation()
-        ProductListing.objects.create(cigar=self.cigar, published=True)
         response = page_data(self.factory.get("/api/storefront/page/", {
             "path": "/catalog", "brand": self.brand.slug, "box": "25", "q": "罗布图", "sort": "length",
         }))
@@ -629,7 +635,6 @@ class StorefrontCatalogTests(TestCase):
 
     def test_new_filter_parameters_trigger_live_catalog_filtering(self):
         self.add_home_translation()
-        ProductListing.objects.create(cigar=self.cigar, published=True)
         for criteria, expected in [
             ({"length_min": "124", "length_max": "124", "ring_min": "50", "ring_max": "50", "price_min": "12345.67", "price_max": "12345.67", "stock_only": "1"}, [self.cigar.pk]),
             ({"length_min": "125"}, []), ({"ring_max": "49"}, []),
@@ -648,6 +653,7 @@ class StorefrontCatalogTests(TestCase):
             for i in range(30)
         ])
         for cigar in cigars:
+            ProductListing.objects.create(cigar=cigar, published=True)
             create_purchase_batch(source=PurchaseBatch.Source.OPENING, cigar=cigar,
                                   quantity=1, remaining=0, physical_remaining=0, box_size=None,
                                   unit_cost_cny=Decimal("1.00"))
@@ -670,7 +676,6 @@ class StorefrontCatalogTests(TestCase):
     def test_stock_catalog_paginates_all_filtered_rows_and_language_alternates(self):
         from unittest.mock import patch
         self.add_home_translation()
-        ProductListing.objects.create(cigar=self.cigar, published=True)
         second = Cigar.objects.create(brand=self.brand.english_name, english_name="Second", length=110)
         ProductListing.objects.create(cigar=second, published=True)
         create_purchase_batch(source=PurchaseBatch.Source.OPENING, cigar=second,
@@ -721,6 +726,7 @@ class StorefrontCatalogTests(TestCase):
         for index, english_name in enumerate(reversed(PRIORITY_BRANDS)):
             brand = Brand.objects.create(english_name=english_name, name=f"品牌 {index}")
             cigar = Cigar.objects.create(brand=brand.english_name, english_name=f"历史商品 {index}")
+            ProductListing.objects.create(cigar=cigar, published=True)
             create_purchase_batch(source=PurchaseBatch.Source.OPENING, cigar=cigar,
                                   quantity=1, remaining=0, physical_remaining=0, box_size=None,
                                   unit_cost_cny=Decimal("1.00"))
@@ -729,11 +735,11 @@ class StorefrontCatalogTests(TestCase):
         pages = build_pages()
         home = pages["/"]
         navigation = home["navigation"]["brands"]
-        self.assertEqual([b["english_name"] for b in navigation[:6]], list(PRIORITY_BRANDS))
+        self.assertEqual([b["english_name"] for b in navigation[:7]], ["Test Brand", *PRIORITY_BRANDS])
         self.assertNotIn("Never Stocked Brand", {b["english_name"] for b in navigation})
         self.assertTrue(allowed_payload(home))
-        self.assertEqual(navigation[1]["path"], "/brand/montecristo")
-        self.assertIn(navigation[1]["path"], pages)
+        self.assertEqual(navigation[2]["path"], "/brand/montecristo")
+        self.assertIn(navigation[2]["path"], pages)
         response = page_data(self.factory.get("/api/storefront/page/", {"path": "/catalog", "brand": "montecristo"}))
         filtered = json.loads(response.content)["products"]
         self.assertEqual([product["id"] for product in filtered], [
@@ -790,11 +796,11 @@ class StorefrontCatalogTests(TestCase):
             "image_type": None,
             "box_size": None,
         }])
-        self.assertEqual([p["id"] for p in pages["/"]["products"]], [cigar.pk])
+        self.assertEqual({p["id"] for p in pages["/"]["products"]}, {self.cigar.pk, cigar.pk})
         self.assertEqual({p["id"] for p in pages["/catalog"]["products"]}, {self.cigar.pk, cigar.pk})
         self.assertTrue(pages["/catalog"]["navigation"]["has_sticks"])
         self.assertTrue(pages["/catalog"]["filter_options"]["has_sticks"])
-        self.assertEqual(pages["/catalog"]["navigation"]["box_sizes"], [])
+        self.assertEqual(pages["/catalog"]["navigation"]["box_sizes"], [25])
         self.assertTrue(allowed_payload(pages["/catalog"]))
         self.assertNotIn("987", json.dumps(product))
 
@@ -806,7 +812,7 @@ class StorefrontCatalogTests(TestCase):
                   self.make_stick_cigar("Unpublished", published=False)]
         pages = build_pages()
         self.assertEqual({p["id"] for p in pages["/catalog"]["products"]},
-                         {self.cigar.pk, hidden[1].pk, hidden[3].pk})
+                         {self.cigar.pk, hidden[0].pk, hidden[1].pk})
         self.assertFalse(pages["/catalog"]["navigation"]["has_sticks"])
         for cigar in hidden:
             products = [p["product"] for p in pages.values() if p.get("product") and p["product"]["id"] == cigar.pk]
@@ -814,7 +820,6 @@ class StorefrontCatalogTests(TestCase):
 
     def test_stick_filter_combines_brand_query_and_box_or_without_inventing_sticks(self):
         self.add_home_translation()
-        ProductListing.objects.create(cigar=self.cigar, published=True)
         loose = self.make_stick_cigar("Loose match")
         mixed = self.make_stick_cigar("Mixed match", remaining=27, physical=27, box_size=25)
         def results(**criteria):
@@ -837,12 +842,8 @@ class StorefrontCatalogTests(TestCase):
         listing.save(update_fields=["published"])
         self.assertFalse(allowed_payload(cached))
         pages = build_pages()
-        catalog_product = next(p for p in pages["/catalog"]["products"] if p["id"] == cigar.pk)
-        self.assertEqual(catalog_product["availability"], "catalog")
-        self.assertEqual(catalog_product["offers"], [])
-        product = next(p["product"] for p in pages.values() if p.get("product") and p["product"]["id"] == cigar.pk)
-        self.assertEqual(product["offers"], [])
-        self.assertEqual(product["availability"], "catalog")
+        self.assertNotIn(cigar.pk, [p["id"] for p in pages["/catalog"]["products"]])
+        self.assertFalse(any(p.get("product") and p["product"]["id"] == cigar.pk for p in pages.values()))
         listing.published = True
         listing.withdrawn = True
         listing.save(update_fields=["published", "withdrawn"])
@@ -879,9 +880,10 @@ class StockHistoryDiscoveryTests(TestCase):
     def product_ids(self, rows):
         return {row["id"] for row in rows}
 
-    def test_never_stocked_stays_directly_accessible_but_is_not_discoverable(self):
+    def test_published_never_stocked_product_is_discoverable(self):
         historical = self.cigar("Previously stocked")
         self.batch(historical, quantity=10, remaining=0)
+        ProductListing.objects.create(cigar=historical, published=True)
         never_stocked = self.cigar("Directory only")
         ProductListing.objects.create(cigar=never_stocked, published=True)
 
@@ -890,22 +892,20 @@ class StockHistoryDiscoveryTests(TestCase):
         catalog = pages["/catalog"]
         direct_path = f"/cigar/{never_stocked.pk}/history-brand-directory-only"
         self.assertIn(direct_path, pages)
-        self.assertEqual(self.product_ids(brand_page["products"]), {historical.pk})
-        self.assertEqual(self.product_ids(catalog["products"]), {historical.pk})
-        self.assertEqual(search_products("Directory only", pages=pages), [])
+        self.assertEqual(self.product_ids(brand_page["products"]), {historical.pk, never_stocked.pk})
+        self.assertEqual(self.product_ids(catalog["products"]), {historical.pk, never_stocked.pk})
+        self.assertEqual([row["id"] for row in search_products("Directory only", pages=pages)], [never_stocked.pk])
         self.assertNotIn(never_stocked.pk, public_dependencies()["known_inventory"])
+        self.assertEqual(pages["/"]["products"], [])
 
-    def test_unlisted_and_positive_adjustment_only_history_appears_without_offers(self):
+    def test_unpublished_and_positive_adjustment_only_history_is_not_public(self):
         adjusted = self.cigar("Adjusted stock history")
         self.batch(adjusted, quantity=0, positive_adjustment_quantity=5)
 
         pages = build_pages()
-        catalog_product = next(row for row in pages["/catalog"]["products"] if row["id"] == adjusted.pk)
-        brand_product = next(row for row in pages[f"/brand/{self.brand.slug}"]["products"] if row["id"] == adjusted.pk)
-        self.assertEqual(catalog_product["availability"], "catalog")
-        self.assertEqual(catalog_product["offers"], [])
-        self.assertEqual(brand_product["availability"], "catalog")
-        self.assertEqual(brand_product["offers"], [])
+        self.assertNotIn(adjusted.pk, self.product_ids(pages["/catalog"]["products"]))
+        self.assertNotIn(f"/cigar/{adjusted.pk}/history-brand-adjusted-stock-history", pages)
+        self.assertNotIn(adjusted.pk, [row["id"] for row in search_products("Adjusted", pages=pages)])
 
     def test_catalog_includes_current_stock_for_cigar_with_unregistered_brand(self):
         cigar = Cigar.objects.create(brand="Unregistered Brand", english_name="Current stock")
@@ -917,7 +917,7 @@ class StockHistoryDiscoveryTests(TestCase):
         self.assertEqual(self.product_ids(pages["/catalog"]["products"]), {cigar.pk})
         self.assertFalse(any(page["kind"] == "brand" and page["products"] for page in pages.values()))
 
-    def test_cached_discovery_page_is_rejected_when_its_history_is_reversed(self):
+    def test_reversing_inventory_keeps_published_catalog_but_removes_stock_home_card(self):
         cigar = self.cigar("Reversal invalidates discovery")
         batch = self.batch(cigar, quantity=5)
         ProductListing.objects.create(cigar=cigar, published=True)
@@ -927,8 +927,11 @@ class StockHistoryDiscoveryTests(TestCase):
         force_inventory_update(PurchaseBatch.objects.filter(pk=batch.pk),
                                reversed_at=timezone.now(), reversed_quantity=5,
                                reversed_cost_cny=batch.original_cost_cny)
-        self.assertFalse(allowed_payload(cached))
-        self.assertEqual(build_pages()["/catalog"]["products"], [])
+        self.assertTrue(allowed_payload(cached))
+        rebuilt = build_pages()["/catalog"]["products"]
+        self.assertEqual([row["id"] for row in rebuilt], [cigar.pk])
+        self.assertEqual(rebuilt[0]["availability"], "catalog")
+        self.assertEqual(build_pages()["/"]["products"], [])
 
     def test_zero_reversed_and_deleted_batches_do_not_create_discoverable_history(self):
         zero = self.cigar("Zero quantity")
@@ -939,8 +942,7 @@ class StockHistoryDiscoveryTests(TestCase):
         self.batch(deleted, quantity=5)
 
         pages = build_pages()
-        visible_ids = self.product_ids(pages[f"/brand/{self.brand.slug}"]["products"])
-        self.assertEqual(visible_ids, set())
+        self.assertNotIn(f"/brand/{self.brand.slug}", pages)
         self.assertEqual(pages["/catalog"]["products"], [])
         self.assertEqual(search_products("stock", pages=pages), [])
 

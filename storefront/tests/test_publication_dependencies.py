@@ -181,11 +181,11 @@ class TranslationPublicationDependenciesTests(TestCase):
                 translation.save(update_fields=[field])
 
     def test_paginated_page_only_depends_on_translations_it_actually_shows(self):
-        ProductListing.objects.filter(cigar=self.cigar).update(published=False)
         cigars = Cigar.objects.bulk_create([
             Cigar(brand=self.brand.english_name, english_name=f"A item {number:02}")
             for number in range(24)
         ])
+        ProductListing.objects.bulk_create([ProductListing(cigar=cigar, published=True) for cigar in cigars])
         for cigar in cigars:
             create_purchase_batch(
                 source=PurchaseBatch.Source.OPENING, cigar=cigar,
@@ -195,16 +195,21 @@ class TranslationPublicationDependenciesTests(TestCase):
         translation = self.translation("product", self.cigar.pk)
         translation.title = "Z translated item"
         translation.save(update_fields=["title"])
+        first_path = self.brand_path
         second_path = self.brand_path + "?page=2"
-        first = self.cache(self.brand_path)
+        first = self.cache(first_path)
         second = self.cache(second_path)
         dependency = ["product", str(self.cigar.pk), "zh"]
-        self.assertNotIn(dependency, first["translation_dependencies"])
-        self.assertIn(dependency, second["translation_dependencies"])
-        self.assertEqual(second["translation_dependencies"], sorted(second["translation_dependencies"]))
-        self.assertEqual(len(second["translation_dependencies"]), len({tuple(row) for row in second["translation_dependencies"]}))
+        shown_path = next(path for path, payload in ((first_path, first), (second_path, second))
+                          if any(item["id"] == self.cigar.pk for item in payload["products"]))
+        hidden_path, hidden = (second_path, second) if shown_path == first_path else (first_path, first)
+        shown = first if shown_path == first_path else second
+        self.assertIn(dependency, shown["translation_dependencies"])
+        self.assertNotIn(dependency, hidden["translation_dependencies"])
+        self.assertEqual(shown["translation_dependencies"], sorted(shown["translation_dependencies"]))
+        self.assertEqual(len(shown["translation_dependencies"]), len({tuple(row) for row in shown["translation_dependencies"]}))
         translation.published = False
         translation.save(update_fields=["published"])
-        self.assertTrue(allowed_payload(first))
-        self.assertEqual(self.client.get(self.brand_path).status_code, 200)
-        self.assert_unservable([second_path])
+        self.assertTrue(allowed_payload(hidden))
+        self.assertEqual(self.client.get(hidden_path).status_code, 200)
+        self.assert_unservable([shown_path])

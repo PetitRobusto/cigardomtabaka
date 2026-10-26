@@ -196,7 +196,10 @@ def _known_inventory() -> set[int]:
 
 
 def _published_listings() -> set[int]:
-    return set(ProductListing.objects.filter(published=True, withdrawn=False).values_list("cigar_id", flat=True))
+    """The public product boundary; inventory history alone is not publication."""
+    return set(ProductListing.objects.filter(
+        published=True, withdrawn=False, cigar__deleted_at__isnull=True,
+    ).values_list("cigar_id", flat=True))
 
 
 def _latest_purchase_product_ids(listing_ids: set[int], limit: int = 12) -> list[int]:
@@ -415,12 +418,10 @@ def _translation_dependencies(page: dict, translations: dict) -> list[list[str]]
 
 
 def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
-    """Build public pages; requests omit unrelated directory-only detail pages.
+    """Build only explicitly published shop products, in every supported locale.
 
-    Discovery shelves depend on inventory history and live stock, not the whole
-    legacy directory. Keep those dependencies plus the requested product in all
-    locales so recommendations, pagination and hreflang match the full build.
-    Workers omit requested_path to retain every public detail URL.
+    Requests and the rendering worker use the same small public collection.
+    A requested ID never grants access to an internal directory record.
     """
     brands = _brand_rows()
     store = StoreSettings.objects.filter(pk=1).first()
@@ -430,17 +431,7 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
     listings = _published_listings()
     latest_product_ids = _latest_purchase_product_ids(listings)
     translations = _published_translations()
-    cigar_query = Cigar.objects.filter(deleted_at__isnull=True)
-    if requested_path is not None:
-        needed = known_inventory | {cigar_id for cigar_id, _ in stock} | set(stick_stock) | set(latest_product_ids)
-        cleaned = _clean_path(urlsplit(requested_path or "/").path)
-        match = re.fullmatch(r"(?:/(?:ru|en))?/cigar/(\d+)(?:/[^/]*)?/?", cleaned)
-        if match:
-            # Avoid handing arbitrary-sized URL integers to the database.
-            product_id = int(match.group(1)) if len(match.group(1)) <= 19 else 0
-            if 0 < product_id <= 9223372036854775807:
-                needed.add(product_id)
-        cigar_query = cigar_query.filter(pk__in=needed)
+    cigar_query = Cigar.objects.filter(pk__in=listings, deleted_at__isnull=True)
     cigars = list(cigar_query.select_related().prefetch_related("images"))
     prices_by_cigar = defaultdict(list)
     for price in CigarPrice.objects.filter(is_active=True, cigar_id__in=[cigar.pk for cigar in cigars]).order_by("sort_order", "box_size"):
@@ -461,15 +452,12 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
             resolved = _resolved_translation("brand", brand.slug, locale, translations)
             if resolved:
                 brand_translations[locale][brand.slug] = resolved
-    withdrawn = set(ProductListing.objects.filter(withdrawn=True).values_list("cigar_id", flat=True))
     result: dict[str, dict] = {}
     products_by_locale = {locale: {} for locale in LOCALES}
 
-    # Product pages: legacy Chinese catalog records remain available without a listing.
+    # Product copy and specifications come from Cigar, but do not grant publication.
     for locale in LOCALES:
         for cigar in cigars:
-            if cigar.pk in withdrawn:
-                continue
             translation = _resolved_translation("product", cigar.pk, locale, translations)
             brand = next((b for b in brands.values() if b.english_name == cigar.brand), None)
             product = _product_data(cigar, locale, translation, brands, stock, listings, prices_by_cigar, known_inventory, brand_translations, stick_stock)
@@ -500,20 +488,18 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
             _set_page_language(page, _page_translation_complete(locale, translations, [product]))
             result[page["path"]] = page
 
-    # Brand pages exist in every locale; reviewed text is used when available,
-    # and otherwise the official brand name remains visible as a fallback.
+    # Only brands represented by public shop products have public landing pages.
+    public_brands = {cigar.brand for cigar in cigars}
     for locale in LOCALES:
         locale_brand_translations = brand_translations[locale]
         for brand in brands.values():
+            if brand.english_name not in public_brands:
+                continue
             exact_translation = translations.get(("brand", brand.slug, locale))
             translation = locale_brand_translations.get(brand.slug)
             brand_path = _brand_path(locale, brand.slug)
             rows = []
             for cigar in cigars:
-                if cigar.pk in withdrawn:
-                    continue
-                if cigar.pk not in known_inventory:
-                    continue
                 if cigar.brand != brand.english_name:
                     continue
                 rows.append(products_by_locale[locale][cigar.pk])
@@ -562,8 +548,6 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
                       "body": translation.body} if translation else HOME_COPY["en"])
         rows = []
         for cigar in cigars:
-            if cigar.pk in withdrawn or cigar.pk not in listings:
-                continue
             if not stick_stock.get(cigar.pk) and not any(stock.get((cigar.pk, box_size), 0) > 0 for (cigar_id, box_size) in stock if cigar_id == cigar.pk):
                 continue
             rows.append(products_by_locale[locale][cigar.pk])
@@ -627,7 +611,7 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
             _, page_copy["pagination"] = _pagination(page_number, len(rows), home)
             result[page_url] = page_copy
 
-    _add_browsing_context(result, brands, brand_translations, known_inventory)
+    _add_browsing_context(result, brands, brand_translations)
 
     # A paginated page must alternate to the matching page in another locale.
     # SEO alternates include only fully reviewed target-language pages. The UI
@@ -682,14 +666,13 @@ def public_page_paths(dependencies: dict) -> set[str]:
     This is only URL eligibility. The sitemap must also validate each stored
     artifact with allowed_payload before exposing it.
     """
-    cigars = list(Cigar.objects.filter(deleted_at__isnull=True).exclude(
+    cigars = list(Cigar.objects.filter(pk__in=dependencies["published"], deleted_at__isnull=True).exclude(
         pk__in=dependencies["withdrawn"],
     ).only("pk", "brand", "english_name", "release_type", "release_name"))
     public_ids = {cigar.pk for cigar in cigars}
-    historical_ids = public_ids & dependencies["known_inventory"]
     stock_ids = {cigar_id for cigar_id, _ in _available_boxes()} | set(_available_sticks())
     home_count = len(public_ids & dependencies["published"] & stock_ids)
-    brand_counts = Counter(cigar.brand for cigar in cigars if cigar.pk in historical_ids)
+    brand_counts = Counter(cigar.brand for cigar in cigars)
     product_slugs = [(cigar.pk, _product_slug(cigar)) for cigar in cigars]
     paths = set()
 
@@ -700,16 +683,17 @@ def public_page_paths(dependencies: dict) -> set[str]:
     for locale in LOCALES:
         paths.update(_product_path(locale, cigar_id, slug) for cigar_id, slug in product_slugs)
         for brand_name, slug in dependencies["brand_slugs"].items():
-            add_pages(_brand_path(locale, slug), brand_counts[brand_name])
+            if brand_counts[brand_name]:
+                add_pages(_brand_path(locale, slug), brand_counts[brand_name])
         # Non-Chinese home pages exist as fallback pages even without a translation.
         if locale != "zh" or ("home", "home", "zh") in dependencies["translations"]:
             add_pages(_home_path(locale), home_count)
-            add_pages(_catalog_path(locale), len(historical_ids))
+            add_pages(_catalog_path(locale), len(public_ids))
     return paths
 
 
-def _add_browsing_context(pages, brands, brand_translations, known_inventory):
-    """Build stock and historical discovery shelves without exposing directory-only cigars."""
+def _add_browsing_context(pages, brands, brand_translations):
+    """Build stock and published-product shelves; never expose internal directory rows."""
     stock_by_locale = {}
     for locale in LOCALES:
         stock_by_locale[locale] = [
@@ -722,7 +706,7 @@ def _add_browsing_context(pages, brands, brand_translations, known_inventory):
         catalog_rows = [
             page["product"] for page in pages.values()
             if page["locale"] == locale and page["kind"] == "product"
-            and page.get("product") and page["product"]["id"] in known_inventory
+            and page.get("product")
         ]
         catalog_rows = list({product["id"]: product for product in catalog_rows}.values())
         catalog_rows.sort(key=lambda product: (
@@ -823,11 +807,11 @@ def public_dependencies() -> dict:
     """Take a compact snapshot of dependencies whose revocation hides cached HTML."""
     cigars = dict(Cigar.objects.filter(deleted_at__isnull=True).values_list("pk", "brand"))
     withdrawn = set(ProductListing.objects.filter(withdrawn=True).values_list("cigar_id", flat=True))
-    published = set(ProductListing.objects.filter(published=True, withdrawn=False).values_list("cigar_id", flat=True))
+    published = _published_listings()
     known_inventory = _known_inventory()
     latest_products = _latest_purchase_product_ids(published)
     brand_slugs = dict(Brand.objects.values_list("english_name", "slug"))
-    discoverable = known_inventory - withdrawn
+    discoverable = published
     translations = _published_translations()
     return {
         "cigars": cigars,
@@ -901,7 +885,7 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
                 return False
     if kind == "brand":
         slug = payload.get("path", "").split("?")[0].rstrip("/").split("/")[-1]
-        if slug not in dependencies["brand_slugs"].values():
+        if slug not in dependencies["discoverable_brands"]:
             return False
         content_indexable = _brand_has_content(slug, locale, dependencies)
         if locale != "zh":
@@ -921,7 +905,7 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
     ):
         return False
     products_to_validate = [*listed_products, *latest_products]
-    if any(product.get("id") not in dependencies["known_inventory"] for product in products_to_validate):
+    if any(product.get("id") not in dependencies["published"] for product in products_to_validate):
         return False
     products = list(products_to_validate)
     if payload.get("product"):
@@ -931,8 +915,7 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
         brand_name = dependencies["cigars"].get(cigar_id)
         if cigar_id not in dependencies["cigars"] or cigar_id in dependencies["withdrawn"]:
             return False
-        listing_is_live = cigar_id in dependencies["published"]
-        if (product.get("offers") or product.get("availability") != "catalog") and not listing_is_live:
+        if cigar_id not in dependencies["published"]:
             return False
         if locale != "zh":
             current_locale = locale if has_translation("product", cigar_id, locale) else "en"
@@ -1016,7 +999,7 @@ def search_products(query: str, locale: str = "zh", limit: int | None = 20,
     if not tokens:
         return []
     pages = pages if pages is not None else build_pages(requested_path="/")
-    searchable_ids = _known_inventory()
+    searchable_ids = _published_listings()
     products = []
     for page in pages.values():
         if page["locale"] != locale:

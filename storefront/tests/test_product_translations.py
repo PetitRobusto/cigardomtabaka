@@ -14,6 +14,7 @@ class ProductTranslationTests(TestCase):
     def setUp(self):
         self.brand = Brand.objects.create(english_name='Cohiba', slug='cohiba')
         self.cigar = Cigar.objects.create(brand='Cohiba', english_name='Genios')
+        self.listing = ProductListing.objects.create(cigar=self.cigar, published=True)
         for locale in ('zh', 'ru', 'en'):
             for kind, key in [('home', 'home'), ('brand', 'cohiba')]:
                 StoreTranslation.objects.create(kind=kind, key=key, locale=locale,
@@ -50,9 +51,9 @@ class ProductTranslationTests(TestCase):
         self.assertEqual(page['body'], 'Reviewed model body')
         self.assertEqual(page, build_pages(requested_path=page['path'])[page['path']])
         brand = pages['/en/brand/cohiba']
-        self.assertEqual(brand['products'], [])
+        self.assertEqual([product['id'] for product in brand['products']], [self.cigar.pk])
         self.assertNotIn('model_articles', brand)
-        self.assertNotIn(['product', str(self.cigar.pk), 'en'], brand['translation_dependencies'])
+        self.assertIn(['product', str(self.cigar.pk), 'en'], brand['translation_dependencies'])
         dependencies = public_dependencies()
         for path, payload in pages.items():
             self.assertTrue(allowed_payload(payload, dependencies), path)
@@ -66,9 +67,11 @@ class ProductTranslationTests(TestCase):
         StoreTranslation.objects.filter(pk=row.pk).update(published=False)
         self.assertFalse(allowed_payload(cached))
         StoreTranslation.objects.filter(pk=row.pk).update(published=True)
-        listing = ProductListing.objects.create(cigar=self.cigar, withdrawn=True)
+        self.listing.published = False
+        self.listing.withdrawn = True
+        self.listing.save(update_fields=['published', 'withdrawn'])
         self.assertFalse(allowed_payload(cached))
-        listing.delete()
+        self.listing.delete()
         Cigar.objects.filter(pk=self.cigar.pk).update(deleted_at=timezone.now())
         self.assertFalse(allowed_payload(cached))
 
@@ -81,21 +84,24 @@ class ProductTranslationTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn('关联商品不存在或已删除', str(form.non_field_errors()))
 
-    def test_product_copy_does_not_make_an_empty_brand_indexable(self):
+    def test_published_product_keeps_brand_landing_without_brand_body(self):
         StoreTranslation.objects.filter(kind='brand').update(body='')
         self.translation('en', published=True)
         self.translation('zh', published=True)
         pages = build_pages()
         for prefix in ('', '/ru', '/en'):
-            self.assertFalse(pages[prefix + '/brand/cohiba']['indexable'])
+            self.assertEqual([item['id'] for item in pages[prefix + '/brand/cohiba']['products']], [self.cigar.pk])
             self.assertTrue(allowed_payload(pages[prefix + '/brand/cohiba']))
 
-    def test_exact_empty_brand_body_does_not_borrow_english_body_for_hreflang(self):
+    def test_exact_empty_brand_body_does_not_borrow_english_copy(self):
+        for locale in ('zh', 'ru', 'en'):
+            self.translation(locale, published=True)
         cached = build_pages()['/brand/cohiba']
-        self.assertIn('ru', [row['locale'] for row in cached['alternates']])
         StoreTranslation.objects.filter(kind='brand', locale='ru').update(body='')
-        self.assertFalse(build_pages()['/ru/brand/cohiba']['indexable'])
-        self.assertFalse(allowed_payload(cached))
+        russian = build_pages()['/ru/brand/cohiba']
+        self.assertEqual(russian['body'], '')
+        self.assertNotIn('Reviewed body', russian['body'])
+        self.assertTrue(allowed_payload(cached))
 
     def test_each_published_language_uses_own_override_without_changing_content(self):
         titles = {'zh': '高希霸天才：莫斯科', 'ru': 'Cohiba Genios в Москве', 'en': 'Cohiba Genios in Moscow'}

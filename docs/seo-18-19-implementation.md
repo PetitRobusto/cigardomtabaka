@@ -1,6 +1,6 @@
 # SEO-18 / SEO-19：全商品与品牌三语资料
 
-日期：2026-10-26 UTC。状态：本地实现与隔离副本验收完成，用户已授权提交上线，正在执行发布。
+日期：2026-10-26 UTC。状态：已发布生产，三语全量公网验收完成。
 
 ## 需求契约
 
@@ -22,7 +22,7 @@
 - [x] 导入预览、局部事实修正及品牌标题默认规则。
 - [x] 本地写入/重复执行/保护字段、三语渲染验证。
 - [x] 独立审查、更新逐页验收账本。
-- [ ] 生产发布与线上验收（已获授权，执行中）。
+- [x] 生产发布与线上验收。
 
 ## 完成内容
 
@@ -72,7 +72,7 @@
 - 隔离 SQLite：从明确 DEBUG 的开发库创建 `/tmp/seo18-validation/cigars_seo18_dev.db`；仅将一条旧 Cohiba 中文品牌正文对齐本次公开快照以构造保留资料验收基线。原开发库和生产数据库均未修改。
 - 写入与重试：225 条译文 + 10 条规格；同 ID 重试 0 改动。最终目标记录的保护字段逐一与预览比较；60 张其他数据表与原开发库逐表比较一致。
 - 渲染：隔离副本 252 页全部 HTTP 200、缓存代次一致；实时 sitemap 恰好 252 个规范 URL。这里是本次副本的页面集合，历史生产缓存数量另按发布时实际状态验收。
-- [240 页验收表](seo-18-19-page-validation.csv)：全 180 商品 / 60 品牌页检查标题、摘要、实际可见正文、来源锚点、canonical、四组 hreflang、目标语种及可索引状态。记录的 `published_live=pending` 表示本轮尚未发布。
+- [240 页验收表](seo-18-19-page-validation.csv)：全 180 商品 / 60 品牌页检查标题、摘要、实际可见正文、来源锚点、canonical、四组 hreflang、目标语种及可索引状态。初始本地验收后，该表已更新为本轮生产公网结果，`published_live=verified`。
 - 三语桌面 1440px / 手机 390px 品牌与商品浏览器检查；来源链接出现在现有介绍区，无横向溢出和页面脚本错误。
 - 最终独立复审由 Luna high 完成，前次文案问题已关闭，无剩余 Critical/Important。
 
@@ -82,9 +82,21 @@
 
 发布前生产快照核对：Cohiba 中文品牌摘要和正文含既有措辞更新（正文为“贝伊可 Behike”），与公网一致。已将清单中该保留项的快照对齐生产现状，此记录保持零写入。生产一致备份的只读副本预览仍为 300 条目标记录、225 条译文及 10 条规格变更；备份完整性和外键检查通过。
 
+## 生产发布与验收
+
+用户明确要求“提交上线”后，代码提交 `fc92af6`，验收 CSV 换行统一后以准确 SHA `a9ccf96a4c47ef972e83b314e66676f70f35d7a6` 发布。
+[CI 40374413591](https://github.com/PetitRobusto/cigardomtabaka/actions/runs/40374413591) 于 18:09 UTC 成功，
+[Deploy 40375172846](https://github.com/PetitRobusto/cigardomtabaka/actions/runs/40375172846) 于 18:10 UTC 成功；服务器核对为同一 SHA。
+
+- 代码发布前生产一致备份及外键检查通过；资料应用前再次以 SQLite backup API 备份。目录：`/opt/cigardomtabaka/backups/seo18-19-predeploy-20261026T174200Z/`；`before.sqlite3` SHA-256 为 `e9e2a5e41b860ade9fd3c98e2077a5407fa6f874f8ae02011aebc5133aa5aaba`，`before-content.sqlite3` 为 `16ee045675e127d5024c0f0d91f7e044a9f71aca85a0c0044325b0a3cd6e7dc6`。
+- 暂停商城 worker 后以 `www-data`、`DEBUG=False` 调用受控命令。生产预览摘要与已审核备份一致，操作人 `mazhenhao`，操作 ID `seo18-19-20261026-catalog-copy-v1`；正式更新 225 条译文和 10 条规格，235 条审计记录编号为 32–266，相同操作重试 0 改动。
+- 在同一外层事务内核对 59 张其他表及 Cigar/StoreTranslation 的保护字段，全部一致；既有审计记录保持原值。应用后再次比较通过。品名、价格、库存、采购、订单、账户、图片与发布状态未变。
+- 更新 255 个公开缓存页面；`check_storefront_cache` 通过，`check_storefront_sitemap` 确认 252 个规范可索引 URL 与当前集合完全一致。Gunicorn、商城 worker 均 active，worker enabled。
+- 18:14 UTC 公网全量验收：252/252 sitemap 地址 HTTP 200；180 商品页与 60 品牌页三语内容逐项匹配清单，标题、摘要、可见正文、37 个不同来源 URL 的锚点、单 H1、canonical、四组 hreflang、语言及可索引标记均通过。三语首页、三语 404、筛选目录共 7 项回归通过。
+- 三语 × 桌面 1440px/手机 390px，共 12 组品牌和商品浏览器检查通过；等待开屏动画结束后复核页面与截图，来源链接正常，无横向溢出和页面脚本错误。独立 HTTP 合约检查同时通过 www 跳转、robots、静态资源和 sitemap。
+
+服务器目录保留 `copy-preview.json`、`copy-apply.json`、`copy-repeat.json`、保护摘要、`content-summary.json` 与 `render-summary.json`；本地证据在 `/tmp/seo18-release/`，包含 `ci-deploy.json`、`live_http_report.json`、`public-contract.json`、浏览器汇总和截图。临时数据库与媒体未提交。
+
 ## 下一步
 
-1. 获得发布授权后，提交本次代码及内容清单，使用通过 CI 的准确 commit SHA 走既有发布流程。
-2. 在生产备份与维护流程内运行该 SHA 的只读预览，核对 60/20 范围与变更；使用新预览摘要、明确操作人及稳定操作 ID 写入，随后同步渲染。生产已有新商品、身份变化或保留文案变化时重新审核，不能跳过校验。
-3. 执行 `check_storefront_cache`、`check_storefront_sitemap`，以线上 240 页复验更新发布状态。CI/CD 现有 sitemap 核验继续生效。
-4. 发布后跟进 SEO-02/11：新 GSC URL 明细、抓取版本及 Google canonical；Yandex 服务恢复后补同口径检查，并观察莫斯科品牌/型号词曝光与到店咨询。
+跟进 SEO-02/11：获取本次发布之后的新 GSC URL 明细、抓取版本及 Google canonical；Yandex 服务恢复后补同口径检查。按既有关键词池记录莫斯科品牌/型号词曝光、点击与到店咨询，继续推进 SEO-06 门店资料。

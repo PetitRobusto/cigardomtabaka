@@ -23,7 +23,7 @@ node scripts/storefront_image_export.mjs --layer media/storefront/generated-v4/l
 node scripts/storefront_image_export.mjs --layer media/storefront/generated-v4/layers/103-box-10-foreground.png --detail /tmp/magicos-export/box-10-detail.webp --list /tmp/magicos-export/box-10-list.webp --product-scale 0.86
 ```
 
-脚本先生成两张临时图片、核对尺寸，再以不覆盖现有文件的方式发布；普通执行失败会清理本次产物。详情图库按销售包装过滤盒图，并可追加经核实的同款单支；卡片与 OG 主图继续严格匹配包装。开发库可用下方通用流程，将清单参数改为 `docs/data/storefront-images-20261026-magicos.json`。本次验证及后续生产边界见 [SEO-13 实施记录](seo-13-magicos-implementation.md)。
+脚本先生成两张临时图片、核对尺寸，再以不覆盖现有文件的方式发布；普通执行失败会清理本次产物。详情图库按销售包装过滤盒图，并可追加经核实的同款单支；卡片与 OG 主图继续严格匹配包装。开发库可用下方通用流程，将清单参数改为 `docs/data/storefront-images-20261026-magicos.json`。2026-10-26 已通过 `publish_magicos_images` 受控发布到生产，仅新增两张图并调整原主图标记；旧三张关联保留。该命令固定清单、身份及哈希，默认预览，正式应用要求准确生产配置、`--confirm-production`、CAS、操作者、操作 ID 和提交 SHA。具体审计与上线验证见 [SEO-13 实施记录](seo-13-magicos-implementation.md)。
 
 ## 开发库应用
 

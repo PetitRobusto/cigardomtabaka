@@ -1,6 +1,6 @@
 # SEO-13 魔术师资料与图片精修
 
-日期：2026-10-26 UTC。状态：本地实现、开发库应用与验证完成；用户已明确授权上线，发布准备中。搜索引擎效果待观察。
+日期：2026-10-26 UTC。状态：已发布生产并完成线上验收；搜索引擎收录与排名效果待观察。
 
 ## 需求契约
 
@@ -46,4 +46,19 @@
 - 在工作进程暂停期间一致备份、应用并重复执行验证无新增写入；比较全部业务表、非目标翻译/图片、上架状态及目标品名/别名/发布状态。重建并检查缓存后恢复工作进程，再核对线上三语 HTML、全部图片、移动排版及报价状态。
 - 独立审查发现并修复生产 guard 无成功路径、缩略图占用校验及生产路径校验时序问题；测试采用临时媒体夹具，保证 GitHub CI 不依赖忽略的本地图片。
 
-发布结果待完成后填写。上线生效、引擎收录和排名分别记录；下一步门店真实素材继续 SEO-06，效果观察继续 SEO-02/11。
+## 上线结果与证据
+
+- 生产准确版本：`13474a1afc2d95fc2410af7e5f560c9882e19f51`；[CI 40278960342](https://github.com/PetitRobusto/cigardomtabaka/actions/runs/40278960342) 与 [Deploy 40279433731](https://github.com/PetitRobusto/cigardomtabaka/actions/runs/40279433731) 均成功。前端、普通后端及两组迁移测试全部通过；发布前 40 项受影响测试通过，其中新图片命令 13 项使用独立媒体夹具。生产 `storefront.0004_storetranslation_seo_title` 已应用。
+- 06:28 UTC 完成正式内容写入：#103 zh/ru/en 三条资料更新；新增单支和 10 支盒两条图片关联，原主图仅取消主图标记，原有三张全部保留，共五张。文案操作 ID `seo13-20261026-magicos-copy-v1`，图片操作 ID `seo13-20261026-magicos-images-v1`；审计记录分别为 26–28、29–31，重复执行均为 0 变化。应用前追加一致备份 `before-content.sqlite3`。
+- 54 张受保护业务/配置表前后摘要完全一致；其他 2,745 张图片、240 条非目标译文不变，目标品名、别名、营业时间与发布状态不变。价格、库存、订单、上架规则均未修改。四个新 WebP 的生产文件 SHA-256 与审核清单一致。
+- 内容应用后更新 405 个受影响公开页面，`check_storefront_cache` 确认全部 4,260 页与当前构建一致；Gunicorn 和 storefront worker 均 active。三语目标页严格 SEO 检查 0 error，仅保留已知的三语缺门店实拍及门店资料待确认共 4 条提示，继续交 SEO-06。
+- 15 个高希霸品牌/四款三语页面：HTTP 200、self-canonical、hreflang、允许收录、sitemap 和批准的完整内容逐项一致；魔术师三语均带莫斯科搜索标题，CA 原始链接直接进入服务端 HTML，无裸 Markdown。原有报价/供应状态与发布前基线完全一致：魔术师只有 10 支盒，价格需询问，当前显示有货；未将开发库 25 支选项或价格带入生产。
+- 浏览器九组检查全部通过：ru/en/zh × 1440/390/320px，五张图均能加载和切换，新盒图放大/关闭正常，无横向溢出、无 JS pageerror。主 Agent 另复核俄语桌面、英文手机截图；独立 Luna high 审查确认发布前后保护快照、CI SHA 和媒体哈希一致，无未解决 Important。
+
+证据位置：
+
+- 服务器备份与审计报告：`/var/backups/cigardomtabaka/seo13-magicos-20261026/`，含两份 SQLite 一致备份、`preflight.json`、`copy-dry-run.json`/`copy-apply.json`/`copy-repeat.json`、对应 `images-*.json`、`protected-before.json`/`protected-after.json`、`media-installed.json`、`verification.json`。
+- 本地生产数据验证副本：`/tmp/cdt-seo13-20261026/production/`；CI/Deploy 结果：`/tmp/seo13-ci-deploy.json`。
+- 线上 HTML：`/tmp/seo13-public-before.json`、`/tmp/seo13-public-after.json`；浏览器：`/tmp/seo13-public-browser-after/browser-checks.json` 及同目录九张截图。只读复现脚本：`/tmp/seo13_public.py`、`/tmp/seo13_public_browser.py`。媒体、数据库和这些临时证据不提交 Git。
+
+上线完成不等于引擎已重抓取或排名提升。本次三语新版观察起点为 2026-10-26；SEO-02/11 记录 Google/Yandex 的实际抓取、收录与莫斯科查询效果，SEO-06 继续补真实门店资料。Yandex 商家/Webmaster 的既有平台阻塞保持记录，不以本次部署视为恢复。

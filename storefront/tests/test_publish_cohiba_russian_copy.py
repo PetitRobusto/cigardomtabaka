@@ -18,8 +18,9 @@ from storefront.management.commands.publish_cohiba_russian_copy import SOURCE
 from storefront.models import ProductListing, RefreshState, StoreTranslation
 
 
-@override_settings(DEBUG=True)
-class PublishCohibaRussianCopyTests(TestCase):
+class CohibaCopyCommandFixture:
+    command_name = 'publish_cohiba_russian_copy'
+
     def setUp(self):
         self.content = read_content()
         self.actor = get_user_model().objects.create_user(username='seo-owner', is_staff=True)
@@ -49,7 +50,7 @@ class PublishCohibaRussianCopyTests(TestCase):
 
     def invoke(self, **options):
         out = io.StringIO()
-        call_command('publish_cohiba_russian_copy', stdout=out, **options)
+        call_command(self.command_name, stdout=out, **options)
         return json.loads(out.getvalue())
 
     def apply_options(self, preview=None, **overrides):
@@ -62,6 +63,9 @@ class PublishCohibaRussianCopyTests(TestCase):
                 for model in (Brand, Cigar, CigarPrice, PurchaseBatch, StockMovement, ProductListing,
                               StoreTranslation, RefreshState, LogEntry, ContentType)}
 
+
+@override_settings(DEBUG=True)
+class PublishCohibaRussianCopyTests(CohibaCopyCommandFixture, TestCase):
     def test_dry_run_is_read_only_and_reports_complete_approved_diff(self):
         before = self.state()
         with self.captureOnCommitCallbacks(execute=True) as callbacks:

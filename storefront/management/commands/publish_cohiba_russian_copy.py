@@ -35,6 +35,12 @@ def snapshot(row):
 
 class Command(BaseCommand):
     help = '预览或发布固定五条已审核俄语 Cohiba 资料；不改价格、库存或发布状态。'
+    # Subclasses may define another reviewed, fixed Cohiba release scope. These
+    # are deliberately not command-line arguments or user-selectable targets.
+    _locales = ('ru',)
+    _scope = SCOPE
+    _label = '俄语'
+    _note = '仅更新固定五条已发布俄语资料的文案；价格、库存、身份与发布状态保持原值。'
 
     def add_arguments(self, parser):
         parser.add_argument('--apply', action='store_true')
@@ -65,7 +71,7 @@ class Command(BaseCommand):
         if set(products) != set(PRODUCT_IDS):
             raise CommandError('清单必须恰好包含固定四款商品。')
         identities = [{'kind': 'brand', 'id': brand.pk, 'english_name': brand.english_name, 'slug': brand.slug}]
-        targets = [('brand', 'cohiba', None, content['brand']['translations']['ru'])]
+        entries = [('brand', 'cohiba', None, content['brand']['translations'])]
         for pk in PRODUCT_IDS:
             expected = products[pk]
             cigar = Cigar.objects.select_for_update().filter(pk=pk, deleted_at__isnull=True).first()
@@ -78,24 +84,26 @@ class Command(BaseCommand):
             identities.append({'kind': 'product', 'id': pk, 'brand': cigar.brand,
                                **{field: getattr(cigar, field) for field in fields},
                                'release_type': cigar.release_type, 'release_name': cigar.release_name})
-            targets.append(('product', str(pk), pk, expected['translations']['ru']))
+            entries.append(('product', str(pk), pk, expected['translations']))
+        targets = [(kind, key, cigar_id, locale, translations[locale])
+                   for kind, key, cigar_id, translations in entries for locale in self._locales]
         rows, reports = [], []
-        for kind, key, cigar_id, desired in targets:
-            row = StoreTranslation.objects.select_for_update().filter(kind=kind, key=key, locale='ru').first()
+        for kind, key, cigar_id, locale, desired in targets:
+            row = StoreTranslation.objects.select_for_update().filter(kind=kind, key=key, locale=locale).first()
             if row is None or not row.published or row.cigar_id != cigar_id:
-                raise CommandError(f'{kind}/{key}/ru 缺失、未发布或关联不符；整批停止。')
+                raise CommandError(f'{kind}/{key}/{locale} 缺失、未发布或关联不符；整批停止。')
             before = snapshot(row)
             changed = any(getattr(row, field) != desired[field] for field in COPY_FIELDS)
             for field in COPY_FIELDS:
                 setattr(row, field, desired[field])
             row.full_clean()
-            reports.append({'kind': kind, 'key': key, 'locale': 'ru', 'id': row.pk,
+            reports.append({'kind': kind, 'key': key, 'locale': locale, 'id': row.pk,
                             'action': 'update' if changed else 'unchanged',
                             'before': before, 'after': snapshot(row)})
             rows.append((row, changed))
-        content_digest = digest([{'kind': kind, 'key': key, 'locale': 'ru', 'copy': desired}
-                                 for kind, key, _, desired in targets])
-        expected_digest = digest({'scope': SCOPE, 'identities': identities,
+        content_digest = digest([{'kind': kind, 'key': key, 'locale': locale, 'copy': desired}
+                                 for kind, key, _, locale, desired in targets])
+        expected_digest = digest({'scope': self._scope, 'identities': identities,
                                   'before': [item['before'] for item in reports],
                                   'content_digest': content_digest})
         return rows, reports, expected_digest, content_digest
@@ -110,12 +118,15 @@ class Command(BaseCommand):
                 continue
             for message in messages if isinstance(messages, list) else []:
                 metadata = message.get('seo_release', {}) if isinstance(message, dict) else {}
+                if not isinstance(metadata, dict):
+                    continue
                 if metadata.get('source') != SOURCE or metadata.get('operation_id') != options['operation_id']:
                     continue
                 used = True
-                if (log.user_id != actor.pk or metadata.get('content_digest') != content_digest
+                if (metadata.get('scope') != self._scope
+                        or log.user_id != actor.pk or metadata.get('content_digest') != content_digest
                         or metadata.get('commit_sha') != options['commit_sha']):
-                    raise CommandError('operation-id 已用于不同的操作者、内容或提交；整批停止。')
+                    raise CommandError('operation-id 已用于不同的范围、操作者、内容或提交；整批停止。')
         if used and changed_rows:
             raise CommandError('该 operation-id 已执行，但资料随后发生变化；请重新预览并使用新的操作 ID。')
 
@@ -142,7 +153,7 @@ class Command(BaseCommand):
                                 continue
                             row.save(update_fields=[*COPY_FIELDS, 'updated_at'])
                             report['after'] = snapshot(row)
-                            metadata = {'source': SOURCE, 'scope': SCOPE,
+                            metadata = {'source': SOURCE, 'scope': self._scope,
                                         'operation_id': options['operation_id'],
                                         'commit_sha': options['commit_sha'],
                                         'business_date': timezone.localdate().isoformat(),
@@ -155,10 +166,10 @@ class Command(BaseCommand):
                                 change_message=json.dumps([{'changed': {'fields': list(COPY_FIELDS)},
                                                             'seo_release': metadata}], ensure_ascii=False))
         except (ValidationError, DatabaseError, OSError, ValueError, KeyError, TypeError, RuntimeError) as exc:
-            raise CommandError(f'Cohiba 俄语资料发布失败，事务未写入：{exc}') from exc
+            raise CommandError(f'Cohiba {self._label}资料发布失败，事务未写入：{exc}') from exc
         self.stdout.write(json.dumps({'schema_version': 1, 'mode': 'apply' if options['apply'] else 'dry-run',
-                                      'scope': SCOPE, 'source': SOURCE, 'changed_rows': changed_rows,
+                                      'scope': self._scope, 'source': SOURCE, 'changed_rows': changed_rows,
                                       'expected_digest': expected_digest, 'content_digest': content_digest,
                                       'translations': reports,
-                                      'note': '仅更新固定五条已发布俄语资料的文案；价格、库存、身份与发布状态保持原值。'},
+                                      'note': self._note},
                                      ensure_ascii=False, indent=2))

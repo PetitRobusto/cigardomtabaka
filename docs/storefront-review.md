@@ -90,7 +90,7 @@ typecheck、lint 和构建通过。此前已通过的迁移分组作为未变更
 后续审批只允许本地可回退代码修改，不代表生产部署授权。正式内容核实、真实零售价、搜索账户基线、
 生产启用和搜索后台提交仍需对应业务资料及授权；详见 [操作说明](storefront-operations.md)。
 
-## 2026-10-26 首页动画与折叠内屏修复（本地）
+## 2026-10-26 首页动画与折叠内屏修复
 
 用户设备为 vivo X Fold3 Pro，问题集中在展开内屏。根因有两项：雪茄 figure 和 img 都设置了 multiply，导致相互穿透；899px 以下一律使用单列，图片随宽度变大，但舞台固定 320px 高，近方形内屏构图拥挤且首屏过长。
 
@@ -100,4 +100,20 @@ typecheck、lint 和构建通过。此前已通过的迁移分组作为未变更
 
 复现命令：`.venv/bin/python scripts/check_home_foldable.py --base-url http://127.0.0.1:5191 --browser /path/to/chrome --output-dir /tmp/home-foldable`。基址须提供完整的本地首页和媒体；本轮截图/JSON 保存在 `/tmp/home-foldable/`，不进入 Git。中文 768px 首屏主体高度从约 782px 降至 485px。46 项前端目标测试、typecheck、lint、build 及独立审查通过。
 
-尚未部署；以上是浏览器视口模拟，不代表 vivo 真机验收。下一步按本轮授权范围发布后，在用户内屏实际浏览器和系统显示/字体设置下核对效果。开发库的商品数量、缺失素材与参考价不是生产验收结论。
+已上线，生产验收见下节。以上是浏览器视口模拟，不代表 vivo 真机验收；后续仍由用户在内屏实际浏览器和系统显示/字体设置下核对效果。开发库的商品数量、缺失素材与参考价不是生产验收结论。
+
+
+## 2026-10-26 商城修复生产验收
+
+用户明确要求「commit，上线」。实现提交 `808fe23ca2d87b9857cd511dcf5184c993d24c30` 已通过 [CI 40355850850](https://github.com/PetitRobusto/cigardomtabaka/actions/runs/40355850850) 和 [Deploy 40356677987](https://github.com/PetitRobusto/cigardomtabaka/actions/runs/40356677987)，生产 HEAD 与其完全一致。最终 Luna high 独立风险审查无 Critical/Important，无新增迁移或生产业务写入路径。
+
+发布前以 www-data 使用 SQLite backup API 保存 `/opt/cigardomtabaka/backups/storefront-fixes-20261026T160600Z/before.sqlite3`，完整性与外键检查通过；旧版本为 `9fcc7a79fe72c14c72326035319089936796cf0a`。同目录 `baseline.json` 和 `postdeploy.json` 保存摘要及核验结果。63 张表比较中，62 张完全一致，唯一变化为 `storefront_refreshstate.reconciled_at` 缓存核对时间；产品关联、库存、订单、价格和账务未变。Gunicorn、storefront worker active，worker enabled；255 页缓存与当前构建一致，sitemap 为 252 个规范可索引 URL。
+
+公网验收结果：
+
+- 全部 60 款商品 / 180 个三语详情页按生成图槽位无重复，均带微信图标。魔术师从 5 图变为 v4 单支和 10 支盒两图，两个媒体 URL 均正常。报告 `/tmp/storefront-fixes-live-images.json`。
+- 三语 × 桌面/手机共 6 组客户端缺失商品导航通过：完整独立 404、单一 main、无共享导航/页脚/员工 dock，旧 metadata 清除，返回目录后恢复且不整页重载。另 6 项三语直接访问真实 HTTP 404/noindex/独立结构通过。报告 `/tmp/storefront-fixes-live-navigation.json`、`/tmp/storefront-fixes-live-404.json`。
+- 13 项公开页面/资源/规范域名/robots/sitemap HTTP 检查无 issue，报告 `/tmp/storefront-fixes-production-http.json`。
+- 线上中俄英三语共 30 组视口及折回窄屏、六个动画时刻、扩大文字、减少动画、菜单边界、搜索状态和轮播端点检查通过；前景雪茄像素在有无后景时一致，multiply 负对照能检出旧问题。中文 768px 首页主体高约 485px。截图及报告 `/tmp/home-foldable-production/`。
+
+验收脚本首次使用错误 sitemap 路径，修正为 robots 声明的 `/sitemap-storefront.xml`；随后一次公网 TLS 连接中断，改为复用连接和有限重试后 180 页全量通过，未改线上代码。浏览器验收属于视口模拟；vivo X Fold3 Pro 内屏真机效果及 GSC 重新抓取/收录结果仍分别等待实际使用与搜索平台数据。

@@ -2,7 +2,7 @@
 
 日期：2026-10-26 UTC。状态：三语页面、真实 404 接入与构建门禁已上线并验收；GSC 历史软 404 待明细与重新抓取验证。
 
-2026-10-26 后续修复（仅本地，尚未部署）：用户要求 404 使用完整页面，管理 SPA 的未知路径现已移出通用 AppLayout，复用已有独立 404 的简洁品牌头部和联系方式底部；正常业务页仍保留共享导航和移动底部导航。错误页独立设置标题、语言和 noindex，不依赖登录状态加载。新增三语完整 App 路由回归，前端共 102 项目标测试、typecheck、lint、build（三语静态 404）及独立审查通过。下一步需获本轮部署授权后按 CI 通过的准确 SHA 发布；本次没有改变线上状态或 GSC 结论。
+2026-10-26 后续修复已随 `808fe23ca2d87b9857cd511dcf5184c993d24c30` 上线：管理 SPA 的未知路径移出通用 AppLayout，复用独立 404 的简洁品牌头部和联系方式底部；正常业务页保留共享导航和移动底部导航。错误页独立设置标题、语言和 noindex。新增三语完整 App 路由回归，前端 102 项目标测试、typecheck、lint、build 及独立审查通过；[CI 40355850850](https://github.com/PetitRobusto/cigardomtabaka/actions/runs/40355850850) 和 [Deploy 40356677987](https://github.com/PetitRobusto/cigardomtabaka/actions/runs/40356677987) 成功。公网三语缺失页/商品共 6 项真实 HTTP 404 及三语桌面/手机 6 组客户端导航验收通过：无共享 header/footer/dock、单一 main、metadata 清理及返回目录正常。完整发布证据见 [商城修复验收](storefront-review.md#2026-10-26-商城修复生产验收)；GSC 历史软 404 仍待明细和重新抓取验证。
 
 ## 需求与事实
 

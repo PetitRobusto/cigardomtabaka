@@ -7,7 +7,7 @@ import { ProductCard } from "./ProductDisplay";
 import { commerceCopy } from "./commerceCopy";
 import { storeCopy } from "./copy";
 import { backendPageFixture } from "./fixture";
-import { offerImages } from "./productImages";
+import { detailImages, offerImages } from "./productImages";
 import { Storefront } from "./Storefront";
 import type { StoreProduct } from "./types";
 
@@ -60,7 +60,12 @@ describe("sale unit photos", () => {
     expect(main()?.getAttribute("src")).toBe("/box10.jpg");
     expect(main()?.getAttribute("fetchpriority")).toBe("high");
     expect(main()?.getAttribute("loading")).toBe("eager");
-    expect(document.querySelectorAll(".store-gallery-thumb")).toHaveLength(0);
+    expect(Array.from(document.querySelectorAll('.store-gallery-thumb img')).map((img) => img.getAttribute('src')))
+      .toEqual(['/box10-thumb.jpg', '/single-thumb.jpg', '/single-second-thumb.jpg']);
+    fireEvent.click(screen.getByRole("button", { name: "Cigar 2" }));
+    expect(main()?.getAttribute("src")).toBe("/single.jpg");
+    expect(document.querySelector(".gal-cap")?.textContent).toBe("Cigar");
+    expect(document.querySelector('.d-price [data-price-rub="100.00"]')).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /^Single cigar/ }));
     expect(main()?.getAttribute("src")).toBe("/single.jpg");
     expect(document.querySelectorAll(".store-gallery-thumb")).toHaveLength(2);
@@ -71,7 +76,8 @@ describe("sale unit photos", () => {
     expect(document.querySelector(".store-lightbox img")?.getAttribute("src")).toBe("/single-second.jpg");
     fireEvent.click(screen.getByRole("button", { name: /^25 ct\.\/box/ }));
     expect(main()?.getAttribute("src")).toBe("/box25.jpg");
-    expect(document.querySelectorAll(".store-gallery-thumb")).toHaveLength(0);
+    expect(Array.from(document.querySelectorAll('.store-gallery-thumb img')).map((img) => img.getAttribute('src')))
+      .toEqual(['/box25-thumb.jpg', '/single-thumb.jpg', '/single-second-thumb.jpg']);
     fireEvent.click(screen.getByRole("button", { name: /^Single cigar/ }));
     expect(main()?.getAttribute("src")).toBe("/single.jpg");
   });
@@ -83,15 +89,44 @@ describe("sale unit photos", () => {
     expect(html).not.toContain('src="/box25.jpg"');
   });
 
-  it("does not substitute another box count, an unknown package, or a single when a photo is missing", () => {
-    const missing = { ...product, image_variants: product.image_variants!.filter((image) => image.box_size !== 25) };
+  it("keeps a missing box photo blank until a cigar-only auxiliary view is chosen", () => {
+    const missing = { ...product, image_kinds: undefined, image_variants: product.image_variants!.filter((image) => image.box_size !== 25 && image.url !== "/single-second.jpg") };
     const { container } = render(<Storefront page={{ ...backendPageFixture, product: missing }} ageConfirmed />);
     fireEvent.click(screen.getByRole("button", { name: /^25 ct\.\/box/ }));
     expect(main()).toBeNull();
     expect(container.querySelector(".store-product-detail-gallery .store-image-placeholder")).not.toBeNull();
     expect(container.querySelector(".store-lightbox img")).toBeNull();
+    expect(Array.from(container.querySelectorAll('.store-gallery-thumb img')).map((img) => img.getAttribute('src')))
+      .toEqual(['/single-thumb.jpg']);
+    fireEvent.click(screen.getByRole("button", { name: "Cigar 1" }));
+    expect(main()?.getAttribute("src")).toBe("/single.jpg");
+    expect(container.querySelector(".gal-cap")?.textContent).toBe("Cigar");
+    expect(container.querySelector('.d-price [data-price-rub="250.00"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^10 ct\.\/box/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^25 ct\.\/box/ }));
+    expect(main()).toBeNull();
     expect(offerImages({ ...product, image_variants: [] }, product.offers[0])).toEqual([]);
     expect(offerImages({ ...product, image_variants: product.image_variants!.filter((image) => image.image_type !== "cigar") }, product.offers[2])).toEqual([]);
+  });
+
+  it.each(["zh", "ru", "en"] as const)("renders matching packaging before cigar views without other boxes in %s", (locale) => {
+    const html = renderToString(<Storefront page={{ ...backendPageFixture, locale, product }} ageConfirmed />);
+    const page = new DOMParser().parseFromString(html, "text/html");
+    expect(page.querySelector('[data-gallery-main]')?.getAttribute("src")).toBe("/box10.jpg");
+    expect(Array.from(page.querySelectorAll('.store-gallery-thumb img')).map((img) => img.getAttribute('src')))
+      .toEqual(['/box10-thumb.jpg', '/single-thumb.jpg', '/single-second-thumb.jpg']);
+    expect(page.querySelector('.store-product-detail-gallery img[src*="box25"]')).toBeNull();
+    expect(page.querySelector('.store-product-detail-gallery img[src*="unknown"]')).toBeNull();
+  });
+
+  it("deduplicates auxiliary images and excludes cigar photos associated with another box size", () => {
+    const images = product.image_variants!;
+    const extra = { ...product, image_variants: [...images, images[0], images[2],
+      { url: "/other-box-cigar.jpg", thumbnail_url: "/other-box-thumb.jpg", image_type: "cigar", box_size: 25 },
+    ] };
+    expect(detailImages(extra, product.offers[0]).map((image) => image.url))
+      .toEqual(["/box10.jpg", "/single.jpg", "/single-second.jpg"]);
+    expect(offerImages(product, product.offers[0]).map((image) => image.url)).toEqual(["/box10.jpg"]);
   });
 
   it("retains unoffered catalogue images and supports previously rendered payloads", () => {

@@ -19,7 +19,8 @@ from storefront.models import ProductListing, StoreTranslation
 
 
 CONTENT_PATH = Path(__file__).resolve().parents[2] / "cohiba_content.json"
-COPY_FIELDS = ("title", "description", "body", "aliases")
+LEGACY_COPY_FIELDS = ("title", "description", "body", "aliases")
+COPY_FIELDS = (*LEGACY_COPY_FIELDS, "seo_title")
 # Scope of the owner's approval, including exact packaging. Never infer prices.
 APPROVED = {
     102: ("Genios", 140, 52, 10, "130000.00"),
@@ -27,6 +28,18 @@ APPROVED = {
     97: ("Siglo II", 129, 42, 25, "112000.00"),
     98: ("Siglo III", 155, 42, 25, "158000.00"),
 }
+
+
+def normalize_copy(values):
+    """Accept reviewed four-field manifests while making the override explicit."""
+    if (not isinstance(values, dict)
+            or set(values) not in (set(LEGACY_COPY_FIELDS), set(COPY_FIELDS))
+            or not all(isinstance(values[field], str) and values[field].strip() for field in LEGACY_COPY_FIELDS)):
+        raise CommandError("翻译缺少标题、摘要、正文或别名。")
+    seo_title = values.setdefault("seo_title", "")
+    if not isinstance(seo_title, str) or len(seo_title) > 180:
+        raise CommandError("搜索标题必须是最多 180 个字符的字符串，可留空。")
+    return values
 
 
 def read_content():
@@ -47,8 +60,7 @@ def read_content():
         if set(entry["translations"]) != {"ru", "zh", "en"}:
             raise CommandError("清单必须包含完整的俄语、中文和英文内容。")
         for values in entry["translations"].values():
-            if set(values) != set(COPY_FIELDS) or not all(isinstance(v, str) and v.strip() for v in values.values()):
-                raise CommandError("翻译缺少标题、摘要、正文或别名。")
+            normalize_copy(values)
     return content
 
 
@@ -85,10 +97,16 @@ class Command(BaseCommand):
         if row and before == values:
             return row, False, {"kind": kind, "key": key, "locale": locale, "action": "unchanged", "published": row.published}
         previous_hashes = json.loads(CONTENT_PATH.with_name('cohiba_content_previous_hashes.json').read_text())
-        previous_reviewed = (before is not None and
-                            hashlib.sha256(json.dumps(before, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
-                            in previous_hashes.get(f'{kind}/{key}/{locale}', []))
-        if row and (row.hours or (not previous_reviewed and (row.aliases or any(getattr(row, field) != baseline[field]
+        versions = [before] if before is not None else []
+        # A legacy hash says nothing about seo_title: accept it only when this
+        # newly added field is empty, never to overwrite an editor's custom title.
+        if before is not None and not before['seo_title']:
+            versions.append({field: before[field] for field in LEGACY_COPY_FIELDS})
+        previous_reviewed = any(
+            hashlib.sha256(json.dumps(version, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+            in previous_hashes.get(f'{kind}/{key}/{locale}', []) for version in versions
+        )
+        if row and (row.hours or (not previous_reviewed and (row.seo_title or row.aliases or any(getattr(row, field) != baseline[field]
                                                    for field in ("title", "description", "body"))))):
             raise CommandError(f"{kind}/{key}/{locale} 已有自定义内容；整批停止，不覆盖。")
         if row is None:
@@ -184,8 +202,7 @@ class Command(BaseCommand):
                         if set(entry['translations']) != {'zh', 'ru', 'en'}:
                             raise CommandError('BHK 资料须包含三语。')
                         for locale, values in entry['translations'].items():
-                            if set(values) != set(COPY_FIELDS) or not all(isinstance(v, str) and v.strip() for v in values.values()):
-                                raise CommandError('BHK 资料字段不完整。')
+                            normalize_copy(values)
                             row, changed, report = self._translation('product', str(cigar.pk), locale, values, _product_translation(cigar, locale))
                             if options['publish_supporting'] and not row.published:
                                 row.published = True

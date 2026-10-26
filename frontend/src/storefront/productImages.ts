@@ -24,3 +24,16 @@ export function offerImages(product: StoreProduct, offer: StoreProduct["offers"]
       || (index === 0 ? product.image_url || url : url),
   }));
 }
+
+/** Detail views can also show this cigar, without borrowing another package's photo. */
+export function detailImages(product: StoreProduct, offer: StoreProduct["offers"][number] | undefined) {
+  const selected = offerImages(product, offer);
+  if (!product.image_variants || !offer || offer.sale_unit === "stick") return selected;
+  const auxiliary = product.image_variants.filter((image) => image.image_type === "cigar" && image.box_size === null);
+  const seen = new Set<string>();
+  return [...selected, ...auxiliary].filter((image) => {
+    if (!image.url || seen.has(image.url)) return false;
+    seen.add(image.url);
+    return true;
+  });
+}

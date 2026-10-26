@@ -4,6 +4,27 @@
 
 单支保持竖直，打开的盒子朝右下方，主体居中、画布为正方形。背景水印使用商铺标识；品牌筛选继续使用 `media/brand_logos/` 的原版彩色 logo。列表和详情品牌字号分别为 14px、20px。品牌默认显示 10 个，其余可展开；有现货的品牌优先。目录仅展示有有效库存历史的商品，保留已有单品直达 URL。
 
+## 统一水印规则（2026-10-26 起）
+
+魔术师 SEO-13 起使用固定导出规则，既有图不自动覆盖：正方形白底，店铺 Logo 使用 `frontend/public/logo-original.png`，按透明边界裁切后宽度为画布的 70%，中心位于 `(50%, 50%)`，不透明度为 9%。商品前景位于水印上方；详情 1200×1200、列表 480×480，共用同一构图按比例导出。
+
+imagegen 负责根据准确原图生成统一方向的透明商品层，不让模型自由绘制店铺水印。最终通过确定性合成固定 Logo 的形状、位置、大小和透明度，防止逐图漂移。原图、来源、提示、透明层与清单哈希保留，新版本另存；不把处理图标成实拍。
+
+图片盘点、下载、生成和格式导出统一由 `gpt-6-luna` 子 Agent 以 `high` effort 执行，最多同时 3 个；主 Agent 复核型号、盒规、茄标与成图。此要求不改变 OpenDesign 的 Claude Code 设计运行器规则。用户允许旧图与新版同时展示，新版固定水印不要求回填或隐藏全部历史图片。
+
+## 魔术师新版素材与复现
+
+[2026-10-26 魔术师清单](data/storefront-images-20261026-magicos.json)保存 #103 单支和 10 支盒原图、来源、imagegen 提示、透明层及四张 WebP 的哈希。新媒体位于 `media/storefront/generated-v4/`；两张透明层分别是 `layers/103-single-foreground.png`、`layers/103-box-10-foreground.png`。详情和列表图在 `products/`，旧版媒体及关联保留。
+
+导出脚本固定水印参数，只允许调整商品层缩放。以下命令复现到临时目录；已存在目标会拒绝覆盖，重跑时请选择新的目标路径。需要 Node.js、FFmpeg 与 ffprobe。
+
+```bash
+node scripts/storefront_image_export.mjs --layer media/storefront/generated-v4/layers/103-single-foreground.png --detail /tmp/magicos-export/single-detail.webp --list /tmp/magicos-export/single-list.webp --product-scale 0.88
+node scripts/storefront_image_export.mjs --layer media/storefront/generated-v4/layers/103-box-10-foreground.png --detail /tmp/magicos-export/box-10-detail.webp --list /tmp/magicos-export/box-10-list.webp --product-scale 0.86
+```
+
+脚本先生成两张临时图片、核对尺寸，再以不覆盖现有文件的方式发布；普通执行失败会清理本次产物。详情图库按销售包装过滤盒图，并可追加经核实的同款单支；卡片与 OG 主图继续严格匹配包装。开发库可用下方通用流程，将清单参数改为 `docs/data/storefront-images-20261026-magicos.json`。本次验证及后续生产边界见 [SEO-13 实施记录](seo-13-magicos-implementation.md)。
+
 ## 开发库应用
 
 先备份开发数据库，明确启用 DEBUG，并完成迁移。以下命令使用项目真实设置与 `cigars_dev.db`，不会使用隔离测试库。
@@ -14,7 +35,7 @@ DJANGO_DEBUG=True TELEGRAM_NOTIFICATIONS_ENABLED=False .venv/bin/python manage.p
 DJANGO_DEBUG=True TELEGRAM_NOTIFICATIONS_ENABLED=False .venv/bin/python manage.py apply_storefront_images docs/data/storefront-images-20261023.json --apply
 ```
 
-默认命令只核验；`--apply` 才写入。它按商品 ID 核对品牌、英文名与清单中的 release 字段，校验媒体路径和 SHA-256，全部通过后在事务中幂等更新图片关联。原图片文件和记录保留，新图优先。不改价格、库存、订单、商品名称、品牌 logo 或发布状态。缺少商品资料或媒体时整批拒绝，不猜测匹配。
+默认命令只核验；`--apply` 才写入。它按商品 ID 核对品牌、英文名与清单中的 release 字段，校验媒体路径和 SHA-256，全部通过后在事务中幂等更新图片关联。原图片文件和记录保留，单支主记录与盒规匹配仍按图库规则选择。不改价格、库存、订单、商品名称、品牌 logo 或发布状态。缺少商品资料或媒体时整批拒绝，不猜测匹配。
 
 命令拒绝向 `DEBUG=False` 或名为 `cigars.db` 的数据库写入。生产发布仍按仓库部署流程单独进行；不能通过修改 DEBUG 来绕过生产权限。
 

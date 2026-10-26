@@ -1,4 +1,5 @@
 import io
+import hashlib
 import json
 import shutil
 import tempfile
@@ -17,7 +18,7 @@ from cigars.models import Brand, Cigar, CigarPrice, PurchaseBatch, StockMovement
 from cigars.tests.inventory_fixtures import create_purchase_batch
 from storefront.catalog import build_pages
 from storefront.languages import HOME_COPY
-from storefront.management.commands.prepare_cohiba_content import Command, read_content
+from storefront.management.commands.prepare_cohiba_content import COPY_FIELDS, LEGACY_COPY_FIELDS, Command, normalize_copy, read_content
 from storefront.management.commands.prepare_storefront_localizations import _brand_translation, _product_translation
 from storefront.models import ProductListing, StoreTranslation
 from storefront.publishing import build_assets, render_batch
@@ -149,7 +150,7 @@ class PrepareCohibaContentTests(TestCase):
         self.assertFalse(CigarPrice.objects.filter(cigar_id=102, box_size=10).exists())
 
     def test_custom_copy_alias_or_hours_is_never_overwritten(self):
-        for field in ("title", "description", "body", "aliases", "hours"):
+        for field in ("title", "description", "body", "aliases", "hours", "seo_title"):
             with self.subTest(field=field):
                 row = StoreTranslation.objects.get(kind="product", key="98", locale="zh")
                 original = getattr(row, field)
@@ -262,7 +263,18 @@ class PrepareCohibaContentTests(TestCase):
                     for product_path, product_page in targets.items():
                         if product_page['kind'] == 'product' and product_page['locale'] == page['locale']:
                             self.assertIn(product_path, links)
-                self.assertIn(page["body"], visible)
+                if page['kind'] == 'product' and page['product']['id'] == 103:
+                    description = document.select_one('.store-description')
+                    source = description.select_one('a[href]')
+                    self.assertEqual(source['href'], 'https://www.cigaraficionado.com/top25cigar/cohiba-maduro-5-magicos-2024')
+                    self.assertEqual(source['rel'], ['noopener', 'noreferrer'])
+                    citation = f'[{source.get_text()}]({source["href"]})'
+                    self.assertIn(citation, page['body'])
+                    self.assertEqual(description.get_text(), page['body'].replace(citation, source.get_text()))
+                    self.assertEqual(description.get_text().count('\n\n'), 1)
+                    self.assertTrue(page['seo_title'].startswith(page['seo_title_override']))
+                else:
+                    self.assertIn(page["body"], visible)
                 self.assertIn('rel="canonical"', visible)
                 self.assertIn(f'href="{settings.STOREFRONT_ORIGIN}{path}"', visible)
                 self.assertIn('hreflang="ru"', visible)
@@ -275,3 +287,78 @@ class PrepareCohibaContentTests(TestCase):
                     entry = next(e for e in self.content["products"] if e["id"] == page["product"]["id"])
                     self.assertIn(f'data-price-rub="{entry["retail_price_rub"]}"', visible)
                     self.assertEqual(page["product"]["offers"][0]["box_size"], entry["box_size"])
+
+    def previous_version_fixture(self, directory, *, legacy):
+        content_path = Path(directory) / 'cohiba_content.json'
+        content_path.write_text(json.dumps(self.content, ensure_ascii=False))
+        hashes = {}
+        for row in StoreTranslation.objects.all():
+            entry = self.content['brand'] if row.kind == 'brand' else next(
+                item for item in self.content['products'] if str(item['id']) == row.key)
+            values = dict(entry['translations'][row.locale])
+            values['body'] += ' Previous approved revision.'
+            values['seo_title'] = '' if legacy else 'Previous approved search title'
+            StoreTranslation.objects.filter(pk=row.pk).update(**values)
+            version = {field: values[field] for field in (LEGACY_COPY_FIELDS if legacy else COPY_FIELDS)}
+            hashes[f'{row.kind}/{row.key}/{row.locale}'] = [
+                hashlib.sha256(json.dumps(version, ensure_ascii=False, sort_keys=True).encode()).hexdigest()]
+        content_path.with_name('cohiba_content_previous_hashes.json').write_text(json.dumps(hashes))
+        return content_path
+
+    def assert_approved_version_upgrade(self, *, legacy):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.previous_version_fixture(directory, legacy=legacy)
+            before = self.snapshot()
+            with patch('storefront.management.commands.prepare_cohiba_content.CONTENT_PATH', path):
+                call_command('prepare_cohiba_content', content_only=True, apply=True, stdout=io.StringIO())
+            after = self.snapshot()
+            for label in before:
+                if label != 'storefront.StoreTranslation':
+                    self.assertEqual(before[label], after[label])
+            for row in StoreTranslation.objects.all():
+                entry = self.content['brand'] if row.kind == 'brand' else next(
+                    item for item in self.content['products'] if str(item['id']) == row.key)
+                self.assertEqual({field: getattr(row, field) for field in COPY_FIELDS}, entry['translations'][row.locale])
+                self.assertTrue(row.published)
+
+    def test_approved_legacy_four_field_hash_upgrades_with_empty_override(self):
+        self.assert_approved_version_upgrade(legacy=True)
+
+    def test_approved_five_field_hash_upgrades_including_reviewed_override(self):
+        self.assert_approved_version_upgrade(legacy=False)
+
+    def test_legacy_hash_cannot_authorize_custom_seo_title(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.previous_version_fixture(directory, legacy=True)
+            StoreTranslation.objects.filter(kind='product', key='98', locale='zh').update(seo_title='Editor custom title')
+            before = self.snapshot()
+            with patch('storefront.management.commands.prepare_cohiba_content.CONTENT_PATH', path):
+                with self.captureOnCommitCallbacks(execute=True) as callbacks:
+                    with self.assertRaisesMessage(CommandError, '自定义内容'):
+                        call_command('prepare_cohiba_content', content_only=True, apply=True, stdout=io.StringIO())
+            self.assertEqual(before, self.snapshot())
+            self.assertEqual(callbacks, [])
+
+    def test_manifest_accepts_legacy_or_empty_override_and_rejects_invalid_copy(self):
+        valid = {field: 'Reviewed text' for field in LEGACY_COPY_FIELDS}
+        self.assertEqual(normalize_copy(dict(valid))['seo_title'], '')
+        self.assertEqual(normalize_copy(dict(valid, seo_title=''))['seo_title'], '')
+        for changed in ({'seo_title': None}, {'seo_title': 'x' * 181}, {'body': ''}, {'unexpected': 'field'}):
+            with self.subTest(changed=changed), self.assertRaises(CommandError):
+                normalize_copy({**valid, **changed})
+        for field in LEGACY_COPY_FIELDS:
+            invalid = dict(valid)
+            del invalid[field]
+            with self.subTest(missing=field), self.assertRaises(CommandError):
+                normalize_copy(invalid)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'cohiba_content.json'
+            content = json.loads(json.dumps(self.content))
+            for entry in [content['brand'], *content['products']]:
+                for values in entry['translations'].values():
+                    values.pop('seo_title')
+            path.write_text(json.dumps(content))
+            with patch('storefront.management.commands.prepare_cohiba_content.CONTENT_PATH', path):
+                loaded = read_content()
+            for entry in [loaded['brand'], *loaded['products']]:
+                self.assertTrue(all(values['seo_title'] == '' for values in entry['translations'].values()))

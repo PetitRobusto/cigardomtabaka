@@ -301,6 +301,10 @@ input,select{font:inherit}
 .spec{margin-top:10px}
 .store-description-section{margin-top:24px}
 .store-description{margin-top:10px;color:var(--muted);white-space:pre-line;font-size:13px;line-height:1.8}
+.store-description a{text-decoration:underline;text-underline-offset:.15em}
+.store-product-detail-gallery{min-width:0}
+.store-gallery-thumbs{flex-wrap:wrap}
+.store-gallery-thumb{flex:0 0 78px;min-width:0}
 .gal-main{width:100%;min-width:0;overflow:hidden}
 .gal-main img{position:absolute;inset:22px 26px;width:calc(100% - 52px);height:calc(100% - 44px);min-width:0;min-height:0;object-fit:contain}
 .gal-cap{font-size:11px;letter-spacing:0;text-transform:none}

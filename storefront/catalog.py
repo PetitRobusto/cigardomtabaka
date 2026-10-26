@@ -489,6 +489,7 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
             title = translation.title if translation else product["name"]
             page = {
                 "locale": locale, "kind": "product", "path": product["path"],
+                "seo_title_override": translation.seo_title if translation else "",
                 "title": title, "description": translation.description if translation else product["description"],
                 "body": translation.body if translation else product["description"],
                 "site": _site_data(locale, home_translation, store),
@@ -525,6 +526,7 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
             description = translation.description if translation else title
             page = {
                 "locale": locale, "kind": "brand", "path": brand_path,
+                "seo_title_override": translation.seo_title if translation else "",
                 "total_products": len(rows),
                 "title": title, "description": description,
                 "body": translation.body if translation else "",
@@ -602,6 +604,7 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
         paths = {other: _home_path(other) for other in LOCALES}
         result[home] = {
             "locale": locale, "kind": "home", "path": home,
+            "seo_title_override": translation.seo_title if translation else "",
             "total_products": len(rows),
             "title": home_copy["title"], "description": home_copy["description"], "body": home_copy["body"],
             "site": _site_data(locale, translation, store),

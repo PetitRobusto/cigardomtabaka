@@ -7,19 +7,22 @@
         "title": "Cohiba",
         "description": "История Cohiba и её сигарные линии: основание в 1966 году, фабрика El Laguito в Гаване, Línea Clásica, Línea 1492, Maduro 5 и Behike.",
         "body": "Cohiba основана в 1966 году и тесно связана с гаванской фабрикой El Laguito. Изначально её сигары служили дипломатическими подарками Кубы; в 1982 году марка вышла на международный рынок.\n\nLínea Clásica отличается крепостью от средней до высокой, Línea 1492 — средней крепостью. Maduro 5 использует тёмный покров пятилетней естественной выдержки, а Behike — редкий лист Medio Tiempo.",
-        "aliases": "Коиба Кохиба Cohiba 高希霸"
+        "aliases": "Коиба Кохиба Cohiba 高希霸",
+        "seo_title": ""
       },
       "zh": {
         "title": "高希霸",
         "description": "高希霸 Cohiba 的品牌历史与产品线：1966 年创立，源于哈瓦那 El Laguito 工厂，涵盖经典、1492、Maduro 5 与 Behike 系列。",
         "body": "高希霸创立于 1966 年，与哈瓦那 El Laguito 工厂渊源深厚，早期作为古巴国宾礼品，1982 年进入国际市场。\n\n旗下经典系列 Línea Clásica 风格中等至浓郁，世纪系列 Línea 1492 风格中等；Maduro 5 以五年自然陈化的深色茄衣为特色，贝伊可 Behike 则采用稀少的 Medio Tiempo 烟叶。",
-        "aliases": "Cohiba 高希霸 高斯巴"
+        "aliases": "Cohiba 高希霸 高斯巴",
+        "seo_title": ""
       },
       "en": {
         "title": "Cohiba",
         "description": "Cohiba brand history and cigar lines: founded in 1966, rooted in Havana’s El Laguito factory, with Línea Clásica, Línea 1492, Maduro 5 and Behike.",
         "body": "Founded in 1966, Cohiba is closely tied to Havana’s El Laguito factory. Originally reserved for Cuban diplomatic gifts, the brand entered international markets in 1982.\n\nIts lines include medium-to-full Línea Clásica, medium-bodied Línea 1492, Maduro 5 with dark wrappers naturally aged for five years, and Behike, distinguished by the rare Medio Tiempo leaf.",
-        "aliases": "Cohiba 高希霸"
+        "aliases": "Cohiba 高希霸",
+        "seo_title": ""
       }
     }
   },
@@ -38,19 +41,22 @@
           "title": "Cohiba Genios Maduro 5",
           "description": "Cohiba Genios — сигара ручной скрутки с длинной начинкой, выдержанным тёмным покровом и крепостью от средней до высокой. Размер: 140 мм, кольцевой калибр 52.",
           "body": "Genios входит в линию Maduro 5, представленную в 2007 году. Её главная особенность — тёмный покровный лист с пятилетней естественной выдержкой, продолжающий кубинскую традицию сигар maduro.\n\nGenios изготавливается полностью вручную из кубинского табака с длинной начинкой. Крепость — от средней до высокой; длина 140 мм и кольцевой калибр 52 придают сигаре объёмный формат.",
-          "aliases": "Genios Джениос Хениос 天才 高希霸天才 Maduro5"
+          "aliases": "Genios Джениос Хениос 天才 高希霸天才 Maduro5",
+          "seo_title": ""
         },
         "zh": {
           "title": "高希霸天才",
           "description": "高希霸天才是 Maduro 5 系列的手工长芯雪茄，以五年自然陈化的深色茄衣为特点，风格中等至浓郁，规格为 140 毫米、52 环径。",
           "body": "高希霸天才属于 2007 年推出的 Maduro 5 系列。经过五年自然陈化的深色茄衣，是这一系列最鲜明的特点，延续了古巴深色茄衣雪茄的制作传统。\n\n这款雪茄采用古巴烟叶，以长芯全手工卷制，风格中等至浓郁。140 毫米的长度与 52 环径构成饱满的茄身。",
-          "aliases": "天才 高希霸天才 Cohiba Genios Maduro5"
+          "aliases": "天才 高希霸天才 Cohiba Genios Maduro5",
+          "seo_title": ""
         },
         "en": {
           "title": "Cohiba Genios Maduro 5",
           "description": "Cohiba Genios is a handmade long-filler Maduro 5 cigar with a naturally aged dark wrapper, a medium-to-full profile and a 140 mm × 52 format.",
           "body": "Genios belongs to the Maduro 5 line introduced in 2007. Its defining feature is a dark wrapper naturally aged for five years, continuing Cuba’s tradition of maduro-wrapped cigars.\n\nMade entirely by hand with long-filler Cuban tobacco, Genios has a medium-to-full profile and a substantial 140 mm body with a ring gauge of 52.",
-          "aliases": "Genios Cohiba Genios Maduro5 天才"
+          "aliases": "Genios Cohiba Genios Maduro5 天才",
+          "seo_title": ""
         }
       }
     },
@@ -66,21 +72,24 @@
       "translations": {
         "ru": {
           "title": "Cohiba Mágicos Maduro 5",
-          "description": "Cohiba Mágicos сочетает компактный формат с широким кольцевым калибром, выдержанный тёмный покров Maduro 5 и ручную скрутку с длинной начинкой.",
-          "body": "Mágicos — компактная сигара с широким кольцевым калибром из линии Maduro 5. Естественная ферментация и пятилетняя выдержка формируют характерный тёмный покров этой серии.\n\nСигара изготовлена полностью вручную из кубинского табака с длинной начинкой. Крепость — от средней до высокой. Длина составляет 115 мм, кольцевой калибр — 52.",
-          "aliases": "Magicos Mágicos Магикос 魔术师 高希霸魔术师 Maduro5"
+          "description": "Cohiba Mágicos Maduro 5 в Москве: кубинская сигара ручной скрутки, 115 мм, кольцевой калибр 52. № 8 в Top 25 Cigar Aficionado за 2024 год, 94 балла.",
+          "body": "Mágicos — компактная сигара линии Cohiba Maduro 5: длина 115 мм, кольцевой калибр 52, крепость от средней до высокой. Её скручивают полностью вручную из кубинского табака с длинной начинкой; тёмный покровный лист проходит пятилетнюю естественную выдержку.\n\nВ рейтинге [Top 25 Cigar Aficionado за 2024 год](https://www.cigaraficionado.com/top25cigar/cohiba-maduro-5-magicos-2024) Mágicos заняла 8-е место с оценкой 94 балла. В этой дегустации журнал отметил ноты солёного арахиса, древесины гикори и мёда.",
+          "aliases": "Magicos Mágicos Магикос 魔术师 高希霸魔术师 Maduro5",
+          "seo_title": "Cohiba Mágicos Maduro 5 в Москве"
         },
         "zh": {
           "title": "高希霸魔术师",
-          "description": "高希霸魔术师以紧凑的宽环径茄身呈现 Maduro 5 系列的风格，采用五年自然陈化的深色茄衣，长芯全手工卷制。",
-          "body": "高希霸魔术师是一款紧凑的宽环径雪茄，属于 Maduro 5 系列。其深色茄衣经过自然发酵与五年陈化，保留了这一系列鲜明的 Maduro 特征。\n\n采用古巴烟叶，长芯全手工卷制，风格中等至浓郁。茄身长度为 115 毫米，环径为 52。",
-          "aliases": "魔术师 高希霸魔术师 Cohiba Magicos Mágicos Maduro5"
+          "description": "莫斯科高希霸魔术师 Cohiba Mágicos Maduro 5：古巴手工长芯雪茄，115 毫米、52 环径；位列 Cigar Aficionado 2024 年 Top 25 第 8 名，获 94 分。",
+          "body": "魔术师属于高希霸 Maduro 5 系列，采用古巴长芯烟叶全手工卷制，深色茄衣经过五年自然陈化。茄身紧凑饱满，长度为 115 毫米、环径为 52，强度中等至浓郁。\n\n魔术师在 [Cigar Aficionado 2024 年 Top 25](https://www.cigaraficionado.com/top25cigar/cohiba-maduro-5-magicos-2024) 中位列第 8，获得 94 分。该刊在这次品鉴中记录了咸花生、山核桃木与蜂蜜的风味。",
+          "aliases": "魔术师 高希霸魔术师 Cohiba Magicos Mágicos Maduro5",
+          "seo_title": "高希霸魔术师 Cohiba Mágicos — 莫斯科"
         },
         "en": {
           "title": "Cohiba Mágicos Maduro 5",
-          "description": "Cohiba Mágicos brings the Maduro 5 profile to a compact, broad-ring format, with a naturally aged dark wrapper and handmade long-filler construction.",
-          "body": "Mágicos is a compact, broad-ring cigar in the Maduro 5 line. Natural fermentation and five years of ageing give its dark wrapper the characteristic maduro appearance of the series.\n\nIt is made entirely by hand with long-filler Cuban tobacco and has a medium-to-full profile. The format measures 115 mm with a ring gauge of 52.",
-          "aliases": "Magicos Mágicos Cohiba Magicos Maduro5 魔术师"
+          "description": "Cohiba Mágicos Maduro 5 in Moscow: a handmade Cuban cigar, 115 mm with a 52 ring gauge. No. 8 in Cigar Aficionado’s Top 25 of 2024, rated 94 points.",
+          "body": "Mágicos is a compact cigar in the Cohiba Maduro 5 line, measuring 115 mm with a ring gauge of 52 and medium-to-full strength. It is made entirely by hand with long-filler Cuban tobacco and a dark wrapper naturally aged for five years.\n\nMágicos placed No. 8 in [Cigar Aficionado’s Top 25 of 2024](https://www.cigaraficionado.com/top25cigar/cohiba-maduro-5-magicos-2024), earning 94 points. The magazine’s tasting highlighted salted peanut, hickory and honey.",
+          "aliases": "Magicos Mágicos Cohiba Magicos Maduro5 魔术师",
+          "seo_title": "Cohiba Mágicos Maduro 5 in Moscow"
         }
       }
     },
@@ -98,19 +107,22 @@
           "title": "Cohiba Siglo II",
           "description": "Cohiba Siglo II — сигара средней крепости из линии Línea 1492, полностью ручной скрутки с длинной начинкой. Формат Marevas: 129 мм, кольцевой калибр 42.",
           "body": "Siglo II представляет классический формат Marevas в линии Cohiba Línea 1492. Эта линия появилась в 1992 году в честь пятисотлетия прибытия Колумба на Кубу.\n\nСигара средней крепости изготовлена полностью вручную с длинной начинкой из табака кубинского региона Vuelta Abajo. Длина 129 мм и кольцевой калибр 42 образуют компактный, тонкий формат.",
-          "aliases": "Siglo2 SigloII Сигло2 Сигло 世纪2 世纪2号 世纪二号"
+          "aliases": "Siglo2 SigloII Сигло2 Сигло 世纪2 世纪2号 世纪二号",
+          "seo_title": ""
         },
         "zh": {
           "title": "高希霸世纪2号",
           "description": "高希霸世纪2号采用 Marevas 品型，是 Línea 1492 系列的中等风格长芯手工雪茄，长度 129 毫米、环径 42。",
           "body": "高希霸世纪2号采用经典的 Marevas 品型，属于世纪系列 Línea 1492。该系列于 1992 年推出，名称纪念哥伦布抵达古巴五百周年。\n\n这款雪茄以中等风格为特色，选用古巴 Vuelta Abajo 产区烟叶，长芯全手工卷制。129 毫米的长度与 42 环径构成紧凑、修长的茄身。",
-          "aliases": "世纪2 世纪2号 世纪二号 Siglo2 SigloII Cohiba"
+          "aliases": "世纪2 世纪2号 世纪二号 Siglo2 SigloII Cohiba",
+          "seo_title": ""
         },
         "en": {
           "title": "Cohiba Siglo II",
           "description": "Cohiba Siglo II is a medium-bodied, handmade long-filler cigar in the Línea 1492 range, using the classic Marevas format: 129 mm with a 42 ring gauge.",
           "body": "Siglo II takes the classic Marevas format within Cohiba’s Línea 1492. The line was introduced in 1992 to commemorate 500 years since Columbus reached Cuba.\n\nWith a medium-bodied profile, it is made entirely by hand using long-filler tobacco from Cuba’s Vuelta Abajo region. Its 129 mm length and 42 ring gauge create a compact, slender shape.",
-          "aliases": "Siglo2 SigloII Cohiba Siglo II 世纪2号"
+          "aliases": "Siglo2 SigloII Cohiba Siglo II 世纪2号",
+          "seo_title": ""
         }
       }
     },
@@ -128,19 +140,22 @@
           "title": "Cohiba Siglo III",
           "description": "Cohiba Siglo III — вытянутый формат Coronas Grandes в линии Línea 1492: средняя крепость, ручная скрутка и длинная начинка.",
           "body": "Siglo III представляет вытянутый формат Coronas Grandes в линии Cohiba Línea 1492. Сигара средней крепости имеет длину 155 мм и кольцевой калибр 42.\n\nОна изготовлена полностью вручную из кубинского табака с длинной начинкой. Важная особенность технологии Cohiba — дополнительная ферментация листьев seco и ligero, входящих в начинку.",
-          "aliases": "Siglo3 SigloIII Сигло3 Сигло 世纪3 世纪3号 世纪三号"
+          "aliases": "Siglo3 SigloIII Сигло3 Сигло 世纪3 世纪3号 世纪三号",
+          "seo_title": ""
         },
         "zh": {
           "title": "高希霸世纪3号",
           "description": "高希霸世纪3号是 Línea 1492 系列的 Coronas Grandes 品型，风格中等，采用长芯全手工卷制，茄身修长。",
           "body": "高希霸世纪3号采用修长的 Coronas Grandes 品型，属于 Línea 1492 系列，风格中等。长度为 155 毫米，环径为 42。\n\n这款雪茄选用古巴烟叶，以长芯全手工卷制。高希霸对茄芯中的 Seco 和 Ligero 烟叶进行额外发酵，这道工序是品牌制作工艺的重要特点。",
-          "aliases": "世纪3 世纪3号 世纪三号 Siglo3 SigloIII Cohiba"
+          "aliases": "世纪3 世纪3号 世纪三号 Siglo3 SigloIII Cohiba",
+          "seo_title": ""
         },
         "en": {
           "title": "Cohiba Siglo III",
           "description": "Cohiba Siglo III is the slender Coronas Grandes format in Línea 1492, with a medium-bodied profile and handmade long-filler construction.",
           "body": "Siglo III uses the slender Coronas Grandes format in Cohiba’s Línea 1492. It has a medium-bodied profile and measures 155 mm with a ring gauge of 42.\n\nMade entirely by hand with long-filler Cuban tobacco, it reflects Cohiba’s distinctive preparation of filler leaves: the seco and ligero undergo an additional fermentation stage.",
-          "aliases": "Siglo3 SigloIII Cohiba Siglo III 世纪3号"
+          "aliases": "Siglo3 SigloIII Cohiba Siglo III 世纪3号",
+          "seo_title": ""
         }
       }
     }

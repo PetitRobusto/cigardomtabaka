@@ -35,7 +35,11 @@ class UserGuideProgressAdmin(admin.ModelAdmin):
 class ProductTranslationForm(forms.ModelForm):
     class Meta:
         model = StoreTranslation
-        fields = ['locale', 'title', 'description', 'body', 'aliases', 'published']
+        fields = ['locale', 'title', 'seo_title', 'description', 'body', 'aliases', 'published']
+        help_texts = {
+            'seo_title': '可选；留空使用默认搜索标题，店名后缀会统一添加。页面标题仍用于 H1。',
+            'body': '支持安全的来源链接 [文字](https://...)；其余内容按普通文本显示。',
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -46,7 +50,7 @@ class ProductTranslationInline(admin.StackedInline):
     model = StoreTranslation
     form = ProductTranslationForm
     extra = 0
-    fields = ['locale', 'title', 'description', 'body', 'aliases', 'published']
+    fields = ['locale', 'title', 'seo_title', 'description', 'body', 'aliases', 'published']
     verbose_name_plural = '商城三语商品资料'
 
     def has_add_permission(self, request, obj=None):

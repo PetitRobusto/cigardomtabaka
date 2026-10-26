@@ -47,6 +47,7 @@ class StoreTranslation(models.Model):
                               related_name='store_translations', verbose_name='商品')
     locale = models.CharField('语言', max_length=2, choices=LOCALES)
     title = models.CharField('页面标题', max_length=180)
+    seo_title = models.CharField('搜索标题（可选）', max_length=180, blank=True, default='')
     description = models.CharField('搜索摘要', max_length=400)
     body = models.TextField('正文（纯文本）', blank=True)
     aliases = models.CharField('搜索别名（空格分隔）', max_length=500, blank=True)

@@ -117,3 +117,26 @@ class StorefrontSeoTests(SimpleTestCase):
         original = deepcopy(page)
         self.enrich(page)
         self.assertEqual(page, original)
+
+    def test_reviewed_override_only_changes_search_title_for_all_page_kinds(self):
+        for kind in ('home', 'brand', 'product'):
+            with self.subTest(kind=kind):
+                page = self.page(kind=kind, seo_title_override='Cohiba Mágicos in Moscow')
+                original = deepcopy(page)
+                self.enrich(page)
+                self.assertEqual(page['seo_title'], 'Cohiba Mágicos in Moscow | CigarDomTabaka')
+                self.assertEqual({k: v for k, v in page.items() if k != 'seo_title'}, original)
+                self.enrich(page)
+                self.assertEqual(page['seo_title'], 'Cohiba Mágicos in Moscow | CigarDomTabaka')
+
+    def test_override_normalizes_suffix_before_pagination_and_empty_uses_fallback(self):
+        page = self.page(seo_title_override='Mágicos | cigardomtabaka | CigarDomTabaka', pagination={'page': 2})
+        self.enrich(page)
+        self.assertEqual(page['seo_title'], 'Mágicos — Page 2 | CigarDomTabaka')
+        for value in ('', '  '):
+            page = self.enrich(self.page(seo_title_override=value))
+            self.assertEqual(page['seo_title'], 'Cohiba Genios — Specifications | CigarDomTabaka')
+
+    def test_derived_catalog_does_not_inherit_home_override(self):
+        page = self.enrich(self.page(kind='home', view='catalog', seo_title_override='Homepage only'))
+        self.assertEqual(page['seo_title'], 'Cigar catalogue | CigarDomTabaka')

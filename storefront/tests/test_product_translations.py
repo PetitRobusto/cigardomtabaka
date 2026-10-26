@@ -96,3 +96,60 @@ class ProductTranslationTests(TestCase):
         StoreTranslation.objects.filter(kind='brand', locale='ru').update(body='')
         self.assertFalse(build_pages()['/ru/brand/cohiba']['indexable'])
         self.assertFalse(allowed_payload(cached))
+
+    def test_each_published_language_uses_own_override_without_changing_content(self):
+        titles = {'zh': '高希霸天才：莫斯科', 'ru': 'Cohiba Genios в Москве', 'en': 'Cohiba Genios in Moscow'}
+        for locale, title in titles.items():
+            self.translation(locale, seo_title=title, published=True)
+        for page in build_pages().values():
+            if page['kind'] != 'product':
+                continue
+            self.assertEqual(page['title'], 'Genios')
+            self.assertEqual(page['product']['name'], 'Genios')
+            self.assertEqual(page['description'], 'Reviewed model summary')
+            self.assertEqual(page['seo_title'], titles[page['locale']] + ' | CigarDomTabaka')
+            self.assertEqual(page, build_pages(requested_path=page['path'])[page['path']])
+
+    def test_override_follows_resolved_published_translation_and_never_draft(self):
+        en = self.translation('en', seo_title='Approved English search title', published=True)
+        self.translation('ru', seo_title='SECRET draft title', published=False)
+        self.translation('zh', seo_title='SECRET Chinese draft', published=False)
+        pages = {p['locale']: p for p in build_pages().values() if p['kind'] == 'product'}
+        self.assertEqual(pages['ru']['seo_title'], 'Approved English search title | CigarDomTabaka')
+        self.assertFalse(pages['ru']['translation_complete'])
+        self.assertFalse(pages['ru']['indexable'])
+        self.assertIn(['product', str(self.cigar.pk), 'en'], pages['ru']['translation_dependencies'])
+        self.assertEqual(pages['zh']['seo_title_override'], '')
+        self.assertNotIn('SECRET', repr(pages))
+        StoreTranslation.objects.filter(pk=en.pk).update(published=False)
+        for page in build_pages().values():
+            if page['kind'] == 'product':
+                self.assertEqual(page['seo_title_override'], '')
+
+    def test_home_and_brand_override_and_admin_editing(self):
+        from cigars.admin import ProductTranslationForm, ProductTranslationInline
+        from django.contrib.admin import site
+        from django.test import RequestFactory
+        from storefront.admin import StoreTranslationAdmin
+
+        StoreTranslation.objects.filter(kind='home', locale='en').update(seo_title='Home search title')
+        StoreTranslation.objects.filter(kind='brand', locale='en').update(seo_title='Brand search title')
+        pages = build_pages()
+        self.assertEqual(pages['/en/']['seo_title'], 'Home search title | CigarDomTabaka')
+        self.assertEqual(pages['/en/brand/cohiba']['seo_title'], 'Brand search title | CigarDomTabaka')
+        self.assertEqual(pages['/en/catalog']['seo_title'], 'Cigar catalogue | CigarDomTabaka')
+        form = ProductTranslationForm()
+        self.assertIn('seo_title', ProductTranslationInline.fields)
+        self.assertFalse(form.fields['seo_title'].required)
+        self.assertIn('[文字](https://...)', form.fields['body'].help_text)
+        admin = StoreTranslationAdmin(StoreTranslation, site)
+        field = admin.formfield_for_dbfield(StoreTranslation._meta.get_field('body'), RequestFactory().get('/'))
+        self.assertIn('[文字](https://...)', field.help_text)
+
+    def test_override_length_is_validated_without_making_it_required(self):
+        row = self.translation(published=True)
+        row.full_clean()
+        row.seo_title = 'x' * 181
+        with self.assertRaises(ValidationError) as error:
+            row.full_clean()
+        self.assertIn('seo_title', error.exception.message_dict)

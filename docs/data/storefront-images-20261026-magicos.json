@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "description": "Cohiba Magicos #103 image refresh. Synthetic catalog imagery generated from archived source references; not a photograph of the shop’s stock. Reviewed on 2026-10-26. Deployment state and verification evidence are maintained in docs/seo-13-magicos-implementation.md.",
+  "watermark": {
+    "asset": "frontend/public/logo-original.png",
+    "sha256": "d88f30c2395726884fc7e8f3c3c97c334b7839ae68a3346a84fa7fa097534759",
+    "crop": "alpha bounding box",
+    "cropped_bbox_px": {
+      "x": 0,
+      "y": 0,
+      "width": 335,
+      "height": 276
+    },
+    "center_ratio": [
+      0.5,
+      0.5
+    ],
+    "width_ratio": 0.7,
+    "opacity": 0.09,
+    "composite_order": "white background → watermark → product foreground",
+    "export_tool": "Node.js exporter using FFmpeg filters"
+  },
+  "product_assets": [
+    {
+      "cigar_id": 103,
+      "brand": "Cohiba",
+      "english_name": "Magicos",
+      "image_type": "single",
+      "box_size": 1,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v4/products/103-single-detail.webp",
+        "sha256": "7095d0a9dcbabec39ec981f61633ca8603771ad26bf3124e145c7cdcec2637f0"
+      },
+      "list": {
+        "media_path": "storefront/generated-v4/products/103-single-list.webp",
+        "sha256": "bd374b12ce27c5111fa38795796c132d49b960c59d322afc39cdb13af33dc8a4"
+      },
+      "release_type": "",
+      "release_name": "",
+      "source_evidence": {
+        "cigar_id": 103,
+        "brand": "Cohiba",
+        "english_name": "Magicos",
+        "image_type": "single",
+        "box_size": 1,
+        "source_page": "https://sa.egmcigars.com/products/cohiba-maduro-magicos-5-bn",
+        "original_url": "https://cdn.shopify.com/s/files/1/2090/7523/products/no20.jpg?v=1695722544",
+        "local_archive": "media/storefront/source-library-v1/103-single-871826c5ea35.jpg",
+        "local_archive_sha256": "871826c5ea35ca1185e0193e91b90230088a3a08fed6119ed8833945b4080951",
+        "original_dimensions_px": [
+          1128,
+          878
+        ],
+        "matching_status": "exact_identity_variant",
+        "source_variant": "Single Cigar",
+        "image_watermark": "none",
+        "rights_status": "unknown",
+        "source_note": "Cigar band confirms Cohiba Maduro 5; one single cigar, not a tube/composite."
+      },
+      "generation": {
+        "method": "built-in image_gen edit; transparent foreground layer",
+        "output_layer": "media/storefront/generated-v4/layers/103-single-foreground.png",
+        "output_layer_sha256": "cd7e986aa58ffda9e50445c27c1f194f3f376fc950e656117a32959ae8e7db05",
+        "prompt": "Use case: precise-object-edit\nAsset type: transparent product foreground layer for a square e-commerce catalog image\nInput images: Image 1 is the exact product identity source. Image 2 is only a guide for upright orientation, scale, and catalog framing.\nPrimary request: Create a clean isolated transparent-background cutout of exactly one Cohiba Maduro 5 Mágicos cigar, upright and centered, cap at top and foot at bottom. Match the product appearance in Image 1 as faithfully as possible.\nSubject: Preserve the single cigar's actual silhouette, dark Maduro wrapper, cap and foot, and all visible Cohiba / Habana Cuba / Maduro 5 bands and lettering. Do not add, remove, replace, reinterpret, or mirror any product details.\nComposition/framing: Square transparent canvas; entire cigar visible with a small clear margin, approximately 78% of canvas height; straight vertical alignment.\nStyle/medium: Photorealistic catalog product layer, natural cigar texture, faithful color.\nConstraints: The output must have true transparent pixels everywhere outside the cigar. Do not include any background, white matte, floor, shadow, reflection, watermark, logo, letters, props, box, smoke, or other cigar. Image 1 takes priority for exact product identity.",
+        "references": [
+          "media/storefront/source-library-v1/103-single-871826c5ea35.jpg",
+          "media/storefront/generated-v2/products/103-single-detail.webp"
+        ],
+        "product_scale": 0.88,
+        "postprocess": "Deterministic FFmpeg composition by scripts/storefront_image_export.mjs; no product reconstruction in postprocess."
+      }
+    },
+    {
+      "cigar_id": 103,
+      "brand": "Cohiba",
+      "english_name": "Magicos",
+      "image_type": "box",
+      "box_size": 10,
+      "status": "approved",
+      "detail": {
+        "media_path": "storefront/generated-v4/products/103-box-10-detail.webp",
+        "sha256": "e85c93a16288be7aa9c1d8277d4b51a452a1c9d5f12796e42a24d6c5fff0d2ce"
+      },
+      "list": {
+        "media_path": "storefront/generated-v4/products/103-box-10-list.webp",
+        "sha256": "3d23a1ba2eae52c413271b83b8c7f5695cf7670b2ace76945b30ffc415f9e751"
+      },
+      "release_type": "",
+      "release_name": "",
+      "source_evidence": {
+        "cigar_id": 103,
+        "brand": "Cohiba",
+        "english_name": "Magicos",
+        "image_type": "box",
+        "box_size": 10,
+        "source_page": "https://sa.egmcigars.com/products/cohiba-maduro-magicos-5-bn",
+        "original_url": "https://cdn.shopify.com/s/files/1/2090/7523/products/18089_Cohiba_Magicos_Maduro_No5_10S_sta_pac.jpeg?v=1695722544",
+        "local_archive": "media/storefront/source-library-v1/103-box-10-05b71c02df96.jpeg",
+        "local_archive_sha256": "05b71c02df960ffcf4b43f0928b402170d8abbafea02c91422c6e832b8126357",
+        "original_dimensions_px": [
+          2598,
+          2524
+        ],
+        "matching_status": "exact_identity_variant",
+        "source_variant": "Box of 10",
+        "image_watermark": "none",
+        "rights_status": "unknown",
+        "source_note": "Manifest matches EGM Box of 10 variant. Source image visibly shows ten cigars in the open box."
+      },
+      "generation": {
+        "method": "built-in image_gen edit; transparent foreground layer",
+        "output_layer": "media/storefront/generated-v4/layers/103-box-10-foreground.png",
+        "output_layer_sha256": "fa3dd40118c756b86a04fa2c752c2bc93c3dfc9f6c31d1ccb98032eb0c177762",
+        "prompt": "Use case: precise-object-edit\nAsset type: transparent product foreground layer for a square e-commerce catalog image\nInput images: Image 1 is the sole source for exact Cohiba Maduro 5 Mágicos box identity and its visible contents. Image 2 guides only the existing three-quarter framing and overall scale.\nPrimary request: Isolate the complete open Cohiba Maduro 5 Mágicos wooden box and its visible cigars as one photorealistic product cutout on a truly transparent square canvas.\nSubject: Preserve the open box exactly as depicted in Image 1: its open state, wooden lid and base, proportions, hinges, hardware, Cohiba Mágicos / Maduro 5 label and lettering, all visible cigars, their exact count and arrangement, and every visible cigar band. Product text and details must remain faithful and unmirrored. The visible source count is ten cigars; keep exactly those ten, with no hidden or added cigars.\nComposition/framing: Full box in a natural three-quarter view, lid rising toward the upper left and open cigar tray extending toward the lower right. Center the complete silhouette and leave a clear margin on all sides, occupying roughly 84% of the square canvas.\nStyle/medium: Photorealistic catalog product cutout, natural wood, cigar wrapper, and metal textures with faithful color.\nConstraints: True transparency everywhere outside the complete product silhouette. Image 1 is authoritative for product identity. Do not redesign or alter the lid label or package text. Do not add, remove, rearrange, or duplicate any visible contents or hardware. No background, white matte, floor, cast shadow, reflection, watermark, shop logo, props, additional text, additional packages, or foreign brand marks.",
+        "references": [
+          "media/storefront/source-library-v1/103-box-10-05b71c02df96.jpeg",
+          "media/storefront/generated-v3/products/103-box-10-detail.webp"
+        ],
+        "product_scale": 0.86,
+        "postprocess": "Deterministic FFmpeg composition by scripts/storefront_image_export.mjs; no product reconstruction in postprocess."
+      }
+    }
+  ],
+  "export": {
+    "script": "scripts/storefront_image_export.mjs",
+    "canvas_px": [
+      1200,
+      1200
+    ],
+    "list_px": [
+      480,
+      480
+    ],
+    "background": "#FFFFFF",
+    "generation_date": "2026-10-26"
+  }
+}

@@ -25,6 +25,13 @@ class StoreTranslationAdmin(admin.ModelAdmin):
     search_fields = ['title', 'key', 'aliases']
     autocomplete_fields = ['cigar']
 
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        if db_field.name == 'body':
+            kwargs['help_text'] = '商品正文支持安全的来源链接 [文字](https://...)；其余内容按普通文本显示。'
+        elif db_field.name == 'seo_title':
+            kwargs['help_text'] = '可选；留空使用默认搜索标题，店名后缀会统一添加。页面标题仍用于 H1。'
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
+
     def get_readonly_fields(self, request, obj=None):
         return ['key', 'kind', 'cigar'] if obj and obj.kind == 'product' else []
 

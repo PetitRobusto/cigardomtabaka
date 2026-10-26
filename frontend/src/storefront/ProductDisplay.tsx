@@ -3,7 +3,8 @@ import type { StoreLocale, StorePageData, StoreProduct } from "./types";
 import { catalogPath, emptyFilters, filtersFromSearch, matchingOffers, productLink, type BrowseFilters } from "./browsing";
 import { useStoreModal } from "./Modal";
 import { ReferencePrice } from "./ReferencePrice";
-import { chooseOffer, offerImages } from "./productImages";
+import { chooseOffer, detailImages, offerImages } from "./productImages";
+import { InlineSourceLinks } from "./InlineSourceLinks";
 
 type Labels = Record<string, string>;
 const languageTag = { zh: "zh-CN", ru: "ru-RU", en: "en" };
@@ -65,7 +66,8 @@ export function ProductCard({ product, locale, labels, from, selectedBoxes = [],
 }
 
 function imageCaption(product: StoreProduct, image: string, labels: Labels) {
-  return ({ cigar: labels.imgCigar, packaging: labels.imgPackaging, band: labels.imgBand, special: labels.imgSpecial })[product.image_kinds?.[image] || ""] || labels.productImage;
+  const kind = product.image_variants?.find((item) => item.url === image)?.image_type || product.image_kinds?.[image] || "";
+  return ({ cigar: labels.imgCigar, packaging: labels.imgPackaging, band: labels.imgBand, special: labels.imgSpecial })[kind] || labels.productImage;
 }
 
 export function ProductPage({ product, page, labels, returnPath }: { product: StoreProduct; page: StorePageData; labels: Labels; returnPath?: string }) {
@@ -75,10 +77,12 @@ export function ProductPage({ product, page, labels, returnPath }: { product: St
   const lightbox = useStoreModal(lightboxRef);
   const requestedFilters = returnPath ? filtersFromSearch(new URL(returnPath, "https://store.invalid").search) : emptyFilters;
   const offer = product.offers.find((item) => offerKey(item) === selectedOffer) || chooseOffer(matchingOffers(product.offers, requestedFilters)) || chooseOffer(product.offers);
-  const imageVariants = offerImages(product, offer);
+  const primaryImage = offerImages(product, offer)[0]?.url;
+  const imageVariants = detailImages(product, offer);
   const images = imageVariants.map((item) => item.url);
   const selection = `${product.id}:${offer ? offerKey(offer) : "catalog"}`;
-  const image = activeImage?.selection === selection && images.includes(activeImage.url) ? activeImage.url : images[0];
+  // A cigar-only auxiliary view must not become a missing box photo by default.
+  const image = activeImage?.selection === selection && images.includes(activeImage.url) ? activeImage.url : primaryImage;
   const availability = product.availability === "catalog" ? "catalog" : offer ? offer.in_stock ? "in_stock" : "out_of_stock" : product.availability;
   const details = page.body || product.description;
   return <>
@@ -87,7 +91,7 @@ export function ProductPage({ product, page, labels, returnPath }: { product: St
       <div className="store-product-detail-gallery" aria-label={labels.productImages}>
         {image ? <button className="gal-main store-product-detail-media" type="button" onClick={lightbox.show} aria-label={labels.openImage}><ProductImage src={image} alt={product.name} loading="eager" fetchPriority="high" data-gallery-main="true" /></button> : <div className="gal-main store-image-placeholder">{product.brand}</div>}
         {image && <p className="gal-cap">{imageCaption(product, image, labels)}</p>}
-        {images.length > 1 && <div className="thumbs store-gallery-thumbs" aria-label={labels.productImages}>{imageVariants.map(({ url: source, thumbnail_url }, index) => <button className={`thumb store-gallery-thumb${source === image ? " on" : ""}`} type="button" key={source} aria-label={`${imageCaption(product, source, labels)} ${index + 1}`} aria-pressed={source === image} onClick={() => setActiveImage({ selection, url: source })}><img src={thumbnail_url || source} alt="" loading="lazy" decoding="async" /></button>)}</div>}
+        {(images.length > 1 || (images.length === 1 && !primaryImage)) && <div className="thumbs store-gallery-thumbs" aria-label={labels.productImages}>{imageVariants.map(({ url: source, thumbnail_url }, index) => <button className={`thumb store-gallery-thumb${source === image ? " on" : ""}`} type="button" key={source} aria-label={`${imageCaption(product, source, labels)} ${index + 1}`} aria-pressed={source === image} onClick={() => setActiveImage({ selection, url: source })}><img src={thumbnail_url || source} alt="" loading="lazy" decoding="async" /></button>)}</div>}
       </div>
       <div className="d-info store-product-detail-copy">
         <p className="store-product-brand">{product.brand_slug ? <a className="d-brand" href={brandPath(product, page.locale)}>{product.brand}</a> : product.brand}</p>
@@ -98,7 +102,7 @@ export function ProductPage({ product, page, labels, returnPath }: { product: St
         <p className="d-contact"><a className="store-contact-link" href="#store-contact">{labels.contact}</a></p>
         <h2 className="d-h store-spec-title">{labels.details}</h2>
         <dl className="spec store-specs">{product.vitola && <div><dt>{labels.vitola}</dt><dd>{product.vitola}</dd></div>}{product.length !== null && <div><dt>{labels.length}</dt><dd>{product.length} mm</dd></div>}{product.ring_gauge !== null && <div><dt>{labels.ringGauge}</dt><dd>RG {product.ring_gauge}</dd></div>}{offer && <div><dt>{labels.packaging}</dt><dd>{offerLabel(offer, labels)}</dd></div>}</dl>
-        {details && <section className="store-description-section"><h2 className="d-h">{labels.description}</h2><p className="store-description">{details}</p></section>}
+        {details && <section className="store-description-section"><h2 className="d-h">{labels.description}</h2><p className="store-description"><InlineSourceLinks text={details} /></p></section>}
       </div>
     </article>
     <dialog ref={lightboxRef} className="store-lightbox" aria-label={labels.productImages} onClose={lightbox.onClose} onClick={lightbox.onBackdropClick}>

@@ -78,9 +78,14 @@ def enrich_page_metadata(pages):
         copy = COPY.get(page.get("locale"), COPY["en"])
         site = _text((page.get("site") or {}).get("name")) or "CigarDomTabaka"
         title = _text(page.get("title"))
+        override = _text(page.get("seo_title_override")) if page.get("view") != "catalog" else ""
         if page.get("view") == "catalog":
             title = copy["catalog"]
             page["description"] = copy["catalog_description"].format(site=site)
+        elif override:
+            # Store the reviewed title separately from the generated result, so
+            # enrichment stays idempotent and pagination precedes one site suffix.
+            title = re.sub(rf"(?:\s*\|\s*{re.escape(site)})+\s*$", "", override, flags=re.IGNORECASE).strip()
         elif page.get("kind") == "product":
             product = page.get("product") or {}
             title = _text(product.get("name")) or _text(product.get("english_name")) or title
@@ -100,6 +105,6 @@ def enrich_page_metadata(pages):
         number = (page.get("pagination") or {}).get("page", 1)
         if isinstance(number, int) and number > 1:
             title = " — ".join(filter(None, [title, copy["page"].format(number=number)]))
-        if not _contains_name(title, site):
+        if override or not _contains_name(title, site):
             title = " | ".join(filter(None, [title, site]))
         page["seo_title"] = title

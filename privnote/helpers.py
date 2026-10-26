@@ -3,6 +3,7 @@ import json
 import re
 from decimal import Decimal
 
+from cigars.constants import BRAND_CN_MAP
 from cigars.models import Brand, Cigar, PurchaseBatch
 
 
@@ -14,6 +15,15 @@ def get_thumb_url(cigar):
     if primary and primary.thumbnail:
         return primary.thumbnail.url
     return ''
+
+
+def get_quote_thumb_url(cigar):
+    """报价单优先沿用旧产品图；商城生成图仍作为缺图时的回退。"""
+    for image in cigar.images.all():
+        if (image.image_type == 'cigar'
+                and image.image.name.startswith('cigars/')):
+            return image.thumbnail.url if image.thumbnail else image.image.url
+    return get_thumb_url(cigar)
 
 
 # ── 有库存雪茄 ID 集合 ──
@@ -37,15 +47,21 @@ def get_brand_info_map(en_names=None):
     """
     qs = Brand.objects.all()
     if en_names is not None:
+        en_names = list(en_names)
         qs = qs.filter(english_name__in=en_names)
 
-    return {
-        b.english_name: {
-            'name': b.name or b.english_name,
-            'logo_url': b.logo.url if b.logo else None,
-        }
-        for b in qs
+    # 短品牌名可能没有独立 Brand 行，也必须有中文显示名。
+    names = BRAND_CN_MAP if en_names is None else en_names
+    result = {
+        name: {'name': BRAND_CN_MAP.get(name, name), 'logo_url': None}
+        for name in names
     }
+    for brand in qs:
+        result[brand.english_name] = {
+            'name': BRAND_CN_MAP.get(brand.english_name) or brand.name or brand.english_name,
+            'logo_url': brand.logo.url if brand.logo else None,
+        }
+    return result
 
 
 # ── 安全 JSON 解析 ──

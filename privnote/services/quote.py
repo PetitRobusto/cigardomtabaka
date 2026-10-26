@@ -2,7 +2,7 @@
 from django.db import models
 
 from cigars.models import CigarPrice, PurchaseBatch
-from privnote.helpers import get_thumb_url, get_brand_info_map
+from privnote.helpers import get_quote_thumb_url, get_brand_info_map
 
 
 def build_quote_data(quote_mode='full', selected_ids=None, shipping_included=False,
@@ -14,7 +14,7 @@ def build_quote_data(quote_mode='full', selected_ids=None, shipping_included=Fal
         .distinct()
     )
 
-    qs = CigarPrice.objects.filter(is_active=True).select_related('cigar')
+    qs = CigarPrice.objects.filter(is_active=True).select_related('cigar').prefetch_related('cigar__images')
 
     if quote_mode == 'custom' and selected_ids:
         qs = qs.filter(cigar_id__in=selected_ids)
@@ -65,7 +65,7 @@ def build_quote_data(quote_mode='full', selected_ids=None, shipping_included=Fal
             'box_size': cp.box_size,
             'wholesale_price': wholesale_price,
             'per_stick_price': per_stick_price,
-            'thumb_url': get_thumb_url(cigar),
+            'thumb_url': get_quote_thumb_url(cigar),
             'in_stock': in_stock,
             'can_preorder': cp.can_preorder,
         }

@@ -11,6 +11,9 @@ import { useAuthStore } from './store/authStore';
 import { BrandLoader } from './components/shared/BrandLoader';
 import CustomerDocumentLanguage from './features/customer/CustomerDocumentLanguage';
 import { useCustomerExperience } from './features/customer/useCustomerExperience';
+import { NotFoundPage } from './components/site/NotFoundPage';
+import { localeForPath, notFoundCopy } from './components/site/notFoundCopy';
+import { usePageMetaContext } from './contexts/usePageMetaContext';
 
 // Route components stay out of the startup bundle until their URL is rendered.
 const BrandListPage = lazy(() => import('./pages/BrandListPage'));
@@ -132,6 +135,35 @@ function StaffHelpRoute() {
   return <StaffGate><HelpPage /></StaffGate>;
 }
 
+export function StaffNotFoundRoute() {
+  const location = useLocation();
+  const locale = localeForPath(location.pathname);
+  const { setMeta } = usePageMetaContext();
+
+  useEffect(() => {
+    setMeta({ title: notFoundCopy[locale].title, breadcrumbs: [] });
+    const previousLanguage = document.documentElement.lang;
+    document.documentElement.lang = locale === 'zh' ? 'zh-CN' : locale;
+    let robots = document.head.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    const previousRobotsContent = robots?.content ?? null;
+    if (!robots) {
+      robots = document.createElement('meta');
+      robots.name = 'robots';
+      document.head.append(robots);
+    }
+    robots.content = 'noindex, nofollow';
+    return () => {
+      document.documentElement.lang = previousLanguage;
+      if (robots?.content === 'noindex, nofollow') {
+        if (previousRobotsContent === null) robots.remove();
+        else robots.content = previousRobotsContent;
+      }
+    };
+  }, [locale, setMeta]);
+
+  return <NotFoundPage locale={locale} embedded />;
+}
+
 function AnimatedRoutes() {
   const { text } = useCustomerExperience();
   const location = useLocation();
@@ -201,6 +233,7 @@ function AnimatedRoutes() {
 
           {/* Auth */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="*" element={<StaffNotFoundRoute />} />
             </Routes>
           </motion.div>
         </Suspense>

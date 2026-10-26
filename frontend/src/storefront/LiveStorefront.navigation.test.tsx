@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { AGE_CONFIRMATION_KEY } from "./ageConfirmation";
 import { AGE_CONFIRMATION_TTL } from "../features/customer/preferences";
+import { notFoundCopy } from "../components/site/notFoundCopy";
 import { backendPageFixture } from "./fixture";
 import { LiveStorefront } from "./LiveStorefront";
 import type { StorePageData } from "./types";
@@ -142,6 +143,54 @@ function deferred<T>() {
   const promise = new Promise<T>((done) => { resolve = done; });
   return { promise, resolve };
 }
+
+it("replaces stale product content with the localized 404 and clears product SEO metadata", async () => {
+  const missingPath = "/ru/cigar/999/missing-product";
+  const fetch = makeFetch((path) => path === missingPath ? response(null, 404) : pageFor(path));
+  vi.stubGlobal("fetch", fetch);
+  mount(russianProductPage);
+  await screen.findByRole("heading", { name: "Кохиба Робустос", level: 1 });
+
+  const link = document.createElement("a");
+  link.href = missingPath;
+  link.textContent = "missing product";
+  document.getElementById("store-root")!.append(link);
+  fireEvent.click(link);
+
+  await screen.findByRole("heading", { name: notFoundCopy.ru.heading, level: 1 });
+  expect(location.pathname).toBe(missingPath);
+  expect(screen.queryByText("Кохиба Робустос")).toBeNull();
+  expect(document.title).toBe(notFoundCopy.ru.title);
+  expect(document.documentElement.lang).toBe("ru-RU");
+  expect(document.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe("noindex, nofollow");
+  expect(document.querySelector('link[rel="canonical"]')).toBeNull();
+  expect(document.querySelector('link[rel="alternate"][hreflang]')).toBeNull();
+  expect(document.querySelector('meta[property^="og:"]')).toBeNull();
+  expect(document.querySelector('script[type="application/ld+json"]')).toBeNull();
+});
+
+it("keeps the current page and retry state for a storefront API 503", async () => {
+  const missingPath = "/ru/cigar/999/missing-product";
+  let attempts = 0;
+  vi.stubGlobal("fetch", makeFetch((path) => {
+    if (path === missingPath && ++attempts === 1) return response(null, 503);
+    if (path === missingPath) return { ...russianProductPage, path: missingPath };
+    return pageFor(path);
+  }));
+  mount(russianProductPage);
+  await screen.findByRole("heading", { name: "Кохиба Робустос", level: 1 });
+
+  const link = document.createElement("a");
+  link.href = missingPath;
+  link.textContent = "retry product";
+  document.getElementById("store-root")!.append(link);
+  fireEvent.click(link);
+
+  fireEvent.click(await screen.findByRole("button", { name: /повторить|try again/i }));
+  await screen.findByRole("heading", { name: "Кохиба Робустос", level: 1 });
+  expect(attempts).toBe(2);
+  expect(screen.queryByRole("heading", { name: notFoundCopy.ru.heading, level: 1 })).toBeNull();
+});
 
 it.each([404, 200])("ignores an outdated catalog response (%s) after a newer locale navigation", async (staleStatus) => {
   const stale = deferred<unknown>();

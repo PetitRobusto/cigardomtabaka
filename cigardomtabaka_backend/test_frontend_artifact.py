@@ -13,6 +13,11 @@ from deploy.frontend_artifact import install, pack, verify
 
 class FrontendArtifactTests(SimpleTestCase):
     sha = 'a' * 40
+    error_pages = {
+        'errors/404-zh.html': 'zh-CN',
+        'errors/404-ru.html': 'ru-RU',
+        'errors/404-en.html': 'en',
+    }
     storefront_public_assets = (
         'startup-loader.js', 'favicon-96.png', 'logo-opening.webp',
         'logo-motion.webp', 'logo-opening-motion-v2.svg',
@@ -29,6 +34,15 @@ class FrontendArtifactTests(SimpleTestCase):
         (self.source / '.vite/manifest.json').write_text(json.dumps({
             'index.html': {'file': 'assets/app.js', 'isEntry': True},
         }))
+        for name, locale in self.error_pages.items():
+            path = self.source / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                f'<!doctype html><html lang="{locale}"><head>'
+                '<meta name="robots" content="noindex, nofollow"></head>'
+                '<body><main><h1>Not found</h1></main></body></html>',
+                encoding='utf-8',
+            )
         self.artifact = self.root / 'artifact'
         pack(self.source, self.artifact, self.sha)
         self.destination = self.root / 'live'
@@ -78,8 +92,12 @@ class FrontendArtifactTests(SimpleTestCase):
             }).encode(),
             'assets/app.js': b'app',
             'storefront-render/render.mjs': b'renderer',
+            **{name: self.read_asset(name) for name in self.error_pages},
             **{name: b'public resource' for name in self.storefront_public_assets},
         }
+
+    def read_asset(self, name):
+        return (self.source / name).read_bytes()
 
     def test_complete_storefront_artifact_can_be_packaged_verified_and_installed(self):
         members = self.storefront_members()
@@ -92,6 +110,63 @@ class FrontendArtifactTests(SimpleTestCase):
         install(self.artifact, self.sha, self.destination)
         for name, contents in members.items():
             self.assertEqual((self.destination / name).read_bytes(), contents)
+
+    def test_required_localized_404_pages_are_in_every_artifact(self):
+        verify(self.artifact, self.sha)
+        install(self.artifact, self.sha, self.destination)
+        for name in self.error_pages:
+            with self.subTest(name=name):
+                self.assertTrue((self.destination / name).is_file())
+
+    def test_missing_localized_404_page_is_rejected_during_pack_verify_and_install(self):
+        for name in self.error_pages:
+            with self.subTest(name=name):
+                path = self.source / name
+                original = path.read_bytes()
+                path.unlink()
+                with self.assertRaisesRegex(ValueError, 'Missing frontend 404 page'):
+                    pack(self.source, self.root / f'incomplete-{name.rsplit("-", 1)[-1]}', self.sha)
+
+                members = {
+                    asset.relative_to(self.source).as_posix(): asset.read_bytes()
+                    for asset in self.source.rglob('*') if asset.is_file()
+                }
+                self.rewrite_archive(members)
+                with self.assertRaisesRegex(ValueError, 'Missing frontend 404 page'):
+                    verify(self.artifact, self.sha)
+                with self.assertRaisesRegex(ValueError, 'Missing frontend 404 page'):
+                    install(self.artifact, self.sha, self.destination)
+                self.assert_old_build()
+                path.write_bytes(original)
+
+    def test_empty_or_invalid_localized_404_page_is_rejected_without_replacement(self):
+        name = 'errors/404-ru.html'
+        path = self.source / name
+        original = path.read_bytes()
+        for contents, error in (
+            (b'  \n', 'Empty frontend 404 page'),
+            (b'not an html document', 'Invalid frontend 404 document'),
+            (b'<!doctype html><html lang="ru-RU"><head></head><body></body></html>',
+             'unsafe SEO metadata'),
+            (b'<!doctype html><html lang="ru-RU"><head><meta name="robots" content="noindex">'
+             b'<link rel="canonical" href="/ru/"></head><body></body></html>',
+             'unsafe SEO metadata'),
+        ):
+            with self.subTest(error=error):
+                path.write_bytes(contents)
+                with self.assertRaisesRegex(ValueError, error):
+                    pack(self.source, self.root / 'invalid-404-package', self.sha)
+                members = {
+                    asset.relative_to(self.source).as_posix(): asset.read_bytes()
+                    for asset in self.source.rglob('*') if asset.is_file()
+                }
+                self.rewrite_archive(members)
+                with self.assertRaisesRegex(ValueError, error):
+                    verify(self.artifact, self.sha)
+                with self.assertRaisesRegex(ValueError, error):
+                    install(self.artifact, self.sha, self.destination)
+                self.assert_old_build()
+        path.write_bytes(original)
 
     def test_missing_storefront_public_resource_is_rejected_before_replacing_live_build(self):
         members = self.storefront_members()

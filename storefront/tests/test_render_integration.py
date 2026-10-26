@@ -92,6 +92,35 @@ class PrerenderIntegrationTests(TestCase):
         self.assertEqual(self.client.get('/ru/catalog/not-a-page').status_code, 404)
         self.assertEqual(self.client.get('/invented-page').status_code, 404)
 
+    @override_settings(DEBUG=False)
+    def test_real_localized_404_artifacts_keep_true_404_and_safe_metadata(self):
+        expected = {
+            'zh': ('/cigar/999999999/not-a-real-product', 'zh-CN', '404 · 页面未找到 | CigarDomTabaka', '页面未找到'),
+            'ru': ('/ru/cigar/999999999/not-a-real-product', 'ru-RU', '404 · Страница не найдена | CigarDomTabaka', 'Страница не найдена'),
+            'en': ('/en/cigar/999999999/not-a-real-product', 'en', '404 · Page not found | CigarDomTabaka', 'Page not found'),
+        }
+        for locale, (path, language, title, heading) in expected.items():
+            with self.subTest(locale=locale):
+                artifact = Path(settings.BASE_DIR) / 'static' / 'frontend' / 'errors' / f'404-{locale}.html'
+                self.assertTrue(artifact.is_file(), f'Missing built 404 artifact: {artifact}')
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 404)
+                self.assertEqual(response['Content-Type'], 'text/html; charset=utf-8')
+                self.assertEqual(response['X-Robots-Tag'], 'noindex, nofollow')
+                self.assertEqual(response['Cache-Control'], 'no-store')
+                self.assertContains(response, f'<html lang="{language}">', status_code=404)
+                self.assertContains(response, f'<title>{title}</title>', status_code=404)
+                self.assertContains(response, f'<h1 id="not-found-heading"', status_code=404)
+                self.assertContains(response, heading, status_code=404)
+                self.assertNotContains(response, 'rel="canonical"', status_code=404)
+                self.assertNotContains(response, 'hreflang=', status_code=404)
+                self.assertNotContains(response, 'application/ld+json', status_code=404)
+
+        api_response = self.client.get('/api/no-such-endpoint', HTTP_ACCEPT='application/json')
+        self.assertEqual(api_response.status_code, 404)
+        self.assertEqual(api_response['Content-Type'], 'application/json')
+        self.assertEqual(api_response.json(), {'error': 'not_found'})
+
     def test_release_http_audit_accepts_real_rendered_pages_and_public_sitemap(self):
         def request(url):
             parsed = urlsplit(url)

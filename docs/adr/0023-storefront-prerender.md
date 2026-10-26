@@ -54,3 +54,9 @@ Cigar，在商品详情页读取。品牌页只保留品牌介绍与商品列表
 已发布售罄商品保留，未发布型号及旧缓存不得公开；内部资料库继续供员工使用。
 商品介绍和规格仍引用 Cigar 及其关联译文。CI/CD 在同步渲染和缓存核验之后、Web 重启之前
 增加 sitemap 集合核验。详见 [SEO-14](../seo-14-public-catalog.md)。
+
+2026-10-26 补充：缺失公开页面继续由 Django 判定为 HTTP 404。错误界面复用 React，
+在前端 CI 构建时导出中、俄、英独立 HTML，内联必要样式且无运行时 JS/商品查询依赖。
+Django handler404 读取当前制品，API 命名空间保持 JSON；错误响应 noindex/no-store，
+不输出 canonical、hreflang 或商品结构化数据。三语错误制品缺失或 SEO 标记不合格时
+阻止打包/安装；客户端缺失导航复用同一组件，服务暂时故障保留重试。详见 [SEO-15](../seo-15-not-found.md)。

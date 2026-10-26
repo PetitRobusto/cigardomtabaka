@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+from html.parser import HTMLParser
 import json
 from pathlib import Path, PurePosixPath
 import re
@@ -16,9 +17,65 @@ STOREFRONT_PUBLIC_ASSETS = (
     'startup-loader.js', 'favicon-96.png', 'logo-opening.webp',
     'logo-motion.webp', 'logo-opening-motion-v2.svg',
 )
+ERROR_PAGE_LOCALES = {
+    'errors/404-zh.html': {'zh', 'zh-cn', 'zh-hans'},
+    'errors/404-ru.html': {'ru', 'ru-ru'},
+    'errors/404-en.html': {'en', 'en-us'},
+}
+
+
+class _ErrorPageParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.html_language = None
+        self.has_html_end = False
+        self.has_doctype = False
+        self.has_robots_noindex = False
+        self.has_canonical_or_hreflang = False
+
+    def handle_decl(self, decl):
+        self.has_doctype |= decl.lower().strip() == 'doctype html'
+
+    def handle_starttag(self, tag, attrs):
+        attributes = {key.lower(): (value or '') for key, value in attrs}
+        if tag.lower() == 'html':
+            self.html_language = attributes.get('lang', '').lower()
+        elif tag.lower() == 'meta' and attributes.get('name', '').lower() == 'robots':
+            self.has_robots_noindex |= 'noindex' in attributes.get('content', '').lower()
+        elif tag.lower() == 'link':
+            relationships = attributes.get('rel', '').lower().split()
+            self.has_canonical_or_hreflang |= (
+                'canonical' in relationships or 'hreflang' in attributes
+            )
+
+    def handle_endtag(self, tag):
+        if tag.lower() == 'html':
+            self.has_html_end = True
 
 
 def validate_build(root):
+    for name, allowed_languages in ERROR_PAGE_LOCALES.items():
+        path = root / name
+        if not path.is_file():
+            raise ValueError(f'Missing frontend 404 page: {name}')
+        try:
+            content = path.read_text(encoding='utf-8')
+        except UnicodeDecodeError as error:
+            raise ValueError(f'Invalid UTF-8 frontend 404 page: {name}') from error
+        if not content.strip():
+            raise ValueError(f'Empty frontend 404 page: {name}')
+        parser = _ErrorPageParser()
+        try:
+            parser.feed(content)
+            parser.close()
+        except Exception as error:
+            raise ValueError(f'Invalid frontend 404 document: {name}') from error
+        if (not parser.has_doctype or not parser.has_html_end
+                or parser.html_language not in allowed_languages):
+            raise ValueError(f'Invalid frontend 404 document or locale: {name}')
+        if not parser.has_robots_noindex or parser.has_canonical_or_hreflang:
+            raise ValueError(f'Frontend 404 page has unsafe SEO metadata: {name}')
+
     manifest = json.loads((root / '.vite/manifest.json').read_text())
     if not manifest or not any(chunk.get('isEntry') for chunk in manifest.values()):
         raise ValueError('Frontend manifest has no entry point')

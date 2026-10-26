@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useAuthStore } from "../store/authStore";
+import { NotFoundPage } from "../components/site/NotFoundPage";
+import { localeForPath, notFoundCopy } from "../components/site/notFoundCopy";
 import { AGE_CONFIRMATION_TTL, CUSTOMER_AGE_KEY, isAgeConfirmationValid as isPreferenceAgeConfirmationValid, useCustomerPreferences } from "../features/customer/preferences";
 import "../components/shared/startup-loader.css";
 import { Storefront } from "./Storefront";
@@ -9,7 +11,7 @@ import { isCurrentRate } from "./rates";
 import { ReferencePrices } from "./ReferencePrice";
 import { installStoreNavigation, savedStoreScroll, STORE_NAVIGATION_EVENT, type NavigationKind } from "./navigation";
 import { clearStoreMetadata, markStoreNavigationFailure, updateStoreMetadata } from "./metadata";
-import { browsingKeys, homePath } from "./browsing";
+import { browsingKeys } from "./browsing";
 import type { StorePageData, StoreRates } from "./types";
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
@@ -143,11 +145,11 @@ export function LiveStorefront({ initialPage, origin }: { initialPage: StorePage
         if (response.status === 404) {
           setPage(null);
           setLoading(false); setRefreshFailed(false);
-          const locale = requested.pathname.startsWith("/ru/") ? "ru" : requested.pathname.startsWith("/en/") ? "en" : "zh";
-          clearStoreMetadata(storeCopy[locale].pageUnavailable, locale);
+          const locale = localeForPath(requested.pathname);
+          clearStoreMetadata(notFoundCopy[locale].title, locale);
           window.requestAnimationFrame(() => {
             if (!active) return;
-            const heading = document.querySelector<HTMLElement>(".store-main h1");
+            const heading = document.querySelector<HTMLElement>("main h1");
             if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
             window.scrollTo(0, 0);
           });
@@ -211,11 +213,11 @@ export function LiveStorefront({ initialPage, origin }: { initialPage: StorePage
     }
   }, [currency, page, rates, initialPage.locale]);
 
-  const locale = page?.locale || (requestPath.startsWith("/ru/") ? "ru" : requestPath.startsWith("/en/") ? "en" : "zh");
+  const locale = page?.locale || localeForPath(requestPath);
   const labels = storeCopy[locale];
   useEffect(() => { useCustomerPreferences.getState().selectLocale(locale); }, [locale]);
   return <>
-    {page ? <ReferencePrices currency={currency} rates={rates}><Storefront page={page} user={authLoading ? null : user} onLogout={logout} currentUrl={displayedUrl} busy={loading} currency={currency} onCurrencyChange={setCurrency} ageConfirmed={ageConfirmed} onAgeConfirm={confirmAge} onAgeDecline={declineAge} /></ReferencePrices> : <main className="view store-main"><section className="wrap store-section"><h1>{labels.pageUnavailable}</h1><a href={homePath(locale)}>{labels.home}</a></section></main>}
+    {page ? <ReferencePrices currency={currency} rates={rates}><Storefront page={page} user={authLoading ? null : user} onLogout={logout} currentUrl={displayedUrl} busy={loading} currency={currency} onCurrencyChange={setCurrency} ageConfirmed={ageConfirmed} onAgeConfirm={confirmAge} onAgeDecline={declineAge} /></ReferencePrices> : <NotFoundPage locale={locale} />}
     {loading && <><div className="store-navigation-progress" aria-hidden="true" /><span className="visually-hidden" role="status">{labels.loadingPage}</span></>}
     {refreshFailed && <p className="store-live-status" role="status">{labels.navigationError} <button type="button" onClick={() => { navigationKind.current = "push"; setRetryToken((value) => value + 1); }}>{labels.retry}</button></p>}
   </>;

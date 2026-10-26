@@ -17,7 +17,7 @@ from django.db import DatabaseError
 from django.test import Client, RequestFactory, TestCase, override_settings
 from django.utils import timezone
 
-from cigars.models import SalesOrder, User
+from cigars.models import Customer, SalesOrder, User
 from privnote.access import record
 from privnote.models import Privnote, PrivnoteAccessEvent as Access
 
@@ -202,6 +202,58 @@ class PrivnoteAccessTestCase(TestCase):
         self.assertEqual(listing.status_code, 200)
         self.assertEqual(detail.status_code, 200)
         self.assertIn(note.token, {row['token'] for row in listing.json()['results']})
+
+    @override_settings(PRIVNOTE_BASE_URL='https://notes.example.com/')
+    def test_access_metadata_and_search_use_saved_customer_names_without_opening_notes(self):
+        staff = self._staff('metadata-staff')
+        self.client.force_login(staff)
+        customer = Customer.objects.create(name='登记客户')
+        order = SalesOrder.objects.create(customer=customer, customer_name='订单客户', operator=staff)
+        payment = self._note('meta-payment', note_type=Privnote.NoteType.PAYMENT,
+                             sales_order=order, created_by=staff, view_count=4)
+        quote = self._note('meta-quote', note_type=Privnote.NoteType.QUOTE,
+                           data_json={'customer_name': '报价客户'})
+        unnamed = self._note('meta-empty', data_json=[])
+        self._note('meta-invalid', data_json={'customer_name': {'unexpected': 'object'}})
+
+        rows = {row['token']: row for row in self.client.get('/privnote/api/access/').json()['results']}
+        self.assertEqual(rows[payment.token]['customer_name'], '订单客户')
+        self.assertEqual(rows[quote.token]['customer_name'], '报价客户')
+        self.assertEqual(rows[unnamed.token]['customer_name'], '')
+        self.assertEqual(rows['meta-invalid']['customer_name'], '')
+        for term, token in [('订单客户', payment.token), ('登记客户', payment.token), ('报价客户', quote.token)]:
+            with self.subTest(term=term):
+                result = self.client.get('/privnote/api/access/', {'q': term}).json()['results']
+                self.assertEqual([row['token'] for row in result], [token])
+        self.assertEqual(self.client.get('/privnote/api/access/', {'q': '不存在'}).json()['results'], [])
+
+        payload = self.client.get(f'/privnote/api/access/{payment.token}/').json()['note']
+        self.assertEqual(payload['customer_name'], '订单客户')
+        self.assertEqual(payload['url'], f'https://notes.example.com/p/{payment.token}/')
+        self.assertEqual(payload['expires_at'], payment.expires_at.isoformat())
+        self.assertEqual(payload['created_by'], staff.username)
+        self.assertEqual(payload['order_number'], order.order_number)
+        self.assertEqual((payload['has_password'], payload['burn_after_read'], payload['max_views']), (False, False, 0))
+        self.assertNotIn('password_hash', payload)
+        payment.refresh_from_db()
+        self.assertEqual(payment.view_count, 4)
+        self.assertFalse(Access.objects.exists())
+
+        order.customer_name = ''
+        order.save(update_fields=['customer_name'])
+        payload = self.client.get(f'/privnote/api/access/{payment.token}/').json()['note']
+        self.assertEqual(payload['customer_name'], '登记客户')
+
+    @override_settings(PRIVNOTE_BASE_URL='')
+    def test_access_detail_url_falls_back_to_request_origin_and_handles_missing_metadata(self):
+        note = self._note('meta-fallback', data_json={'customer_name': None})
+        self.client.force_login(self._staff('fallback-staff'))
+        payload = self.client.get(f'/privnote/api/access/{note.token}/', secure=True).json()['note']
+        self.assertEqual(payload['url'], f'https://testserver/p/{note.token}/')
+        self.assertEqual(payload['customer_name'], '')
+        self.assertEqual(payload['created_by'], '')
+        self.assertEqual(payload['order_number'], '')
+        self.assertEqual(self.client.get('/privnote/api/access/missing/').status_code, 404)
 
     def test_staff_and_bot_events_are_hidden_by_default_and_visible_with_audience_all(self):
         note = self._note('audience-note')

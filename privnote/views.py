@@ -26,6 +26,7 @@ from .models import PaymentAttachment, PaymentMethod, PaymentSubmission, Privnot
 from .decorators import staff_required
 from .access import observe_access, record as record_access
 from .helpers import (
+    privnote_public_url as _privnote_public_url,
     decimal_to_number,
     safe_json_loads,
     get_in_stock_cigar_ids,
@@ -52,11 +53,6 @@ NOTE_TYPE_BACKWARD_COMPAT = {
     'catalog': 'inventory',
     'sales': 'payment',
 }
-
-def _privnote_public_url(request, token):
-    base_url = getattr(settings, 'PRIVNOTE_BASE_URL', '').strip().rstrip('/')
-    return f'{base_url}/p/{token}/' if base_url else request.build_absolute_uri(f'/p/{token}/')
-
 
 def _request_operator(request):
     if request.user.is_authenticated and request.user.is_staff:

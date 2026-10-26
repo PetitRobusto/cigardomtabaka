@@ -21,6 +21,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from .models import Privnote, PrivnoteAccessEvent as Access
+from .helpers import privnote_public_url
 
 logger = logging.getLogger(__name__)
 COOKIE = 'privnote_visitor'
@@ -170,17 +171,28 @@ def page_data(request, queryset):
 
 
 def note_data(note):
+    config = note.data_json if isinstance(note.data_json, dict) else {}
+    customer_name = config.get('customer_name', '')
+    if note.sales_order_id:
+        order = note.sales_order
+        customer_name = order.customer_name or (order.customer.name if order.customer_id else '')
     return {'token': note.token, 'title': note.title, 'note_type': note.note_type,
+            'customer_name': customer_name if isinstance(customer_name, str) else '',
             'created_at': note.created_at.isoformat(), 'view_count': note.view_count}
 
 
 @require_GET
 @staff_only
 def access_notes(request):
-    notes = Privnote.objects.all().order_by('-created_at', '-id')
+    notes = Privnote.objects.select_related('sales_order__customer').order_by('-created_at', '-id')
     q = request.GET.get('q', '').strip()[:200]
     if q:
-        notes = notes.filter(Q(title__icontains=q) | Q(token__icontains=q))
+        notes = notes.filter(
+            Q(title__icontains=q) | Q(token__icontains=q)
+            | Q(sales_order__customer_name__icontains=q)
+            | Q(sales_order__customer__name__icontains=q)
+            | Q(data_json__customer_name__icontains=q)
+        )
     if request.GET.get('type'):
         notes = notes.filter(note_type=request.GET['type'])
     page, pagination = page_data(request, notes)
@@ -194,7 +206,9 @@ def access_notes(request):
 @require_GET
 @staff_only
 def access_detail(request, token):
-    note = get_object_or_404(Privnote, token=token)
+    note = get_object_or_404(
+        Privnote.objects.select_related('sales_order__customer', 'created_by'), token=token,
+    )
     events = recent_events().filter(privnote=note)
     opens = events.filter(event=Access.Event.OPEN, actor=Access.Actor.CUSTOMER)
     summary = opens.aggregate(opens=Count('id'), visitors=Count('visitor_key', distinct=True, filter=~Q(visitor_key='')),
@@ -206,7 +220,15 @@ def access_detail(request, token):
     rows = list(page)
     first_ids = dict(opens.filter(visitor_key__in=[row.visitor_key for row in rows if row.visitor_key])
                      .values('visitor_key').annotate(first=Min('id')).values_list('visitor_key', 'first'))
-    return JsonResponse({'note': note_data(note), 'summary': summary, 'retention_days': retention_days(), **pagination,
+    detail = {
+        **note_data(note), 'url': privnote_public_url(request, note.token),
+        'expires_at': note.expires_at.isoformat(),
+        'created_by': (note.created_by.get_full_name() or note.created_by.username) if note.created_by_id else '',
+        'order_number': note.sales_order.order_number if note.sales_order_id else '',
+        'has_password': note.has_password, 'burn_after_read': note.burn_after_read,
+        'max_views': note.max_views,
+    }
+    return JsonResponse({'note': detail, 'summary': summary, 'retention_days': retention_days(), **pagination,
                          'results': [{'id': row.pk, 'created_at': row.created_at.isoformat(),
                                       'visitor': row.visitor_key[:10], 'ip': row.ip, 'device': row.device,
                                       'browser': row.browser, 'actor': row.actor, 'event': row.event,

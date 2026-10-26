@@ -36,6 +36,10 @@ function Detail({ token, back }: { token: string; back: () => void }) {
         <header className="border-b border-border p-5">
           <div className="flex flex-wrap items-center gap-3"><h2 className="font-display text-lg font-semibold">{data.note.title}</h2><span className="rounded-full bg-accent-light px-2 py-1 text-xs text-muted">{types[data.note.note_type]}</span></div>
           <p className="mt-1 font-mono text-xs text-muted">{data.note.token} · 创建于 {date(data.note.created_at)}</p>
+          <p className="mt-2 text-sm leading-7">客户：{data.note.customer_name || '未填写'}{data.note.order_number && ` · 关联销售单：${data.note.order_number}`}</p>
+          <p className="text-xs leading-6">链接 URL：<a className="break-all text-accent hover:underline" href={data.note.url} target="_blank" rel="noopener noreferrer">{data.note.url}</a></p>
+          <p className="text-xs leading-6 text-muted">创建人：{data.note.created_by || '未记录'} · 到期时间：{date(data.note.expires_at)}</p>
+          <p className="text-xs leading-6 text-muted">密码保护：{data.note.has_password ? '已开启' : '未开启'} · 阅后即焚：{data.note.burn_after_read ? '已开启' : '未开启'} · 查看次数限制：{!data.note.burn_after_read && data.note.max_views === 0 ? '不限次数' : `${data.note.max_views} 次`}</p>
           <p className="mt-4 text-sm leading-7">近 {data.retention_days} 天 · 成功打开 <b>{data.summary.opens}</b> 次 · 匿名浏览器约 <b>{data.summary.visitors}</b> 个 · 回访 <b>{data.summary.revisits}</b> 次</p>
           <p className="text-xs leading-6 text-muted">最近成功打开：{date(data.summary.last_opened_at)} · 历史累计打开 {data.note.view_count} 次（含员工等访问，独立于保留期统计）</p>
         </header>
@@ -70,7 +74,7 @@ export default function AccessRecords({ initialToken = '' }: { initialToken?: st
   if (token) return <Detail key={token} token={token} back={() => setToken('')} />;
   return <section className="overflow-hidden rounded-lg border border-border bg-white">
     <div className="flex flex-wrap gap-3 border-b border-border bg-cream p-4">
-      <input aria-label="搜索标题或链接编号" placeholder="搜索标题或链接编号…" className="min-w-0 flex-1 rounded border border-border bg-white px-3 py-2 text-sm" value={q} onChange={event => { setQ(event.target.value); setPage(1); }} />
+      <input aria-label="搜索客户名、标题或链接编号" placeholder="搜索客户名、标题或链接编号…" className="min-w-0 flex-1 rounded border border-border bg-white px-3 py-2 text-sm" value={q} onChange={event => { setQ(event.target.value); setPage(1); }} />
       <select aria-label="链接类型" className="rounded border border-border bg-white px-3 py-2 text-sm" value={type} onChange={event => { setType(event.target.value); setPage(1); }}><option value="">全部类型</option>{Object.entries(types).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
       <button aria-label="刷新访问记录" className={button} onClick={() => void query.refetch()}><RefreshCw size={14} />刷新</button>
     </div>
@@ -79,7 +83,7 @@ export default function AccessRecords({ initialToken = '' }: { initialToken?: st
       {!query.data.results.length ? <p className="p-8 text-center text-sm text-muted">暂无符合条件的链接</p> : <table className="block w-full text-left text-xs md:table">
         <thead className="hidden border-b border-border text-muted md:table-header-group"><tr><th className={cell}>链接 / 类型</th><th className={cell}>创建时间</th><th className={cell}>历史累计打开</th><th className={cell}>最近成功打开</th><th className={cell}>操作</th></tr></thead>
         <tbody className="block md:table-row-group">{query.data.results.map(note => <tr key={note.token} className="block border-b border-border py-2 last:border-0 md:table-row md:py-0">
-          <td className={cell}><span className="font-semibold">{note.title}</span><span className="mt-1 block font-mono text-muted">{types[note.note_type]} · {note.token}</span></td>
+          <td className={cell}><span className="font-semibold">{note.title}</span><span className="mt-1 block">客户：{note.customer_name || '未填写'}</span><span className="mt-1 block font-mono text-muted">{types[note.note_type]} · {note.token}</span></td>
           <td className={`${cell} font-mono text-muted`}><span className="md:hidden">创建于 </span>{date(note.created_at)}</td>
           <td className={`${cell} font-mono`}><span className="md:hidden">历史累计打开 </span>{note.view_count} 次</td>
           <td className={`${cell} font-mono text-muted`}><span className="md:hidden">最近打开 </span>{note.last_opened_at ? date(note.last_opened_at) : '暂无明细'}</td>

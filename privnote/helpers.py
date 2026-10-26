@@ -3,8 +3,15 @@ import json
 import re
 from decimal import Decimal
 
+from django.conf import settings
+
 from cigars.constants import BRAND_CN_MAP
 from cigars.models import Brand, Cigar, PurchaseBatch
+
+
+def privnote_public_url(request, token):
+    base_url = getattr(settings, 'PRIVNOTE_BASE_URL', '').strip().rstrip('/')
+    return f'{base_url}/p/{token}/' if base_url else request.build_absolute_uri(f'/p/{token}/')
 
 
 # ── 缩略图 URL ──

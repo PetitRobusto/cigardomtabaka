@@ -2,6 +2,7 @@ export type AccessAction = 'qr_open' | 'copy_card' | 'copy_account';
 export interface AccessNote {
   token: string; title: string; note_type: string; created_at: string;
   view_count: number; last_opened_at?: string | null;
+  customer_name: string;
 }
 export interface AccessPage {
   page: number; pages: number; count: number; retention_days: number;
@@ -12,7 +13,10 @@ export interface AccessEntry {
   event: string; is_revisit: boolean;
 }
 export interface AccessDetail extends AccessPage {
-  note: AccessNote; results: AccessEntry[];
+  note: AccessNote & {
+    url: string; expires_at: string; created_by: string; order_number: string;
+    has_password: boolean; burn_after_read: boolean; max_views: number;
+  }; results: AccessEntry[];
   summary: { opens: number; visitors: number; revisits: number; last_opened_at: string | null };
 }
 async function read<T>(path: string): Promise<T> {

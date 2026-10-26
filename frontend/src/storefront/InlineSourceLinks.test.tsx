@@ -48,4 +48,16 @@ describe("inline product sources", () => {
     expect(description.textContent).toBe('First paragraph.\n\n2024 award <strong>plain HTML</strong> [unsafe](javascript:boom)');
     expect(page.querySelectorAll(".store-description-section")).toHaveLength(1);
   });
+
+  it.each(["zh", "ru", "en"] as const)("renders manufacturer references within the existing brand intro in %s", (locale) => {
+    const body = "Brand history. [Manufacturer](https://maker.example/brand) <script>unsafe</script>";
+    const html = renderStorePage({ page: { ...backendPageFixture, locale, kind: "brand", product: undefined,
+      path: "/brand/example", body, products: [] }, origin: "https://shop.example", assets: { js: [], css: [] } });
+    const page = new DOMParser().parseFromString(html, "text/html");
+    const intro = page.querySelector(".cat-head .intro")!;
+    expect(intro.querySelectorAll("a")).toHaveLength(1);
+    expect(intro.querySelector("a")?.getAttribute("href")).toBe("https://maker.example/brand");
+    expect(intro.querySelector("script")).toBeNull();
+    expect(page.querySelectorAll(".cat-head .intro")).toHaveLength(1);
+  });
 });

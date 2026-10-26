@@ -7,6 +7,7 @@ import unicodedata
 COPY = {
     "zh": {
         "catalog": "雪茄目录",
+        "brand_title": "{brand}雪茄 — 莫斯科",
         "catalog_description": "浏览 {site} 的雪茄目录，按品牌查看商品资料、规格与已公布的报价；请联系门店确认当前供应情况。",
         "product_locality": "莫斯科雪茄",
         "page": "第 {number} 页",
@@ -20,6 +21,7 @@ COPY = {
     },
     "en": {
         "catalog": "Cigar catalogue",
+        "brand_title": "{brand} cigars in Moscow",
         "catalog_description": "Browse the {site} cigar catalogue by brand for product information, specifications and published prices. Contact the store to confirm availability.",
         "product_locality": "Cigars in Moscow",
         "page": "Page {number}",
@@ -73,10 +75,9 @@ def enrich_page_metadata(pages):
                 title = f"{brand} {title}".strip()
             title = " — ".join(filter(None, [title, copy["product_locality"]]))
         elif page.get("kind") == "brand":
-            # Russian brand pages serve the Moscow store's brand searches.
+            # Every language serves the Moscow store's brand searches.
             # Keep this in metadata: the reviewed brand history stays unchanged.
-            title = (copy["brand_title"].format(brand=title) if "brand_title" in copy
-                     else " — ".join(filter(None, [title, copy["catalog"]])))
+            title = copy["brand_title"].format(brand=title)
 
         number = (page.get("pagination") or {}).get("page", 1)
         if isinstance(number, int) and number > 1:

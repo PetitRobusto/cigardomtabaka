@@ -1,0 +1,592 @@
+{
+  "schema_version": 1,
+  "brands": [
+    {
+      "slug": "cohiba",
+      "english_name": "Cohiba",
+      "decision": "preserve",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/",
+          "title": "Cohiba Brand — Habanos, S.A.",
+          "facts": [
+            "Founded in 1966 and associated with Havana's El Laguito factory.",
+            "Cohiba's ranges include Línea Clásica, Línea 1492, Maduro 5 and Behike."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "高希霸 Cohiba 的品牌历史与产品线：1966 年创立，源于哈瓦那 El Laguito 工厂，涵盖经典、1492、Maduro 5 与 Behike 系列。",
+          "body": "高希霸创立于 1966 年，与哈瓦那 El Laguito 工厂渊源深厚，早期作为古巴国宾礼品，1982 年进入国际市场。\n\n旗下经典系列 Línea Clásica 风格中等至浓郁，世纪系列 Línea 1492 风格中等；Maduro 5 以五年自然陈化的深色茄衣为特色，贝伊可 Behike 则采用稀少的 Medio Tiempo 烟叶。"
+        },
+        "ru": {
+          "description": "История Cohiba и её сигарные линии: основание в 1966 году, фабрика El Laguito в Гаване, Línea Clásica, Línea 1492, Maduro 5 и Behike.",
+          "body": "Cohiba основана в 1966 году и тесно связана с гаванской фабрикой El Laguito. Изначально её сигары служили дипломатическими подарками Кубы; в 1982 году марка вышла на международный рынок.\n\nLínea Clásica отличается крепостью от средней до высокой, Línea 1492 — средней крепостью. Maduro 5 использует тёмный покров пятилетней естественной выдержки, а Behike — редкий лист Medio Tiempo."
+        },
+        "en": {
+          "description": "Cohiba brand history and cigar lines: founded in 1966, rooted in Havana’s El Laguito factory, with Línea Clásica, Línea 1492, Maduro 5 and Behike.",
+          "body": "Founded in 1966, Cohiba is closely tied to Havana’s El Laguito factory. Originally reserved for Cuban diplomatic gifts, the brand entered international markets in 1982.\n\nIts lines include medium-to-full Línea Clásica, medium-bodied Línea 1492, Maduro 5 with dark wrappers naturally aged for five years, and Behike, distinguished by the rare Medio Tiempo leaf."
+        }
+      }
+    },
+    {
+      "slug": "cuaba",
+      "english_name": "Cuaba",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/cuaba-brand/",
+          "title": "Cuaba Brand — Habanos, S.A.",
+          "facts": [
+            "Launched in 1996 to revive the 19th-century double-figurado style.",
+            "The range is known for cigars tapered at both ends; Habanos describes its strength as medium to full."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Cuaba 于 1996 年推出，以复兴 19 世纪流行的双头尖茄型为特色，风格中等至浓郁。",
+          "body": "Cuaba 于 1996 年推出，以双头尖茄型重现 19 世纪流行的造型；[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/cuaba-brand/) 将这种两端收窄的复杂形制视为卷制技艺的体现。产品从 Divinos、Tradicionales 等较小规格延伸至 Diadema 和 Salomón 等大型品型，品牌名则源自泰诺语中一种用于点燃雪茄的灌木。"
+        },
+        "ru": {
+          "description": "Cuaba появилась в 1996 году, возродив популярную в XIX веке форму double figurado с заострёнными концами; крепость — от средней до высокой.",
+          "body": "Марка Cuaba появилась в 1996 году, возродив популярную в XIX веке форму double figurado с заострёнными концами. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/cuaba-brand/) отмечает, что такая сложная форма показывает мастерство торседора; ассортимент включает компактные Divinos и Tradicionales, а также крупные Diadema и Salomón. Название Cuaba происходит из языка таино и обозначает кустарник, которым разжигали сигары."
+        },
+        "en": {
+          "description": "Launched in 1996, Cuaba revives the 19th-century double-figurado shape, with cigars tapered at both ends and a medium-to-full profile.",
+          "body": "Launched in 1996, Cuaba revived the 19th-century double-figurado, tapered at both ends; [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/cuaba-brand/) presents the demanding shape as a showcase of rolling skill. The range runs from compact Divinos to larger Diadema and Salomón, and the Taíno name refers to a shrub once used to light cigars."
+        }
+      }
+    },
+    {
+      "slug": "diplomaticos",
+      "english_name": "Diplomáticos",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/diplomaticos-brand/",
+          "title": "Diplomáticos Brand — Habanos, S.A.",
+          "facts": [
+            "The brand dates from the 1960s and its numbered vitolas resemble Montecristo's naming approach.",
+            "Its long-filler cigars use Vuelta Abajo tobacco and are medium to full strength."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Diplomáticos 创立于 20 世纪 60 年代，以数字命名规格、古巴 Vuelta Abajo 烟叶和中等至浓郁风格见长。",
+          "body": "Diplomáticos 于 20 世纪 60 年代创立，规格采用数字命名，形成独立的产品系列。[Habanos](https://www.habanos.com/en/diplomaticos-brand/) 介绍其雪茄以 Vuelta Abajo 烟叶长芯全手工制作，风格中等至浓郁。"
+        },
+        "ru": {
+          "description": "Diplomáticos основана в 1960-х годах; её витолы обозначаются номерами, а профиль сигар — от среднего до насыщенного.",
+          "body": "Diplomáticos появилась в 1960-х годах; витолы марки обозначаются номерами, образуя собственный ассортимент. По данным [Habanos](https://www.habanos.com/en/diplomaticos-brand/), сигары полностью изготавливают вручную с длинным наполнителем из табака Vuelta Abajo в провинции Пинар-дель-Рио; профиль — от среднего до насыщенного."
+        },
+        "en": {
+          "description": "Dating from the 1960s, Diplomáticos uses numbered vitola names and a medium-to-full profile with tobacco from Vuelta Abajo.",
+          "body": "Dating from the 1960s, Diplomáticos is distinguished by vitolas identified with numbers. [Habanos](https://www.habanos.com/en/diplomaticos-brand/) describes its cigars as totally handmade with long filler from Vuelta Abajo in Pinar del Río, with a medium-to-full profile."
+        }
+      }
+    },
+    {
+      "slug": "fonseca",
+      "english_name": "Fonseca",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/fonseca-brand/",
+          "title": "Fonseca Brand — Habanos, S.A.",
+          "facts": [
+            "Founded by Don Francisco Fonseca in the last decade of the 19th century.",
+            "Known for cigars traditionally wrapped together in tissue; Habanos describes a light blend and both long- and short-filler handmade vitolas."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Fonseca 于 19 世纪 90 年代由 Don Francisco Fonseca 创立，以传统薄纸包裹和轻柔风格著称。",
+          "body": "Don Francisco Fonseca 于 19 世纪 90 年代创立同名品牌，传统薄纸包装至今仍是 Fonseca 的鲜明标志。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/fonseca-brand/) 将其混合烟叶描述为轻柔风格；品牌规格均为手工制作，既有长芯也有短芯。"
+        },
+        "ru": {
+          "description": "Fonseca основана Доном Франсиско Фонсекой в 1890-х годах и известна традиционной бумажной обёрткой и лёгким профилем.",
+          "body": "Дон Франсиско Фонсека основал марку в 1890-х годах; её узнаваемая черта — традиционная бумажная обёртка сигар. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/fonseca-brand/) характеризует купаж как лёгкий и указывает табак Vuelta Abajo: витолы изготавливают вручную как с длинным, так и с коротким наполнителем."
+        },
+        "en": {
+          "description": "Founded in the 1890s, Fonseca is known for its traditional tissue-wrapped presentation and light blend.",
+          "body": "Don Francisco Fonseca founded the brand in the 1890s, and its traditional tissue-paper presentation remains a signature. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/fonseca-brand/) describes a light blend using Vuelta Abajo tobacco; the handmade range includes both long- and short-filler vitolas."
+        }
+      }
+    },
+    {
+      "slug": "h-upmann",
+      "english_name": "H. Upmann",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/h-upmann-brand/",
+          "title": "H. Upmann Brand — Habanos, S.A.",
+          "facts": [
+            "Herman Upmann, a German banker, settled in Havana in 1844 and founded a bank and cigar factory.",
+            "The brand is associated with light-to-medium Vuelta Abajo long-filler cigars and includes a Magnum line."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "H. Upmann 源于德国银行家 Herman Upmann 于 1844 年在哈瓦那创立的雪茄事业，风格轻柔至中等。",
+          "body": "德国银行家 Herman Upmann 于 1844 年在哈瓦那创办银行与雪茄工厂，银行虽已关闭，品牌仍延续至今。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/h-upmann-brand/) 将 H. Upmann 描述为轻柔至中等风格，采用 Vuelta Abajo 烟叶长芯全手工制作，Magnum 是其代表系列之一。"
+        },
+        "ru": {
+          "description": "H. Upmann ведёт историю от фабрики, основанной в Гаване банкиром Германом Упманном в 1844 году; крепость — от лёгкой до средней.",
+          "body": "Немецкий банкир Герман Упманн поселился в Гаване в 1844 году и открыл там банк и сигарную фабрику; марка пережила закрытие банка. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/h-upmann-brand/) описывает H. Upmann как сигары лёгкой или средней крепости с длинным наполнителем из табака Vuelta Abajo; среди линий марки есть Magnum."
+        },
+        "en": {
+          "description": "H. Upmann traces its story to banker Herman Upmann’s Havana cigar factory, founded in 1844; its profile ranges from light to medium.",
+          "body": "German banker Herman Upmann settled in Havana in 1844 and opened a bank and cigar factory; the brand endured after the bank closed. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/h-upmann-brand/) describes light-to-medium cigars made with long filler from Vuelta Abajo; Magnum is one of its established lines."
+        }
+      }
+    },
+    {
+      "slug": "hoyo-de-monterrey",
+      "english_name": "Hoyo de Monterrey",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/hoyo-de-monterrey-brand/",
+          "title": "Hoyo de Monterrey Brand — Habanos, S.A.",
+          "facts": [
+            "The brand takes its name from a plantation in San Juan y Martínez in the Vuelta Abajo zone.",
+            "Notable ranges include Double Coronas, Le Hoyo and Epicure; the vitolas are handmade long filler."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/strengths/",
+          "title": "Strengths — Habanos, S.A.",
+          "facts": [
+            "Habanos classifies Hoyo de Monterrey, Le Hoyo and Epicure as light in its brand strength guide."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Hoyo de Monterrey 源自 Vuelta Abajo 的 San Juan y Martínez 烟草庄园，风格轻柔；Epicure 与 Le Hoyo 是品牌代表系列。",
+          "body": "Hoyo de Monterrey 得名于 Vuelta Abajo 的 San Juan y Martínez 烟草庄园，品牌及 Epicure、Le Hoyo 系列均属轻柔风格。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/hoyo-de-monterrey-brand/) 介绍了 Double Coronas 等代表品型，以及品牌与这片种植园的渊源。"
+        },
+        "ru": {
+          "description": "Hoyo de Monterrey названа в честь плантации в Сан-Хуан-и-Мартинес, в зоне Vuelta Abajo; профиль марки лёгкий, а среди её линий выделяются Epicure и Le Hoyo.",
+          "body": "Hoyo de Monterrey получила имя от табачной плантации в Сан-Хуан-и-Мартинес, в зоне Vuelta Abajo. Марка и линии Epicure и Le Hoyo отличаются лёгким профилем; [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/hoyo-de-monterrey-brand/) также выделяет Double Coronas среди характерных форматов бренда."
+        },
+        "en": {
+          "description": "Named for a plantation in San Juan y Martínez, Vuelta Abajo, Hoyo de Monterrey has a light profile, with Epicure and Le Hoyo among its signature lines.",
+          "body": "Hoyo de Monterrey takes its name from a tobacco plantation in San Juan y Martínez, Vuelta Abajo. The brand, Epicure and Le Hoyo are light in profile; [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/hoyo-de-monterrey-brand/) also highlights Double Coronas among its characteristic formats."
+        }
+      }
+    },
+    {
+      "slug": "jose-l-piedra",
+      "english_name": "José L. Piedra",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/",
+          "title": "José L. Piedra Brand — Habanos, S.A.",
+          "facts": [
+            "The Piedra family came from Asturias in the 1880s, settled near Santa Clara and began making cigars; José Lamadrid Piedra founded and developed the brand.",
+            "Its seven vitolas use Remedios tobacco and are totally handmade with short filler; Habanos describes medium-to-full strength."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "José L. Piedra 是少数主要采用古巴 Remedios 产区烟叶的 Habanos 品牌，产品为短芯手工制作。",
+          "body": "José L. Piedra 与 19 世纪迁居古巴的 Piedra 家族及 Remedios 烟区紧密相连，品牌由第二代 José Lamadrid Piedra 创立发展。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/) 介绍其雪茄采用 Remedios 烟叶，以短芯全手工制作，风格中等至浓郁。"
+        },
+        "ru": {
+          "description": "José L. Piedra — одна из немногих марок Habanos, использующих табак региона Ремедиос; сигары делают вручную с коротким наполнителем.",
+          "body": "История José L. Piedra связана с семьёй Пьедра, переселившейся из Астурии на Кубу в XIX веке, и табачной зоной Ремедиос. Марку развил José Lamadrid Piedra, представитель второго поколения семьи; [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/) указывает, что сигары делают вручную с коротким наполнителем из табака Ремедиос, профиль — средний или насыщенный."
+        },
+        "en": {
+          "description": "José L. Piedra is one of the few Habanos brands based on tobacco from Remedios; its handmade cigars use short filler.",
+          "body": "José L. Piedra grew from the Piedra family’s move from Asturias to Cuba in the 19th century and its roots in the Remedios tobacco region. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/) describes handmade short-filler cigars using Remedios leaf, with a medium-to-full profile."
+        }
+      }
+    },
+    {
+      "slug": "juan-lopez",
+      "english_name": "Juan López",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/juan-lopez-brand/",
+          "title": "Juan López Brand — Habanos, S.A.",
+          "facts": [
+            "Created by a Spanish founder of the same name in the 1870s.",
+            "Known for Selección No. 1 and No. 2; long-filler handmade vitolas use Vuelta Abajo tobacco and are medium to full."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Juan López 由一位同名西班牙人于 19 世纪 70 年代创立，以 Selección No. 1 与 No. 2 系列为代表。",
+          "body": "Juan López 由一位同名西班牙人于 19 世纪 70 年代创立，现有系列以 Selección No. 1 和 No. 2 为核心。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/juan-lopez-brand/) 介绍其雪茄采用 Vuelta Abajo 烟叶长芯全手工制作，风格中等至浓郁。"
+        },
+        "ru": {
+          "description": "Juan López основана испанцем с таким именем в 1870-х годах; основу ассортимента составляют Selección No. 1 и No. 2.",
+          "body": "Марку Juan López основал в 1870-х годах испанец с таким же именем; основу ассортимента составляют Selección No. 1 и Selección No. 2. По данным [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/juan-lopez-brand/), сигары полностью изготавливают вручную с длинным наполнителем из табака Vuelta Abajo; профиль — от среднего до насыщенного."
+        },
+        "en": {
+          "description": "Founded by a Spanish namesake in the 1870s, Juan López is centered on its Selección No. 1 and No. 2 vitolas.",
+          "body": "Juan López was founded in the 1870s by a Spanish namesake, and its portfolio centers on Selección No. 1 and No. 2. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/juan-lopez-brand/) describes handmade long-filler cigars using Vuelta Abajo tobacco, with a medium-to-full profile."
+        }
+      }
+    },
+    {
+      "slug": "la-gloria-cubana",
+      "english_name": "La Gloria Cubana",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/la-gloria-cubana-brand/",
+          "title": "La Gloria Cubana Brand — Habanos, S.A.",
+          "facts": [
+            "Founded in 1885 and known especially for the Médaille d’Or series.",
+            "Its long-filler handmade blend uses Vuelta Abajo filler and binder tobacco; Habanos classifies it as medium strength."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "La Gloria Cubana 创立于 1885 年，以 Médaille d’Or 系列和 Vuelta Abajo 烟叶的均衡风格闻名。",
+          "body": "La Gloria Cubana 创立于 1885 年，以 Médaille d’Or 系列和忠实的资深爱好者群体闻名。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/la-gloria-cubana-brand/) 介绍其雪茄以 Vuelta Abajo 烟叶长芯全手工制作，整体风格中等、香气与口感均衡。"
+        },
+        "ru": {
+          "description": "La Gloria Cubana основана в 1885 году; среди её характерных серий — Médaille d’Or, а общий профиль производитель считает средним.",
+          "body": "La Gloria Cubana основана в 1885 году; одна из её характерных серий — Médaille d’Or, у марки также есть круг преданных ценителей. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/la-gloria-cubana-brand/) описывает сигары ручной скрутки с длинным наполнителем из табака Vuelta Abajo; профиль средний, с уравновешенным вкусом и ароматом."
+        },
+        "en": {
+          "description": "Founded in 1885, La Gloria Cubana is known for its Médaille d’Or series and a balanced, medium-strength blend.",
+          "body": "Founded in 1885, La Gloria Cubana is known for its Médaille d’Or series and a loyal following among experienced smokers. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/la-gloria-cubana-brand/) describes handmade long-filler cigars using Vuelta Abajo tobacco, with a balanced medium profile."
+        }
+      }
+    },
+    {
+      "slug": "montecristo",
+      "english_name": "Montecristo",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/",
+          "title": "Montecristo Brand — Habanos, S.A.",
+          "facts": [
+            "Founded in 1935 at the H. Upmann factory; named for Alexandre Dumas’s novel.",
+            "Its range grew from five numbered vitolas to include Línea Open, Edmundo and Línea 1935; profile varies by line."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Montecristo 于 1935 年在 H. Upmann 工厂创立，名称来自大仲马小说《基督山伯爵》。",
+          "body": "Montecristo 于 1935 年在哈瓦那 H. Upmann 工厂创立，名称取自大仲马小说《基督山伯爵》，工厂朗读员曾为卷制工人朗读此书。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/) 介绍其产品从早期编号规格扩展至 Edmundo、Línea Open 和浓郁的 Línea 1935。"
+        },
+        "ru": {
+          "description": "Montecristo основана в 1935 году на фабрике H. Upmann; название отсылает к роману Александра Дюма «Граф Монте-Кристо».",
+          "body": "Montecristo появилась в 1935 году на фабрике H. Upmann в Гаване и получила имя по роману Александра Дюма «Граф Монте-Кристо», который читали торседорам во время работы. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/) описывает путь от пяти номерных витол к линиям Edmundo, Línea Open и более насыщенной Línea 1935."
+        },
+        "en": {
+          "description": "Founded at Havana’s H. Upmann factory in 1935, Montecristo takes its name from Alexandre Dumas’s novel The Count of Monte Cristo.",
+          "body": "Founded at Havana’s H. Upmann factory in 1935, Montecristo takes its name from Alexandre Dumas’s novel, once read aloud to cigar makers at work. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/) traces its range from numbered vitolas to Edmundo, Línea Open and the fuller Línea 1935."
+        }
+      }
+    },
+    {
+      "slug": "partagas",
+      "english_name": "Partagás",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/",
+          "title": "Partagás Brand — Habanos, S.A.",
+          "facts": [
+            "Jaime Partagás founded the Havana factory in 1845; the brand remains associated with it.",
+            "Habanos describes an intense, full-flavored profile and highlights the Serie D, Serie P and Maduro lines."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Partagás 由 Jaime Partagás 于 1845 年在哈瓦那创立，以浓郁风格和 Serie D、Serie P 等系列闻名。",
+          "body": "Jaime Partagás 于 1845 年在哈瓦那创立品牌，Partagás 以浓郁风格及 Serie D、Serie P 等系列著称。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/) 介绍其雪茄采用 Vuelta Abajo 烟叶长芯全手工制作，系列各有鲜明风格。"
+        },
+        "ru": {
+          "description": "Partagás основана Хайме Партагасом в Гаване в 1845 году; марку отличает насыщенный профиль и серии D, P и Maduro.",
+          "body": "Хайме Партагас основал марку в Гаване в 1845 году; Partagás известна насыщенным профилем и сериями Serie D, Serie P и Maduro. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/) указывает, что сигары полностью изготавливают вручную с длинным наполнителем из табака Vuelta Abajo; линейки отличаются собственным характером."
+        },
+        "en": {
+          "description": "Founded by Jaime Partagás in Havana in 1845, the brand is known for an intense profile and its Serie D, Serie P and Maduro lines.",
+          "body": "Jaime Partagás founded the Havana brand in 1845. Known for an intense profile, Partagás includes Serie D, Serie P and Maduro. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/) describes its cigars as handmade with long filler from Vuelta Abajo."
+        }
+      }
+    },
+    {
+      "slug": "punch",
+      "english_name": "Punch",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/punch-brand/",
+          "title": "Punch Brand — Habanos, S.A.",
+          "facts": [
+            "Founded in the mid-19th century for the English market and named for the satirical publication and its clown character.",
+            "The brand is medium strength, uses Vuelta Abajo tobacco and has a long association with Hoyo de Monterrey production."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Punch 创立于 19 世纪中叶，最初面向英国市场；品牌标志人物源自同名讽刺刊物。",
+          "body": "Punch 于 19 世纪中叶为英国市场创立，品牌名取自当时流行的讽刺刊物，盒上小丑 Mr. Punch 延续这一渊源。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/punch-brand/) 将其风格列为中等，并介绍其采用 Vuelta Abajo 烟叶长芯手工制作。"
+        },
+        "ru": {
+          "description": "Punch — марка середины XIX века, созданная для английского рынка и названная в честь одноимённого сатирического издания.",
+          "body": "Punch появилась в середине XIX века для английского рынка и получила имя от популярного сатирического журнала; персонаж-клоун Mr. Punch сохранился на коробках. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/punch-brand/) относит профиль к среднему и указывает табак Vuelta Abajo и ручное изготовление с длинным наполнителем."
+        },
+        "en": {
+          "description": "Punch dates to the mid-19th century, when it was created for the English market and named after a popular satirical publication.",
+          "body": "Created for the English market in the mid-19th century, Punch takes its name from a popular satirical publication; its clown character, Mr. Punch, still appears on boxes. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/punch-brand/) describes a medium profile and handmade long filler using Vuelta Abajo tobacco."
+        }
+      }
+    },
+    {
+      "slug": "quai-dorsay",
+      "english_name": "Quai d'Orsay",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/quai-dorsay-brand/",
+          "title": "Quai d’Orsay Brand — Habanos, S.A.",
+          "facts": [
+            "Created by Cubatabaco at Seita's request for the French market and named after a Paris avenue.",
+            "Its handmade long-filler vitolas are light in strength; the range later gained international distribution."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Quai d’Orsay 为法国市场创立，风格轻柔；No. 50 与 No. 54 是品牌代表规格。",
+          "body": "Cubatabaco 应法国公司 Seita 的要求为法国市场创立 Quai d’Orsay，品牌名来自塞纳河畔的巴黎大道。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/quai-dorsay-brand/) 将其风格列为轻柔；No. 50 与 No. 54 等规格带动品牌走向更多国际市场。"
+        },
+        "ru": {
+          "description": "Quai d’Orsay создана для французского рынка; её профиль лёгкий, а среди характерных витол — No. 50 и No. 54.",
+          "body": "Cubatabaco создала Quai d’Orsay по просьбе французской компании Seita для рынка Франции; марка названа в честь парижской набережной. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/quai-dorsay-brand/) описывает лёгкий профиль, сигары ручной скрутки с длинным наполнителем; No. 50 и No. 54 стали частью расширившегося международного ассортимента."
+        },
+        "en": {
+          "description": "Created for the French market, Quai d’Orsay has a light profile; No. 50 and No. 54 are among its signature vitolas.",
+          "body": "Cubatabaco created Quai d’Orsay for France at the request of Seita, and named it for the Paris avenue beside the Seine. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/quai-dorsay-brand/) describes a light profile and handmade long filler; No. 50 and No. 54 helped broaden its international range."
+        }
+      }
+    },
+    {
+      "slug": "quintero",
+      "english_name": "Quintero",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/quintero-brand/",
+          "title": "Quintero Brand — Habanos, S.A.",
+          "facts": [
+            "Founded by Agustín Quintero in Cienfuegos, one of the few Habanos brands not born in Havana.",
+            "Its cigars are handmade with short filler and have a medium profile; tobacco blend comes from Vuelta Abajo."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Quintero 由 Agustín Quintero 在古巴南部城市 Cienfuegos 创立，是少数并非诞生于哈瓦那的 Habanos 品牌。",
+          "body": "Agustín Quintero 在古巴南部城市 Cienfuegos 创立品牌，使 Quintero 成为少数诞生于哈瓦那以外的 Habanos 品牌之一。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/quintero-brand/) 介绍其雪茄采用 Vuelta Abajo 烟叶短芯全手工制作，风格中等。"
+        },
+        "ru": {
+          "description": "Quintero основана Агустином Кинтеро в Сьенфуэгосе — одном из немногих городов за пределами Гаваны, где родилась марка Habanos.",
+          "body": "Агустин Кинтеро основал марку в Сьенфуэгосе на юге Кубы, поэтому Quintero относится к немногим брендам Habanos, возникшим за пределами Гаваны. По данным [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/quintero-brand/), сигары делают вручную с коротким наполнителем из табака Vuelta Abajo; профиль средний."
+        },
+        "en": {
+          "description": "Founded by Agustín Quintero in Cienfuegos, Quintero is one of the few Habanos brands that did not originate in Havana.",
+          "body": "Agustín Quintero founded the brand in Cienfuegos in southern Cuba, making it one of the few Habanos labels born outside Havana. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/quintero-brand/) describes handmade short-filler cigars using Vuelta Abajo tobacco, with a medium profile."
+        }
+      }
+    },
+    {
+      "slug": "rafael-gonzalez",
+      "english_name": "Rafael González",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/rafael-gonzalez-brand/",
+          "title": "Rafael González Brand — Habanos, S.A.",
+          "facts": [
+            "Created in the 1930s; filler and binder leaves come from Vuelta Abajo in Pinar del Río.",
+            "Habanos describes a light profile and handmade long-filler cigars alongside a short-filler format."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Rafael González 创立于 20 世纪 30 年代，以轻柔风格和 Vuelta Abajo 烟区的烟叶为特色，规格涵盖长芯与短芯手工雪茄。",
+          "body": "Rafael González 创立于 20 世纪 30 年代，以轻柔风格为特色。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/rafael-gonzalez-brand/) 介绍其茄芯与茄套烟叶均来自古巴 Pinar del Río 地区的 Vuelta Abajo 烟区；品牌雪茄以长芯全手工卷制为主，亦有短芯规格。"
+        },
+        "ru": {
+          "description": "Rafael González — кубинская марка 1930-х годов с лёгким профилем. Табак для наполнителя и связующего листа выращивают в зоне Vuelta Abajo.",
+          "body": "Rafael González появилась в 1930-х годах и отличается лёгким профилем. По данным [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/rafael-gonzalez-brand/), наполнитель и связующий лист получают из табака Vuelta Abajo в провинции Пинар-дель-Рио; ассортимент включает сигары ручной скрутки как с длинным, так и с коротким наполнителем."
+        },
+        "en": {
+          "description": "Founded in the 1930s, Rafael González is a Cuban brand with a light profile and filler and binder leaves from Vuelta Abajo. Its handmade cigars include long- and short-filler formats.",
+          "body": "Founded in the 1930s, Rafael González has a light profile. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/rafael-gonzalez-brand/) identifies Vuelta Abajo in Pinar del Río as the source of its filler and binder leaves; the handmade range includes both long- and short-filler cigars."
+        }
+      }
+    },
+    {
+      "slug": "ramon-allones",
+      "english_name": "Ramón Allones",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/ramon-allones-brand/",
+          "title": "Ramón Allones Brand — Habanos, S.A.",
+          "facts": [
+            "Founded in 1837 and among the oldest Habanos brands still in production.",
+            "Pioneered decorated, labeled cigar boxes; its handmade long-filler blend is intense and complex, with Vuelta Abajo tobacco."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Ramón Allones 创立于 1837 年，是仍在生产的老牌 Habanos 品牌之一，也开创了装饰标签雪茄盒的传统。",
+          "body": "Ramón Allones 创立于 1837 年，是仍在生产的历史悠久的 Habanos 品牌之一；创始人率先使用带标签和品牌标志的雪茄盒。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/ramon-allones-brand/) 介绍其雪茄以 Vuelta Abajo 烟叶长芯手工制作，风格浓郁复杂。"
+        },
+        "ru": {
+          "description": "Ramón Allones основана в 1837 году и входит в число старейших действующих марок Habanos; её создатель первым стал использовать оформленные сигарные коробки с этикетками.",
+          "body": "Ramón Allones основана в 1837 году и остаётся одной из старейших действующих марок Habanos; её создатель первым стал использовать коробки с этикетками и эмблемой. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/ramon-allones-brand/) описывает сигары ручной скрутки с длинным наполнителем из Vuelta Abajo и насыщенный сложный профиль."
+        },
+        "en": {
+          "description": "Founded in 1837, Ramón Allones is one of the oldest Habanos brands still in production and pioneered decorated cigar boxes with labels.",
+          "body": "Founded in 1837, Ramón Allones is among the oldest Habanos brands still in production; its founder pioneered cigar boxes decorated with labels and a brand emblem. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/ramon-allones-brand/) describes handmade long filler from Vuelta Abajo and an intense, complex profile."
+        }
+      }
+    },
+    {
+      "slug": "romeo-y-julieta",
+      "english_name": "Romeo y Julieta",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/",
+          "title": "Romeo y Julieta Brand — Habanos, S.A.",
+          "facts": [
+            "Created as a Habanos brand in 1875 and named after Shakespeare’s tragedy.",
+            "Its medium, aromatic blend and broad vitola range include the Churchills line; Línea de Oro is a distinct medium-to-full line."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Romeo y Julieta 于 1875 年创立，名称来自莎士比亚悲剧，以芳香均衡的中等风格和宽广规格系列闻名。",
+          "body": "Romeo y Julieta 于 1875 年得名于莎士比亚悲剧，20 世纪初 Don “Pepín” Rodríguez 推广雪茄环标，助品牌走向国际。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/) 将经典系列描述为芳香、均衡的中等风格，Churchills 系列则与温斯顿·丘吉尔 1946 年访哈瓦那相关。"
+        },
+        "ru": {
+          "description": "Romeo y Julieta основана в 1875 году и получила имя по трагедии Шекспира; классический профиль — средний, сбалансированный и ароматный.",
+          "body": "Romeo y Julieta получила имя по трагедии Шекспира; в начале XX века Дон «Пепин» Родригес помог марке выйти на международный рынок, оценив роль сигарных колец. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/) описывает классический купаж как ароматный и сбалансированный, средней крепости; серия Churchills связана с визитом Уинстона Черчилля в Гавану в 1946 году."
+        },
+        "en": {
+          "description": "Founded in 1875 and named for Shakespeare’s tragedy, Romeo y Julieta is known for its aromatic, balanced medium profile.",
+          "body": "Named for Shakespeare’s tragedy, Romeo y Julieta gained international reach in the early 20th century as Don “Pepín” Rodríguez championed cigar bands. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/) describes the classic blend as aromatic, balanced and medium-bodied; the Churchills line is linked to Churchill’s 1946 Havana visit."
+        }
+      }
+    },
+    {
+      "slug": "trinidad",
+      "english_name": "Trinidad",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/",
+          "title": "Trinidad Brand — Habanos, S.A.",
+          "facts": [
+            "The brand dates to 1969 and, until 1998, was reserved for gifts to foreign diplomats before limited public sale.",
+            "Named after the Cuban city; its long-filler handmade blend is medium strength and its range now spans multiple vitolas."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Trinidad 品牌创立于 1969 年，早期作为赠予外国外交官的礼品，1998 年起限量面向公众销售。",
+          "body": "Trinidad 于 1969 年创立，多年来主要作为赠予外国外交官的礼品，1998 年开始限量公开销售。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/) 记载其最初仅有 Fundadores，后来加入其他规格；品牌雪茄以 Vuelta Abajo 烟叶长芯手工制作，风格中等。"
+        },
+        "ru": {
+          "description": "Марка Trinidad основана в 1969 году и до 1998 года предназначалась в основном для подарков иностранным дипломатам.",
+          "body": "Trinidad ведёт историю с 1969 года и долгие годы служила главным образом подарком иностранным дипломатам; ограниченные открытые продажи начались в 1998 году. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/) отмечает, что сначала выпускалась только Fundadores, позднее появились другие витолы; сигары делают вручную с длинным наполнителем из Vuelta Abajo, профиль средний."
+        },
+        "en": {
+          "description": "The Trinidad brand dates to 1969 and was reserved mainly for gifts to foreign diplomats until limited public release began in 1998.",
+          "body": "Dating to 1969, Trinidad was reserved mainly for foreign diplomats’ gifts until limited public sales began in 1998. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/) notes that the range began with Fundadores and later expanded; its handmade long-filler cigars use Vuelta Abajo tobacco and have a medium profile."
+        }
+      }
+    },
+    {
+      "slug": "vegas-robaina",
+      "english_name": "Vegas Robaina",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/vegas-robaina-brand/",
+          "title": "Vegas Robaina Brand — Habanos, S.A.",
+          "facts": [
+            "The Robaina family cultivated tobacco in Cuchillas de Barbacoa, San Luis, from 1845; the brand was created in 1997 to honor Alejandro Robaina and growers.",
+            "All five vitolas are handmade long filler; Habanos lists medium-to-full strength."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Vegas Robaina 于 1997 年创立，以烟农 Alejandro Robaina 为代表，致敬古巴烟草种植者与茄衣种植传统。",
+          "body": "Vegas Robaina 于 1997 年创立，以烟农 Alejandro Robaina 及其家族世代种植烟草的传统为名。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/vegas-robaina-brand/) 介绍 Robaina 家族在 Vuelta Abajo 的种植历史及其优质茄衣叶；品牌雪茄长芯全手工制作，风格中等至浓郁。"
+        },
+        "ru": {
+          "description": "Vegas Robaina создана в 1997 году в честь табаковода Алехандро Робайны и поколений кубинских фермеров.",
+          "body": "Vegas Robaina появилась в 1997 году в честь табаковода Алехандро Робайны и семейной традиции выращивания табака в зоне Vuelta Abajo. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/vegas-robaina-brand/) связывает имя семьи с качественными покровными листьями; сигары марки делают вручную с длинным наполнителем, профиль — от среднего до насыщенного."
+        },
+        "en": {
+          "description": "Created in 1997, Vegas Robaina honors tobacco grower Alejandro Robaina and generations of Cuban farmers.",
+          "body": "Created in 1997, Vegas Robaina honors grower Alejandro Robaina and his family’s generations of tobacco cultivation in Vuelta Abajo. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/vegas-robaina-brand/) links the family to fine wrapper leaves; the cigars are handmade long filler with a medium-to-full profile."
+        }
+      }
+    },
+    {
+      "slug": "vegueros",
+      "english_name": "Vegueros",
+      "decision": "update",
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/vegueros-brand/",
+          "title": "Vegueros Brand — Habanos, S.A.",
+          "facts": [
+            "Introduced in 1996 as a tribute to generations of tobacco farmers in Pinar del Río.",
+            "Made at the Francisco Donatién factory; its long-filler handmade blend uses Vuelta Abajo tobacco and is medium to full in strength."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Vegueros 于 1996 年推出，致敬 Pinar del Río 世代种植烟草的农户，品牌在当地 Francisco Donatién 工厂制作。",
+          "body": "Vegueros 于 1996 年推出，致敬 Pinar del Río 世代种植烟草的农户，并在当地 Francisco Donatién 工厂制作。[Habanos](https://www.habanos.com/en/the-habanos-brands-academia/vegueros-brand/) 介绍品牌以 Vuelta Abajo 烟叶长芯全手工制作，风格中等至浓郁。"
+        },
+        "ru": {
+          "description": "Vegueros выпущена в 1996 году в честь поколений табаководов Пинар-дель-Рио; сигары производят на фабрике Francisco Donatién.",
+          "body": "Vegueros появилась в 1996 году как дань уважения поколениям табаководов провинции Пинар-дель-Рио; сигары выпускают на фабрике Francisco Donatién. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/vegueros-brand/) указывает местный табак Vuelta Abajo, ручное изготовление с длинным наполнителем и профиль от среднего до насыщенного."
+        },
+        "en": {
+          "description": "Introduced in 1996, Vegueros honors generations of tobacco farmers in Pinar del Río and is made at the Francisco Donatién factory.",
+          "body": "Introduced in 1996, Vegueros honors generations of tobacco growers in Pinar del Río and is made at the local Francisco Donatién factory. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/vegueros-brand/) describes handmade long-filler cigars using Vuelta Abajo tobacco, with a medium-to-full profile."
+        }
+      }
+    }
+  ]
+}

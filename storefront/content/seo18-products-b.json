@@ -1,0 +1,1579 @@
+{
+  "schema_version": 1,
+  "products": [
+    {
+      "id": 1139,
+      "brand_slug": "trinidad",
+      "english_name": "Fundadores",
+      "decision": "update",
+      "identity_note": "Trinidad Fundadores; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 192,
+        "ring_gauge": 40,
+        "vitola": "Laguito Especial"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/",
+          "title": "Trinidad — Habanos, S.A. brand information",
+          "facts": [
+            "The brand dates to 1969 and was initially reserved for diplomatic gifts before wider release in 1998. Habanos describes its hand-rolled long-filler blend as aromatic and medium in flavour."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Fundadores as Laguito Especial, 192 mm, ring gauge 40."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Fundadores是Trinidad最初的茄型，修长Laguito Especial造型定义了早期品牌形象。",
+          "body": "Fundadores 是 Trinidad 最初推出的茄型，也是品牌长期保留的代表性长形规格。它采用 Laguito Especial，192 毫米长度与 40 环径形成修长轮廓。Trinidad 名称致敬古巴南岸的 Santísima Trinidad 城市；品牌配方以 Vuelta Abajo 烟叶全手工长芯卷制，风格中等、芳香。 [Habanos 厂家资料](https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/)"
+        },
+        "ru": {
+          "description": "Fundadores была первой витолой Trinidad; вытянутая форма Laguito Especial определила ранний образ марки.",
+          "body": "Fundadores была первой витолой Trinidad и остаётся характерным длинным форматом марки. Она выполнена в форме Laguito Especial: 192 мм длины при кольце 40 создают вытянутый силуэт. Название Trinidad дано в честь города Сантисима-Тринидад на южном побережье Кубы; сигары марки вручную скручивают с длинным наполнителем из Вуэльта-Абахо, профиль — ароматный, средней крепости. [материалы Habanos](https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/)"
+        },
+        "en": {
+          "description": "Fundadores was Trinidad’s original vitola; its long Laguito Especial shape defined the brand’s early profile.",
+          "body": "Fundadores was Trinidad’s original vitola and remains the brand’s distinctive long format. It uses the Laguito Especial shape, with 192 mm of length and a 40 ring gauge creating a slender profile. The brand honours the Cuban city of Santísima Trinidad; its cigars are handmade with long filler from Vuelta Abajo and have an aromatic, medium-bodied character. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/)"
+        }
+      }
+    },
+    {
+      "id": 1143,
+      "brand_slug": "trinidad",
+      "english_name": "Vigia",
+      "decision": "update",
+      "identity_note": "Trinidad Vigia; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 110,
+        "ring_gauge": 54,
+        "vitola": "Torres"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/news/vigia-una-nueva-referencia-exclusiva-de-trinidad-en/",
+          "title": "Vigía. An exclusive new reference from Trinidad — Habanos, S.A.",
+          "facts": [
+            "Habanos announced Vigía in 2014 as Torres, ring gauge 54 × 110 mm, to fill the gap left by discontinued vitolas."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/",
+          "title": "Trinidad — Habanos, S.A. brand information",
+          "facts": [
+            "The brand dates to 1969 and was initially reserved for diplomatic gifts before wider release in 1998. Habanos describes its hand-rolled long-filler blend as aromatic and medium in flavour."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Vigia as Torres, 110 mm, ring gauge 54."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Vigía于2014年面世，Torres茄型之名呼应古巴糖蔗田瞭望塔；品牌标志性猪尾茄帽保留在这款短粗造型上。",
+          "body": "Trinidad Vigía 于 2014 年推出，采用短而粗的 Torres 茄型，长度 110 毫米、环径 54，并保留品牌标志性的猪尾茄帽。Vigía 与 Torres 的名称呼应古巴 Trinidad 附近 Valle de los Ingenios 糖蔗种植园的瞭望塔。 [Habanos 原始资料](https://www.habanos.com/en/news/vigia-una-nueva-referencia-exclusiva-de-trinidad-en/)"
+        },
+        "ru": {
+          "description": "Vigía представлена в 2014 году: название Torres отсылает к сторожевым башням сахарных плантаций Кубы, а короткий широкий формат сохраняет фирменный «хвостик» Trinidad.",
+          "body": "Trinidad Vigía появилась в 2014 году в коротком широком формате Torres: длина 110 мм, кольцо 54 и фирменная косичка на головке. Названия Vigía и Torres отсылают к сторожевым башням сахарных плантаций в долине Валье-де-лос-Инхениос близ кубинского Тринидада. [Материалы Habanos](https://www.habanos.com/en/news/vigia-una-nueva-referencia-exclusiva-de-trinidad-en/)"
+        },
+        "en": {
+          "description": "Introduced in 2014, Vigía takes its Torres name from Cuba’s sugar plantation watchtowers and keeps Trinidad’s signature pigtail cap.",
+          "body": "Trinidad Vigía was introduced in 2014 in the short, broad Torres shape, measuring 110 mm by ring gauge 54 and finished with the brand’s signature pigtail cap. The names Vigía and Torres refer to the watchtowers of sugar plantations in the Valle de los Ingenios near the Cuban city of Trinidad. [Habanos source](https://www.habanos.com/en/news/vigia-una-nueva-referencia-exclusiva-de-trinidad-en/)"
+        }
+      }
+    },
+    {
+      "id": 1146,
+      "brand_slug": "trinidad",
+      "english_name": "Media Luna",
+      "decision": "update",
+      "identity_note": "Trinidad Media Luna; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 115,
+        "ring_gauge": 50,
+        "vitola": "Marinas"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/",
+          "title": "Trinidad Brand — Habanos, S.A.",
+          "facts": [
+            "Media Luna (50 × 115 mm) was introduced to Trinidad regular production in 2019."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Media Luna as Marinas, 115 mm, ring gauge 50."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Media Luna于2019年纳入Trinidad常规系列，Marinas造型短巧而环径宽。",
+          "body": "Media Luna 于 2019 年进入 Trinidad 常规系列，是当年新增的三款茄型之一。它采用 Marinas 品型，115 毫米长度与 50 环径形成短而宽的比例。Trinidad 的配方以 Vuelta Abajo 茄芯和茄套烟叶手工卷制，风格芳香、中等；Media Luna 将这类风格带入更紧凑的尺寸。 [Habanos 厂家资料](https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/)"
+        },
+        "ru": {
+          "description": "Media Luna вошла в регулярную линейку Trinidad в 2019 году; форма Marinas короткая и широкая.",
+          "body": "Media Luna вошла в регулярный ассортимент Trinidad в 2019 году как одна из трёх новых витол. Она выполнена в форме Marinas: 115 мм длины при кольце 50 дают компактный широкий формат. Купаж Trinidad делают вручную из листьев Вуэльта-Абахо для наполнителя и связующего листа; вкус марки ароматный, средней крепости. Media Luna представляет этот профиль в коротком размере. [материалы Habanos](https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/)"
+        },
+        "en": {
+          "description": "Media Luna joined Trinidad’s regular range in 2019; its Marinas shape is short and broad.",
+          "body": "Media Luna joined Trinidad’s regular range in 2019 as one of three new vitolas. It uses the Marinas shape, with a 115 mm length and 50 ring gauge making a compact, broad cigar. Trinidad’s aromatic, medium-bodied blend uses Vuelta Abajo leaves for filler and binder and is rolled by hand; Media Luna brings that character to a shorter format. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/)"
+        }
+      }
+    },
+    {
+      "id": 1147,
+      "brand_slug": "trinidad",
+      "english_name": "Topes",
+      "decision": "update",
+      "identity_note": "Trinidad Topes; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 125,
+        "ring_gauge": 56,
+        "vitola": "Topes"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/news/se-presenta-trinidad-topes-edicion-limitada-2016-en-venecia-en/",
+          "title": "Trinidad Topes Edición Limitada 2016 — Habanos, S.A.",
+          "facts": [
+            "Topes debuted as a 2016 Limited Edition, Torres? No: Topes factory vitola, 56 × 125 mm; Habanos notes its pigtail cap and at least two-year leaf aging for Limited Editions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/",
+          "title": "Trinidad — Habanos, S.A. brand information",
+          "facts": [
+            "The brand dates to 1969 and was initially reserved for diplomatic gifts before wider release in 1998. Habanos describes its hand-rolled long-filler blend as aromatic and medium in flavour."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Topes as Topes, 125 mm, ring gauge 56."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Topes最初是2016年限量版，之后进入Trinidad常规系列；其茄帽保留品牌标志性的猪尾结。",
+          "body": "Topes 最初作为 Trinidad 2016 年限量版推出，于 2019 年加入常规系列。它采用 125 毫米、56 环径的宽茄身，保留品牌标志性的猪尾茄帽，并以 Vuelta Abajo 烟叶全手工长芯卷制，呈现 Trinidad 芳香、中等强度的风格。 [Habanos 原始资料](https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/)"
+        },
+        "ru": {
+          "description": "Topes впервые вышла как лимитированное издание 2016 года, затем вошла в регулярную линейку Trinidad; на головке сохранён фирменный «хвостик».",
+          "body": "Topes впервые вышла как лимитированная Trinidad 2016 года, а в 2019 году вошла в регулярную линейку. Широкий формат длиной 125 мм с кольцом 56 завершает фирменная косичка. Полностью ручная скрутка с длинным наполнителем из Вуэльта-Абахо передаёт ароматный характер Trinidad средней крепости. [Материалы Habanos](https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/)"
+        },
+        "en": {
+          "description": "Topes first appeared as a 2016 Limited Edition before joining Trinidad’s regular range; it retains the brand’s signature pigtail cap.",
+          "body": "Topes first appeared as a Trinidad Limited Edition in 2016 and joined the regular range in 2019. Its broad 125 mm by 56 format carries the brand’s signature pigtail cap. Totally handmade with Vuelta Abajo long filler, it presents Trinidad’s aromatic, medium-bodied character. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/trinidad-brand/)"
+        }
+      }
+    },
+    {
+      "id": 1166,
+      "brand_slug": "vegas-robaina",
+      "english_name": "Famosos",
+      "decision": "update",
+      "identity_note": "Vegas Robaina Famosos; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 127,
+        "ring_gauge": 48,
+        "vitola": "Hermosos No.4"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/vegas-robaina-brand/",
+          "title": "Vegas Robaina — Habanos, S.A. brand information",
+          "facts": [
+            "Created in 1997 to honour Cuban tobacco grower Alejandro Robaina and the wider community of growers, Vegas Robaina is made totally by hand with long filler, according to Habanos."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Famosos as Hermosos No.4, 127 mm, ring gauge 48."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Vegas Robaina Famosos 采用 Hermosos No. 4 茄型，以全手工长芯卷制，呈现中等至浓郁的风格。",
+          "body": "Famosos 是 Vegas Robaina 的 Hermosos No. 4 型号。Habanos 将品牌创立年份记为 1997 年，以烟农 Alejandro Robaina 为代表，向古巴烟农致敬。Famosos 由古巴烟叶全手工长芯卷制，风格中等至浓郁；127 毫米长度与 48 环径构成经典比例。 [Habanos 厂家资料](https://www.habanos.com/en/the-habanos-brands-academia/vegas-robaina-brand/)"
+        },
+        "ru": {
+          "description": "Vegas Robaina Famosos — витола Hermosos No. 4, полностью ручной работы с длинным наполнителем и крепостью от средней до высокой.",
+          "body": "Famosos — витола Hermosos No. 4 марки Vegas Robaina. Марка создана в 1997 году в честь табаковода Алехандро Робайны и всех кубинских фермеров. По данным Habanos, сигары Vegas Robaina полностью скручивают вручную с длинным наполнителем. Для Famosos указаны длина 127 мм, кольцо 48 и крепость от средней до высокой. [материалы Habanos](https://www.habanos.com/en/the-habanos-brands-academia/vegas-robaina-brand/)"
+        },
+        "en": {
+          "description": "Vegas Robaina Famosos uses the Hermosos No. 4 shape, totally handmade with long filler and a medium-to-full profile.",
+          "body": "Famosos uses the Hermosos No. 4 shape in the Vegas Robaina range. Habanos dates the brand to 1997, created to honour grower Alejandro Robaina and Cuban tobacco farmers. The cigars are totally handmade with long filler. For Famosos, the maker lists a 127 mm length, a 48 ring gauge and a medium-to-full profile. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/vegas-robaina-brand/)"
+        }
+      }
+    },
+    {
+      "id": 1189,
+      "brand_slug": "vegueros",
+      "english_name": "Entretiempos",
+      "decision": "update",
+      "identity_note": "Vegueros Entretiempos; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 110,
+        "ring_gauge": 52,
+        "vitola": "Petit Edmundo"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/vegueros-brand/",
+          "title": "Vegueros — Habanos, S.A. brand information",
+          "facts": [
+            "Vegueros takes its name from Cuban tobacco growers. Habanos positions the brand around the agricultural heritage of Vuelta Abajo and a compact range of contemporary formats."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Entretiempos as Petit Edmundo, 110 mm, ring gauge 52."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/news/segunda-noticias-en/",
+          "title": "Vegueros, an ever-changing tradition with new vitolas — Habanos, S.A.",
+          "facts": [
+            "Habanos announced the renewed Vegueros presentation and new vitolas in 2014.",
+            "Entretiempos is the Petit Edmundo vitola, 110 mm by ring gauge 52."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Entretiempos于品牌更新后推出，采用Petit Edmundo造型，是Vegueros较紧凑的一款。",
+          "body": "Entretiempos 是 Vegueros 品牌更新后推出的现代茄型，采用 Petit Edmundo 规格。Habanos 于 2014 年介绍这批新系列，指出 Entretiempos 长 110 毫米、环径 52，并采用长芯全手工卷制。品牌名称源于古巴烟农，产品在 Pinar del Río 的 Francisco Donatién 工厂制作。 [Habanos 厂家资料](https://www.habanos.com/en/news/segunda-noticias-en/)"
+        },
+        "ru": {
+          "description": "Entretiempos появилась после обновления марки в формате Petit Edmundo — одном из компактных вариантов Vegueros.",
+          "body": "Entretiempos — современная витола, вошедшая в обновлённую линейку Vegueros. Её форма — Petit Edmundo; Habanos указывает длину 110 мм и кольцо 52. В материалах о перезапуске 2014 года производитель сообщает, что новые форматы скручивают вручную с длинным наполнителем. Название марки отсылает к кубинским табаководам; сигары производят на фабрике Francisco Donatién в Пинар-дель-Рио. [материалы Habanos](https://www.habanos.com/en/news/segunda-noticias-en/)"
+        },
+        "en": {
+          "description": "Introduced as part of the brand’s renewal, Entretiempos uses the Petit Edmundo shape in a compact Vegueros format.",
+          "body": "Entretiempos is a modern vitola introduced with the renewed Vegueros range. It uses the Petit Edmundo shape; Habanos lists it at 110 mm with a 52 ring gauge. In its 2014 relaunch material, the maker says the new formats are totally handmade with long filler. The brand name refers to Cuban tobacco growers, and production takes place at the Francisco Donatién factory in Pinar del Río. [Habanos source](https://www.habanos.com/en/news/segunda-noticias-en/)"
+        }
+      }
+    },
+    {
+      "id": 1191,
+      "brand_slug": "vegueros",
+      "english_name": "Tapados",
+      "decision": "update",
+      "identity_note": "Vegueros Tapados; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 120,
+        "ring_gauge": 46,
+        "vitola": "Mareva Gruesa"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/vegueros-brand/",
+          "title": "Vegueros — Habanos, S.A. brand information",
+          "facts": [
+            "Vegueros takes its name from Cuban tobacco growers. Habanos positions the brand around the agricultural heritage of Vuelta Abajo and a compact range of contemporary formats."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Tapados as Mareva Gruesa, 120 mm, ring gauge 46."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/news/segunda-noticias-en/",
+          "title": "Vegueros, an ever-changing tradition with new vitolas — Habanos, S.A.",
+          "facts": [
+            "Habanos announced Tapados as part of the renewed Vegueros presentation in 2014.",
+            "Tapados is Mareva Gruesa, 46 ring gauge by 120 mm.",
+            "The new Vegueros vitolas are described as totally handmade with long filler."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Tapados随Vegueros品牌更新推出，采用较宽的Mareva Gruesa茄型。",
+          "body": "Tapados 是 Vegueros 更新系列中的 Mareva Gruesa 茄型，长度 120 毫米、环径 46。Habanos 将它与 Entretiempos、Mañanitas 一同列为品牌更新后的新规格；这些型号采用长芯全手工卷制。Vegueros 之名来自古巴烟农，品牌以 Pinar del Río 的种植传统为主题。 [Habanos 厂家资料](https://www.habanos.com/en/the-habanos-brands-academia/vegueros-brand/)"
+        },
+        "ru": {
+          "description": "Tapados вошла в обновлённую линейку Vegueros в более широкой форме Mareva Gruesa.",
+          "body": "Tapados выполнена в форме Mareva Gruesa и входит в обновлённую линейку Vegueros; её длина — 120 мм, кольцо — 46. Habanos представила её вместе с Entretiempos и Mañanitas как новые форматы марки. Эти витолы полностью скручивают вручную с длинным наполнителем. Название Vegueros отсылает к кубинским табаководам и традиции выращивания табака в Пинар-дель-Рио. [материалы Habanos](https://www.habanos.com/en/the-habanos-brands-academia/vegueros-brand/)"
+        },
+        "en": {
+          "description": "Tapados joined the renewed Vegueros line in the broader Mareva Gruesa shape.",
+          "body": "Tapados uses the Mareva Gruesa shape in the renewed Vegueros range, measuring 120 mm with a 46 ring gauge. Habanos introduced it alongside Entretiempos and Mañanitas as part of the brand’s refreshed formats. These vitolas are totally handmade with long filler. The name Vegueros refers to Cuban tobacco growers and the cultivation tradition of Pinar del Río. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/vegueros-brand/)"
+        }
+      }
+    },
+    {
+      "id": 1346,
+      "brand_slug": "la-gloria-cubana",
+      "english_name": "TURQUINOS",
+      "decision": "update",
+      "identity_note": "La Gloria Cubana TURQUINOS; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 141,
+        "ring_gauge": 50,
+        "vitola": "Gordito"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/news/la-gloria-cubana-turquinos-a-glorious-debut-in-canada/",
+          "title": "La Gloria Cubana Turquinos: A “Glorious” Debut in Canada — Habanos, S.A.",
+          "facts": [
+            "2024 Canadian market presentation, not an asserted global launch date; Gordito, 141 mm, ring gauge 50; maker describes leather, spice and velvety aroma."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "La Gloria Cubana Turquinos 采用 Gordito 茄型；Habanos 以皮革、香料及柔和丝绒般的香气描述这款雪茄。",
+          "body": "La Gloria Cubana Turquinos 采用 Gordito 茄型，长度 141 毫米、环径 50。Habanos 的型号介绍将其描述为平衡而有力度，皮革和香料气息与柔和、丝绒般的香气相衬。 [Habanos 原始资料](https://www.habanos.com/en/news/la-gloria-cubana-turquinos-a-glorious-debut-in-canada/)"
+        },
+        "ru": {
+          "description": "La Gloria Cubana Turquinos — витола Gordito; Habanos отмечает в её профиле кожу, специи и мягкий бархатистый аромат.",
+          "body": "La Gloria Cubana Turquinos выполнена в витоле Gordito длиной 141 мм с кольцом 50. В описании этой сигары Habanos отмечает сбалансированный, выразительный характер: оттенки кожи и специй сочетаются с мягким бархатистым ароматом. [Материалы Habanos](https://www.habanos.com/en/news/la-gloria-cubana-turquinos-a-glorious-debut-in-canada/)"
+        },
+        "en": {
+          "description": "La Gloria Cubana Turquinos is a Gordito; Habanos describes leather and spice notes with a soft, velvety aroma.",
+          "body": "La Gloria Cubana Turquinos uses the Gordito shape, measuring 141 mm with a 50 ring gauge. Habanos describes this cigar as balanced yet powerful, with leather and spice notes complemented by a soft, velvety aroma. [Habanos source](https://www.habanos.com/en/news/la-gloria-cubana-turquinos-a-glorious-debut-in-canada/)"
+        }
+      }
+    },
+    {
+      "id": 1359,
+      "brand_slug": "quintero",
+      "english_name": "BREVAS",
+      "decision": "update",
+      "identity_note": "Quintero BREVAS; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 140,
+        "ring_gauge": 40,
+        "vitola": "Nacionales"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/quintero-brand/",
+          "title": "Quintero — Habanos, S.A. brand information",
+          "facts": [
+            "Quintero is one of the few Habanos brands founded outside Havana, in Cienfuegos. Habanos says its cigars use Vuelta Abajo tobacco and are totally handmade with short filler, giving the brand its characteristic medium flavour."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Quintero Brevas as Nacionales, 140 mm × RG 40."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Quintero Brevas在厂家茄型目录中对应Nacionales，展现该品牌全手工短芯产品的典型方向。",
+          "body": "Quintero Brevas 对应 Nacionales 茄型，长度 140 毫米、环径 40。Quintero 是少数诞生于哈瓦那以外的 Habanos 品牌之一，起源于古巴南部城市 Cienfuegos。厂家说明该品牌采用 Vuelta Abajo 烟叶和全手工短芯制作，呈现中等风格。 [Habanos 厂家资料](https://www.habanos.com/en/the-habanos-brands-academia/quintero-brand/)"
+        },
+        "ru": {
+          "description": "Витоларио Habanos указывает для Quintero Brevas форму Nacionales; модель представляет характерный формат ручной сигары с коротким наполнителем.",
+          "body": "Quintero Brevas соответствует витоле Nacionales: длина 140 мм, кольцо 40. Quintero — одна из немногих марок Habanos, появившихся за пределами Гаваны; её история началась в южном кубинском городе Сьенфуэгос. Производитель указывает табак Вуэльта-Абахо и полностью ручную скрутку с коротким наполнителем; профиль марки — средней крепости. [материалы Habanos](https://www.habanos.com/en/the-habanos-brands-academia/quintero-brand/)"
+        },
+        "en": {
+          "description": "Habanos lists Quintero Brevas as the Nacionales vitola, a classic expression of the brand’s handmade short-filler style.",
+          "body": "Quintero Brevas corresponds to the Nacionales vitola, at 140 mm with a 40 ring gauge. Quintero is one of the few Habanos brands founded outside Havana, originating in the southern Cuban city of Cienfuegos. The maker describes its cigars as totally handmade with short filler from Vuelta Abajo tobacco, giving the brand its characteristic medium profile. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/quintero-brand/)"
+        }
+      }
+    },
+    {
+      "id": 529,
+      "brand_slug": "montecristo",
+      "english_name": "Montecristo No.2",
+      "decision": "update",
+      "identity_note": "Montecristo Montecristo No.2; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 156,
+        "ring_gauge": 52,
+        "vitola": "Piramides"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/",
+          "title": "Montecristo — Habanos, S.A. brand information",
+          "facts": [
+            "The 1935 brand began at Havana’s H. Upmann factory; its name came from Alexandre Dumas’s novel, read aloud to cigar makers. The official account places Edmundo and Petit Edmundo among later line additions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Montecristo No.2 as Piramides, 156 mm, ring gauge 52."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Montecristo No. 2以锥形头部和长身段呈现经典编号系列中的标志性Figurado造型。",
+          "body": "Montecristo 原始编号系列中的 No. 2 以 Pirámides 金字塔形著称，尖头与修长茄身构成经典异型轮廓。Habanos 记载品牌创立于 1935 年，当时哈瓦那工厂会为卷茄工人朗读大仲马小说。配方精选 Vuelta Abajo 产区烟叶，延续这一经典造型的醇厚风格。[Habanos 品牌历史](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/)"
+        },
+        "ru": {
+          "description": "Montecristo No. 2 выделяется в классической нумерованной линейке фигурной формой с заострённой головкой и вытянутым корпусом.",
+          "body": "В первоначальной нумерованной линейке Montecristo No. 2 выделяется формой Pirámides: заострённая головка переходит в вытянутое тело, создавая узнаваемый силуэт фигурáдо. Habanos ведёт историю марки с 1935 года: тогда на фабрике в Гаване работникам читали роман Александра Дюма. Для купажа отбирают табак Вуэльта-Абахо. [История марки Habanos](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/)"
+        },
+        "en": {
+          "description": "Montecristo No. 2 is the figurado expression of the original numbered Classic range, with a tapered head and long body.",
+          "body": "Within Montecristo’s original numbered range, No. 2 is its signature Pirámides: a tapered head and an elongated body that create the line’s classic figurado silhouette. Habanos traces the brand to 1935, when readings of Alexandre Dumas’s novel entertained cigar rollers at the Havana factory. Selected Vuelta Abajo leaves form the blend behind this distinctive shape. [Habanos brand history](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/)"
+        }
+      }
+    },
+    {
+      "id": 530,
+      "brand_slug": "montecristo",
+      "english_name": "Montecristo No.3",
+      "decision": "update",
+      "identity_note": "Montecristo Montecristo No.3; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 142,
+        "ring_gauge": 42,
+        "vitola": "Coronas"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/",
+          "title": "Montecristo — Habanos, S.A. brand information",
+          "facts": [
+            "The 1935 brand began at Havana’s H. Upmann factory; its name came from Alexandre Dumas’s novel, read aloud to cigar makers. The official account places Edmundo and Petit Edmundo among later line additions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Montecristo No.3 as Coronas, 142 mm, ring gauge 42."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Montecristo No. 3 是原始编号系列中的修长 Corona，以古巴 Vuelta Abajo 烟叶全手工长芯卷制。",
+          "body": "Montecristo No. 3 是原始编号系列中的 Corona，142 毫米长度与 42 环径形成修长的直身轮廓。配方精选古巴 Vuelta Abajo 烟叶，采用全手工长芯卷制，呈现 Montecristo 经典系列中等至浓郁的风格。 [Habanos 原始资料](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/)"
+        },
+        "ru": {
+          "description": "Montecristo No. 3 — стройная Corona из исходной нумерованной линейки, полностью ручной работы с длинным наполнителем из Вуэльта-Абахо.",
+          "body": "Montecristo No. 3 — Corona из исходной нумерованной линейки: длина 142 мм и кольцо 42 образуют стройный прямой формат. Сигара полностью изготовлена вручную с длинным наполнителем из отборного табака Вуэльта-Абахо и передаёт характер классического Montecristo от средней до высокой крепости. [Материалы Habanos](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/)"
+        },
+        "en": {
+          "description": "Montecristo No. 3 is the slender Corona in the original numbered range, totally handmade with Vuelta Abajo long filler.",
+          "body": "Montecristo No. 3 is the Corona in the original numbered range, with a slender, straight-sided profile measuring 142 mm by ring gauge 42. It is totally handmade with long filler from Vuelta Abajo, carrying the medium-to-full character of the classic Montecristo blend. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/)"
+        }
+      }
+    },
+    {
+      "id": 531,
+      "brand_slug": "montecristo",
+      "english_name": "Montecristo No.4",
+      "decision": "update",
+      "identity_note": "Montecristo Montecristo No.4; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 129,
+        "ring_gauge": 42,
+        "vitola": "Marevas"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/",
+          "title": "Montecristo — Habanos, S.A. brand information",
+          "facts": [
+            "The 1935 brand began at Havana’s H. Upmann factory; its name came from Alexandre Dumas’s novel, read aloud to cigar makers. The official account places Edmundo and Petit Edmundo among later line additions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Montecristo No.4 as Marevas, 129 mm, ring gauge 42."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "No. 4采用Marevas茄型，是Montecristo最初五款编号型号之一。",
+          "body": "Marevas 品型让 Montecristo No. 4 呈现传统 Petit Corona 的匀称比例。它是品牌最初五款编号品型之一，至今仍是辨识度最高的经典规格。Habanos 介绍 Montecristo 使用精选 Vuelta Abajo 烟叶，风格从中等至浓郁。[Habanos 品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/)"
+        },
+        "ru": {
+          "description": "No. 4 выполнена в форме Marevas и входит в первоначальную пятёрку нумерованных моделей Montecristo.",
+          "body": "Форма Marevas придаёт Montecristo No. 4 пропорции классической Petit Corona. Эта витола входила в первоначальную пятёрку нумерованной классической линейки и остаётся одним из самых узнаваемых форматов марки. По данным Habanos, в купаже используют отборные листья Вуэльта-Абахо; профиль Montecristo — от среднего до крепкого. [Профиль марки Habanos](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/)"
+        },
+        "en": {
+          "description": "No. 4 uses the Marevas shape and belongs to the original five numbered Montecristo vitolas.",
+          "body": "The Marevas shape gives Montecristo No. 4 the balanced proportions of a traditional Petit Corona. It was one of the five numbered vitolas in the brand’s original classic range, and remains one of its best-known formats. Habanos describes the Montecristo blend as using selected Vuelta Abajo leaves, with a medium-to-full profile. [See the Habanos brand profile](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/)"
+        }
+      }
+    },
+    {
+      "id": 532,
+      "brand_slug": "montecristo",
+      "english_name": "Montecristo No.5",
+      "decision": "update",
+      "identity_note": "Montecristo Montecristo No.5; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 102,
+        "ring_gauge": 40,
+        "vitola": "Perlas"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/",
+          "title": "Montecristo — Habanos, S.A. brand information",
+          "facts": [
+            "The 1935 brand began at Havana’s H. Upmann factory; its name came from Alexandre Dumas’s novel, read aloud to cigar makers. The official account places Edmundo and Petit Edmundo among later line additions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Montecristo No.5 as Perlas, 102 mm, ring gauge 40."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "No. 5以紧凑Perlas规格收束编号经典系列，适合较短时间的品吸。",
+          "body": "Montecristo No. 5 是品牌最初五款编号型号之一，采用紧凑的 Perlas 茄型。它以精选 Vuelta Abajo 烟叶全手工长芯卷制，在短小茄身中保留经典 Montecristo 配方中等至浓郁的风格。 [Habanos 原始资料](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/)"
+        },
+        "ru": {
+          "description": "No. 5 завершает классическую нумерованную линейку компактным форматом Perlas для короткой сессии.",
+          "body": "Montecristo No. 5 входит в первоначальную пятёрку нумерованных витол марки и выполнена в компактном формате Perlas. Полностью ручная скрутка с длинным наполнителем из Вуэльта-Абахо сохраняет классический характер Montecristo от средней до высокой крепости в короткой сигаре. [Материалы Habanos](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/)"
+        },
+        "en": {
+          "description": "No. 5 brings the numbered Classic line into a compact Perlas format suited to a shorter session.",
+          "body": "Montecristo No. 5 is one of the brand’s original five numbered vitolas, made in the compact Perlas shape. Totally handmade with selected Vuelta Abajo long filler, it presents the medium-to-full classic Montecristo blend in a short format. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/)"
+        }
+      }
+    },
+    {
+      "id": 539,
+      "brand_slug": "montecristo",
+      "english_name": "Edmundo",
+      "decision": "update",
+      "identity_note": "Montecristo Edmundo; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 135,
+        "ring_gauge": 52,
+        "vitola": "Edmundo"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/",
+          "title": "Montecristo Brand — Habanos, S.A.",
+          "facts": [
+            "Edmundo and Petit Edmundo were introduced in 2004 and 2007, respectively."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Edmundo as Edmundo, 135 mm, ring gauge 52."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Edmundo于2004年推出，并由此发展出Montecristo的Edmundo系列。",
+          "body": "Edmundo 于 2004 年推出，以《基督山伯爵》的主人公 Edmond Dantès 命名，并成为 Montecristo Edmundo 系列的起点。它采用 135 毫米、52 环径的宽茄身，以精选古巴烟叶全手工长芯卷制，延续品牌经典配方中等至浓郁的风格。 [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/)"
+        },
+        "ru": {
+          "description": "Edmundo появилась в 2004 году и дала имя отдельной линейке Montecristo.",
+          "body": "Edmundo появилась в 2004 году и получила имя в честь Эдмона Дантеса, героя романа «Граф Монте-Кристо», положив начало отдельной линии Montecristo. Широкий формат длиной 135 мм с кольцом 52 полностью изготовлен вручную с длинным наполнителем из отборного кубинского табака и сохраняет классический характер марки от средней до высокой крепости. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/)"
+        },
+        "en": {
+          "description": "Launched in 2004, Edmundo gave its name to a distinct Montecristo line.",
+          "body": "Edmundo launched in 2004, taking its name from Edmond Dantès, the hero of The Count of Monte Cristo, and establishing a separate Montecristo line. Its broad 135 mm by 52 format is totally handmade with selected Cuban long filler, retaining the medium-to-full character of the classic house blend. [Habanos](https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/)"
+        }
+      }
+    },
+    {
+      "id": 542,
+      "brand_slug": "montecristo",
+      "english_name": "Junior",
+      "decision": "update",
+      "identity_note": "Montecristo Junior; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 110,
+        "ring_gauge": 38,
+        "vitola": "Trabucos"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/",
+          "title": "Montecristo — Habanos, S.A. brand information",
+          "facts": [
+            "The 1935 brand began at Havana’s H. Upmann factory; its name came from Alexandre Dumas’s novel, read aloud to cigar makers. The official account places Edmundo and Petit Edmundo among later line additions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Junior as Trabucos, 110 mm, ring gauge 38."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/news/nueva-linea-montecristo-open-en/",
+          "title": "Nueva línea Montecristo Open — Habanos, S.A.",
+          "facts": [
+            "Habanos introduced Montecristo Open in 2009 as a line for enjoying cigars in open-air settings.",
+            "Junior is the Trabucos factory vitola; the launch notice lists 38 ring gauge by 110 mm.",
+            "The Open line uses selected Vuelta Abajo leaves."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Junior属于Montecristo Open系列，以较细的Trabucos茄型呈现适合户外享用的系列定位。",
+          "body": "Junior 于 2009 年作为 Montecristo Open 四款型号之一推出，该系列面向户外休闲场景。工厂品型 Trabucos 让短茄身保持纤细比例；Habanos 将 Open 描述为比 Montecristo 其他系列更柔和。精选 Vuelta Abajo 烟叶保留品牌的配方特色。[Habanos Open 系列发布资料](https://www.habanos.com/en/news/nueva-linea-montecristo-open-en/)"
+        },
+        "ru": {
+          "description": "Junior относится к серии Montecristo Open и использует узкую форму Trabucos; линейка задумывалась для отдыха на открытом воздухе.",
+          "body": "Junior появилась в 2009 году как одна из четырёх сигар Montecristo Open — линии, созданной для отдыха на открытом воздухе. Фабричная витола Trabucos придаёт короткому формату стройный профиль; Habanos описывает Open как более мягкую линию Montecristo. Отборные листья Вуэльта-Абахо сохраняют связь с фирменным купажом. [Материал Habanos о запуске Open](https://www.habanos.com/en/news/nueva-linea-montecristo-open-en/)"
+        },
+        "en": {
+          "description": "Junior belongs to Montecristo Open and uses a slim Trabucos shape; the line was conceived for enjoyment outdoors.",
+          "body": "Junior was introduced in 2009 as one of four cigars in Montecristo Open, a line conceived for outdoor settings. Its factory vitola, Trabucos, gives the short cigar a slim profile; Habanos describes the line as milder than the rest of Montecristo. Selected Vuelta Abajo leaves keep the blend connected to the house style. [Habanos’ Open launch note](https://www.habanos.com/en/news/nueva-linea-montecristo-open-en/)"
+        }
+      }
+    },
+    {
+      "id": 544,
+      "brand_slug": "montecristo",
+      "english_name": "Regata",
+      "decision": "update",
+      "identity_note": "Montecristo Regata; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 135,
+        "ring_gauge": 46,
+        "vitola": "Forum"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/",
+          "title": "Montecristo — Habanos, S.A. brand information",
+          "facts": [
+            "The 1935 brand began at Havana’s H. Upmann factory; its name came from Alexandre Dumas’s novel, read aloud to cigar makers. The official account places Edmundo and Petit Edmundo among later line additions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Regata as Forum, 135 mm, ring gauge 46."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/news/nueva-linea-montecristo-open-en/",
+          "title": "Nueva línea Montecristo Open — Habanos, S.A.",
+          "facts": [
+            "Habanos introduced Montecristo Open in 2009 for open-air settings.",
+            "Regata is a figurado following the Montecristo No. 2 tradition, in a smaller ring gauge; its factory vitola is Forum, 46 ring gauge by 135 mm."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Regata是Montecristo Open系列的Forum茄型，系列定位着眼于户外场景。",
+          "body": "Regata 是 Montecristo Open 系列中的异型雪茄，工厂品型为 Forum。Habanos 在 2009 年发布时将它描述为传统 Montecristo No. 2 轮廓的纤细版本，同时保留 Open 系列较柔和的风格。异型茄身也让它区别于系列中的直身品型。[Habanos Open 系列原始发布](https://www.habanos.com/en/news/nueva-linea-montecristo-open-en/)"
+        },
+        "ru": {
+          "description": "Regata — витола Forum в серии Montecristo Open, созданной для отдыха на открытом воздухе.",
+          "body": "Regata — фигурная сигара Montecristo Open с фабричной витолой Forum. В презентации 2009 года Habanos описывала её как более тонкую версию традиционного силуэта Montecristo No. 2, сохранившую более лёгкий профиль линии. Формованный корпус отличает её от прямостенных витол Open. [Первоначальная презентация Open от Habanos](https://www.habanos.com/en/news/nueva-linea-montecristo-open-en/)"
+        },
+        "en": {
+          "description": "Regata is the Forum vitola in Montecristo Open, a line conceived for outdoor settings.",
+          "body": "Regata is the figurado member of Montecristo Open, using the factory vitola Forum. Habanos presented it in 2009 as a slimmer take on the traditional Montecristo No. 2 silhouette, while keeping the line’s lighter profile. Its shaped body distinguishes it from the parejo formats in Open. [Habanos’ original Open presentation](https://www.habanos.com/en/news/nueva-linea-montecristo-open-en/)"
+        }
+      }
+    },
+    {
+      "id": 546,
+      "brand_slug": "montecristo",
+      "english_name": "Petit No. 2",
+      "decision": "update",
+      "identity_note": "Montecristo Petit No. 2; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 120,
+        "ring_gauge": 52,
+        "vitola": "Petit No.2"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/montecristo-brand/",
+          "title": "Montecristo — Habanos, S.A. brand information",
+          "facts": [
+            "The 1935 brand began at Havana’s H. Upmann factory; its name came from Alexandre Dumas’s novel, read aloud to cigar makers. The official account places Edmundo and Petit Edmundo among later line additions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Petit No. 2 as Petit No.2, 120 mm, ring gauge 52."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/news/habanos-s-a-presenta-el-montecristo-petit-no-2-en/",
+          "title": "Habanos s.a. presents Montecristo Petit No.2 — Habanos, S.A.",
+          "facts": [
+            "Habanos presented Montecristo Petit No. 2 in 2013 as a new vitola in the historic Línea Clásica.",
+            "The announcement describes it as a figurado for enjoying Montecristo flavour in less time.",
+            "The launch text identifies selected Vuelta Abajo leaves in the Montecristo blend."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Petit No. 2将经典No. 2的锥形轮廓收进更短的Petit规格。",
+          "body": "Montecristo Petit No. 2 于 2013 年推出，是 Línea Clásica 多年来首次增加的新型号。Habanos 为喜爱异型雪茄、又希望较短时间体验 Montecristo 配方的消费者设计了它。尖头茄帽延续经典 No. 2 的造型传统，但整体更短；烟叶来自精选 Vuelta Abajo，并以长芯手工卷制。[Habanos 发布公告](https://www.habanos.com/en/news/habanos-s-a-presenta-el-montecristo-petit-no-2-en/)"
+        },
+        "ru": {
+          "description": "Petit No. 2 переносит заострённый профиль классической No. 2 в более короткий формат Petit.",
+          "body": "Montecristo Petit No. 2 вышла в 2013 году и стала первым за много лет дополнением Línea Clásica. Habanos создала её для любителей фигурных сигар, которым хочется насладиться купажом Montecristo за меньшее время. Заострённая головка продолжает традицию классической No. 2 в укороченном формате; используется длинный наполнитель из отборных листьев Вуэльта-Абахо. [Объявление Habanos о выпуске](https://www.habanos.com/en/news/habanos-s-a-presenta-el-montecristo-petit-no-2-en/)"
+        },
+        "en": {
+          "description": "Petit No. 2 brings the tapered profile of the classic No. 2 into a shorter Petit format.",
+          "body": "Montecristo Petit No. 2 was introduced in 2013 as the first addition to the Línea Clásica in many years. Habanos designed it for smokers who enjoy figurados but want the Montecristo blend in less time. The tapered head follows the classic No. 2 tradition in a shorter format, using long filler and selected Vuelta Abajo leaves. [Habanos launch announcement](https://www.habanos.com/en/news/habanos-s-a-presenta-el-montecristo-petit-no-2-en/)"
+        }
+      }
+    },
+    {
+      "id": 599,
+      "brand_slug": "partagas",
+      "english_name": "Mille Fleurs",
+      "decision": "update",
+      "identity_note": "Partagás Mille Fleurs; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 129,
+        "ring_gauge": 42,
+        "vitola": "Petit Coronas"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/",
+          "title": "Partagás — Habanos, S.A. brand information",
+          "facts": [
+            "Founded by Don Jaime Partagás in Havana in 1845, the house is associated by Habanos with selected Vuelta Abajo tobacco and an intense, rich, aromatic blend."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Mille Fleurs as Petit Coronas, 129 mm, ring gauge 42."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Partagás Mille Fleurs 采用 Petit Coronas 茄型，以紧凑的直身比例呈现品牌浓郁、芳香的 Vuelta Abajo 烟叶配方。",
+          "body": "Mille Fleurs 属于 Partagás 的传统直身型号，采用 Petit Coronas 茄型，长度 129 毫米、环径 42。配方选用古巴 Vuelta Abajo 烟叶，延续 Partagás 浓郁、芳香的风格，以较小的茄身呈现品牌鲜明的烟草特征。 [Habanos 原始资料](https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/)"
+        },
+        "ru": {
+          "description": "Partagás Mille Fleurs — компактная витола Petit Coronas с насыщенным ароматным купажом из табака Вуэльта-Абахо.",
+          "body": "Mille Fleurs — классический прямой формат Partagás, фабричная витола Petit Coronas длиной 129 мм с кольцом 42. Купаж из отборного табака Вуэльта-Абахо сохраняет насыщенный ароматный характер марки в компактном размере. [Материалы Habanos](https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/)"
+        },
+        "en": {
+          "description": "Partagás Mille Fleurs is a compact Petit Coronas that carries the brand’s rich, aromatic Vuelta Abajo blend.",
+          "body": "Mille Fleurs is a traditional straight-sided Partagás in the Petit Coronas shape, measuring 129 mm with a 42 ring gauge. Selected Vuelta Abajo tobacco gives the compact format the rich, aromatic character that Habanos associates with the Partagás blend. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/)"
+        }
+      }
+    },
+    {
+      "id": 603,
+      "brand_slug": "partagas",
+      "english_name": "Shorts",
+      "decision": "update",
+      "identity_note": "Partagás Shorts; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 110,
+        "ring_gauge": 42,
+        "vitola": "Minutos"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/",
+          "title": "Partagás — Habanos, S.A. brand information",
+          "facts": [
+            "Founded by Don Jaime Partagás in Havana in 1845, the house is associated by Habanos with selected Vuelta Abajo tobacco and an intense, rich, aromatic blend."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Shorts as Minutos, 110 mm, ring gauge 42."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Shorts采用Minutos茄型，把Partagás浓郁、芳香的品牌风格带入短小规格。",
+          "body": "Shorts 是 Partagás 的 Minutos 品型，适合较短时间品吸，同时保留品牌浓郁、强烈的风格。与 Partagás 系列一样，这款 110 毫米雪茄采用长芯全手工卷制。短茄身与常见环径让品牌配方呈现出紧凑的形态。[Habanos 品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/)"
+        },
+        "ru": {
+          "description": "Shorts выполнена в формате Minutos и передаёт насыщенный ароматный стиль Partagás в компактной сигаре.",
+          "body": "Shorts — формат Minutos в линейке Partagás, рассчитанный на короткую сессию и сохраняющий насыщенный характер марки. Сигара длиной 110 мм полностью скручивается вручную с длинным наполнителем, как и сигары серии Partagás. Короткий корпус при обычном калибре даёт купажу компактное выражение. [Профиль марки Habanos](https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/)"
+        },
+        "en": {
+          "description": "Shorts uses the Minutos shape, bringing Partagás’ rich, aromatic character into a compact cigar.",
+          "body": "Shorts is the Minutos format in the Partagás range, made for a concise smoke while retaining the brand’s rich, intense character. The 110 mm cigar is totally handmade with long filler, like the Partagás Series. Its short body and standard ring gauge give the blend a compact expression. [Habanos brand profile](https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/)"
+        }
+      }
+    },
+    {
+      "id": 606,
+      "brand_slug": "partagas",
+      "english_name": "Serie D No.4",
+      "decision": "update",
+      "identity_note": "Partagás Serie D No.4; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 124,
+        "ring_gauge": 50,
+        "vitola": "Robustos"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/",
+          "title": "Partagás — Habanos, S.A. brand information",
+          "facts": [
+            "Founded by Don Jaime Partagás in Havana in 1845, the house is associated by Habanos with selected Vuelta Abajo tobacco and an intense, rich, aromatic blend."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Serie D No.4 as Robustos, 124 mm, ring gauge 50."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Partagás Serie D No. 4 是品牌代表性的 Robustos，以 Vuelta Abajo 烟叶呈现浓郁、芳香的 Serie D 风格。",
+          "body": "Serie D No. 4 是 Partagás 的代表性 Robustos 型号，124 毫米长度与 50 环径形成经典的短粗比例。它采用精选 Vuelta Abajo 烟叶，延续 Serie D 浓郁、芳香的配方，也是 Habanos 品牌资料中特别列出的知名型号。 [Habanos 原始资料](https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/)"
+        },
+        "ru": {
+          "description": "Partagás Serie D No. 4 — знаковая Robustos с насыщенным ароматным купажом Serie D из табака Вуэльта-Абахо.",
+          "body": "Serie D No. 4 — одна из знаковых витол Partagás, классическая Robustos длиной 124 мм с кольцом 50. Отборный табак Вуэльта-Абахо формирует насыщенный ароматный купаж Serie D; Habanos особо выделяет эту сигару среди известных форматов марки. [Материалы Habanos](https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/)"
+        },
+        "en": {
+          "description": "Partagás Serie D No. 4 is a signature Robustos with the rich, aromatic Serie D blend from Vuelta Abajo.",
+          "body": "Serie D No. 4 is a signature Partagás Robustos, with the classic broad proportions of a 124 mm length and 50 ring gauge. Selected Vuelta Abajo tobacco gives it the rich, aromatic Serie D character; Habanos highlights this cigar among the brand’s best-known vitolas. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/)"
+        }
+      }
+    },
+    {
+      "id": 610,
+      "brand_slug": "partagas",
+      "english_name": "Serie D No.5",
+      "decision": "update",
+      "identity_note": "Partagás Serie D No.5; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 110,
+        "ring_gauge": 50,
+        "vitola": "D No.5"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/",
+          "title": "Partagás — Habanos, S.A. brand information",
+          "facts": [
+            "Founded by Don Jaime Partagás in Havana in 1845, the house is associated by Habanos with selected Vuelta Abajo tobacco and an intense, rich, aromatic blend."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Serie D No.5 as D No.5, 110 mm, ring gauge 50."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Serie D No. 5延续D系列名称与浓郁风格，采用比经典No. 4更短的茄型。",
+          "body": "Serie D No. 5 于 2011 年加入 Partagás Series，以比知名 No. 4 更短的规格延伸 D 系列编号。它保留系列较宽的环径和品牌浓郁、芳香的配方，同时缩短茄身。由此，Partagás Series 的风格在紧凑形态中呈现。[Habanos 型号发布记录](https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/)"
+        },
+        "ru": {
+          "description": "Serie D No. 5 продолжает характер и название серии D в формате короче классической No. 4.",
+          "body": "Serie D No. 5 вошла в линейку Partagás Series в 2011 году, продолжив нумерованное семейство D в более коротком формате, чем известная No. 4. Она сохраняет широкий калибр линии и насыщенный ароматный купаж марки при меньшей длине. Так характер Partagás Series раскрывается в компактной форме. [История выпусков Habanos](https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/)"
+        },
+        "en": {
+          "description": "Serie D No. 5 continues the D line’s identity in a format shorter than the celebrated No. 4.",
+          "body": "Serie D No. 5 joined the Partagás Series in 2011, extending the numbered D family in a shorter size than the celebrated No. 4. It keeps the line’s broad ring gauge and the brand’s intense, aromatic blend while reducing overall length. The result is a compact expression of Partagás Series character. [Habanos release history](https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/)"
+        }
+      }
+    },
+    {
+      "id": 611,
+      "brand_slug": "partagas",
+      "english_name": "Serie E No.2",
+      "decision": "update",
+      "identity_note": "Partagás Serie E No.2; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 140,
+        "ring_gauge": 54,
+        "vitola": "Duke"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/",
+          "title": "Partagás — Habanos, S.A. brand information",
+          "facts": [
+            "Founded by Don Jaime Partagás in Havana in 1845, the house is associated by Habanos with selected Vuelta Abajo tobacco and an intense, rich, aromatic blend."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Serie E No.2 as Duke, 140 mm, ring gauge 54."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/news/partagas-serie-e-no-2-en/",
+          "title": "Partagás Serie E No. 2 — Habanos, S.A.",
+          "facts": [
+            "Serie E No. 2 was launched in 2011.",
+            "Habanos describes its 54 ring gauge as a new size for the brand and the Serie E as complementing the established Series.",
+            "The article characterizes Partagás as rich, intense and aromatic, using selected Vuelta Abajo tobacco."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Serie E No. 2采用Duke茄型，粗环径与圆润轮廓构成这一系列的鲜明外形。",
+          "body": "Partagás Serie E No. 2 于 2011 年推出，为品牌直身雪茄引入 54 环径。其工厂品型名为 Duke；Habanos 将它作为与成熟 D 系列并行的新系列起点。精选 Vuelta Abajo 烟叶延续 Partagás 浓郁、强烈的配方特点。[Habanos 发布公告](https://www.habanos.com/en/news/partagas-serie-e-no-2-en/)"
+        },
+        "ru": {
+          "description": "Serie E No. 2 выполнена в форме Duke; широкий диаметр и округлый силуэт задают её выразительный облик.",
+          "body": "Partagás Serie E No. 2 вышла в 2011 году и впервые принесла калибр 54 в прямостенные форматы марки. Её фабричное название — Duke; Habanos представила её как начало новой серии рядом с уже известной линейкой D. Купаж из отборных листьев Вуэльта-Абахо сохраняет насыщенный характер Partagás. [Объявление Habanos](https://www.habanos.com/en/news/partagas-serie-e-no-2-en/)"
+        },
+        "en": {
+          "description": "Serie E No. 2 uses the Duke shape, whose broad ring and rounded silhouette give it a distinctive presence.",
+          "body": "Partagás Serie E No. 2 launched in 2011 and introduced a 54 ring gauge to the brand’s parejo formats. Its factory name is Duke, and Habanos presented it as the start of a new series alongside the established D line. The selected Vuelta Abajo blend retains Partagás’ rich, intense character. [Habanos launch announcement](https://www.habanos.com/en/news/partagas-serie-e-no-2-en/)"
+        }
+      }
+    },
+    {
+      "id": 612,
+      "brand_slug": "partagas",
+      "english_name": "Serie D No.6",
+      "decision": "update",
+      "identity_note": "Partagás Serie D No.6; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 90,
+        "ring_gauge": 50,
+        "vitola": "D No.6"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/",
+          "title": "Partagás — Habanos, S.A. brand information",
+          "facts": [
+            "Founded by Don Jaime Partagás in Havana in 1845, the house is associated by Habanos with selected Vuelta Abajo tobacco and an intense, rich, aromatic blend."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Serie D No.6 as D No.6, 90 mm, ring gauge 50."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/news/partagas-serie-d-no-6-caracter-concentrado-en/",
+          "title": "Serie D No. 6. Concentrated character — Habanos, S.A.",
+          "facts": [
+            "Habanos announced Serie D No. 6 in 2014 as an addition to the Partagás D series.",
+            "The launch describes a compact cigar with intense Partagás character and selected Vuelta Abajo tobacco."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Serie D No. 6于2014年推出，是Partagás扩展D系列产品线的一款短规格。",
+          "body": "Serie D No. 6 于 2014 年加入 Partagás D 系列，是其中最短的规格。Habanos 将它描述为把系列浓郁风格浓缩在 90 毫米茄身中，品吸时间约 15 分钟。它和其他 D 系列型号一样采用 50 环径，并使用精选 Vuelta Abajo 烟叶。[Habanos 发布资料](https://www.habanos.com/en/news/partagas-serie-d-no-6-caracter-concentrado-en/)"
+        },
+        "ru": {
+          "description": "Serie D No. 6 появилась в 2014 году и стала коротким форматом, расширившим линейку D Partagás.",
+          "body": "Serie D No. 6 вошла в линию Partagás D в 2014 году как её самый короткий формат. Habanos описала её как концентрацию насыщенного характера серии в сигаре длиной 90 мм, рассчитанной примерно на 15 минут. Как и другие форматы D, она сочетает калибр 50 с отборным табаком Вуэльта-Абахо. [Материал Habanos о запуске](https://www.habanos.com/en/news/partagas-serie-d-no-6-caracter-concentrado-en/)"
+        },
+        "en": {
+          "description": "Introduced in 2014, Serie D No. 6 extended the Partagás D line with a compact format.",
+          "body": "Serie D No. 6 entered the Partagás D line in 2014 as its shortest format. Habanos described it as concentrating the series’ intense character into a 90 mm cigar, with a roughly 15-minute smoking time. Like other D sizes, it pairs a 50 ring gauge with selected Vuelta Abajo tobacco. [Habanos launch note](https://www.habanos.com/en/news/partagas-serie-d-no-6-caracter-concentrado-en/)"
+        }
+      }
+    },
+    {
+      "id": 615,
+      "brand_slug": "partagas",
+      "english_name": "Maduro No. 2",
+      "decision": "update",
+      "identity_note": "Partagás Maduro No. 2; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 120,
+        "ring_gauge": 55,
+        "vitola": "Short Piramides"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/partagas-brand/",
+          "title": "Partagás — Habanos, S.A. brand information",
+          "facts": [
+            "Founded by Don Jaime Partagás in Havana in 1845, the house is associated by Habanos with selected Vuelta Abajo tobacco and an intense, rich, aromatic blend."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Maduro No. 2 as Short Piramides, 120 mm, ring gauge 55."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/news/arranca-el-xx-festival-del-habano-con-una-velada-dedicada-a-cohiba-robustos-reserva-cosecha-2014-en/",
+          "title": "The XX Habanos Festival kicks off with an evening dedicated to Cohiba Robustos Reserva cosecha 2014 — Habanos, S.A.",
+          "facts": [
+            "The article also announces Partagás Línea Maduro No. 2 and No. 3, describing their maduro wrappers as the result of extra fermentation.",
+            "Maduro No. 2 is listed at ring gauge 55 by 120 mm; the line’s blend is described as strongly flavoured."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Maduro No. 2结合深色茄衣与Short Pirámides锥形轮廓，体现Partagás Maduro系列的强劲风格。",
+          "body": "Partagás Maduro No. 2 属于 Maduro 系列，深色茄衣经过额外发酵，与品牌浓郁的配方相辅相成。它采用 Short Pirámides 尖头造型，55 环径茄身向茄帽逐渐收窄。Habanos 将 Maduro 系列作为 Partagás 浓郁风格的延伸推出。[Habanos Maduro 系列发布资料](https://www.habanos.com/en/news/arranca-el-xx-festival-del-habano-con-una-velada-dedicada-a-cohiba-robustos-reserva-cosecha-2014-en/)"
+        },
+        "ru": {
+          "description": "Maduro No. 2 сочетает тёмный покровный лист с формой Short Pirámides и передаёт насыщенный характер линии Partagás Maduro.",
+          "body": "Partagás Maduro No. 2 входит в линию Maduro: тёмный покровный лист проходит дополнительную ферментацию, дополняя насыщенный купаж марки. Форма Short Pirámides сужается к головке, сохраняя широкий калибр 55 у основания. Habanos представила Maduro как развитие выразительного характера Partagás. [Habanos о запуске линии Maduro](https://www.habanos.com/en/news/arranca-el-xx-festival-del-habano-con-una-velada-dedicada-a-cohiba-robustos-reserva-cosecha-2014-en/)"
+        },
+        "en": {
+          "description": "Maduro No. 2 pairs a dark wrapper with the tapered Short Pirámides shape, expressing the bold character of Partagás Maduro.",
+          "body": "Partagás Maduro No. 2 belongs to the Maduro line, where a darker wrapper receives an extra fermentation period to complement the brand’s intense blend. It uses the tapered Short Pirámides shape, so its broad 55 ring gauge narrows toward the head. Habanos introduced the Maduro line as an extension of Partagás’ full-flavoured character. [Habanos on the Maduro launches](https://www.habanos.com/en/news/arranca-el-xx-festival-del-habano-con-una-velada-dedicada-a-cohiba-robustos-reserva-cosecha-2014-en/)"
+        }
+      }
+    },
+    {
+      "id": 764,
+      "brand_slug": "punch",
+      "english_name": "Punch Punch",
+      "decision": "update",
+      "identity_note": "Punch Punch Punch; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 143,
+        "ring_gauge": 46,
+        "vitola": "Coronas Gordas"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/punch-brand/",
+          "title": "Punch — Habanos, S.A. brand information",
+          "facts": [
+            "Punch is a mid-19th-century Habanos brand created with the British market in mind; its box art still features Mr Punch. Habanos describes the blend as medium in strength and the cigars as totally handmade long filler."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Punch Punch as Coronas Gordas, 143 mm, ring gauge 46."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Punch Punch以Coronas Gordas茄型呈现品牌经典规格；盒面角色Mr Punch源自同名英国喜剧刊物。",
+          "body": "Punch Punch 是 Punch 系列最知名的品型，采用 Coronas Gordas 造型。品牌于 19 世纪中期为英国市场创立，盒面至今保留与品牌名称相关的喜剧角色 Mr Punch。Habanos 将其配方描述为中等风格，并说明产品采用长芯全手工卷制。[Habanos Punch 品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/punch-brand/)"
+        },
+        "ru": {
+          "description": "Punch Punch выполнена в форме Coronas Gordas; персонаж Mr Punch на коробке отсылает к одноимённому британскому юмористическому изданию.",
+          "body": "Punch Punch — наиболее известная витола марки Punch, выполненная в форме Coronas Gordas. Бренд появился в середине XIX века с расчётом на британский рынок; на коробках до сих пор изображён комический персонаж Mr Punch, связанный с названием марки. Habanos описывает купаж как средний по крепости; сигары полностью скручивают вручную с длинным наполнителем. [Habanos о марке Punch](https://www.habanos.com/en/the-habanos-brands-academia/punch-brand/)"
+        },
+        "en": {
+          "description": "Punch Punch uses the Coronas Gordas shape; Mr Punch on the box recalls the British humour publication that inspired the brand.",
+          "body": "Punch Punch is the best-known vitola in the Punch range, using the Coronas Gordas shape. The brand was created in the mid-19th century with the British market in mind, and its boxes still feature Mr Punch, the comic character associated with its name. Habanos describes the blend as medium-bodied and totally handmade with long filler. [Habanos on the Punch brand](https://www.habanos.com/en/the-habanos-brands-academia/punch-brand/)"
+        }
+      }
+    },
+    {
+      "id": 839,
+      "brand_slug": "quai-dorsay",
+      "english_name": "No.54",
+      "decision": "update",
+      "identity_note": "Quai d'Orsay No.54; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 135,
+        "ring_gauge": 54,
+        "vitola": "Edmundo Grueso"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/tag/quai-dorsay-en/",
+          "title": "Quai D’Orsay — Habanos, S.A. official news archive",
+          "facts": [
+            "Habanos material dates the brand to 1974 and says it was created with French refinement and lifestyle in mind."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists No.54 as Edmundo Grueso, 135 mm, ring gauge 54."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/quai-dorsay-brand/",
+          "title": "Quai d’Orsay — Habanos brand profile",
+          "facts": [
+            "No. 54 accompanied international expansion; handmade long filler and light profile."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "No. 54以Edmundo Grueso茄型拓宽Quai d’Orsay一贯轻柔、精致的风格表达。",
+          "body": "Quai d’Orsay No. 54 采用 Edmundo Grueso 茄型，长度 135 毫米、环径 54，是品牌拓展国际市场时推出的宽环径型号。它以全手工长芯卷制，呈现 Quai d’Orsay 轻柔的配方风格；型号中的数字对应环径。 [Habanos 原始资料](https://www.habanos.com/en/the-habanos-brands-academia/quai-dorsay-brand/)"
+        },
+        "ru": {
+          "description": "No. 54 использует форму Edmundo Grueso и раскрывает лёгкий, изящный стиль Quai d’Orsay в более широком формате.",
+          "body": "Quai d’Orsay No. 54 выполнена в витоле Edmundo Grueso длиной 135 мм с кольцом 54. Этот широкий формат появился в ходе международного расширения марки. Сигара полностью скручена вручную с длинным наполнителем и сохраняет лёгкий профиль Quai d’Orsay; число в названии обозначает кольцевой калибр. [Материалы Habanos](https://www.habanos.com/en/the-habanos-brands-academia/quai-dorsay-brand/)"
+        },
+        "en": {
+          "description": "No. 54 uses the Edmundo Grueso shape, expressing Quai d’Orsay’s light, polished style in a broader format.",
+          "body": "Quai d’Orsay No. 54 uses the Edmundo Grueso shape, measuring 135 mm with a 54 ring gauge. Introduced as the brand expanded internationally, this broad format is totally handmade with long filler and retains Quai d’Orsay’s light profile. The number in its name identifies its ring gauge. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/quai-dorsay-brand/)"
+        }
+      }
+    },
+    {
+      "id": 840,
+      "brand_slug": "quai-dorsay",
+      "english_name": "No.52",
+      "decision": "update",
+      "identity_note": "Quai d'Orsay No.52; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 156,
+        "ring_gauge": 52,
+        "vitola": "Lanzas"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/tag/quai-dorsay-en/",
+          "title": "Quai D’Orsay — Habanos, S.A. official news archive",
+          "facts": [
+            "Habanos material dates the brand to 1974 and says it was created with French refinement and lifestyle in mind."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists No.52 as Lanzas, 156 mm, ring gauge 52."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/news/habanos-s-a-presented-quai-dorsay-no-52-in-world-premiere-in-france/",
+          "title": "Quai d’Orsay No. 52 world premiere in France — Habanos, 2022",
+          "facts": [
+            "2022 Paris premiere; Lanzas, 156 mm, ring gauge 52; light blend, handmade long filler from Vuelta Abajo."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Quai d’Orsay No. 52 于 2022 年在巴黎首次发布，采用宽环径的 Lanzas 茄型，延续品牌轻柔的风格。",
+          "body": "Quai d’Orsay No. 52 于 2022 年在巴黎首次发布，采用 Lanzas 茄型，长度 156 毫米、环径 52。它以全手工长芯卷制，选用古巴 Vuelta Abajo 烟叶，在宽环径、较长的茄身中延续品牌轻柔的配方风格。 [Habanos 原始资料](https://www.habanos.com/en/news/habanos-s-a-presented-quai-dorsay-no-52-in-world-premiere-in-france/)"
+        },
+        "ru": {
+          "description": "Quai d’Orsay No. 52 представили в Париже в 2022 году. Широкая витола Lanzas сохраняет лёгкий профиль марки.",
+          "body": "Quai d’Orsay No. 52 впервые представили в Париже в 2022 году. Фабричная витола Lanzas имеет длину 156 мм и кольцо 52. Сигара полностью изготовлена вручную с длинным наполнителем из табака Вуэльта-Абахо и сохраняет лёгкий профиль марки в широком удлинённом формате. [Материалы Habanos](https://www.habanos.com/en/news/habanos-s-a-presented-quai-dorsay-no-52-in-world-premiere-in-france/)"
+        },
+        "en": {
+          "description": "Quai d’Orsay No. 52 premiered in Paris in 2022, bringing the brand’s light profile to the broad Lanzas format.",
+          "body": "Quai d’Orsay No. 52 premiered in Paris in 2022. Its Lanzas factory shape measures 156 mm with a 52 ring gauge. Totally handmade with long filler from Vuelta Abajo, it carries the brand’s light blend into a broad, elongated format. [Habanos source](https://www.habanos.com/en/news/habanos-s-a-presented-quai-dorsay-no-52-in-world-premiere-in-france/)"
+        }
+      }
+    },
+    {
+      "id": 876,
+      "brand_slug": "rafael-gonzalez",
+      "english_name": "Perlas",
+      "decision": "update",
+      "identity_note": "Rafael González Perlas; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 102,
+        "ring_gauge": 40,
+        "vitola": "Perlas"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/rafael-gonzalez-brand/",
+          "title": "Rafael González — Habanos, S.A. brand information",
+          "facts": [
+            "Habanos lists Rafael González among its portfolio brands and classifies its general profile as light. The brand’s name and classic vitola language give this small format a distinctly traditional character."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Perlas as Perlas, 102 mm, ring gauge 40."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Perlas采用紧凑小环径，是Rafael González轻柔风格的一款短格式表达。",
+          "body": "Perlas 是 Rafael González 目录中的小型品型，茄身短而纤细。Habanos 将该品牌归为轻柔风格，并指出其茄芯与茄套烟叶来自 Vuelta Abajo。这个型号以经典 Perlas 规格呈现品牌克制、清淡的表达；102 毫米长度保留了纤细轮廓，同时带来紧凑尺寸。 [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/rafael-gonzalez-brand/)"
+        },
+        "ru": {
+          "description": "Perlas — компактный формат с тонким кольцом, передающий лёгкий стиль Rafael González.",
+          "body": "Perlas — небольшая витола Rafael González с коротким и тонким корпусом. Habanos относит марку к лёгкому стилю и указывает, что табак для наполнителя и связующего листа происходит из Вуэльта-Абахо. В классической форме Perlas сигара передаёт сдержанный характер марки; длина 102 мм сохраняет узнаваемый силуэт в компактном формате. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/rafael-gonzalez-brand/)"
+        },
+        "en": {
+          "description": "Perlas is a compact, slender format that expresses Rafael González’s light style.",
+          "body": "Perlas is a small Rafael González vitola with a short, slender body. Habanos classifies the brand as light and notes that its filler and binder leaves come from Vuelta Abajo. In this format, the classic Perlas shape gives the cigar a restrained expression of the house style. Its 102 mm length preserves the recognizable, narrow silhouette in a particularly compact form. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/rafael-gonzalez-brand/)"
+        }
+      }
+    },
+    {
+      "id": 893,
+      "brand_slug": "ramon-allones",
+      "english_name": "Allones Specially Selected",
+      "decision": "update",
+      "identity_note": "Ramón Allones Allones Specially Selected; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 124,
+        "ring_gauge": 50,
+        "vitola": "Robustos"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/ramon-allones-brand/",
+          "title": "Ramón Allones — Habanos, S.A. brand information",
+          "facts": [
+            "Habanos describes Ramón Allones as a full-bodied portfolio brand. Allones Specially Selected is listed in the official vitolario as a Robustos format, a concise shape that carries the house’s fuller style."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Allones Specially Selected as Robustos, 124 mm, ring gauge 50 and full strength."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Allones Specially Selected以Robustos造型呈现Ramón Allones浓郁、复杂的品牌风格，短而饱满。",
+          "body": "Allones Specially Selected 是 Ramón Allones 的 Robustos 品型，以 124 毫米长度和 50 环径呈现短而饱满的茄身。Habanos 将它列为品牌代表性茄型之一；品牌以 Vuelta Abajo 烟叶全手工卷制，风格浓郁而复杂。 Ramón Allones 创立于 1837 年，也是最早在雪茄盒上使用品牌标签的厂商之一，开创了 Habanos 熟悉的包装传统。 [Habanos 厂家资料](https://www.habanos.com/en/the-habanos-brands-academia/ramon-allones-brand/)"
+        },
+        "ru": {
+          "description": "Allones Specially Selected выполнена в форме Robustos и передаёт насыщенный сложный характер Ramón Allones в компактном формате.",
+          "body": "Allones Specially Selected выполнена в формате Robustos: короткий корпус длиной 124 мм с кольцевым калибром 50. Habanos относит её к известным витолам Ramón Allones. Сигары марки полностью скручивают вручную с длинным наполнителем из листьев Вуэльта-Абахо; её стиль — насыщенный и сложный. Основанная в 1837 году марка Ramón Allones стала одной из первых, кто использовал коробки с фирменными этикетками, положив начало привычной традиции Habanos. [материалы Habanos](https://www.habanos.com/en/the-habanos-brands-academia/ramon-allones-brand/)"
+        },
+        "en": {
+          "description": "Allones Specially Selected uses the Robustos shape to express Ramón Allones’ intense, complex character in a compact format.",
+          "body": "Allones Specially Selected is Ramón Allones in the Robustos shape: a compact 124 mm cigar with a 50 ring gauge. Habanos names it among the brand’s best-known vitolas. The house cigars are totally handmade with long filler from Vuelta Abajo, and the maker characterizes their taste as intense and complex. Founded in 1837, Ramón Allones also pioneered the labelled cigar box, a packaging tradition now familiar across Habanos. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/ramon-allones-brand/)"
+        }
+      }
+    },
+    {
+      "id": 979,
+      "brand_slug": "romeo-y-julieta",
+      "english_name": "Mille Fleurs",
+      "decision": "update",
+      "identity_note": "Romeo y Julieta Mille Fleurs; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 129,
+        "ring_gauge": 42,
+        "vitola": "Petit Coronas"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/",
+          "title": "Romeo y Julieta — Habanos, S.A. brand information",
+          "facts": [
+            "Created as a Habanos brand in 1875, Romeo y Julieta is known for a balanced, aromatic medium profile. Its broad vitola range includes the distinctive Wide Churchills and the Linea de Oro models."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Mille Fleurs as Petit Coronas, 129 mm, ring gauge 42."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/news/habanos-night-buenos-aires-a-celebration-of-150-years-of-history-elegance-and-passion-by-romeo-and-juliet/",
+          "title": "Habanos Night Buenos Aires — Habanos, S.A.",
+          "facts": [
+            "Habanos describes Mille Fleurs as 129 mm × RG 42, balanced aroma and medium strength."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Mille Fleurs是Romeo y Julieta经典Petit Coronas，以平衡香气和中等强度著称。",
+          "body": "Mille Fleurs 是 Romeo y Julieta 的经典 Petit Coronas，采用平衡、芳香的中等风格。Habanos 曾在品牌周年活动中以它开启晚宴，介绍其 129 毫米、42 环径的规格。品牌的茄芯与茄套选用 Vuelta Abajo 烟叶，整体风格以芳香与均衡见长。 [Habanos 厂家资料](https://www.habanos.com/en/news/habanos-night-buenos-aires-a-celebration-of-150-years-of-history-elegance-and-passion-by-romeo-and-juliet/)"
+        },
+        "ru": {
+          "description": "Mille Fleurs — классическая Petit Coronas Romeo y Julieta со сбалансированным ароматом и средней крепостью.",
+          "body": "Mille Fleurs — классическая витола Petit Coronas марки Romeo y Julieta со сбалансированным ароматным вкусом средней крепости. На юбилейном вечере Habanos именно этой сигарой открыли программу; производитель указывает длину 129 мм и кольцо 42. В смеси марки используются листья Вуэльта-Абахо для наполнителя и связующего листа. [материалы Habanos](https://www.habanos.com/en/news/habanos-night-buenos-aires-a-celebration-of-150-years-of-history-elegance-and-passion-by-romeo-and-juliet/)"
+        },
+        "en": {
+          "description": "Mille Fleurs is a classic Romeo y Julieta Petit Coronas, known for balanced aroma and medium strength.",
+          "body": "Mille Fleurs is Romeo y Julieta’s classic Petit Coronas, known for a balanced, aromatic medium profile. Habanos chose it to open a celebratory brand evening and lists the format at 129 mm by ring gauge 42. The maker describes the wider Romeo y Julieta blend as balanced and aromatic, using Vuelta Abajo leaves for filler and binder. [Habanos source](https://www.habanos.com/en/news/habanos-night-buenos-aires-a-celebration-of-150-years-of-history-elegance-and-passion-by-romeo-and-juliet/)"
+        }
+      }
+    },
+    {
+      "id": 985,
+      "brand_slug": "romeo-y-julieta",
+      "english_name": "Romeo No.3",
+      "decision": "update",
+      "identity_note": "Romeo y Julieta Romeo No.3; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 117,
+        "ring_gauge": 40,
+        "vitola": "Coronitas"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/",
+          "title": "Romeo y Julieta — Habanos, S.A. brand information",
+          "facts": [
+            "Created as a Habanos brand in 1875, Romeo y Julieta is known for a balanced, aromatic medium profile. Its broad vitola range includes the distinctive Wide Churchills and the Linea de Oro models."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Romeo No.3 as Coronitas, 117 mm, ring gauge 40."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Romeo No. 3属于品牌Romeo系列，以Coronitas小茄型保持经典窄身比例。",
+          "body": "Romeo No. 3 属于品牌的 Romeo 编号系列，采用小巧的 Coronitas 茄型。Habanos 目录记录其长度为 117 毫米、环径 40，比例纤细而紧凑。Romeo y Julieta 的产品线覆盖多种茄型，这款小规格以较短的形式延续品牌平衡、芳香的中等风格。 Romeo y Julieta 的品牌名称取自莎士比亚悲剧，自 1875 年起成为 Habanos 品牌。 [Habanos 厂家资料](https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/)"
+        },
+        "ru": {
+          "description": "Romeo No. 3 входит в серию Romeo и сохраняет классические узкие пропорции формата Coronitas.",
+          "body": "Romeo No. 3 входит в серию Romeo и выполнена в компактной форме Coronitas. В каталоге Habanos указаны длина 117 мм и кольцо 40 — это тонкий небольшой формат. Ассортимент Romeo y Julieta включает множество витол, а эта короткая сигара сохраняет сбалансированный ароматный профиль средней крепости, характерный для марки. Название Romeo y Julieta связано с трагедией Шекспира; как марка Habanos она существует с 1875 года. [материалы Habanos](https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/)"
+        },
+        "en": {
+          "description": "Romeo No. 3 belongs to the Romeo line and keeps the classic slim proportions of a Coronitas.",
+          "body": "Romeo No. 3 belongs to the brand’s numbered Romeo line and uses the compact Coronitas shape. Habanos lists it at 117 mm with a 40 ring gauge, giving it a slender, short format. Romeo y Julieta’s range spans many vitolas; this smaller cigar carries the brand’s balanced, aromatic medium profile in a concise form. The Romeo y Julieta name has literary roots in Shakespeare’s tragedy and dates as a Habanos brand to 1875. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/)"
+        }
+      }
+    },
+    {
+      "id": 986,
+      "brand_slug": "romeo-y-julieta",
+      "english_name": "Sports Largos",
+      "decision": "update",
+      "identity_note": "Romeo y Julieta Sports Largos; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 117,
+        "ring_gauge": 35,
+        "vitola": "Sports"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/",
+          "title": "Romeo y Julieta — Habanos, S.A. brand information",
+          "facts": [
+            "Created as a Habanos brand in 1875, Romeo y Julieta is known for a balanced, aromatic medium profile. Its broad vitola range includes the distinctive Wide Churchills and the Linea de Oro models."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Sports Largos as Sports, 117 mm, ring gauge 35."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Romeo y Julieta Sports Largos 采用纤细的 Sports 茄型，呈现品牌平衡、芳香的中等强度风格。",
+          "body": "Sports Largos 采用细长的 Sports 茄型，117 毫米长度搭配 35 环径。Habanos 的茄型目录以这一名称记录其规格，体现了 Romeo y Julieta 产品线中更轻巧纤细的一端。品牌整体以平衡、芳香的中等风格见长，茄芯与茄套使用 Vuelta Abajo 烟叶。 [Habanos 厂家资料](https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/)"
+        },
+        "ru": {
+          "description": "Romeo y Julieta Sports Largos — узкая витола Sports со сбалансированным ароматным профилем средней крепости.",
+          "body": "Sports Largos выполнена в узкой форме Sports: длина 117 мм при кольце 35. Витоларио Habanos указывает это название для формата и показывает его тонкий профиль среди широкого ассортимента Romeo y Julieta. Марка известна сбалансированным ароматным вкусом средней крепости; для наполнителя и связующего листа используют табак Вуэльта-Абахо. [материалы Habanos](https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/)"
+        },
+        "en": {
+          "description": "Romeo y Julieta Sports Largos is a slender Sports vitola with the brand’s balanced, aromatic medium profile.",
+          "body": "Sports Largos uses the slender Sports shape, measuring 117 mm with a 35 ring gauge. Habanos records that factory vitola in its catalogue, placing this cigar at the narrow end of Romeo y Julieta’s broad range. The brand is known for a balanced, aromatic medium profile, with Vuelta Abajo leaves used for its filler and binder. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/)"
+        }
+      }
+    },
+    {
+      "id": 990,
+      "brand_slug": "romeo-y-julieta",
+      "english_name": "Wide Churchills",
+      "decision": "update",
+      "identity_note": "Romeo y Julieta Wide Churchills; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 130,
+        "ring_gauge": 55,
+        "vitola": "Montesco"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/",
+          "title": "Romeo y Julieta Brand — Habanos, S.A.",
+          "facts": [
+            "Wide Churchills was introduced in 2010 and introduced the 55 ring gauge to the brand."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Wide Churchills as Montesco, 130 mm, ring gauge 55."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Wide Churchills于2010年推出，以Montesco茄型将55环径带入Romeo y Julieta系列。",
+          "body": "Wide Churchills 于 2010 年推出，以 Montesco 茄型将 55 环径带入 Romeo y Julieta 系列。Habanos 将它描述为顺应宽环径雪茄兴趣的新规格，保留品牌平衡、芳香的中等风格。130 毫米长度与宽茄身形成醒目的比例。 Wide Churchills 的推出将 55 环径引入该品牌，也为著名的 Churchills 家族增添更宽的茄型。 [Habanos 厂家资料](https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/)"
+        },
+        "ru": {
+          "description": "Wide Churchills появилась в 2010 году: витола Montesco впервые принесла кольцо 55 в ассортимент Romeo y Julieta.",
+          "body": "Wide Churchills появилась в 2010 году и принесла в ассортимент Romeo y Julieta формат Montesco с кольцом 55. Habanos представила её как новую витолу для любителей более широких сигар. При длине 130 мм широкий корпус сочетается со сбалансированным ароматным вкусом средней крепости, характерным для марки. С выпуском Wide Churchills кольцо 55 впервые вошло в ассортимент марки, дополнив знаменитое семейство Churchills более широким форматом. [материалы Habanos](https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/)"
+        },
+        "en": {
+          "description": "Introduced in 2010, Wide Churchills brought the 55 ring gauge to Romeo y Julieta in the Montesco shape.",
+          "body": "Introduced in 2010, Wide Churchills brought the Montesco shape and its 55 ring gauge into Romeo y Julieta’s range. Habanos presented it as a new option for smokers interested in broader formats. At 130 mm long, its wide body pairs with the brand’s balanced, aromatic medium profile. Its launch introduced the 55 ring gauge to the brand, joining its famous Churchills family with a notably wider format. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/)"
+        }
+      }
+    },
+    {
+      "id": 995,
+      "brand_slug": "romeo-y-julieta",
+      "english_name": "Dianas",
+      "decision": "update",
+      "identity_note": "Romeo y Julieta Dianas; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 145,
+        "ring_gauge": 52,
+        "vitola": "Damas"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/",
+          "title": "Romeo y Julieta Brand — Habanos, S.A.",
+          "facts": [
+            "Dianas is one of three vitolas in Línea de Oro, introduced to mark the brand’s 145th anniversary."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Dianas as Damas, 145 mm, ring gauge 52."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/news/the-habanos-festival-culminates-its-xxii-edition-with-the-gala-evening-dedicated-to-the-145th-anniversary-of-the-romeo-y-julieta-brand/",
+          "title": "The Habanos Festival culminates its XXII edition with the gala evening dedicated to the 145th anniversary of the Romeo y Julieta brand — Habanos, S.A.",
+          "facts": [
+            "The 2020 gala marked the brand’s 145th anniversary and presented three new vitolas in Línea de Oro.",
+            "Dianas is listed as 52 ring gauge by 145 mm."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Dianas属于为品牌145周年推出的Linea de Oro，以Damas茄型呈现品牌更高端的系列方向。",
+          "body": "Dianas 是 Romeo y Julieta 为品牌 145 周年推出的 Línea de Oro 三款茄型之一。它采用 Damas 品型，厂家目录列出 145 毫米长度与 52 环径。该系列比品牌经典产品线更浓郁，Habanos 将其定位为品牌更高端、优雅的呈现。 [Habanos 厂家资料](https://www.habanos.com/en/news/the-habanos-festival-culminates-its-xxii-edition-with-the-gala-evening-dedicated-to-the-145th-anniversary-of-the-romeo-y-julieta-brand/)"
+        },
+        "ru": {
+          "description": "Dianas входит в Línea de Oro, представленную к 145-летию марки; форма Damas отражает её премиальное направление.",
+          "body": "Dianas — одна из трёх витол Línea de Oro, представленной Romeo y Julieta к 145-летию марки. Она выполнена в форме Damas; каталог производителя указывает длину 145 мм и кольцо 52. Habanos называет эту линию наиболее премиальной и элегантной в ассортименте и отмечает её крепость от средней до высокой. [материалы Habanos](https://www.habanos.com/en/news/the-habanos-festival-culminates-its-xxii-edition-with-the-gala-evening-dedicated-to-the-145th-anniversary-of-the-romeo-y-julieta-brand/)"
+        },
+        "en": {
+          "description": "Dianas belongs to Línea de Oro, launched for the brand’s 145th anniversary; the Damas shape marks its premium direction.",
+          "body": "Dianas is one of three Línea de Oro vitolas introduced for Romeo y Julieta’s 145th anniversary. It uses the Damas shape, listed by Habanos at 145 mm and ring gauge 52. The maker presents Línea de Oro as the brand’s most premium and elegant line, with a medium-to-full profile that marked a stronger direction for Romeo y Julieta. [Habanos source](https://www.habanos.com/en/news/the-habanos-festival-culminates-its-xxii-edition-with-the-gala-evening-dedicated-to-the-145th-anniversary-of-the-romeo-y-julieta-brand/)"
+        }
+      }
+    },
+    {
+      "id": 999,
+      "brand_slug": "romeo-y-julieta",
+      "english_name": "Amantes",
+      "decision": "update",
+      "identity_note": "Romeo y Julieta Amantes; identity retained from the English catalog. Product details verified against Habanos primary material.",
+      "verified_specs": {
+        "length": 153,
+        "ring_gauge": 53,
+        "vitola": "Sobresalientes"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/",
+          "title": "Romeo y Julieta — Habanos, S.A. brand information",
+          "facts": [
+            "Created as a Habanos brand in 1875, Romeo y Julieta is known for a balanced, aromatic medium profile. Its broad vitola range includes the distinctive Wide Churchills and the Linea de Oro models."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Vitolario — Habanos, S.A.",
+          "facts": [
+            "Official vitolario lists Amantes as Sobresalientes, 153 mm, ring gauge 53."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Amantes采用Sobresalientes茄型，是Romeo y Julieta经典品牌系列中的新式宽环造型。",
+          "body": "Amantes 采用 Sobresalientes 茄型，153 毫米长度与 53 环径构成宽而修长的比例。Romeo y Julieta 的配方以平衡、芳香的中等风格著称，茄芯与茄套烟叶来自 Vuelta Abajo。品牌于 1875 年创立，名称取自莎士比亚悲剧；Amantes 将这一经典风格呈现于较宽的茄身中。 [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/)"
+        },
+        "ru": {
+          "description": "Amantes выполнена в форме Sobresalientes и добавляет современный широкий формат в классическую линейку Romeo y Julieta.",
+          "body": "Amantes выполнена в форме Sobresalientes: длина 153 мм и кольцо 53 создают широкий, вытянутый силуэт. Купаж Romeo y Julieta известен сбалансированным ароматным вкусом средней крепости; для наполнителя и связующего листа используют табак Вуэльта-Абахо. Марка создана в 1875 году и названа в честь трагедии Шекспира; Amantes раскрывает её классический профиль в более широком формате. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/)"
+        },
+        "en": {
+          "description": "Amantes uses the Sobresalientes shape, adding a broad modern format to the classic Romeo y Julieta range.",
+          "body": "Amantes uses the Sobresalientes shape, with a 153 mm length and a 53 ring gauge creating a broad, elongated profile. Romeo y Julieta’s blend is known for a balanced, aromatic medium flavour, with Vuelta Abajo leaves used for filler and binder. The brand was created in 1875 and takes its name from Shakespeare’s tragedy; Amantes presents its classic house character in a wider format. [Habanos source](https://www.habanos.com/en/the-habanos-brands-academia/romeo-y-julieta-brand/)"
+        }
+      }
+    }
+  ]
+}

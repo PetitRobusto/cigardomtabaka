@@ -88,7 +88,7 @@ class StorefrontSeoTests(SimpleTestCase):
                 self.assertEqual(page["description"], "Reviewed product description.")
 
     def test_brand_titles_and_pagination_are_localized_without_rewriting_paths(self):
-        for locale, title, number_label in [("zh", "Cohiba — 雪茄目录", "第 2 页"), ("ru", "Сигары Cohiba в Москве", "Страница 2"), ("en", "Cohiba — Cigar catalogue", "Page 2")]:
+        for locale, title, number_label in [("zh", "Cohiba雪茄 — 莫斯科", "第 2 页"), ("ru", "Сигары Cohiba в Москве", "Страница 2"), ("en", "Cohiba cigars in Moscow", "Page 2")]:
             with self.subTest(locale=locale):
                 page = self.page(locale=locale, kind="brand", title="Cohiba", product=None,
                                  path="/brand/cohiba?page=2", pagination={"page": 2})

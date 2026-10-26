@@ -1,0 +1,1083 @@
+{
+  "schema_version": 1,
+  "products": [
+    {
+      "id": 93,
+      "brand_slug": "cohiba",
+      "english_name": "Espléndidos",
+      "decision": "update",
+      "identity_note": "Cohiba Espléndidos dimensions and vitola verified against Habanos official vitolario.",
+      "verified_specs": {
+        "length": 178,
+        "ring_gauge": 47,
+        "vitola": "Julieta No. 2"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/",
+          "title": "Cohiba brand / product information (Habanos, S.A.)",
+          "facts": [
+            "Cohiba was created in 1966 and made at El Laguito; selected Vuelta Abajo leaves are used and seco and ligero receive additional fermentation. Siglo VI is Cañonazo, 52 ring gauge × 150 mm."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Cohiba Espléndidos 是 Línea Clásica 的修长品型，精选 Vuelta Abajo 烟叶手工卷制；Cohiba 茄芯中的 Seco 与 Ligero 烟叶还会额外发酵。",
+          "body": "Cohiba Espléndidos 以修长的 Churchill 品型呈现 Línea Clásica 的调配，采用 Vuelta Abajo 烟叶手工卷制。Cohiba 茄芯中的 Seco 与 Ligero 会额外发酵；[Habanos 品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/)介绍了这道工序。"
+        },
+        "ru": {
+          "description": "Cohiba Espléndidos — длинная витола Línea Clásica, изготовленная вручную из отборного табака Вуэльта-Абахо; листья seco и ligero в наполнителе Cohiba проходят дополнительную ферментацию.",
+          "body": "Cohiba Espléndidos раскрывает смесь Línea Clásica в вытянутой витоле Churchill и скручивается вручную из табака Вуэльта-Абахо. Листья seco и ligero в наполнителе Cohiba проходят дополнительную ферментацию, о которой говорится в [профиле марки Habanos](https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/)."
+        },
+        "en": {
+          "description": "Cohiba Espléndidos is a long Línea Clásica vitola, hand-rolled from selected Vuelta Abajo tobacco; Cohiba’s seco and ligero filler leaves receive extra fermentation.",
+          "body": "Cohiba Espléndidos presents the Línea Clásica blend in a long Churchill vitola, handmade with Vuelta Abajo tobacco. Cohiba’s seco and ligero filler leaves receive extra fermentation, a process described in the [Habanos brand profile](https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/)."
+        }
+      }
+    },
+    {
+      "id": 95,
+      "brand_slug": "cohiba",
+      "english_name": "Robustos",
+      "decision": "update",
+      "identity_note": "Cohiba Robustos dimensions and vitola verified against Habanos official vitolario.",
+      "verified_specs": {
+        "length": 124,
+        "ring_gauge": 50,
+        "vitola": "Robustos"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/",
+          "title": "Cohiba brand / product information (Habanos, S.A.)",
+          "facts": [
+            "Cohiba was created in 1966 and made at El Laguito; selected Vuelta Abajo leaves are used and seco and ligero receive additional fermentation. Siglo VI is Cañonazo, 52 ring gauge × 150 mm."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Cohiba Robustos 将品牌精选古巴配方融入宽而紧凑的 Robustos 品型。茄芯中的 Seco 与 Ligero 烟叶会经过 Cohiba 特有的额外发酵。",
+          "body": "Cohiba Robustos 将 Línea Clásica 调配装入较短而宽的 Robustos 品型，以 Vuelta Abajo 烟叶手工卷制。茄芯中的 Seco 与 Ligero 烟叶经过额外发酵；[Habanos 品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/)说明了 Cohiba 的这项工序。"
+        },
+        "ru": {
+          "description": "Cohiba Robustos сочетает широкий компактный формат с отборным кубинским купажом. Листья seco и ligero в наполнителе проходят дополнительную ферментацию Cohiba.",
+          "body": "Cohiba Robustos сочетает смесь Línea Clásica с короткой широкой витолой Robustos и изготавливается вручную из табака Вуэльта-Абахо. Листья seco и ligero в наполнителе проходят дополнительную ферментацию, описанную в [профиле Cohiba от Habanos](https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/)."
+        },
+        "en": {
+          "description": "Cohiba Robustos brings the brand’s carefully selected Cuban blend into the broad, compact Robustos format. Its seco and ligero filler leaves receive Cohiba’s additional fermentation.",
+          "body": "Cohiba Robustos pairs the Línea Clásica blend with the broad, compact Robustos vitola and is handmade with Vuelta Abajo tobacco. Its seco and ligero filler leaves receive the extra fermentation described in the [Habanos Cohiba profile](https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/)."
+        }
+      }
+    },
+    {
+      "id": 96,
+      "brand_slug": "cohiba",
+      "english_name": "Siglo I",
+      "decision": "update",
+      "identity_note": "Cohiba Siglo I dimensions and vitola verified against Habanos official vitolario.",
+      "verified_specs": {
+        "length": 102,
+        "ring_gauge": 40,
+        "vitola": "Perlas"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/",
+          "title": "Cohiba brand / product information (Habanos, S.A.)",
+          "facts": [
+            "Cohiba was created in 1966 and made at El Laguito; selected Vuelta Abajo leaves are used and seco and ligero receive additional fermentation. Siglo VI is Cañonazo, 52 ring gauge × 150 mm."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Cohiba Siglo I 以小巧的 Perlas 品型开启 Línea 1492 系列。系列于 1992 年推出，茄芯中的 Seco 与 Ligero 烟叶经过额外发酵。",
+          "body": "Siglo I 以小巧的 Perlas 品型开启 Línea 1492，系列名称纪念哥伦布抵达古巴五百周年。Cohiba 选用 Vuelta Abajo 烟叶，茄芯中的 Seco 与 Ligero 还会额外发酵；详见[品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/)。"
+        },
+        "ru": {
+          "description": "Cohiba Siglo I открывает линию Línea 1492 в компактной витоле Perlas. Линия появилась в 1992 году; листья seco и ligero в наполнителе Cohiba проходят дополнительную ферментацию.",
+          "body": "Siglo I открывает Línea 1492 в компактной витоле Perlas; название линии связано с пятисотлетием прибытия Колумба на Кубу. Для Cohiba отбирают табак Вуэльта-Абахо, а листья seco и ligero в наполнителе проходят дополнительную ферментацию, описанную в [профиле марки](https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/)."
+        },
+        "en": {
+          "description": "Cohiba Siglo I opens the Línea 1492 series in a small Perlas shape. The line was created in 1992, and Cohiba’s seco and ligero filler leaves undergo extra fermentation.",
+          "body": "Siglo I opens Línea 1492 in the compact Perlas vitola; the line’s name marks five centuries since Columbus reached Cuba. Cohiba selects Vuelta Abajo tobacco and gives its seco and ligero filler leaves extra fermentation, as outlined in the [brand profile](https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/)."
+        }
+      }
+    },
+    {
+      "id": 97,
+      "brand_slug": "cohiba",
+      "english_name": "Siglo II",
+      "decision": "preserve",
+      "identity_note": "Cohiba Siglo II dimensions and vitola verified against Habanos official vitolario; preserve existing copy unchanged.",
+      "verified_specs": {
+        "length": 129,
+        "ring_gauge": 42,
+        "vitola": "Marevas"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/",
+          "title": "Cohiba brand / product information (Habanos, S.A.)",
+          "facts": [
+            "Cohiba was created in 1966 and made at El Laguito; selected Vuelta Abajo leaves are used and seco and ligero receive additional fermentation. Siglo VI is Cañonazo, 52 ring gauge × 150 mm."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "高希霸世纪2号采用 Marevas 品型，是 Línea 1492 系列的中等风格长芯手工雪茄，长度 129 毫米、环径 42。",
+          "body": "高希霸世纪2号采用经典的 Marevas 品型，属于世纪系列 Línea 1492。该系列于 1992 年推出，名称纪念哥伦布抵达古巴五百周年。\n\n这款雪茄以中等风格为特色，选用古巴 Vuelta Abajo 产区烟叶，长芯全手工卷制。129 毫米的长度与 42 环径构成紧凑、修长的茄身。"
+        },
+        "ru": {
+          "description": "Cohiba Siglo II — сигара средней крепости из линии Línea 1492, полностью ручной скрутки с длинной начинкой. Формат Marevas: 129 мм, кольцевой калибр 42.",
+          "body": "Siglo II представляет классический формат Marevas в линии Cohiba Línea 1492. Эта линия появилась в 1992 году в честь пятисотлетия прибытия Колумба на Кубу.\n\nСигара средней крепости изготовлена полностью вручную с длинной начинкой из табака кубинского региона Vuelta Abajo. Длина 129 мм и кольцевой калибр 42 образуют компактный, тонкий формат."
+        },
+        "en": {
+          "description": "Cohiba Siglo II is a medium-bodied, handmade long-filler cigar in the Línea 1492 range, using the classic Marevas format: 129 mm with a 42 ring gauge.",
+          "body": "Siglo II takes the classic Marevas format within Cohiba’s Línea 1492. The line was introduced in 1992 to commemorate 500 years since Columbus reached Cuba.\n\nWith a medium-bodied profile, it is made entirely by hand using long-filler tobacco from Cuba’s Vuelta Abajo region. Its 129 mm length and 42 ring gauge create a compact, slender shape."
+        }
+      }
+    },
+    {
+      "id": 98,
+      "brand_slug": "cohiba",
+      "english_name": "Siglo III",
+      "decision": "preserve",
+      "identity_note": "Cohiba Siglo III dimensions and vitola verified against Habanos official vitolario; preserve existing copy unchanged.",
+      "verified_specs": {
+        "length": 155,
+        "ring_gauge": 42,
+        "vitola": "Coronas Grandes"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/",
+          "title": "Cohiba brand / product information (Habanos, S.A.)",
+          "facts": [
+            "Cohiba was created in 1966 and made at El Laguito; selected Vuelta Abajo leaves are used and seco and ligero receive additional fermentation. Siglo VI is Cañonazo, 52 ring gauge × 150 mm."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "高希霸世纪3号是 Línea 1492 系列的 Coronas Grandes 品型，风格中等，采用长芯全手工卷制，茄身修长。",
+          "body": "高希霸世纪3号采用修长的 Coronas Grandes 品型，属于 Línea 1492 系列，风格中等。长度为 155 毫米，环径为 42。\n\n这款雪茄选用古巴烟叶，以长芯全手工卷制。高希霸对茄芯中的 Seco 和 Ligero 烟叶进行额外发酵，这道工序是品牌制作工艺的重要特点。"
+        },
+        "ru": {
+          "description": "Cohiba Siglo III — вытянутый формат Coronas Grandes в линии Línea 1492: средняя крепость, ручная скрутка и длинная начинка.",
+          "body": "Siglo III представляет вытянутый формат Coronas Grandes в линии Cohiba Línea 1492. Сигара средней крепости имеет длину 155 мм и кольцевой калибр 42.\n\nОна изготовлена полностью вручную из кубинского табака с длинной начинкой. Важная особенность технологии Cohiba — дополнительная ферментация листьев seco и ligero, входящих в начинку."
+        },
+        "en": {
+          "description": "Cohiba Siglo III is the slender Coronas Grandes format in Línea 1492, with a medium-bodied profile and handmade long-filler construction.",
+          "body": "Siglo III uses the slender Coronas Grandes format in Cohiba’s Línea 1492. It has a medium-bodied profile and measures 155 mm with a ring gauge of 42.\n\nMade entirely by hand with long-filler Cuban tobacco, it reflects Cohiba’s distinctive preparation of filler leaves: the seco and ligero undergo an additional fermentation stage."
+        }
+      }
+    },
+    {
+      "id": 101,
+      "brand_slug": "cohiba",
+      "english_name": "Siglo VI",
+      "decision": "update",
+      "identity_note": "Cohiba Siglo VI dimensions and vitola verified against Habanos official source; official launch calls it Cañonazo, 150 mm × 52.",
+      "verified_specs": {
+        "length": 150,
+        "ring_gauge": 52,
+        "vitola": "Cañonazo"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official vitolario dimensions and factory vitola for this Cohiba size."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/es/news/nuevo-siglo-vi-es/",
+          "title": "Nuevo Siglo VI, original launch article (Habanos, S.A.)",
+          "facts": [
+            "Siglo VI introduced as Cañonazo, 52 × 150 mm; Cohiba leaf preparation includes a third fermentation for seco and ligero."
+          ]
+        },
+        {
+          "title": "Cohiba brand / product information (Habanos, S.A.)",
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/",
+          "facts": [
+            "Cohiba filler leaves undergo a third fermentation."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Cohiba Siglo VI 为 Línea 1492 带来 Cañonazo 品型，52 环径搭配 150 毫米长度。Habanos 为该系列十周年推出此型号。",
+          "body": "Siglo VI 采用 150 毫米、52 环径的 Cañonazo 品型，为 Línea 1492 带来宽阔茄身。Habanos 在[型号发布资料](https://www.habanos.com/es/news/nuevo-siglo-vi-es/)中将它作为系列十周年推出；Cohiba 茄芯的 Seco 与 Ligero 烟叶还经过第三次发酵。"
+        },
+        "ru": {
+          "description": "Cohiba Siglo VI представила витолу Cañonazo в линии Línea 1492: калибр 52 и длина 150 мм. Habanos выпустила её к десятилетию линии.",
+          "body": "Siglo VI выполнена в витоле Cañonazo длиной 150 мм и калибром 52, с широким корпусом Línea 1492. В [материале о выпуске](https://www.habanos.com/es/news/nuevo-siglo-vi-es/) Habanos связывает её появление с десятилетием линии; листья seco и ligero в наполнителе Cohiba проходят третью ферментацию."
+        },
+        "en": {
+          "description": "Cohiba Siglo VI introduced the Cañonazo vitola to Línea 1492, pairing a broad 52 ring gauge with a 150 mm length. Habanos created it for the line’s tenth anniversary.",
+          "body": "Siglo VI uses the 150 mm by 52 Cañonazo vitola, giving Línea 1492 a broad format. Habanos introduced it for the line’s tenth anniversary, as recorded in the [launch announcement](https://www.habanos.com/es/news/nuevo-siglo-vi-es/); Cohiba’s seco and ligero filler leaves also receive a third fermentation."
+        }
+      }
+    },
+    {
+      "id": 102,
+      "brand_slug": "cohiba",
+      "english_name": "Genios",
+      "decision": "preserve",
+      "identity_note": "Cohiba Genios dimensions and vitola verified against Habanos official vitolario; preserve existing copy unchanged.",
+      "verified_specs": {
+        "length": 140,
+        "ring_gauge": 52,
+        "vitola": "Genios 5"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/",
+          "title": "Cohiba brand / product information (Habanos, S.A.)",
+          "facts": [
+            "Cohiba was created in 1966 and made at El Laguito; selected Vuelta Abajo leaves are used and seco and ligero receive additional fermentation. Siglo VI is Cañonazo, 52 ring gauge × 150 mm."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "高希霸天才是 Maduro 5 系列的手工长芯雪茄，以五年自然陈化的深色茄衣为特点，风格中等至浓郁，规格为 140 毫米、52 环径。",
+          "body": "高希霸天才属于 2007 年推出的 Maduro 5 系列。经过五年自然陈化的深色茄衣，是这一系列最鲜明的特点，延续了古巴深色茄衣雪茄的制作传统。\n\n这款雪茄采用古巴烟叶，以长芯全手工卷制，风格中等至浓郁。140 毫米的长度与 52 环径构成饱满的茄身。"
+        },
+        "ru": {
+          "description": "Cohiba Genios — сигара ручной скрутки с длинной начинкой, выдержанным тёмным покровом и крепостью от средней до высокой. Размер: 140 мм, кольцевой калибр 52.",
+          "body": "Genios входит в линию Maduro 5, представленную в 2007 году. Её главная особенность — тёмный покровный лист с пятилетней естественной выдержкой, продолжающий кубинскую традицию сигар maduro.\n\nGenios изготавливается полностью вручную из кубинского табака с длинной начинкой. Крепость — от средней до высокой; длина 140 мм и кольцевой калибр 52 придают сигаре объёмный формат."
+        },
+        "en": {
+          "description": "Cohiba Genios is a handmade long-filler Maduro 5 cigar with a naturally aged dark wrapper, a medium-to-full profile and a 140 mm × 52 format.",
+          "body": "Genios belongs to the Maduro 5 line introduced in 2007. Its defining feature is a dark wrapper naturally aged for five years, continuing Cuba’s tradition of maduro-wrapped cigars.\n\nMade entirely by hand with long-filler Cuban tobacco, Genios has a medium-to-full profile and a substantial 140 mm body with a ring gauge of 52."
+        }
+      }
+    },
+    {
+      "id": 103,
+      "brand_slug": "cohiba",
+      "english_name": "Magicos",
+      "decision": "preserve",
+      "identity_note": "Cohiba Mágicos dimensions and vitola verified against Habanos official vitolario; preserve existing copy unchanged.",
+      "verified_specs": {
+        "length": 115,
+        "ring_gauge": 52,
+        "vitola": "Mágicos 5"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/",
+          "title": "Cohiba brand / product information (Habanos, S.A.)",
+          "facts": [
+            "Cohiba was created in 1966 and made at El Laguito; selected Vuelta Abajo leaves are used and seco and ligero receive additional fermentation. Siglo VI is Cañonazo, 52 ring gauge × 150 mm."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "莫斯科高希霸魔术师 Cohiba Mágicos Maduro 5：古巴手工长芯雪茄，115 毫米、52 环径；位列 Cigar Aficionado 2024 年 Top 25 第 8 名，获 94 分。",
+          "body": "魔术师属于高希霸 Maduro 5 系列，采用古巴长芯烟叶全手工卷制，深色茄衣经过五年自然陈化。茄身紧凑饱满，长度为 115 毫米、环径为 52，强度中等至浓郁。\n\n魔术师在 [Cigar Aficionado 2024 年 Top 25](https://www.cigaraficionado.com/top25cigar/cohiba-maduro-5-magicos-2024) 中位列第 8，获得 94 分。该刊在这次品鉴中记录了咸花生、山核桃木与蜂蜜的风味。"
+        },
+        "ru": {
+          "description": "Cohiba Mágicos Maduro 5 в Москве: кубинская сигара ручной скрутки, 115 мм, кольцевой калибр 52. № 8 в Top 25 Cigar Aficionado за 2024 год, 94 балла.",
+          "body": "Mágicos — компактная сигара линии Cohiba Maduro 5: длина 115 мм, кольцевой калибр 52, крепость от средней до высокой. Её скручивают полностью вручную из кубинского табака с длинной начинкой; тёмный покровный лист проходит пятилетнюю естественную выдержку.\n\nВ рейтинге [Top 25 Cigar Aficionado за 2024 год](https://www.cigaraficionado.com/top25cigar/cohiba-maduro-5-magicos-2024) Mágicos заняла 8-е место с оценкой 94 балла. В этой дегустации журнал отметил ноты солёного арахиса, древесины гикори и мёда."
+        },
+        "en": {
+          "description": "Cohiba Mágicos Maduro 5 in Moscow: a handmade Cuban cigar, 115 mm with a 52 ring gauge. No. 8 in Cigar Aficionado’s Top 25 of 2024, rated 94 points.",
+          "body": "Mágicos is a compact cigar in the Cohiba Maduro 5 line, measuring 115 mm with a ring gauge of 52 and medium-to-full strength. It is made entirely by hand with long-filler Cuban tobacco and a dark wrapper naturally aged for five years.\n\nMágicos placed No. 8 in [Cigar Aficionado’s Top 25 of 2024](https://www.cigaraficionado.com/top25cigar/cohiba-maduro-5-magicos-2024), earning 94 points. The magazine’s tasting highlighted salted peanut, hickory and honey."
+        }
+      }
+    },
+    {
+      "id": 106,
+      "brand_slug": "cohiba",
+      "english_name": "BHK 54",
+      "decision": "update",
+      "identity_note": "Behike 54 is a single vitola in Cohiba’s Behike line; official Habanos catalogue confirms Laguito No. 5, 144 mm × 54.",
+      "verified_specs": {
+        "length": 144,
+        "ring_gauge": 54,
+        "vitola": "Laguito No. 5"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official vitolario dimensions and factory vitola for this Cohiba size."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Cohiba Behike 54 属于以稀有 Medio Tiempo 烟叶为特色的 Behike 系列。Habanos 将这一规格列为 Laguito No. 5。",
+          "body": "Behike 54 采用 Laguito No. 5 品型，长度 144 毫米、环径 54。其调配含稀有 Medio Tiempo 烟叶；[Habanos 官方 vitolario](https://www.habanos.com/en/vitolarios/)列出该型号的规格，品牌资料介绍 Medio Tiempo 在 Behike 中的运用。"
+        },
+        "ru": {
+          "description": "Cohiba Behike 54 входит в линию Behike, смесь которой выделяется редким листом Medio Tiempo. Habanos указывает для этого формата витолу Laguito No. 5.",
+          "body": "Behike 54 выполнена в витоле Laguito No. 5: длина 144 мм, калибр 54. В смесь входит редкий лист Medio Tiempo; [официальный витоларио Habanos](https://www.habanos.com/en/vitolarios/) приводит размер, а профиль марки описывает использование Medio Tiempo в Behike."
+        },
+        "en": {
+          "description": "Cohiba Behike 54 belongs to the Behike line, whose blend is distinguished by rare Medio Tiempo leaf. Habanos identifies this size as Laguito No. 5.",
+          "body": "Behike 54 is made in the Laguito No. 5 vitola, measuring 144 mm by ring gauge 54. Its blend includes rare Medio Tiempo leaf; the [official Habanos vitolario](https://www.habanos.com/en/vitolarios/) lists the size, while the brand profile explains its use in Behike."
+        }
+      }
+    },
+    {
+      "id": 1212,
+      "brand_slug": "cohiba",
+      "english_name": "Reserva Selección",
+      "decision": "update",
+      "identity_note": "Habanos’ 2003 original release identifies Cohiba Selección Reserva as a 30-cigar mixed selection: 6 Coronas Especiales, 4 Espléndidos, 6 Robustos, 8 Pirámides and 6 Medias Coronas. It is not one cigar size; dimensions are intentionally null.",
+      "verified_specs": {
+        "length": null,
+        "ring_gauge": null,
+        "vitola": ""
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/news/cohiba-seleccion-reserva-en/",
+          "title": "Cohiba Selección Reserva, original 2003 announcement (Habanos, S.A.)",
+          "facts": [
+            "Special production in 2003; humidified box of 30 mixed cigars: 6 Coronas Especiales, 4 Espléndidos, 6 Robustos, 8 Pirámides and 6 Medias Coronas. Filler leaves aged over three years."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/cohiba-brand/",
+          "title": "Cohiba brand / product information (Habanos, S.A.)",
+          "facts": [
+            "Cohiba was created in 1966 and made at El Laguito; selected Vuelta Abajo leaves are used and seco and ligero receive additional fermentation. Siglo VI is Cañonazo, 52 ring gauge × 150 mm."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Cohiba Selección Reserva 是 30 支、含五种品型的组合：Coronas Especiales、Espléndidos、Robustos、Pirámides 与 Medias Coronas。Habanos 2003 年发布资料记载，茄芯烟叶在卷制前陈化三年以上。",
+          "body": "这套精选由五种 Cohiba 品型组成，各款均采用茄芯烟叶卷制前陈化三年以上的调配。[Habanos 2003 年原始发布资料](https://www.habanos.com/en/news/cohiba-seleccion-reserva-en/)记录了这批 30 支组合。"
+        },
+        "ru": {
+          "description": "Cohiba Selección Reserva — набор из 30 сигар пяти витол: Coronas Especiales, Espléndidos, Robustos, Pirámides и Medias Coronas. В объявлении Habanos за 2003 год указано, что табак наполнителя выдерживали более трёх лет до скрутки.",
+          "body": "В набор вошли пять витол Cohiba; табак наполнителя для сигар выдерживали более трёх лет до скрутки. [Первоначальное объявление Habanos за 2003 год](https://www.habanos.com/en/news/cohiba-seleccion-reserva-en/) описывает состав из 30 сигар."
+        },
+        "en": {
+          "description": "Cohiba Selección Reserva is a 30-cigar selection of five vitolas: Coronas Especiales, Espléndidos, Robustos, Pirámides and Medias Coronas. Habanos’ 2003 announcement says the filler tobacco was aged for more than three years before rolling.",
+          "body": "The selection brings together five Cohiba vitolas, with filler tobacco aged for more than three years before rolling. The [original 2003 Habanos announcement](https://www.habanos.com/en/news/cohiba-seleccion-reserva-en/) records the 30-cigar assortment."
+        }
+      }
+    },
+    {
+      "id": 1343,
+      "brand_slug": "hoyo-de-monterrey",
+      "english_name": "EPICURE № 2 D-C-C/P-3-n-15",
+      "decision": "update",
+      "identity_note": "The Habanos vitolario identifies the cigar as standard Hoyo de Monterrey Epicure No.2 (Robustos, 124 mm × 50). The suffix D-C-C/P-3-n-15 is a packaging code for a 15-count cardboard presentation (five packs of three), not a separate vitola/model; packaging-code interpretation is cross-checked with Cuban Cigar Website and corroborated by retail listings. Public identity remains Epicure No. 2; packaging code is retained only here: D-C-C/P-3-n-15 denotes a 15-count cardboard presentation (five packs of three).",
+      "verified_specs": {
+        "length": 124,
+        "ring_gauge": 50,
+        "vitola": "Robustos"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/hoyo-de-monterrey-brand/",
+          "title": "Hoyo de Monterrey Brand (Habanos, S.A.)",
+          "facts": [
+            "Roots in the Hoyo plantation at San Juan y Martínez; light profile; Epicure Especial joined regular range in 2008 after 2004 limited edition; Le Hoyo de San Juan introduced 2014."
+          ]
+        },
+        {
+          "url": "https://www.cubancigarwebsite.com/info-packaging.htm#Box_Packaging",
+          "title": "Packaging abbreviations and code guide (Cuban Cigar Website)",
+          "facts": [
+            "Packaging reference distinguishes a cardboard five-pack presentation of three cigars each (15 total) from cigar vitola/model identity."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Hoyo de Monterrey Epicure No. 2 是 Robustos 品型，手工长芯制作，风格轻柔。Habanos 列出的规格为 124 毫米、50 环径。",
+          "body": "Epicure No. 2 以 Robustos 品型呈现 Hoyo de Monterrey 轻柔的风格，采用手工长芯制作。Habanos vitolario 将该型号列为 Robustos。 [Habanos 型号资料](https://www.habanos.com/en/vitolarios/)"
+        },
+        "ru": {
+          "description": "Hoyo de Monterrey Epicure No. 2 — витола Robustos с лёгким профилем, изготовленная вручную с длинным наполнителем. Размер по Habanos — 124 мм и калибр 50.",
+          "body": "Epicure No. 2 передаёт лёгкий профиль Hoyo de Monterrey в витоле Robustos и изготавливается вручную с длинным наполнителем. В витоларио Habanos эта сигара также указана как Robustos. [Каталог Habanos](https://www.habanos.com/en/vitolarios/)"
+        },
+        "en": {
+          "description": "Hoyo de Monterrey Epicure No. 2 is a light-profile Robustos, handmade with long filler. Habanos lists it at 124 mm and ring gauge 50.",
+          "body": "Epicure No. 2 brings Hoyo de Monterrey’s light profile to the Robustos vitola and is handmade with long filler. The Habanos vitolario lists it as Robustos. [Habanos catalogue](https://www.habanos.com/en/vitolarios/)"
+        }
+      }
+    },
+    {
+      "id": 180,
+      "brand_slug": "cuaba",
+      "english_name": "Exclusivos",
+      "decision": "update",
+      "identity_note": "Cuaba Exclusivos is a double figurado, not a parejo; Habanos identifies it as Exquisitos, 145 mm × 46.",
+      "verified_specs": {
+        "length": 145,
+        "ring_gauge": 46,
+        "vitola": "Exquisitos"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/cuaba-brand/",
+          "title": "Cuaba Brand (Habanos, S.A.)",
+          "facts": [
+            "Cuaba specializes in double figurados; standard vitolas are handmade long filler using Vuelta Abajo leaves."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Cuaba Exclusivos 是两端收尖的双头异型，制作工艺复杂，也是 Cuaba 系列的标志性造型。其工厂品型为 Exquisitos。",
+          "body": "Exclusivos 以两端收尖的双头异型 Exquisitos 呈现 Cuaba 的手工造型，使用 Vuelta Abajo 烟叶长芯全手工卷制。Habanos 将 Cuaba 的风格列为中等至浓郁，见[品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/cuaba-brand/)。"
+        },
+        "ru": {
+          "description": "Cuaba Exclusivos — двойной фигурáдо с заострёнными концами, сложная форма, определяющая ассортимент Cuaba. Фабричная витола — Exquisitos.",
+          "body": "Exclusivos выполнена в двойном фигурáдо Exquisitos с заострёнными концами. Сигару полностью скручивают вручную с длинным наполнителем из Вуэльта-Абахо; Habanos описывает профиль Cuaba как средний или крепкий в [профиле марки](https://www.habanos.com/en/the-habanos-brands-academia/cuaba-brand/)."
+        },
+        "en": {
+          "description": "Cuaba Exclusivos is a double figurado with both ends tapered, a demanding shape that defines the Cuaba range. Its factory vitola is Exquisitos.",
+          "body": "Exclusivos uses the Exquisitos double-figurado shape, tapered at both ends. It is totally handmade with Vuelta Abajo long filler; Habanos describes Cuaba’s profile as medium to full in the [brand profile](https://www.habanos.com/en/the-habanos-brands-academia/cuaba-brand/)."
+        }
+      }
+    },
+    {
+      "id": 182,
+      "brand_slug": "cuaba",
+      "english_name": "Distinguidos",
+      "decision": "update",
+      "identity_note": "Cuaba Distinguidos is the larger double figurado introduced to the standard range in 2003; official vitolario lists Romeo, 162 mm × 52.",
+      "verified_specs": {
+        "length": 162,
+        "ring_gauge": 52,
+        "vitola": "Romeo"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/cuaba-brand/",
+          "title": "Cuaba Brand (Habanos, S.A.)",
+          "facts": [
+            "Cuaba specializes in double figurados; standard vitolas are handmade long filler using Vuelta Abajo leaves."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Cuaba Distinguidos 将品牌的双头异型工艺带入较大规格，并于 2003 年加入常规系列。Habanos 标注其工厂品型为 Romeo。",
+          "body": "Distinguidos 是 Cuaba 较大的双头异型之一，Habanos 将其工厂品型列为 Romeo，长度 162 毫米、环径 52。它以 Vuelta Abajo 长芯全手工卷制，品牌风格为中等至浓郁；见[Cuaba 品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/cuaba-brand/)。"
+        },
+        "ru": {
+          "description": "Cuaba Distinguidos представляет фирменную работу с двойным фигурáдо в крупном формате, добавленном в стандартный ассортимент в 2003 году. Фабричная витола по Habanos — Romeo.",
+          "body": "Distinguidos — крупное двойное фигурáдо Cuaba; фабричная витола Romeo имеет длину 162 мм и калибр 52. Сигару полностью скручивают вручную с длинным наполнителем из Вуэльта-Абахо; профиль марки средний или крепкий, согласно [описанию Cuaba от Habanos](https://www.habanos.com/en/the-habanos-brands-academia/cuaba-brand/)."
+        },
+        "en": {
+          "description": "Cuaba Distinguidos brings the brand’s double-figurado craft to a larger format added to the standard range in 2003. Habanos names its factory vitola Romeo.",
+          "body": "Distinguidos is one of Cuaba’s larger double figurados; Habanos lists its factory vitola as Romeo, 162 mm by ring gauge 52. It is totally handmade with Vuelta Abajo long filler, and the brand profile is medium to full, according to the [Habanos Cuaba profile](https://www.habanos.com/en/the-habanos-brands-academia/cuaba-brand/)."
+        }
+      }
+    },
+    {
+      "id": 197,
+      "brand_slug": "diplomaticos",
+      "english_name": "Diplomáticos No.2",
+      "decision": "update",
+      "identity_note": "Diplomáticos No. 2 is a Pirámides vitola; official Habanos table confirms 156 mm × 52.",
+      "verified_specs": {
+        "length": 156,
+        "ring_gauge": 52,
+        "vitola": "Pirámides"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/diplomaticos-brand/",
+          "title": "Diplomáticos Brand (Habanos, S.A.)",
+          "facts": [
+            "Founded in the 1960s; numbered vitola naming; handmade long filler using Vuelta Abajo leaves; medium to full."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Diplomáticos No. 2 将品牌的数字命名与 Pirámides 金字塔形结合，尖头向下展开为宽茄身。精选 Vuelta Abajo 烟叶长芯手工卷制。",
+          "body": "Diplomáticos No. 2 采用 Pirámides 品型，茄头收尖、茄身逐渐展开。它以 Vuelta Abajo 烟叶长芯全手工卷制，Habanos 将品牌风格描述为中等至浓郁；见[品牌资料](https://www.habanos.com/en/diplomaticos-brand/)。"
+        },
+        "ru": {
+          "description": "Diplomáticos No. 2 сочетает цифровое название марки с витолой Pirámides: заострённая головка переходит в расширяющееся тело. Сигара ручной скрутки с длинным наполнителем из Вуэльта-Абахо.",
+          "body": "Diplomáticos No. 2 выполнена в витоле Pirámides с заострённой головкой и расширяющимся корпусом. Сигара полностью скручивается вручную с длинным наполнителем из Вуэльта-Абахо; Habanos описывает профиль марки как средний или крепкий в [профиле Diplomáticos](https://www.habanos.com/en/diplomaticos-brand/)."
+        },
+        "en": {
+          "description": "Diplomáticos No. 2 translates the brand’s numbered naming style into a Pirámides shape, with a tapered head and expanding body. Its Vuelta Abajo long-filler blend is handmade.",
+          "body": "Diplomáticos No. 2 uses the Pirámides shape, with a tapered head and a body that widens toward the foot. It is totally handmade with Vuelta Abajo long filler; Habanos describes the brand as medium to full in its [Diplomáticos profile](https://www.habanos.com/en/diplomaticos-brand/)."
+        }
+      }
+    },
+    {
+      "id": 266,
+      "brand_slug": "fonseca",
+      "english_name": "Delicias",
+      "decision": "update",
+      "identity_note": "Fonseca Delicias is listed as Standard Mano, 123 mm × 40; Habanos describes the brand as light and totally handmade, with some vitolas long filler and others short filler.",
+      "verified_specs": {
+        "length": 123,
+        "ring_gauge": 40,
+        "vitola": "Standard Mano"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/fonseca-brand/",
+          "title": "Fonseca Brand (Habanos, S.A.)",
+          "facts": [
+            "Founded in the late 19th century; tissue-paper presentation tradition; light blend; all vitolas handmade, with both long and short filler."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Fonseca Delicias 是纤细的轻柔风格型号。Fonseca 以雪茄外包薄纸的传统呈现方式闻名，Habanos 将 Delicias 列为全手工产品。",
+          "body": "Delicias 是 Fonseca 的纤长型号，以手工制作呈现轻柔风格。它保留品牌标志性的薄纸包裹传统；Habanos 将该品型列入全手工系列，见[Fonseca 品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/fonseca-brand/)。"
+        },
+        "ru": {
+          "description": "Fonseca Delicias — тонкая сигара лёгкого формата; марка известна традиционной тонкой бумажной обёрткой. Habanos относит Delicias к полностью изготовленным вручную витолам.",
+          "body": "Delicias — вытянутая витола Fonseca с лёгким профилем, изготовленная вручную. Сигара сохраняет характерную для марки обёртку из тонкой бумаги; Habanos относит этот формат к полностью ручному производству в [профиле Fonseca](https://www.habanos.com/en/the-habanos-brands-academia/fonseca-brand/)."
+        },
+        "en": {
+          "description": "Fonseca Delicias is a slim, light-format cigar from a brand known for its tissue-wrapped presentation. Habanos lists Delicias among its totally handmade vitolas.",
+          "body": "Delicias is a slender Fonseca vitola with a light profile, made by hand. It retains the brand’s characteristic tissue-paper wrapping; Habanos lists this format among its totally handmade cigars in the [Fonseca profile](https://www.habanos.com/en/the-habanos-brands-academia/fonseca-brand/)."
+        }
+      }
+    },
+    {
+      "id": 281,
+      "brand_slug": "h-upmann",
+      "english_name": "Upmann No.2",
+      "decision": "update",
+      "identity_note": "H. Upmann Upmann No. 2 is Pirámides, 156 mm × 52, per Habanos vitolario.",
+      "verified_specs": {
+        "length": 156,
+        "ring_gauge": 52,
+        "vitola": "Pirámides"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/h-upmann-brand/",
+          "title": "H. Upmann Brand (Habanos, S.A.)",
+          "facts": [
+            "Founded in Havana in 1844; Vuelta Abajo leaves; handmade long filler; light-to-medium brand profile."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "H. Upmann Upmann No. 2 采用 Pirámides 金字塔形，尖头茄帽与 Vuelta Abajo 长芯烟叶手工卷制。这一品型长期位于品牌核心系列中。",
+          "body": "Upmann No. 2 以 Pirámides 品型呈现 H. Upmann 的 Vuelta Abajo 长芯调配，手工卷制，茄头收尖、茄身舒展。Habanos 将品牌风格描述为细腻、轻柔至中等；见[品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/h-upmann-brand/)。"
+        },
+        "ru": {
+          "description": "H. Upmann Upmann No. 2 — сигара ручной скрутки с длинным наполнителем из Вуэльта-Абахо в формате Pirámides с заострённой головкой. Эта витола десятилетиями входит в основу ассортимента марки.",
+          "body": "Upmann No. 2 представляет смесь H. Upmann с длинным наполнителем из Вуэльта-Абахо в витоле Pirámides: сигару скручивают вручную, её головка сужается, а корпус раскрывается. Habanos описывает профиль марки как утончённый, от лёгкого до среднего, в [профиле H. Upmann](https://www.habanos.com/en/the-habanos-brands-academia/h-upmann-brand/)."
+        },
+        "en": {
+          "description": "H. Upmann No. 2 is a handmade Pirámides cigar with a tapered head and a Vuelta Abajo long-filler blend. The format has been part of the brand’s core offer for decades.",
+          "body": "Upmann No. 2 presents H. Upmann’s Vuelta Abajo long-filler blend in the handmade Pirámides shape, with a tapered head and widening body. Habanos describes the brand’s profile as refined and light to medium in its [H. Upmann profile](https://www.habanos.com/en/the-habanos-brands-academia/h-upmann-brand/)."
+        }
+      }
+    },
+    {
+      "id": 289,
+      "brand_slug": "h-upmann",
+      "english_name": "Connossieur B",
+      "decision": "update",
+      "identity_note": "H. Upmann Connossieur B is listed as Geniales, 150 mm × 54; official source marks this as a La Casa del Habano / Habanos Specialist vitola.",
+      "verified_specs": {
+        "length": 150,
+        "ring_gauge": 54,
+        "vitola": "Geniales"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/h-upmann-brand/",
+          "title": "H. Upmann Brand (Habanos, S.A.)",
+          "facts": [
+            "Founded in Havana in 1844; Vuelta Abajo leaves; handmade long filler; light-to-medium brand profile."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "H. Upmann Connossieur B 是面向 Habanos Specialist 与 La Casa del Habano 渠道的宽环径 Geniales 品型，让品牌细腻的调配呈现于更饱满的规格。",
+          "body": "Connossieur B 是 H. Upmann 的宽环径 Geniales 品型，面向 Habanos Specialist 与 La Casa del Habano 渠道。其长芯调配以 Vuelta Abajo 烟叶手工卷制，呈现品牌细腻、轻柔至中等的风格；见[Habanos 品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/h-upmann-brand/)。"
+        },
+        "ru": {
+          "description": "H. Upmann Connossieur B — широкий формат Geniales, предназначенный для Habanos Specialist и La Casa del Habano. Он представляет утончённую смесь марки в более крупном калибре.",
+          "body": "Connossieur B — широкая витола Geniales для каналов Habanos Specialist и La Casa del Habano. Сигара H. Upmann изготавливается вручную с длинным наполнителем из Вуэльта-Абахо; профиль марки — утончённый, от лёгкого до среднего, согласно [материалу Habanos](https://www.habanos.com/en/the-habanos-brands-academia/h-upmann-brand/)."
+        },
+        "en": {
+          "description": "H. Upmann Connossieur B is a broad Geniales vitola made for Habanos Specialist and La Casa del Habano channels. It extends the brand’s refined blend into a thicker format.",
+          "body": "Connossieur B is a broad Geniales vitola for Habanos Specialist and La Casa del Habano channels. This H. Upmann cigar is handmade with Vuelta Abajo long filler, reflecting the brand’s refined light-to-medium profile described in the [Habanos brand material](https://www.habanos.com/en/the-habanos-brands-academia/h-upmann-brand/)."
+        }
+      }
+    },
+    {
+      "id": 355,
+      "brand_slug": "hoyo-de-monterrey",
+      "english_name": "Petit Robustos",
+      "decision": "update",
+      "identity_note": "Hoyo de Monterrey Petit Robustos is the 102 mm × 50 Petit Robustos vitola; Habanos notes the brand pioneered the Petit Robusto format.",
+      "verified_specs": {
+        "length": 102,
+        "ring_gauge": 50,
+        "vitola": "Petit Robustos"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/hoyo-de-monterrey-brand/",
+          "title": "Hoyo de Monterrey Brand (Habanos, S.A.)",
+          "facts": [
+            "Roots in the Hoyo plantation at San Juan y Martínez; light profile; Epicure Especial joined regular range in 2008 after 2004 limited edition; Le Hoyo de San Juan introduced 2014."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Hoyo de Monterrey Petit Robustos 是 Habanos 中率先推出的短宽型 Petit Robusto。它将 50 环径收进更紧凑的茄身。",
+          "body": "Petit Robustos 将 Hoyo de Monterrey 轻柔的风格装入紧凑的 50 环径短宽品型。该品牌的渊源与 Vuelta Abajo 的 San Juan y Martínez 种植园相关；[Habanos 品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/hoyo-de-monterrey-brand/)介绍 Epicure 与 Le Hoyo 等产品线。"
+        },
+        "ru": {
+          "description": "Hoyo de Monterrey Petit Robustos первой среди Habanos представила короткий широкий формат Petit Robusto. Компактный корпус сохраняет калибр 50 в более короткой форме.",
+          "body": "Petit Robustos передаёт лёгкий профиль Hoyo de Monterrey в компактной широкой витоле калибра 50. История марки связана с плантацией в Сан-Хуан-и-Мартинес, регион Вуэльта-Абахо; в [профиле Habanos](https://www.habanos.com/en/the-habanos-brands-academia/hoyo-de-monterrey-brand/) представлены линии Epicure и Le Hoyo."
+        },
+        "en": {
+          "description": "Hoyo de Monterrey Petit Robustos pioneered the short, broad Petit Robusto format within Habanos. Its compact body keeps the brand’s 50 ring gauge in a shorter shape.",
+          "body": "Petit Robustos brings Hoyo de Monterrey’s light profile to a compact, broad vitola with ring gauge 50. The brand’s origins are tied to a plantation in San Juan y Martínez, Vuelta Abajo; the [Habanos profile](https://www.habanos.com/en/the-habanos-brands-academia/hoyo-de-monterrey-brand/) covers lines including Epicure and Le Hoyo."
+        }
+      }
+    },
+    {
+      "id": 356,
+      "brand_slug": "hoyo-de-monterrey",
+      "english_name": "Epicure Especial",
+      "decision": "update",
+      "identity_note": "Epicure Especial debuted as a 2004 Edición Limitada and joined the standard portfolio in 2008; official vitolario confirms Gordito, 141 mm × 50.",
+      "verified_specs": {
+        "length": 141,
+        "ring_gauge": 50,
+        "vitola": "Gordito"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/hoyo-de-monterrey-brand/",
+          "title": "Hoyo de Monterrey Brand (Habanos, S.A.)",
+          "facts": [
+            "Roots in the Hoyo plantation at San Juan y Martínez; light profile; Epicure Especial joined regular range in 2008 after 2004 limited edition; Le Hoyo de San Juan introduced 2014."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Hoyo de Monterrey Epicure Especial 于 2004 年先以 Edición Limitada 限量版推出，2008 年进入常规系列，并成为独立呈现的 Epicure 产品线重点型号。",
+          "body": "Epicure Especial 采用 Gordito 品型，环径 50、长度 141 毫米，以较宽茄身呈现 Hoyo de Monterrey 轻柔风格。它从 2004 年限量版发展为常规产品；[Habanos 发布资料](https://www.habanos.com/en/the-habanos-brands-academia/hoyo-de-monterrey-brand/)记录其 2008 年加入常规系列。"
+        },
+        "ru": {
+          "description": "Hoyo de Monterrey Epicure Especial после успеха Edición Limitada 2004 года вошла в стандартный ассортимент в 2008-м. Она стала центральной витолой отдельно оформленной линии Epicure.",
+          "body": "Epicure Especial выполнена в витоле Gordito длиной 141 мм и калибром 50; широкий корпус передаёт лёгкий профиль Hoyo de Monterrey. После выпуска Edición Limitada в 2004 году сигара вошла в стандартный ассортимент в 2008-м, как указано в [объявлении Habanos](https://www.habanos.com/en/the-habanos-brands-academia/hoyo-de-monterrey-brand/)."
+        },
+        "en": {
+          "description": "Hoyo de Monterrey Epicure Especial moved from a successful 2004 Edición Limitada into the standard line in 2008. It anchors the separately presented Epicure range.",
+          "body": "Epicure Especial uses the Gordito vitola, measuring 141 mm by ring gauge 50, with a broad format suited to Hoyo de Monterrey’s light profile. First released as an Edición Limitada in 2004, it joined the regular range in 2008, according to the [Habanos brand profile](https://www.habanos.com/en/the-habanos-brands-academia/hoyo-de-monterrey-brand/)."
+        }
+      }
+    },
+    {
+      "id": 358,
+      "brand_slug": "hoyo-de-monterrey",
+      "english_name": "Le Hoyo de San Juan",
+      "decision": "update",
+      "identity_note": "Le Hoyo de San Juan is a 2014 addition to the historic Le Hoyo series; official vitolario confirms Geniales, 150 mm × 54.",
+      "verified_specs": {
+        "length": 150,
+        "ring_gauge": 54,
+        "vitola": "Geniales"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/hoyo-de-monterrey-brand/",
+          "title": "Hoyo de Monterrey Brand (Habanos, S.A.)",
+          "facts": [
+            "Roots in the Hoyo plantation at San Juan y Martínez; light profile; Epicure Especial joined regular range in 2008 after 2004 limited edition; Le Hoyo de San Juan introduced 2014."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/news/hoyo-de-monterrey-le-hoyo-de-san-juan-en/",
+          "title": "Le Hoyo de San Juan (Habanos, S.A.)",
+          "facts": [
+            "Le Hoyo de San Juan is a new addition to the historic Le Hoyo line and expands its formats into a thicker ring gauge."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Le Hoyo de San Juan 于 2014 年为经典 Le Hoyo 系列带来宽环径的 Geniales 品型，扩展了这一传统纤细规格为主的产品线。",
+          "body": "Le Hoyo de San Juan 于 2014 年为 Le Hoyo 系列引入 150 毫米、54 环径的 Geniales 茄型。它的配方选用 San Juan y Martínez 产区的 Seco 和 Ligero 烟叶，保留 Hoyo de Monterrey 轻柔、芳香的风格，并突出这一产区的烟叶特色。 [Habanos](https://www.habanos.com/en/news/hoyo-de-monterrey-le-hoyo-de-san-juan-en/)"
+        },
+        "ru": {
+          "description": "Le Hoyo de San Juan обновила историческую серию Le Hoyo в 2014 году, добавив широкий формат Geniales. Так расширилась линия, традиционно связанная с более тонкими витолами.",
+          "body": "Le Hoyo de San Juan пополнила серию Le Hoyo в 2014 году витолой Geniales длиной 150 мм с кольцом 54. В купаже используют листья Seco и Ligero из района Сан-Хуан-и-Мартинес. Он сохраняет лёгкий ароматный характер Hoyo de Monterrey и подчёркивает особенности табака этого района. [Habanos](https://www.habanos.com/en/news/hoyo-de-monterrey-le-hoyo-de-san-juan-en/)"
+        },
+        "en": {
+          "description": "Le Hoyo de San Juan renewed the historic Le Hoyo series in 2014 with a broad Geniales format. It expanded a line traditionally associated with slimmer vitolas.",
+          "body": "Le Hoyo de San Juan introduced the 150 mm by 54 Geniales shape to the Le Hoyo series in 2014. Its blend uses Seco and Ligero leaves from the San Juan y Martínez tobacco district, preserving Hoyo de Monterrey’s light, aromatic character while highlighting the tobacco of this specific origin. [Habanos](https://www.habanos.com/en/news/hoyo-de-monterrey-le-hoyo-de-san-juan-en/)"
+        }
+      }
+    },
+    {
+      "id": 418,
+      "brand_slug": "jose-l-piedra",
+      "english_name": "Brevas",
+      "decision": "update",
+      "identity_note": "José L. Piedra Brevas is a short-filler, totally handmade cigar using Remedios tobacco; official vitolario lists Brevas JLP, 133 mm × 42.",
+      "verified_specs": {
+        "length": 133,
+        "ring_gauge": 42,
+        "vitola": "Brevas JLP"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/",
+          "title": "José L. Piedra Brand (Habanos, S.A.)",
+          "facts": [
+            "Short-filler, totally handmade cigars; filler tobacco from Remedios; medium to full profile."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "José L. Piedra Brevas 以 Remedios 产区烟叶作短芯，全手工卷制。品牌的小巧品型体现了独特的古巴制作传统。",
+          "body": "Brevas 是 José L. Piedra 的短芯型号，以 Remedios 产区烟叶手工卷制，规格为 Brevas JLP。Habanos 将品牌风格描述为中等至浓郁；[品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/)介绍其烟叶来源与制作方式。"
+        },
+        "ru": {
+          "description": "José L. Piedra Brevas — сигара ручной скрутки с коротким наполнителем из табака региона Ремедиос. Компактные форматы марки отражают особую кубинскую традицию производства.",
+          "body": "Brevas — витола Brevas JLP марки José L. Piedra с коротким наполнителем из табака региона Ремедиос, скрученная вручную. Habanos описывает профиль марки как средний или крепкий; [профиль бренда](https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/) рассказывает о сырье и производстве."
+        },
+        "en": {
+          "description": "José L. Piedra Brevas is a handmade short-filler cigar using filler tobacco grown in the Remedios region. The brand’s compact formats reflect a distinctive Cuban production tradition.",
+          "body": "Brevas is the Brevas JLP vitola from José L. Piedra, handmade with short filler tobacco from Remedios. Habanos describes the brand’s profile as medium to full; its [brand profile](https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/) covers the tobacco and production."
+        }
+      }
+    },
+    {
+      "id": 419,
+      "brand_slug": "jose-l-piedra",
+      "english_name": "Cazadores",
+      "decision": "update",
+      "identity_note": "José L. Piedra Cazadores is a Cazadores JLP vitola; current dimensions 152 mm × 43 are confirmed in the Intertabak Habanos catalogue, which identifies Intertabak as an official Habanos importer.",
+      "verified_specs": {
+        "length": 152,
+        "ring_gauge": 43,
+        "vitola": "Cazadores JLP"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official vitolario lists related regular brand formats; it does not list this legacy Cazadores size."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/",
+          "title": "José L. Piedra Brand (Habanos, S.A.)",
+          "facts": [
+            "Short-filler, totally handmade cigars; filler tobacco from Remedios; medium to full profile."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/strengths/",
+          "title": "Habanos brand strength guide (Habanos, S.A.)",
+          "facts": [
+            "Habanos brands guide gives José L. Piedra medium-to-full profile; regular product table does not currently list Cazadores."
+          ]
+        },
+        {
+          "url": "https://www.intertabak.com/de/habanos.html",
+          "title": "Habanos vitolas (Intertabak AG, official importer catalogue)",
+          "facts": [
+            "Lists Cazadores JLP at 152 mm length and ring gauge 43; distinguishes it from the 162 × 43 Cazadores vitola. Intertabak states it imports Habanos officially."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "José L. Piedra Cazadores JLP 是纤长的短芯雪茄，以 Remedios 烟叶手工卷制。Intertabak 列出的规格为 152 毫米、43 环径。",
+          "body": "Cazadores JLP 是 José L. Piedra 的纤长短芯型号，以 Remedios 烟叶手工卷制。[Intertabak 的 Habanos 产品目录](https://www.intertabak.com/de/habanos.html)列出 152 × 43 毫米规格，并将该品型标为 Cazadores JLP。"
+        },
+        "ru": {
+          "description": "José L. Piedra Cazadores JLP — вытянутая тонкая сигара ручной скрутки с коротким наполнителем из табака Ремедиос. Intertabak указывает размер 152 мм × 43.",
+          "body": "Cazadores JLP — вытянутая сигара José L. Piedra с коротким наполнителем из табака Ремедиос, изготовленная вручную. [Каталог Intertabak с продукцией Habanos](https://www.intertabak.com/de/habanos.html) указывает размер 152 мм при кольце 43 и название витолы Cazadores JLP."
+        },
+        "en": {
+          "description": "José L. Piedra Cazadores JLP is a long, slim short-filler cigar, hand-rolled with filler tobacco from Remedios. Intertabak lists it at 152 mm × 43.",
+          "body": "Cazadores JLP is a long, slim José L. Piedra cigar, handmade with short filler tobacco from Remedios. [Intertabak’s Habanos catalogue](https://www.intertabak.com/de/habanos.html) lists it at 152 mm with a 43 ring gauge under the Cazadores JLP vitola."
+        }
+      }
+    },
+    {
+      "id": 421,
+      "brand_slug": "jose-l-piedra",
+      "english_name": "Petit Cazadores",
+      "decision": "update",
+      "identity_note": "Petit Cazadores is a regular José L. Piedra vitola, 105 mm × 43; the brand uses Remedios tobacco and short filler.",
+      "verified_specs": {
+        "length": 105,
+        "ring_gauge": 43,
+        "vitola": "Petit Cazadores"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/",
+          "title": "José L. Piedra Brand (Habanos, S.A.)",
+          "facts": [
+            "Short-filler, totally handmade cigars; filler tobacco from Remedios; medium to full profile."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "José L. Piedra Petit Cazadores 是紧凑的短芯规格，以 Remedios 烟叶全手工卷制。小巧茄身呈现了品牌的传统调配。",
+          "body": "Petit Cazadores 将 José L. Piedra 的 Remedios 烟叶短芯调配装入紧凑品型，全手工卷制。Habanos 将品牌风格描述为中等至浓郁；[品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/)说明其原料与风格。"
+        },
+        "ru": {
+          "description": "José L. Piedra Petit Cazadores — компактный формат с коротким наполнителем, полностью изготовленный вручную из табака Ремедиос. Небольшой размер придаёт традиционной смеси лаконичную форму.",
+          "body": "Petit Cazadores сочетает короткий наполнитель José L. Piedra из табака Ремедиос с компактной витолой; сигару полностью изготавливают вручную. Habanos описывает профиль марки как средний или крепкий в [материале о бренде](https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/)."
+        },
+        "en": {
+          "description": "José L. Piedra Petit Cazadores is a compact short-filler format, totally handmade with Remedios tobacco. Its small size gives the traditional blend a concise form.",
+          "body": "Petit Cazadores combines José L. Piedra’s Remedios short-filler blend with a compact vitola and is totally handmade. Habanos describes the brand’s profile as medium to full in its [brand material](https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/)."
+        }
+      }
+    },
+    {
+      "id": 422,
+      "brand_slug": "jose-l-piedra",
+      "english_name": "Petit Caballeros",
+      "decision": "update",
+      "identity_note": "José L. Piedra Petit Caballeros is Hermoso Corto, 120 mm × 48; source confirms a 15-count display made of five packs of three, and the brand remains short filler.",
+      "verified_specs": {
+        "length": 120,
+        "ring_gauge": 48,
+        "vitola": "Hermoso Corto"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/",
+          "title": "José L. Piedra Brand (Habanos, S.A.)",
+          "facts": [
+            "Short-filler, totally handmade cigars; filler tobacco from Remedios; medium to full profile."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "José L. Piedra Petit Caballeros 是 Hermoso Corto 紧凑品型，采用 Remedios 烟叶短芯，全手工卷制。",
+          "body": "Petit Caballeros 是 Hermoso Corto 品型，采用 José L. Piedra 的短芯结构与 Remedios 产区烟叶，全手工制作。Habanos 将品牌风格列为中等至浓郁；[品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/)介绍其原料与制作方式。"
+        },
+        "ru": {
+          "description": "José L. Piedra Petit Caballeros — компактная витола Hermoso Corto с коротким наполнителем из табака Ремедиос, полностью изготовленная вручную.",
+          "body": "Petit Caballeros выполнена в витоле Hermoso Corto с коротким наполнителем José L. Piedra из табака региона Ремедиос; сигару полностью изготавливают вручную. Habanos описывает профиль марки как средний или крепкий в [материале о бренде](https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/)."
+        },
+        "en": {
+          "description": "José L. Piedra Petit Caballeros is a compact Hermoso Corto vitola, handmade with short filler tobacco from Remedios.",
+          "body": "Petit Caballeros uses the Hermoso Corto vitola with José L. Piedra’s short-filler construction and Remedios tobacco, made entirely by hand. Habanos describes the brand’s profile as medium to full in its [brand profile](https://www.habanos.com/en/the-habanos-brands-academia/jose-l-piedra-brand/)."
+        }
+      }
+    },
+    {
+      "id": 430,
+      "brand_slug": "juan-lopez",
+      "english_name": "Selección No.2",
+      "decision": "update",
+      "identity_note": "Juan López Selección No. 2 is the brand’s Robustos format, 124 mm × 50; official brand profile says No. 2 is a core vitola and the blend uses Vuelta Abajo long filler.",
+      "verified_specs": {
+        "length": 124,
+        "ring_gauge": 50,
+        "vitola": "Robustos"
+      },
+      "sources": [
+        {
+          "url": "https://www.habanos.com/en/vitolarios/",
+          "title": "Habanos official vitolario",
+          "facts": [
+            "Official Habanos vitolario lists the commercial name, factory vitola and dimensions."
+          ]
+        },
+        {
+          "url": "https://www.habanos.com/en/the-habanos-brands-academia/juan-lopez-brand/",
+          "title": "Juan López Brand (Habanos, S.A.)",
+          "facts": [
+            "Founded in the 1870s; Selección No. 1 and No. 2 form the core range; handmade long filler from Vuelta Abajo; medium to full."
+          ]
+        }
+      ],
+      "translations": {
+        "zh": {
+          "description": "Juan López Selección No. 2 是 Robustos 品型，也是品牌精简系列的核心型号之一。Habanos 指出，No. 2 是构成品牌主要产品线的两款品型之一。",
+          "body": "Selección No. 2 是 Juan López 的 Robustos 品型，采用 Vuelta Abajo 长芯烟叶全手工卷制。Habanos 将品牌风格描述为中等至浓郁，并将 No. 2 列为核心品型之一；见[品牌资料](https://www.habanos.com/en/the-habanos-brands-academia/juan-lopez-brand/)。"
+        },
+        "ru": {
+          "description": "Juan López Selección No. 2 — формат Robustos, составляющий основу небольшого ассортимента марки. Habanos отмечает, что No. 2 — одна из двух главных витол бренда.",
+          "body": "Selección No. 2 — витола Robustos марки Juan López с длинным наполнителем из Вуэльта-Абахо, полностью скрученная вручную. Habanos описывает профиль марки как средний или крепкий и относит No. 2 к основным витолам в [профиле бренда](https://www.habanos.com/en/the-habanos-brands-academia/juan-lopez-brand/)."
+        },
+        "en": {
+          "description": "Juan López Selección No. 2 is the Robustos format at the heart of the brand’s small portfolio. Habanos notes that No. 2 is one of the two principal vitolas in its range.",
+          "body": "Selección No. 2 is Juan López’s Robustos vitola, totally handmade with Vuelta Abajo long filler. Habanos describes the brand as medium to full and lists No. 2 among its principal vitolas in the [brand profile](https://www.habanos.com/en/the-habanos-brands-academia/juan-lopez-brand/)."
+        }
+      }
+    }
+  ]
+}

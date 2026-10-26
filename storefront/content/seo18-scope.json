@@ -1,0 +1,911 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-10-26",
+  "products": [
+    {
+      "id": 93,
+      "brand": "Cohiba",
+      "english_name": "Espléndidos",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 178.0,
+        "ring_gauge": 47.0,
+        "vitola": "Julieta No.2",
+        "vitola_cn": "朱丽叶 2号"
+      }
+    },
+    {
+      "id": 95,
+      "brand": "Cohiba",
+      "english_name": "Robustos",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 124.0,
+        "ring_gauge": 50.0,
+        "vitola": "Robustos",
+        "vitola_cn": "罗布图"
+      }
+    },
+    {
+      "id": 96,
+      "brand": "Cohiba",
+      "english_name": "Siglo I",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 102.0,
+        "ring_gauge": 40.0,
+        "vitola": "Perlas",
+        "vitola_cn": "珍珠"
+      }
+    },
+    {
+      "id": 97,
+      "brand": "Cohiba",
+      "english_name": "Siglo II",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 129.0,
+        "ring_gauge": 42.0,
+        "vitola": "Marevas",
+        "vitola_cn": "马雷瓦"
+      }
+    },
+    {
+      "id": 98,
+      "brand": "Cohiba",
+      "english_name": "Siglo III",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 155.0,
+        "ring_gauge": 42.0,
+        "vitola": "Coronas Grandes",
+        "vitola_cn": "大皇冠"
+      }
+    },
+    {
+      "id": 101,
+      "brand": "Cohiba",
+      "english_name": "Siglo VI",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 150.0,
+        "ring_gauge": 52.0,
+        "vitola": "Cañonazo",
+        "vitola_cn": "炮击"
+      }
+    },
+    {
+      "id": 102,
+      "brand": "Cohiba",
+      "english_name": "Genios",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 140.0,
+        "ring_gauge": 52.0,
+        "vitola": "Genios 5",
+        "vitola_cn": "天才 5"
+      }
+    },
+    {
+      "id": 103,
+      "brand": "Cohiba",
+      "english_name": "Magicos",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 115.0,
+        "ring_gauge": 52.0,
+        "vitola": "Mágicos",
+        "vitola_cn": "魔术"
+      }
+    },
+    {
+      "id": 106,
+      "brand": "Cohiba",
+      "english_name": "BHK 54",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 144.0,
+        "ring_gauge": 54.0,
+        "vitola": "Laguito No.5",
+        "vitola_cn": "拉吉托 5号"
+      }
+    },
+    {
+      "id": 180,
+      "brand": "Cuaba",
+      "english_name": "Exclusivos",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 145.0,
+        "ring_gauge": 46.0,
+        "vitola": "Exquisitos",
+        "vitola_cn": "精致"
+      }
+    },
+    {
+      "id": 182,
+      "brand": "Cuaba",
+      "english_name": "Distinguidos",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 162.0,
+        "ring_gauge": 52.0,
+        "vitola": "Romeo",
+        "vitola_cn": "罗密欧"
+      }
+    },
+    {
+      "id": 197,
+      "brand": "Diplomáticos",
+      "english_name": "Diplomáticos No.2",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 156.0,
+        "ring_gauge": 52.0,
+        "vitola": "Piramides",
+        "vitola_cn": "金字塔"
+      }
+    },
+    {
+      "id": 266,
+      "brand": "Fonseca",
+      "english_name": "Delicias",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 123.0,
+        "ring_gauge": 40.0,
+        "vitola": "Standard",
+        "vitola_cn": "标准"
+      }
+    },
+    {
+      "id": 281,
+      "brand": "H. Upmann",
+      "english_name": "Upmann No.2",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 156.0,
+        "ring_gauge": 52.0,
+        "vitola": "Piramides",
+        "vitola_cn": "金字塔"
+      }
+    },
+    {
+      "id": 289,
+      "brand": "H. Upmann",
+      "english_name": "Connossieur B",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 150.0,
+        "ring_gauge": 54.0,
+        "vitola": "Geniales",
+        "vitola_cn": "天才"
+      }
+    },
+    {
+      "id": 355,
+      "brand": "Hoyo de Monterrey",
+      "english_name": "Petit Robustos",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 102.0,
+        "ring_gauge": 50.0,
+        "vitola": "Petit Robustos",
+        "vitola_cn": "小罗布图"
+      }
+    },
+    {
+      "id": 356,
+      "brand": "Hoyo de Monterrey",
+      "english_name": "Epicure Especial",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 141.0,
+        "ring_gauge": 50.0,
+        "vitola": "Gordito",
+        "vitola_cn": "小胖"
+      }
+    },
+    {
+      "id": 358,
+      "brand": "Hoyo de Monterrey",
+      "english_name": "Le Hoyo de San Juan",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 150.0,
+        "ring_gauge": 54.0,
+        "vitola": "Geniales",
+        "vitola_cn": "天才"
+      }
+    },
+    {
+      "id": 418,
+      "brand": "José L. Piedra",
+      "english_name": "Brevas",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 133.0,
+        "ring_gauge": 42.0,
+        "vitola": "Brevas JLP",
+        "vitola_cn": "布雷瓦 JLP"
+      }
+    },
+    {
+      "id": 419,
+      "brand": "José L. Piedra",
+      "english_name": "Cazadores",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 152.0,
+        "ring_gauge": 43.0,
+        "vitola": "Cazadores JLP",
+        "vitola_cn": "猎人 JLP"
+      }
+    },
+    {
+      "id": 421,
+      "brand": "José L. Piedra",
+      "english_name": "Petit Cazadores",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 105.0,
+        "ring_gauge": 43.0,
+        "vitola": "Petit Cazadores",
+        "vitola_cn": "小猎人"
+      }
+    },
+    {
+      "id": 422,
+      "brand": "José L. Piedra",
+      "english_name": "Petit Caballeros",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 120.0,
+        "ring_gauge": 48.0,
+        "vitola": "Hermoso Corto",
+        "vitola_cn": "短俊美"
+      }
+    },
+    {
+      "id": 430,
+      "brand": "Juan López",
+      "english_name": "Selección No.2",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 124.0,
+        "ring_gauge": 50.0,
+        "vitola": "Robustos",
+        "vitola_cn": "罗布图"
+      }
+    },
+    {
+      "id": 529,
+      "brand": "Montecristo",
+      "english_name": "Montecristo No.2",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 156.0,
+        "ring_gauge": 52.0,
+        "vitola": "Piramides",
+        "vitola_cn": "金字塔"
+      }
+    },
+    {
+      "id": 530,
+      "brand": "Montecristo",
+      "english_name": "Montecristo No.3",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 142.0,
+        "ring_gauge": 42.0,
+        "vitola": "Coronas",
+        "vitola_cn": "皇冠"
+      }
+    },
+    {
+      "id": 531,
+      "brand": "Montecristo",
+      "english_name": "Montecristo No.4",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 129.0,
+        "ring_gauge": 42.0,
+        "vitola": "Marevas",
+        "vitola_cn": "马雷瓦"
+      }
+    },
+    {
+      "id": 532,
+      "brand": "Montecristo",
+      "english_name": "Montecristo No.5",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 102.0,
+        "ring_gauge": 40.0,
+        "vitola": "Perlas",
+        "vitola_cn": "珍珠"
+      }
+    },
+    {
+      "id": 539,
+      "brand": "Montecristo",
+      "english_name": "Edmundo",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 135.0,
+        "ring_gauge": 52.0,
+        "vitola": "Edmundo",
+        "vitola_cn": "埃德蒙多"
+      }
+    },
+    {
+      "id": 542,
+      "brand": "Montecristo",
+      "english_name": "Junior",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 110.0,
+        "ring_gauge": 38.0,
+        "vitola": "Trabucos",
+        "vitola_cn": "特拉布科"
+      }
+    },
+    {
+      "id": 544,
+      "brand": "Montecristo",
+      "english_name": "Regata",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 135.0,
+        "ring_gauge": 46.0,
+        "vitola": "Forum",
+        "vitola_cn": "福伦"
+      }
+    },
+    {
+      "id": 546,
+      "brand": "Montecristo",
+      "english_name": "Petit No. 2",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 120.0,
+        "ring_gauge": 52.0,
+        "vitola": "Petit No.2",
+        "vitola_cn": "小 2号"
+      }
+    },
+    {
+      "id": 599,
+      "brand": "Partagás",
+      "english_name": "Mille Fleurs",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 129.0,
+        "ring_gauge": 42.0,
+        "vitola": "Petit Coronas",
+        "vitola_cn": "小皇冠"
+      }
+    },
+    {
+      "id": 603,
+      "brand": "Partagás",
+      "english_name": "Shorts",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 110.0,
+        "ring_gauge": 42.0,
+        "vitola": "Minutos",
+        "vitola_cn": "分钟"
+      }
+    },
+    {
+      "id": 606,
+      "brand": "Partagás",
+      "english_name": "Serie D No.4",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 124.0,
+        "ring_gauge": 50.0,
+        "vitola": "Robustos",
+        "vitola_cn": "罗布图"
+      }
+    },
+    {
+      "id": 610,
+      "brand": "Partagás",
+      "english_name": "Serie D No.5",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 110.0,
+        "ring_gauge": 50.0,
+        "vitola": "D No.5",
+        "vitola_cn": "D 5号"
+      }
+    },
+    {
+      "id": 611,
+      "brand": "Partagás",
+      "english_name": "Serie E No.2",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 140.0,
+        "ring_gauge": 54.0,
+        "vitola": "Duke",
+        "vitola_cn": "公爵"
+      }
+    },
+    {
+      "id": 612,
+      "brand": "Partagás",
+      "english_name": "Serie D No.6",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 90.0,
+        "ring_gauge": 50.0,
+        "vitola": "D No.6",
+        "vitola_cn": "D 6号"
+      }
+    },
+    {
+      "id": 615,
+      "brand": "Partagás",
+      "english_name": "Maduro No. 2",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 120.0,
+        "ring_gauge": 55.0,
+        "vitola": "Short Piramides",
+        "vitola_cn": "短金字塔"
+      }
+    },
+    {
+      "id": 764,
+      "brand": "Punch",
+      "english_name": "Punch Punch",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 143.0,
+        "ring_gauge": 46.0,
+        "vitola": "Coronas Gordas",
+        "vitola_cn": "粗皇冠"
+      }
+    },
+    {
+      "id": 839,
+      "brand": "Quai d'Orsay",
+      "english_name": "No.54",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 135.0,
+        "ring_gauge": 54.0,
+        "vitola": "Edmundo Grueso",
+        "vitola_cn": "粗埃德蒙多"
+      }
+    },
+    {
+      "id": 840,
+      "brand": "Quai d'Orsay",
+      "english_name": "No.52",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 156.0,
+        "ring_gauge": 52.0,
+        "vitola": "Lanzas",
+        "vitola_cn": "长矛"
+      }
+    },
+    {
+      "id": 876,
+      "brand": "Rafael González",
+      "english_name": "Perlas",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 102.0,
+        "ring_gauge": 40.0,
+        "vitola": "Perlas",
+        "vitola_cn": "珍珠"
+      }
+    },
+    {
+      "id": 893,
+      "brand": "Ramón Allones",
+      "english_name": "Allones Specially Selected",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 130.0,
+        "ring_gauge": 48.0,
+        "vitola": "Unknown",
+        "vitola_cn": "未知"
+      }
+    },
+    {
+      "id": 979,
+      "brand": "Romeo y Julieta",
+      "english_name": "Mille Fleurs",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 129.0,
+        "ring_gauge": 42.0,
+        "vitola": "Petit Coronas",
+        "vitola_cn": "小皇冠"
+      }
+    },
+    {
+      "id": 985,
+      "brand": "Romeo y Julieta",
+      "english_name": "Romeo No.3",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 117.0,
+        "ring_gauge": 40.0,
+        "vitola": "Coronitas",
+        "vitola_cn": "小皇冠"
+      }
+    },
+    {
+      "id": 986,
+      "brand": "Romeo y Julieta",
+      "english_name": "Sports Largos",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 117.0,
+        "ring_gauge": 35.0,
+        "vitola": "Sports",
+        "vitola_cn": "运动"
+      }
+    },
+    {
+      "id": 990,
+      "brand": "Romeo y Julieta",
+      "english_name": "Wide Churchills",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 130.0,
+        "ring_gauge": 55.0,
+        "vitola": "Montesco",
+        "vitola_cn": "蒙特斯科"
+      }
+    },
+    {
+      "id": 995,
+      "brand": "Romeo y Julieta",
+      "english_name": "Dianas",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 145.0,
+        "ring_gauge": 52.0,
+        "vitola": "Damas",
+        "vitola_cn": "达马斯"
+      }
+    },
+    {
+      "id": 999,
+      "brand": "Romeo y Julieta",
+      "english_name": "Amantes",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 153.0,
+        "ring_gauge": 53.0,
+        "vitola": "Sobresalientes",
+        "vitola_cn": "优秀"
+      }
+    },
+    {
+      "id": 1139,
+      "brand": "Trinidad",
+      "english_name": "Fundadores",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 192.0,
+        "ring_gauge": 40.0,
+        "vitola": "Laguito Especial",
+        "vitola_cn": "特级拉吉托"
+      }
+    },
+    {
+      "id": 1143,
+      "brand": "Trinidad",
+      "english_name": "Vigia",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 110.0,
+        "ring_gauge": 54.0,
+        "vitola": "Torres",
+        "vitola_cn": "塔楼"
+      }
+    },
+    {
+      "id": 1146,
+      "brand": "Trinidad",
+      "english_name": "Media Luna",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 115.0,
+        "ring_gauge": 50.0,
+        "vitola": "Marinas",
+        "vitola_cn": "海洋"
+      }
+    },
+    {
+      "id": 1147,
+      "brand": "Trinidad",
+      "english_name": "Topes",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 125.0,
+        "ring_gauge": 56.0,
+        "vitola": "Topes",
+        "vitola_cn": "托佩斯"
+      }
+    },
+    {
+      "id": 1166,
+      "brand": "Vegas Robaina",
+      "english_name": "Famosos",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 127.0,
+        "ring_gauge": 48.0,
+        "vitola": "Hermosos No.4",
+        "vitola_cn": "俊美 4号"
+      }
+    },
+    {
+      "id": 1189,
+      "brand": "Vegueros",
+      "english_name": "Entretiempos",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 110.0,
+        "ring_gauge": 52.0,
+        "vitola": "Petit Edmundo",
+        "vitola_cn": "小埃德蒙多"
+      }
+    },
+    {
+      "id": 1191,
+      "brand": "Vegueros",
+      "english_name": "Tapados",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": 120.0,
+        "ring_gauge": 46.0,
+        "vitola": "Mareva Gruesa",
+        "vitola_cn": "粗马雷瓦"
+      }
+    },
+    {
+      "id": 1212,
+      "brand": "Cohiba",
+      "english_name": "Reserva Selección",
+      "release_type": "Other Special Release",
+      "release_name": "Reserva Selección",
+      "expected_specs": {
+        "length": null,
+        "ring_gauge": null,
+        "vitola": "",
+        "vitola_cn": ""
+      }
+    },
+    {
+      "id": 1343,
+      "brand": "Hoyo de Monterrey",
+      "english_name": "EPICURE № 2 D-C-C/P-3-n-15",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": null,
+        "ring_gauge": null,
+        "vitola": "",
+        "vitola_cn": ""
+      }
+    },
+    {
+      "id": 1346,
+      "brand": "La Gloria Cubana",
+      "english_name": "TURQUINOS",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": null,
+        "ring_gauge": null,
+        "vitola": "",
+        "vitola_cn": ""
+      }
+    },
+    {
+      "id": 1359,
+      "brand": "Quintero",
+      "english_name": "BREVAS",
+      "release_type": "",
+      "release_name": "",
+      "expected_specs": {
+        "length": null,
+        "ring_gauge": null,
+        "vitola": "",
+        "vitola_cn": ""
+      }
+    }
+  ],
+  "brands": [
+    {
+      "english_name": "Cohiba",
+      "slug": "cohiba"
+    },
+    {
+      "english_name": "Cuaba",
+      "slug": "cuaba"
+    },
+    {
+      "english_name": "Diplomáticos",
+      "slug": "diplomaticos"
+    },
+    {
+      "english_name": "Fonseca",
+      "slug": "fonseca"
+    },
+    {
+      "english_name": "H. Upmann",
+      "slug": "h-upmann"
+    },
+    {
+      "english_name": "Hoyo de Monterrey",
+      "slug": "hoyo-de-monterrey"
+    },
+    {
+      "english_name": "José L. Piedra",
+      "slug": "jose-l-piedra"
+    },
+    {
+      "english_name": "Juan López",
+      "slug": "juan-lopez"
+    },
+    {
+      "english_name": "La Gloria Cubana",
+      "slug": "la-gloria-cubana"
+    },
+    {
+      "english_name": "Montecristo",
+      "slug": "montecristo"
+    },
+    {
+      "english_name": "Partagás",
+      "slug": "partagas"
+    },
+    {
+      "english_name": "Punch",
+      "slug": "punch"
+    },
+    {
+      "english_name": "Quai d'Orsay",
+      "slug": "quai-dorsay"
+    },
+    {
+      "english_name": "Quintero",
+      "slug": "quintero"
+    },
+    {
+      "english_name": "Rafael González",
+      "slug": "rafael-gonzalez"
+    },
+    {
+      "english_name": "Ramón Allones",
+      "slug": "ramon-allones"
+    },
+    {
+      "english_name": "Romeo y Julieta",
+      "slug": "romeo-y-julieta"
+    },
+    {
+      "english_name": "Trinidad",
+      "slug": "trinidad"
+    },
+    {
+      "english_name": "Vegas Robaina",
+      "slug": "vegas-robaina"
+    },
+    {
+      "english_name": "Vegueros",
+      "slug": "vegueros"
+    }
+  ],
+  "spec_corrections": {
+    "93": {
+      "vitola": "Julieta No. 2"
+    },
+    "103": {
+      "vitola": "Mágicos 5"
+    },
+    "106": {
+      "vitola": "Laguito No. 5"
+    },
+    "197": {
+      "vitola": "Pirámides"
+    },
+    "266": {
+      "vitola": "Standard Mano"
+    },
+    "281": {
+      "vitola": "Pirámides"
+    },
+    "893": {
+      "length": 124,
+      "ring_gauge": 50,
+      "vitola": "Robustos",
+      "vitola_cn": "罗布图"
+    },
+    "1343": {
+      "length": 124,
+      "ring_gauge": 50,
+      "vitola": "Robustos",
+      "vitola_cn": "罗布图"
+    },
+    "1346": {
+      "length": 141,
+      "ring_gauge": 50,
+      "vitola": "Gordito",
+      "vitola_cn": "小胖"
+    },
+    "1359": {
+      "length": 140,
+      "ring_gauge": 40,
+      "vitola": "Nacionales"
+    }
+  }
+}

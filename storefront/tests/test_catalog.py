@@ -246,6 +246,42 @@ class StorefrontCatalogTests(TestCase):
         self.assertEqual(twenty_five.box_size, 25)
         self.assertIsNone(legacy.box_size)
 
+    def test_generated_images_replace_older_versions_per_sale_unit(self):
+        specs = [
+            ("cigars/old-single.jpg", "cigar", None, True),
+            ("storefront/generated-v3/products/single.webp", "cigar", None, False),
+            ("storefront/generated-v4/products/single.webp", "cigar", None, False),
+            ("cigars/old-10.jpg", "special", 10, False),
+            ("storefront/generated-v3/products/box-10.webp", "packaging", 10, False),
+            ("storefront/generated-v4/products/box-10.webp", "packaging", 10, False),
+            ("cigars/box-25.jpg", "packaging", 25, False),
+        ]
+        for path, kind, size, primary in specs:
+            CigarImage.objects.create(cigar=self.cigar, image=path, thumbnail=path + ".thumb",
+                                      image_type=kind, box_size=size, is_primary=primary)
+        product = build_pages()[f"/cigar/{self.cigar.pk}/test-brand-test-cigar"]["product"]
+        expected = {
+            "/media/storefront/generated-v4/products/single.webp",
+            "/media/storefront/generated-v4/products/box-10.webp",
+            "/media/cigars/box-25.jpg",
+        }
+        self.assertEqual(set(product["images"]), expected)
+        self.assertEqual({row["url"] for row in product["image_variants"]}, expected)
+        self.assertEqual(product["image_url"], "/media/storefront/generated-v4/products/single.webp.thumb")
+        self.assertEqual(self.cigar.images.count(), len(specs))
+
+    def test_generated_version_numbers_sort_numerically(self):
+        for version in (9, 10):
+            CigarImage.objects.create(cigar=self.cigar, image_type="cigar",
+                                      image=f"storefront/generated-v{version}/products/single.webp")
+        product = build_pages()[f"/cigar/{self.cigar.pk}/test-brand-test-cigar"]["product"]
+        self.assertEqual(product["images"], ["/media/storefront/generated-v10/products/single.webp"])
+
+    def test_legacy_images_remain_when_no_generated_replacement_exists(self):
+        CigarImage.objects.create(cigar=self.cigar, image="cigars/original.jpg", image_type="cigar")
+        product = build_pages()[f"/cigar/{self.cigar.pk}/test-brand-test-cigar"]["product"]
+        self.assertEqual(product["images"], ["/media/cigars/original.jpg", self.cigar.image_url])
+
     def test_image_box_size_constraint_requires_positive_packaging_image(self):
         invalid_values = [
             (CigarImage.ImageType.CIGAR, 10),

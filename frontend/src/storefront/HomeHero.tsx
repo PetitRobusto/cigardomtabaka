@@ -1,5 +1,6 @@
 import type { StoreLocale } from "./types";
 import "./HomeHero.css";
+import "./HomeHero.outlines.css";
 
 type HomeHeroProps = {
   locale: StoreLocale;

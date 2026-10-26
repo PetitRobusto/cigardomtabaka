@@ -96,12 +96,34 @@ def _brand_rows() -> dict[str, Brand]:
 
 def _image_rows(cigar: Cigar) -> list:
     rows = list(cigar.images.all())
+    # Generated versions replace older photos of the same verified sale unit.
+    # Keep the database records and source media for provenance and rollback.
+    replacements = {}
+    for row in rows:
+        version = _generated_image_version(row)
+        if version and row.image_type in {"cigar", "packaging", "special"}:
+            slot = _image_slot(row)
+            previous = replacements.get(slot)
+            if previous is None or (version, row.pk) > (_generated_image_version(previous), previous.pk):
+                replacements[slot] = row
+    rows = [row for row in rows if _image_slot(row) not in replacements
+            or row.pk == replacements[_image_slot(row)].pk]
     if not rows:
         return rows
     primary = next((row for row in rows if row.is_primary and row.image_type != "band"), None)
     if primary is None:
         primary = next((row for row in rows if row.image_type != "band"), rows[0])
     return [primary, *(row for row in rows if row.pk != primary.pk)]
+
+
+def _generated_image_version(row) -> int:
+    match = re.match(r"^storefront/generated-v(\d+)/products/", row.image.name or "")
+    return int(match[1]) if match else 0
+
+
+def _image_slot(row) -> tuple:
+    kind = "packaging" if row.image_type in {"packaging", "special"} else row.image_type
+    return kind, row.box_size
 
 
 def _images(cigar: Cigar, image_rows: list | None = None) -> list[str]:
@@ -113,7 +135,7 @@ def _images(cigar: Cigar, image_rows: list | None = None) -> list[str]:
         if url and url not in result:
             result.append(url)
     fallback = _safe_media_url(cigar.image) or cigar.image_url
-    if fallback and fallback not in result:
+    if fallback and fallback not in result and not any(_generated_image_version(row) for row in rows):
         result.append(fallback)
     return result
 
@@ -138,7 +160,7 @@ def _image_variants(cigar: Cigar, image_rows: list | None = None) -> list[dict]:
 
     # Legacy Cigar-level images have no verified type or box-size metadata.
     fallback = _safe_media_url(cigar.image) or cigar.image_url
-    if fallback and fallback not in seen:
+    if fallback and fallback not in seen and not any(_generated_image_version(row) for row in rows):
         variants.append({
             "url": fallback,
             "thumbnail_url": fallback,

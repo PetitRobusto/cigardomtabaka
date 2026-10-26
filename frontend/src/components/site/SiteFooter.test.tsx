@@ -96,6 +96,7 @@ describe('shared site footer', () => {
     const { container } = render(<SiteFooter site={{ wechat: 'verified-wechat' }} />);
     const footer = within(container.querySelector('footer')!);
     const trigger = footer.getByRole('button', { name: '微信' });
+    expect(trigger.querySelector('svg.wechat-icon')).toBeTruthy();
     expect(footer.queryByRole('tooltip')).toBeNull();
     fireEvent.mouseEnter(trigger.parentElement!);
     expect(within(footer.getByRole('tooltip')).getByText('verified-wechat')).toBeTruthy();

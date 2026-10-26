@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Outlet, Routes, Route, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { PageMetaProvider } from './contexts/PageMetaContext';
@@ -142,6 +142,8 @@ export function StaffNotFoundRoute() {
 
   useEffect(() => {
     setMeta({ title: notFoundCopy[locale].title, breadcrumbs: [] });
+    const previousTitle = document.title;
+    document.title = notFoundCopy[locale].title;
     const previousLanguage = document.documentElement.lang;
     document.documentElement.lang = locale === 'zh' ? 'zh-CN' : locale;
     let robots = document.head.querySelector<HTMLMetaElement>('meta[name="robots"]');
@@ -153,6 +155,7 @@ export function StaffNotFoundRoute() {
     }
     robots.content = 'noindex, nofollow';
     return () => {
+      document.title = previousTitle;
       document.documentElement.lang = previousLanguage;
       if (robots?.content === 'noindex, nofollow') {
         if (previousRobotsContent === null) robots.remove();
@@ -161,10 +164,10 @@ export function StaffNotFoundRoute() {
     };
   }, [locale, setMeta]);
 
-  return <NotFoundPage locale={locale} embedded />;
+  return <NotFoundPage locale={locale} />;
 }
 
-function AnimatedRoutes() {
+function AnimatedRouteContent() {
   const { text } = useCustomerExperience();
   const location = useLocation();
   const reduceMotion = useReducedMotion();
@@ -196,7 +199,18 @@ function AnimatedRoutes() {
               ? { opacity: 1, transition: { duration: 0 } }
               : { opacity: 1, y: 0, transition: { opacity: { duration: 0.15, ease: 'easeOut' }, y: { duration: 0.15, ease: [0.2, 0, 0, 1] } } }}
           >
-            <Routes location={location}>
+            <Outlet />
+          </motion.div>
+        </Suspense>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function AppRoutes() {
+  const location = useLocation();
+  return <Routes>
+          <Route element={<AppLayout><AnimatedRouteContent /></AppLayout>}>
           {/* Public storefront pages are rendered by Django; always cross the app boundary natively. */}
           <Route path="/" element={<NativeStorefrontRoute path="/" />} />
           <Route path="/catalog" element={<NativeStorefrontRoute path="/catalog" />} />
@@ -233,13 +247,9 @@ function AnimatedRoutes() {
 
           {/* Auth */}
           <Route path="/login" element={<LoginPage />} />
+          </Route>
           <Route path="*" element={<StaffNotFoundRoute />} />
-            </Routes>
-          </motion.div>
-        </Suspense>
-      </motion.div>
-    </AnimatePresence>
-  );
+        </Routes>;
 }
 
 export default function App() {
@@ -255,11 +265,7 @@ export default function App() {
           {/* In-app route chunks load inside the content area without replacing navigation. */}
           <Route
             path="/*"
-            element={
-              <AppLayout>
-                <AnimatedRoutes />
-              </AppLayout>
-            }
+            element={<AppRoutes />}
           />
         </Routes>
       </PageMetaProvider>

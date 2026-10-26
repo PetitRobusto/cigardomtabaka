@@ -52,7 +52,10 @@ function WechatContact({ account, label }: { account: string; label: string }) {
     if (event.key === 'Escape') { event.stopPropagation(); setOpen(false); }
   }}>
     <button type="button" aria-expanded={open} aria-controls={cardId} aria-describedby={open ? cardId : undefined} onFocus={show} onClick={show}>
-      <MessageCircle aria-hidden="true" /><span>{label}</span>
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" className="wechat-icon">
+        <path d="M8.5 3C3.8 3 0 6.1 0 10c0 2.2 1.2 4.1 3.2 5.4L2.4 18l3-1.5c1 .3 2 .5 3.1.5h.5a6.8 6.8 0 0 1-.5-2.5c0-4 3.6-7.2 8.1-7.5C15.2 4.6 12.1 3 8.5 3Zm-3 4.3a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2Zm6 0a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2Z" fillRule="evenodd" />
+        <path d="M17 8c-3.9 0-7 2.7-7 6s3.1 6 7 6c.9 0 1.8-.1 2.6-.4l2.4 1.2-.6-2.1c1.6-1.1 2.6-2.8 2.6-4.7 0-3.3-3.1-6-7-6Zm-2.5 3.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm5 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z" fillRule="evenodd" />
+      </svg><span>{label}</span>
     </button>
     <div id={cardId} className="site-footer-wechat-card" style={{ left: cardLeft }} role="tooltip" hidden={!open}>
       <span>{label}</span><strong>{account}</strong>

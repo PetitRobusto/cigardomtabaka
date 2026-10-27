@@ -16,7 +16,7 @@ function installCanvasBrowserShim() {
 }
 
 describe('Privnote QR PNG helper', () => {
-  it('encodes the complete original URL and exports a branded, white PNG', async () => {
+  it('encodes the complete original URL and exports a square PNG without a title', async () => {
     installCanvasBrowserShim();
     const originalUrl = 'https://privnote.com/AbC123?source=telegram&keep=%2F#private';
 
@@ -33,9 +33,8 @@ describe('Privnote QR PNG helper', () => {
     expect(pngDataUrl).toMatch(/^data:image\/png;base64,/);
     expect(decoded?.data).toBe(originalUrl);
     expect(canvas.width).toBeGreaterThanOrEqual(768);
-    expect(canvas.height).toBeGreaterThan(canvas.width);
-    // The output starts with the brand header, whose black glyphs are visible
-    // above the QR. All four outer corners remain plain white.
+    expect(canvas.height).toBe(canvas.width);
+    // Only the QR and its white quiet zone remain; no title is drawn above it.
     const rgb = (x: number, y: number) => {
       const offset = (y * canvas.width + x) * 4;
       return [...pixels.data.subarray(offset, offset + 3)];
@@ -44,8 +43,8 @@ describe('Privnote QR PNG helper', () => {
     expect(rgb(canvas.width - 1, 0)).toEqual([255, 255, 255]);
     expect(rgb(0, canvas.height - 1)).toEqual([255, 255, 255]);
     expect(rgb(canvas.width - 1, canvas.height - 1)).toEqual([255, 255, 255]);
-    const header = pixels.data.subarray(0, 7 * 28 * canvas.width * 4);
-    expect([...header].some((value, index) => index % 4 === 0 && value < 64)).toBe(true);
+    const topQuietZone = pixels.data.subarray(0, 4 * 28 * canvas.width * 4);
+    expect(topQuietZone.every(value => value === 255)).toBe(true);
   });
 
   it.each([

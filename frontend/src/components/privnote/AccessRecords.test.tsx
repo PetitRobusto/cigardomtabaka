@@ -7,11 +7,15 @@ import AccessRecords from './AccessRecords';
 const api = vi.hoisted(() => ({
   fetchAccessNotes: vi.fn(),
   fetchAccessDetail: vi.fn(),
+  createPrivnoteQrImage: vi.fn(),
 }));
 
 vi.mock('../../api/privnoteAccess', () => ({
   fetchAccessNotes: api.fetchAccessNotes,
   fetchAccessDetail: api.fetchAccessDetail,
+}));
+vi.mock('../../lib/privnoteQr', () => ({
+  createPrivnoteQrImage: api.createPrivnoteQrImage,
 }));
 
 const notes = {
@@ -48,8 +52,15 @@ beforeEach(() => {
   vi.clearAllMocks();
   api.fetchAccessNotes.mockResolvedValue(notes);
   api.fetchAccessDetail.mockResolvedValue(detail);
+  api.createPrivnoteQrImage.mockResolvedValue('data:image/png;base64,note-1-qr');
+  vi.stubGlobal('fetch', vi.fn());
+  vi.spyOn(window, 'open').mockImplementation(() => null);
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe('AccessRecords', () => {
   it('从列表进入详情，隔离 audience/page 查询并可返回列表', async () => {
@@ -115,5 +126,96 @@ describe('AccessRecords', () => {
     expect(screen.getByText(/创建人：未记录/)).toBeTruthy();
     expect(screen.getByText(/查看次数限制：1 次/)).toBeTruthy();
     expect(screen.queryByText(/关联销售单/)).toBeNull();
+  });
+
+  it('详情二维码使用完整链接并可保存，不打开客户链接或增加访问请求', async () => {
+    renderRecords();
+    await screen.findByText('第一链接');
+    fireEvent.click(screen.getByRole('button', { name: '查看记录' }));
+
+    const qr = await screen.findByRole('img', { name: '链接二维码' });
+    expect(api.createPrivnoteQrImage).toHaveBeenCalledWith(detail.note.url);
+    expect(qr.getAttribute('src')).toBe('data:image/png;base64,note-1-qr');
+    const download = screen.getByRole('link', { name: '保存二维码' });
+    expect(download.getAttribute('href')).toBe('data:image/png;base64,note-1-qr');
+    expect(download.getAttribute('download')).toBe('CigarDomTabaka-二维码.png');
+    expect(api.fetchAccessDetail).toHaveBeenCalledTimes(1);
+    expect(window.open).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('放大二维码后按 Escape 关闭并恢复触发按钮焦点', async () => {
+    renderRecords('note-1');
+    await screen.findByRole('img', { name: '链接二维码' });
+    const trigger = screen.getByRole('button', { name: '放大链接二维码' });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const dialog = screen.getByRole('dialog', { name: '链接二维码' });
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    expect(api.fetchAccessDetail).toHaveBeenCalledTimes(1);
+    expect(window.open).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('二维码失败后只重试本地生成，不重新请求详情或打开客户链接', async () => {
+    api.createPrivnoteQrImage
+      .mockRejectedValueOnce(new Error('本地二维码生成失败'))
+      .mockResolvedValueOnce('data:image/png;base64,retried-qr');
+    renderRecords('note-1');
+
+    await screen.findByText('二维码生成失败，链接仍可使用。');
+    expect(api.fetchAccessDetail).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: '重试二维码' }));
+
+    const qr = await screen.findByRole('img', { name: '链接二维码' });
+    expect(qr.getAttribute('src')).toBe('data:image/png;base64,retried-qr');
+    expect(api.createPrivnoteQrImage).toHaveBeenCalledTimes(2);
+    expect(api.createPrivnoteQrImage).toHaveBeenNthCalledWith(1, detail.note.url);
+    expect(api.createPrivnoteQrImage).toHaveBeenNthCalledWith(2, detail.note.url);
+    expect(api.fetchAccessDetail).toHaveBeenCalledTimes(1);
+    expect(window.open).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('返回列表选择另一个 token 时不展示前一个链接的二维码', async () => {
+    const secondNote = { ...notes.results[0], token: 'note-2', title: '第二链接' };
+    let resolveSecondQr!: (source: string) => void;
+    api.fetchAccessNotes.mockResolvedValue({ ...notes, results: [...notes.results, secondNote] });
+    api.fetchAccessDetail.mockImplementation(async token => ({
+      ...detail,
+      note: {
+        ...detail.note,
+        token,
+        title: token === 'note-1' ? '第一链接' : '第二链接',
+        url: `https://example.com/p/${token}/`,
+      },
+    }));
+    api.createPrivnoteQrImage.mockImplementation(url =>
+      url.endsWith('note-1/')
+        ? Promise.resolve('data:image/png;base64,note-1-qr')
+        : new Promise(resolve => { resolveSecondQr = resolve; }),
+    );
+    renderRecords();
+    await screen.findByText('第二链接');
+    fireEvent.click(screen.getAllByRole('button', { name: '查看记录' })[0]);
+    await screen.findByRole('img', { name: '链接二维码' });
+    expect(screen.getByRole('img', { name: '链接二维码' }).getAttribute('src')).toBe('data:image/png;base64,note-1-qr');
+
+    fireEvent.click(screen.getByRole('button', { name: '返回链接列表' }));
+    await screen.findByLabelText('搜索客户名、标题或链接编号');
+    fireEvent.click(screen.getAllByRole('button', { name: '查看记录' })[1]);
+
+    await screen.findByText('二维码生成中…');
+    expect(screen.queryByRole('img', { name: '链接二维码' })).toBeNull();
+    resolveSecondQr('data:image/png;base64,note-2-qr');
+    const secondQr = await screen.findByRole('img', { name: '链接二维码' });
+    expect(secondQr.getAttribute('src')).toBe('data:image/png;base64,note-2-qr');
+    expect(api.createPrivnoteQrImage).toHaveBeenNthCalledWith(1, 'https://example.com/p/note-1/');
+    expect(api.createPrivnoteQrImage).toHaveBeenNthCalledWith(2, 'https://example.com/p/note-2/');
   });
 });

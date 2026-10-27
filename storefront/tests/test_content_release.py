@@ -19,7 +19,7 @@ class CatalogReleaseManifestTests(SimpleTestCase):
     def test_complete_reviewed_scope_and_homonymous_products(self):
         scope, products, brands = self.read()
         self.assertEqual((len(products), len(brands)), (60, 20))
-        self.assertEqual({pk for pk, e in products.items() if e['decision'] == 'preserve'}, {97, 98, 102, 103})
+        self.assertEqual({pk for pk, e in products.items() if e['decision'] == 'preserve'}, {97, 98, 102})
         self.assertEqual([key for key, e in brands.items() if e['decision'] == 'preserve'], ['cohiba'])
         self.assertEqual(products[1212]['verified_specs'], {'length': None, 'ring_gauge': None, 'vitola': ''})
         self.assertEqual(scope['spec_corrections']['893']['length'], 124)

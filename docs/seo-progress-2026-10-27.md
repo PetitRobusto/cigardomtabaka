@@ -70,4 +70,4 @@ Google 的 [URL Inspection](https://support.google.com/webmasters/answer/9012289
 - 09:58 UTC 复核 6 个核心页及目录，7 页均为 200；记录首页 5 张具名陈列图都跳总目录、目录/品牌价格筛选显示 `₽0` 两项后续动作。标题和品牌/商品正文继续保留已上线版本。
 - [外部渠道机会表](seo-citation-opportunities.csv)含 6 项：Orgpage、Yell、Zoon、Top Cigars/Habanos 候选链路、CigarTime、Moscow Cigar Club。申请方式、成本状态、关系/材料、目标 URL 和下一步均已记录，并备好行业联系草稿。未对外联系或提交。
 
-用户随后要求先做第一项，外部渠道先自行评估。已完成 A2 首页导航、A4 价格筛选的本地实现，详见[实施记录](seo-r2-storefront-implementation.md)；三语同步，未提交或上线。六个外部候选与草稿保留，等待用户选择可行渠道。SEO-02 随可用 GSC 结果更新，地图相关流程等待恢复；本轮沿用已上线的三语品牌/商品文案。
+用户随后要求先做第一项，外部渠道先自行评估。A2 首页导航、A4 价格筛选已三语同步，并于 11:52 UTC 部署 `1a0d5da`；CI/CD、服务、缓存、sitemap 与三语公网验收通过，详见[实施记录](seo-r2-storefront-implementation.md)。六个外部候选与草稿保留，等待用户选择可行渠道。SEO-02 随可用 GSC 结果更新，地图相关流程等待恢复；本轮沿用已上线的三语品牌/商品文案。

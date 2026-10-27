@@ -21,6 +21,13 @@ from .languages import HOME_COPY, LOCALES as STORE_LOCALES, locale_content_local
 LOCALES = STORE_LOCALES
 PAGE_SIZE = 24
 PRIORITY_BRANDS = ("Cohiba", "Montecristo", "Romeo y Julieta", "Partagás", "Hoyo de Monterrey", "H. Upmann")
+HOME_HERO_PRODUCTS = {
+    "bhk56": ("Cohiba", "BHK 56", "", ""),
+    "siglo": ("Cohiba", "Siglo VI", "", ""),
+    "casilda": ("Trinidad", "Casilda", "Habanos Collection Series", "Casilda"),
+    "bhk52": ("Cohiba", "BHK 52", "", ""),
+    "ingenios": ("Trinidad", "Ingenios", "Limited Edition Series", "Ingenios"),
+}
 
 
 def _locale_prefix(locale: str) -> str:
@@ -37,6 +44,23 @@ def _brand_path(locale: str, slug: str) -> str:
 
 def _product_path(locale: str, cigar_id: int, slug: str) -> str:
     return f"{_locale_prefix(locale)}/cigar/{cigar_id}/{slug}"
+
+
+def _hero_link_paths(locale: str, cigars: list[Cigar], brands: dict[str, Brand]) -> dict[str, str]:
+    """Resolve hero targets by formal brand, English model name and release identity."""
+    published_brands = {cigar.brand for cigar in cigars}
+    result = {}
+    for slot, (brand_name, english_name, release_type, release_name) in HOME_HERO_PRODUCTS.items():
+        cigar = next((row for row in cigars
+                      if row.brand == brand_name and row.english_name == english_name
+                      and row.release_type == release_type and row.release_name == release_name), None)
+        brand = next((row for row in brands.values() if row.english_name == brand_name), None)
+        result[slot] = (
+            _product_path(locale, cigar.pk, _product_slug(cigar)) if cigar else
+            _brand_path(locale, brand.slug) if brand and brand_name in published_brands else
+            _catalog_path(locale)
+        )
+    return result
 
 
 def _product_slug(cigar: Cigar) -> str:
@@ -610,6 +634,7 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
         paths = {other: _home_path(other) for other in LOCALES}
         result[home] = {
             "locale": locale, "kind": "home", "path": home,
+            "hero_links": _hero_link_paths(locale, cigars, brands),
             "seo_title_override": translation.seo_title if translation else "",
             "total_products": len(rows),
             "title": home_copy["title"], "description": home_copy["description"], "body": home_copy["body"],
@@ -628,6 +653,7 @@ def build_pages(*, requested_path: str | None = None) -> dict[str, dict]:
             page_url = f"{home}?page={page_number}"
             page_copy = dict(result[home])
             page_copy.pop("latest_products", None)
+            page_copy.pop("hero_links", None)
             page_copy["path"] = page_url
             page_copy["products"] = rows[(page_number - 1) * PAGE_SIZE:page_number * PAGE_SIZE]
             _, page_copy["pagination"] = _pagination(page_number, len(rows), home)
@@ -757,6 +783,7 @@ def _add_browsing_context(pages, brands, brand_translations):
                 "pagination": current,
                 "alternates": [{"locale": alt["locale"], "path": _catalog_path(alt["locale"])} for alt in home["alternates"]],
             }
+            pages[path].pop("hero_links", None)
     rows_by_path = defaultdict(list)
     for page in pages.values():
         rows_by_path[page["path"].split("?", 1)[0]].extend(page["products"])
@@ -801,6 +828,7 @@ def _add_browsing_context(pages, brands, brand_translations):
             "brands": navigation_brands if page["kind"] == "home" else [],
             "box_sizes": sorted({o["box_size"] for p in rows for o in p["offers"] if o["box_size"] is not None}),
             "has_sticks": any(o.get("sale_unit") == "stick" and o["in_stock"] for p in rows for o in p["offers"]),
+            "has_prices": any(o.get("price_rub") is not None for p in rows for o in p["offers"]),
         }
         # Detail pages continue with actual same-brand stock, never synthetic recommendations.
         product = page.get("product")
@@ -827,16 +855,24 @@ def resolve_path(path: str, pages: dict[str, dict] | None = None) -> str:
 
 def public_dependencies() -> dict:
     """Take a compact snapshot of dependencies whose revocation hides cached HTML."""
-    cigars = dict(Cigar.objects.filter(deleted_at__isnull=True).values_list("pk", "brand"))
+    cigar_rows = list(Cigar.objects.filter(deleted_at__isnull=True).only(
+        "pk", "brand", "english_name", "release_type", "release_name",
+    ))
+    cigars = {row.pk: row.brand for row in cigar_rows}
     withdrawn = set(ProductListing.objects.filter(withdrawn=True).values_list("cigar_id", flat=True))
     published = _published_listings()
     known_inventory = _known_inventory()
     latest_products = _latest_purchase_product_ids(published)
     brand_slugs = dict(Brand.objects.values_list("english_name", "slug"))
     discoverable = published
+    brands = _brand_rows()
     translations = _published_translations()
     return {
         "cigars": cigars,
+        "hero_links": {
+            locale: _hero_link_paths(locale, [row for row in cigar_rows if row.pk in published and row.pk not in withdrawn], brands)
+            for locale in LOCALES
+        },
         "withdrawn": withdrawn,
         "published": published,
         "known_inventory": known_inventory,
@@ -921,6 +957,8 @@ def allowed_payload(payload: dict, dependencies: dict | None = None) -> bool:
         kind == "home" and payload.get("view") != "catalog"
         and payload.get("path") == _home_path(locale)
     )
+    if is_home_frontpage and payload.get("hero_links") != dependencies["hero_links"][locale]:
+        return False
     if is_home_frontpage and (
         "latest_products" not in payload
         or [row.get("id") for row in latest_products] != dependencies["latest_products"]

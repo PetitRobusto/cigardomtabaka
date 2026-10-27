@@ -76,7 +76,7 @@ function HomePage({ page, labels }: Props) {
   const catalogUrl = catalogPath(page.locale);
   const stockUrl = `${catalogPath(page.locale)}?stock_only=1`;
   return <>
-    <HomeHero locale={page.locale} catalogUrl={catalogUrl} stockUrl={stockUrl} />
+    <HomeHero locale={page.locale} catalogUrl={catalogUrl} stockUrl={stockUrl} links={page.hero_links} />
     <BrandBrowse page={page} labels={labels} />
     <ProductCarousel products={page.products} locale={page.locale} labels={labels} title={labels.stockProducts} href={stockUrl} linkLabel={labels.browseStock} sectionClass="store-stock-products" linkClass="store-stock-link" />
     <ProductCarousel products={page.latest_products || []} locale={page.locale} labels={labels} title={labels.latestProducts} href={catalogUrl} linkLabel={labels.allProducts} sectionClass="store-latest-products" />

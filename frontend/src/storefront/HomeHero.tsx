@@ -1,4 +1,4 @@
-import type { StoreLocale } from "./types";
+import type { StoreHeroLinks, StoreLocale } from "./types";
 import "./HomeHero.css";
 import "./HomeHero.outlines.css";
 
@@ -6,6 +6,7 @@ type HomeHeroProps = {
   locale: StoreLocale;
   catalogUrl: string;
   stockUrl: string;
+  links?: StoreHeroLinks;
 };
 
 const heroCopy: Record<StoreLocale, {
@@ -16,7 +17,6 @@ const heroCopy: Record<StoreLocale, {
   facts: string[];
   contact: string;
   browseStock: string;
-  imageLink: string;
   stageLabel: string;
 }> = {
   zh: {
@@ -27,7 +27,6 @@ const heroCopy: Record<StoreLocale, {
     facts: ["正品保证", "平价销售", "专业茄房", "莫斯科门店"],
     contact: "联系门店",
     browseStock: "浏览现货",
-    imageLink: "浏览雪茄目录",
     stageLabel: "雪茄陈列",
   },
   en: {
@@ -38,7 +37,6 @@ const heroCopy: Record<StoreLocale, {
     facts: ["Authenticity guaranteed", "Fair prices", "Professional humidor", "Moscow shop"],
     contact: "Contact the shop",
     browseStock: "Browse in-stock cigars",
-    imageLink: "Browse the cigar catalogue",
     stageLabel: "Cigar display",
   },
   ru: {
@@ -49,7 +47,6 @@ const heroCopy: Record<StoreLocale, {
     facts: ["Гарантия подлинности", "Доступные цены", "Профессиональный хьюмидор", "Магазин в Москве"],
     contact: "Связаться с магазином",
     browseStock: "Сигары в наличии",
-    imageLink: "Открыть каталог сигар",
     stageLabel: "Витрина сигар",
   },
 };
@@ -92,7 +89,7 @@ const cigars = [
   },
 ] as const;
 
-export function HomeHero({ locale, catalogUrl, stockUrl }: HomeHeroProps) {
+export function HomeHero({ locale, catalogUrl, stockUrl, links }: HomeHeroProps) {
   const copy = heroCopy[locale];
 
   return (
@@ -117,8 +114,8 @@ export function HomeHero({ locale, catalogUrl, stockUrl }: HomeHeroProps) {
         <div className="store-home-hero__stage" role="group" aria-label={copy.stageLabel}>
           {cigars.map((cigar, index) => (
             <figure className={`store-home-hero__cigar store-home-hero__cigar--${cigar.className}`} key={cigar.name}>
-              <a href={catalogUrl} aria-label={`${copy.imageLink}: ${cigar.name}`}>
-                <img src={cigar.path} alt={`${cigar.name} — ${locale === "zh" ? "单支雪茄实拍" : locale === "ru" ? "фотография одной сигары" : "single cigar photograph"}`} width={cigar.width} height={cigar.height} />
+              <a href={links?.[cigar.className] || catalogUrl} aria-label={cigar.name}>
+                <img src={cigar.path} alt={`${cigar.name} — ${locale === "zh" ? "单支雪茄图片" : locale === "ru" ? "изображение одной сигары" : "single cigar image"}`} width={cigar.width} height={cigar.height} />
               </a>
               <span className="store-home-hero__number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
             </figure>

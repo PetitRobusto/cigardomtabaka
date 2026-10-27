@@ -21,11 +21,15 @@ function FilterFields({ page, labels, draft, setDraft, prefix }: Omit<Props, "fi
   const brands = page.filter_options?.brands || page.navigation?.brands || [];
   const boxes = page.filter_options?.box_sizes || [];
   const hasSticks = page.filter_options?.has_sticks || false;
+  // The backend checks the full catalogue/brand, so pagination and empty
+  // results cannot hide a useful filter. Keep selected bounds editable.
+  const showPriceRange = (page.filter_options?.has_prices ?? true)
+    || draft.price_min !== undefined || draft.price_max !== undefined;
   const brandOption = (brand: typeof brands[number]) => <label key={brand.slug} htmlFor={`${prefix}-brand-${brand.slug}`}><input id={`${prefix}-brand-${brand.slug}`} type="checkbox" name="brand" value={brand.slug} checked={draft.brands.includes(brand.slug)} onChange={() => setDraft({ ...draft, brands: toggle(draft.brands, brand.slug) })} /><BrandMark brand={brand} /></label>;
   return <>
     {page.kind !== "brand" && <fieldset className="facet"><legend>{labels.brands}</legend>{brands.slice(0, 6).map(brandOption)}{brands.length > 6 && <details className="store-facet-more"><summary><span className="when-closed">{labels.expandBrands}</span><span className="when-open">{labels.collapseBrands}</span></summary>{brands.slice(6).map(brandOption)}</details>}</fieldset>}
     <fieldset className="facet"><legend>{labels.dimensions}</legend><DimensionPresets kind="length" filters={draft} onChange={setDraft} labels={labels} locale={page.locale} /><DimensionPresets kind="ring" filters={draft} onChange={setDraft} labels={labels} locale={page.locale} /></fieldset>
-    <fieldset className="facet"><legend>{labels.priceRange}</legend><PriceRangeSlider filters={draft} onChange={setDraft} labels={labels} locale={page.locale} /></fieldset>
+    {showPriceRange && <fieldset className="facet"><legend>{labels.priceRange}</legend><PriceRangeSlider filters={draft} onChange={setDraft} labels={labels} locale={page.locale} /></fieldset>}
     <fieldset className="facet"><legend>{labels.availability}</legend><label><input type="checkbox" name="stock_only" value="1" checked={!!draft.stock_only} onChange={(event) => setDraft({ ...draft, stock_only: event.target.checked })} />{labels.stockOnly}</label></fieldset>
     {(hasSticks || boxes.length > 0) && <details className="facet store-packaging-filter"><summary>{labels.packaging}</summary>{hasSticks && <label htmlFor={`${prefix}-box-stick`}><input id={`${prefix}-box-stick`} type="checkbox" name="box" value="stick" checked={draft.boxes.includes("stick")} onChange={() => setDraft({ ...draft, boxes: toggle(draft.boxes, "stick") })} />{labels.single}</label>}{boxes.map((size) => <label key={size} htmlFor={`${prefix}-box-${size}`}><input id={`${prefix}-box-${size}`} type="checkbox" name="box" value={size} checked={draft.boxes.includes(String(size))} onChange={() => setDraft({ ...draft, boxes: toggle(draft.boxes, String(size)) })} />{size} {labels.box}</label>)}</details>}
   </>;

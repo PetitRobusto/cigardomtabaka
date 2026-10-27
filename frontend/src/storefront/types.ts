@@ -1,4 +1,5 @@
 export type StoreLocale = "zh" | "ru" | "en";
+export type StoreHeroLinks = Partial<Record<"bhk56" | "siglo" | "casilda" | "bhk52" | "ingenios", string>>;
 
 export type StoreProduct = {
   translation_complete?: boolean;
@@ -37,7 +38,7 @@ export type StorePageData = {
     price_min?: string; price_max?: string; stock_only?: boolean;
   };
   navigation?: { brands: Array<{ name: string; english_name?: string; slug: string; path: string }>; box_sizes: number[]; has_sticks?: boolean };
-  filter_options?: { brands: Array<{ name: string; english_name?: string; slug: string; path: string }>; box_sizes: number[]; has_sticks?: boolean };
+  filter_options?: { brands: Array<{ name: string; english_name?: string; slug: string; path: string }>; box_sizes: number[]; has_sticks?: boolean; has_prices?: boolean };
   path: string;
   title: string;
   seo_title?: string;
@@ -55,6 +56,7 @@ export type StorePageData = {
   };
   products: StoreProduct[];
   latest_products?: StoreProduct[];
+  hero_links?: StoreHeroLinks;
   product?: StoreProduct | null;
   brands: Array<{ name: string; slug: string; path: string; count?: number }>;
   alternates: Array<{ locale: StoreLocale; path: string }>;

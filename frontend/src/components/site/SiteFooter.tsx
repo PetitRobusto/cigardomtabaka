@@ -104,6 +104,10 @@ export function SiteFooter({ locale = 'zh', customerPage = false, inert = false,
                 <h2>{text.storePhone}</h2>
                 <a className="site-footer-phone" href={`tel:${telephone}`} onClick={onPhoneContact}>{phone}</a>
               </div>
+              <div className="site-footer-group">
+                <h2>{text.storeEmail}</h2>
+                <a href={`mailto:${publicDetails.email}`}>{publicDetails.email}</a>
+              </div>
               <div className="site-footer-group site-footer-social-group">
                 <h2>{text.storeSocial}</h2>
                 <div className="site-footer-social">

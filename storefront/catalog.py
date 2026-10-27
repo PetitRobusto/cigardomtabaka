@@ -863,9 +863,9 @@ def public_dependencies() -> dict:
     published = _published_listings()
     known_inventory = _known_inventory()
     latest_products = _latest_purchase_product_ids(published)
-    brand_slugs = dict(Brand.objects.values_list("english_name", "slug"))
     discoverable = published
     brands = _brand_rows()
+    brand_slugs = {brand.english_name: brand.slug for brand in brands.values()}
     translations = _published_translations()
     return {
         "cigars": cigars,

@@ -1,241 +1,241 @@
 validated_at,environment,kind,key,locale,path,decision,seo_title,description_chars,body_chars,inline_source_count,http_status,canonical_hreflang,rendered_copy,published_live
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,cohiba,zh,/brand/cohiba,preserve,高希霸雪茄 — 莫斯科 | CigarDomTabaka,81,172,0,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,cuaba,zh,/brand/cuaba,update,库阿巴雪茄 — 莫斯科 | CigarDomTabaka,46,219,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,diplomaticos,zh,/brand/diplomaticos,update,外交官雪茄 — 莫斯科 | CigarDomTabaka,66,144,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,fonseca,zh,/brand/fonseca,update,科塞卡雪茄 — 莫斯科 | CigarDomTabaka,63,182,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,h-upmann,zh,/brand/h-upmann,update,乌普曼雪茄 — 莫斯科 | CigarDomTabaka,60,204,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,hoyo-de-monterrey,zh,/brand/hoyo-de-monterrey,update,好友雪茄 — 莫斯科 | CigarDomTabaka,92,221,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,jose-l-piedra,zh,/brand/jose-l-piedra,update,荷西比雅达雪茄 — 莫斯科 | CigarDomTabaka,61,212,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,juan-lopez,zh,/brand/juan-lopez,update,胡安佩洛斯雪茄 — 莫斯科 | CigarDomTabaka,68,193,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,la-gloria-cubana,zh,/brand/la-gloria-cubana,update,古巴荣耀雪茄 — 莫斯科 | CigarDomTabaka,71,195,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,montecristo,zh,/brand/montecristo,update,蒙特雪茄 — 莫斯科 | CigarDomTabaka,54,209,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,partagas,zh,/brand/partagas,update,帕特加斯雪茄 — 莫斯科 | CigarDomTabaka,70,192,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,punch,zh,/brand/punch,update,潘趣雪茄 — 莫斯科 | CigarDomTabaka,42,177,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,quai-dorsay,zh,/brand/quai-dorsay,update,希多尔赛雪茄 — 莫斯科 | CigarDomTabaka,50,188,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,quintero,zh,/brand/quintero,update,金特罗雪茄 — 莫斯科 | CigarDomTabaka,74,197,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,rafael-gonzalez,zh,/brand/rafael-gonzalez,update,拉斐尔雪茄 — 莫斯科 | CigarDomTabaka,75,202,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,ramon-allones,zh,/brand/ramon-allones,update,雷蒙阿隆尼雪茄 — 莫斯科 | CigarDomTabaka,62,193,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,romeo-y-julieta,zh,/brand/romeo-y-julieta,update,罗密欧与朱丽叶雪茄 — 莫斯科 | CigarDomTabaka,58,222,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,trinidad,zh,/brand/trinidad,update,千里达雪茄 — 莫斯科 | CigarDomTabaka,53,196,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,vegas-robaina,zh,/brand/vegas-robaina,update,瓦格斯陆班纳雪茄 — 莫斯科 | CigarDomTabaka,68,211,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,vegueros,zh,/brand/vegueros,update,威古洛雪茄 — 莫斯科 | CigarDomTabaka,77,195,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,101,zh,/cigar/101/cohiba-siglo-vi,update,高希霸 世纪 6 号 — 莫斯科雪茄 | CigarDomTabaka,82,176,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,102,zh,/cigar/102/cohiba-genios,preserve,高希霸天才 — 莫斯科雪茄 | CigarDomTabaka,67,127,0,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,103,zh,/cigar/103/cohiba-magicos,preserve,高希霸魔术师 Cohiba Mágicos — 莫斯科 | CigarDomTabaka,103,235,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,106,zh,/cigar/106/cohiba-bhk-54,update,高希霸 贝伊可 54 — 莫斯科雪茄 | CigarDomTabaka,83,174,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1139,zh,/cigar/1139/trinidad-fundadores,update,千里达 创建 — 莫斯科雪茄 | CigarDomTabaka,55,255,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1143,zh,/cigar/1143/trinidad-vigia,update,千里达 暗礁 — 莫斯科雪茄 | CigarDomTabaka,55,241,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1146,zh,/cigar/1146/trinidad-media-luna,update,千里达 半月 — 莫斯科雪茄 | CigarDomTabaka,47,247,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1147,zh,/cigar/1147/trinidad-topes,update,千里达 托佩斯 — 莫斯科雪茄 | CigarDomTabaka,49,217,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1166,zh,/cigar/1166/vegas-robaina-famosos,update,瓦格斯陆班纳 名人 — 莫斯科雪茄 | CigarDomTabaka,63,246,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1189,zh,/cigar/1189/vegueros-entretiempos,update,威古洛 恩特雷蒂恩波 — 莫斯科雪茄 | CigarDomTabaka,55,247,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1191,zh,/cigar/1191/vegueros-tapados,update,威古洛 塔帕多 — 莫斯科雪茄 | CigarDomTabaka,44,254,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1212,zh,/cigar/1212/cohiba-reserva-seleccion-other-special-release-reserva-seleccion,update,高希霸 珍藏精选 — 莫斯科雪茄 | CigarDomTabaka,144,139,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1343,zh,/cigar/1343/hoyo-de-monterrey-epicure-2-d-c-cp-3-n-15,update,好友 美食家2号(3支装) — 莫斯科雪茄 | CigarDomTabaka,86,152,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1346,zh,/cigar/1346/la-gloria-cubana-turquinos,update,古巴荣耀 特昆斯 (土耳其人) — 莫斯科雪茄 | CigarDomTabaka,71,205,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1359,zh,/cigar/1359/quintero-brevas,update,金特罗 比华士 — 莫斯科雪茄 | CigarDomTabaka,54,233,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,180,zh,/cigar/180/cuaba-exclusivos,update,库阿巴 独家 — 莫斯科雪茄 | CigarDomTabaka,71,178,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,182,zh,/cigar/182/cuaba-distinguidos,update,库阿巴 杰出人物 — 莫斯科雪茄 | CigarDomTabaka,75,188,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,197,zh,/cigar/197/diplomaticos-diplomaticos-no2,update,外交官 ２ 号 — 莫斯科雪茄 | CigarDomTabaka,82,151,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,266,zh,/cigar/266/fonseca-delicias,update,科塞卡 喜喜 — 莫斯科雪茄 | CigarDomTabaka,80,160,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,281,zh,/cigar/281/h-upmann-upmann-no2,update,乌普曼 2 号 — 莫斯科雪茄 | CigarDomTabaka,85,180,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,289,zh,/cigar/289/h-upmann-connossieur-b,update,乌普曼 鉴赏家 B — 莫斯科雪茄 | CigarDomTabaka,105,220,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,355,zh,/cigar/355/hoyo-de-monterrey-petit-robustos,update,好友 小罗布图 — 莫斯科雪茄 | CigarDomTabaka,84,226,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,356,zh,/cigar/356/hoyo-de-monterrey-epicure-especial,update,好友 特级美食家 — 莫斯科雪茄 | CigarDomTabaka,107,210,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,358,zh,/cigar/358/hoyo-de-monterrey-le-hoyo-de-san-juan,update,好友 聖胡安 — 莫斯科雪茄 | CigarDomTabaka,79,245,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,418,zh,/cigar/418/jose-l-piedra-brevas,update,荷西比雅达 比华士 — 莫斯科雪茄 | CigarDomTabaka,67,183,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,419,zh,/cigar/419/jose-l-piedra-cazadores,update,荷西比雅达 猎人 — 莫斯科雪茄 | CigarDomTabaka,87,167,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,421,zh,/cigar/421/jose-l-piedra-petit-cazadores,update,荷西比雅达 小猎人 — 莫斯科雪茄 | CigarDomTabaka,74,177,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,422,zh,/cigar/422/jose-l-piedra-petit-caballeros,update,荷西比雅达 小卡巴耶罗 — 莫斯科雪茄 | CigarDomTabaka,76,196,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,430,zh,/cigar/430/juan-lopez-seleccion-no2,update,胡安佩洛斯 精选 2 号 — 莫斯科雪茄 | CigarDomTabaka,92,191,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,529,zh,/cigar/529/montecristo-montecristo-no2,update,蒙特 2 号 — 莫斯科雪茄 | CigarDomTabaka,50,232,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,530,zh,/cigar/530/montecristo-montecristo-no3,update,蒙特 3 号 — 莫斯科雪茄 | CigarDomTabaka,64,211,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,531,zh,/cigar/531/montecristo-montecristo-no4,update,蒙特 4 号 — 莫斯科雪茄 | CigarDomTabaka,40,226,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,532,zh,/cigar/532/montecristo-montecristo-no5,update,蒙特 5 号 — 莫斯科雪茄 | CigarDomTabaka,35,200,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,539,zh,/cigar/539/montecristo-edmundo,update,蒙特 艾蒙多 — 莫斯科雪茄 | CigarDomTabaka,44,217,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,542,zh,/cigar/542/montecristo-junior,update,蒙特 青年 — 莫斯科雪茄 | CigarDomTabaka,55,236,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,544,zh,/cigar/544/montecristo-regata,update,蒙特 赛帆 — 莫斯科雪茄 | CigarDomTabaka,46,225,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,546,zh,/cigar/546/montecristo-petit-no-2,update,蒙特 小2号 — 莫斯科雪茄 | CigarDomTabaka,37,266,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,599,zh,/cigar/599/partagas-mille-fleurs,update,帕特加斯 妙丽 — 莫斯科雪茄 | CigarDomTabaka,79,218,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,603,zh,/cigar/603/partagas-shorts,update,帕特加斯 短号 — 莫斯科雪茄 | CigarDomTabaka,44,200,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,606,zh,/cigar/606/partagas-serie-d-no4,update,帕特加斯 D系列 4号 — 莫斯科雪茄 | CigarDomTabaka,77,222,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,610,zh,/cigar/610/partagas-serie-d-no5,update,帕特加斯 D系列 5号 — 莫斯科雪茄 | CigarDomTabaka,42,215,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,611,zh,/cigar/611/partagas-serie-e-no2,update,帕特加斯 E系列 2号 — 莫斯科雪茄 | CigarDomTabaka,42,206,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,612,zh,/cigar/612/partagas-serie-d-no6,update,帕特加斯 D系列 6号 — 莫斯科雪茄 | CigarDomTabaka,46,231,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,615,zh,/cigar/615/partagas-maduro-no-2,update,帕特加斯 马杜罗 2 号 — 莫斯科雪茄 | CigarDomTabaka,64,297,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,764,zh,/cigar/764/punch-punch-punch,update,潘趣潘趣 — 莫斯科雪茄 | CigarDomTabaka,60,221,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,839,zh,/cigar/839/quai-dorsay-no54,update,希多尔赛 54号 — 莫斯科雪茄 | CigarDomTabaka,50,211,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,840,zh,/cigar/840/quai-dorsay-no52,update,希多尔赛 52号 — 莫斯科雪茄 | CigarDomTabaka,63,236,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,876,zh,/cigar/876/rafael-gonzalez-perlas,update,拉斐尔 珍珠 — 莫斯科雪茄 | CigarDomTabaka,43,238,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,893,zh,/cigar/893/ramon-allones-allones-specially-selected,update,雷蒙阿隆尼 阿万斯特选 — 莫斯科雪茄 | CigarDomTabaka,68,298,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,93,zh,/cigar/93/cohiba-esplendidos,update,高希霸 导师 — 莫斯科雪茄 | CigarDomTabaka,99,204,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,95,zh,/cigar/95/cohiba-robustos,update,高希霸 罗布图 — 莫斯科雪茄 | CigarDomTabaka,85,205,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,96,zh,/cigar/96/cohiba-siglo-i,update,高希霸 世纪 1 号 — 莫斯科雪茄 | CigarDomTabaka,87,185,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,97,zh,/cigar/97/cohiba-siglo-ii,preserve,高希霸世纪2号 — 莫斯科雪茄 | CigarDomTabaka,64,145,0,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,979,zh,/cigar/979/romeo-y-julieta-mille-fleurs,update,罗密欧与朱丽叶 妙丽 — 莫斯科雪茄 | CigarDomTabaka,57,301,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,98,zh,/cigar/98/cohiba-siglo-iii,preserve,高希霸世纪3号 — 莫斯科雪茄 | CigarDomTabaka,63,143,0,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,985,zh,/cigar/985/romeo-y-julieta-romeo-no3,update,罗密欧与朱丽叶 罗密欧 3 号 — 莫斯科雪茄 | CigarDomTabaka,45,287,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,986,zh,/cigar/986/romeo-y-julieta-sports-largos,update,罗密欧与朱丽叶 长运动 — 莫斯科雪茄 | CigarDomTabaka,63,240,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,990,zh,/cigar/990/romeo-y-julieta-wide-churchills,update,罗密欧与朱丽叶 宽 丘吉尔 — 莫斯科雪茄 | CigarDomTabaka,60,285,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,995,zh,/cigar/995/romeo-y-julieta-dianas,update,罗密欧与朱丽叶 戴安娜 — 莫斯科雪茄 | CigarDomTabaka,53,319,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,999,zh,/cigar/999/romeo-y-julieta-amantes,update,罗密欧与朱丽叶 恋人 — 莫斯科雪茄 | CigarDomTabaka,57,255,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,cohiba,en,/en/brand/cohiba,preserve,Cohiba cigars in Moscow | CigarDomTabaka,146,359,0,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,cuaba,en,/en/brand/cuaba,update,Cuaba cigars in Moscow | CigarDomTabaka,134,358,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,diplomaticos,en,/en/brand/diplomaticos,update,Diplomáticos cigars in Moscow | CigarDomTabaka,123,271,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,fonseca,en,/en/brand/fonseca,update,Fonseca cigars in Moscow | CigarDomTabaka,103,318,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,h-upmann,en,/en/brand/h-upmann,update,H. Upmann cigars in Moscow | CigarDomTabaka,132,327,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,hoyo-de-monterrey,en,/en/brand/hoyo-de-monterrey,update,Hoyo de Monterrey cigars in Moscow | CigarDomTabaka,151,305,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,jose-l-piedra,en,/en/brand/jose-l-piedra,update,José L. Piedra cigars in Moscow | CigarDomTabaka,117,315,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,juan-lopez,en,/en/brand/juan-lopez,update,Juan López cigars in Moscow | CigarDomTabaka,108,295,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,la-gloria-cubana,en,/en/brand/la-gloria-cubana,update,La Gloria Cubana cigars in Moscow | CigarDomTabaka,110,308,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,montecristo,en,/en/brand/montecristo,update,Montecristo cigars in Moscow | CigarDomTabaka,129,318,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,partagas,en,/en/brand/partagas,update,Partagás cigars in Moscow | CigarDomTabaka,129,276,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,punch,en,/en/brand/punch,update,Punch cigars in Moscow | CigarDomTabaka,128,329,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,quai-dorsay,en,/en/brand/quai-dorsay,update,Quai d'Orsay cigars in Moscow | CigarDomTabaka,115,314,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,quintero,en,/en/brand/quintero,update,Quintero cigars in Moscow | CigarDomTabaka,118,299,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,rafael-gonzalez,en,/en/brand/rafael-gonzalez,update,Rafael González cigars in Moscow | CigarDomTabaka,183,299,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,ramon-allones,en,/en/brand/ramon-allones,update,Ramón Allones cigars in Moscow | CigarDomTabaka,135,331,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,romeo-y-julieta,en,/en/brand/romeo-y-julieta,update,Romeo y Julieta cigars in Moscow | CigarDomTabaka,120,372,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,trinidad,en,/en/brand/trinidad,update,Trinidad cigars in Moscow | CigarDomTabaka,131,344,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,vegas-robaina,en,/en/brand/vegas-robaina,update,Vegas Robaina cigars in Moscow | CigarDomTabaka,104,326,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,vegueros,en,/en/brand/vegueros,update,Vegueros cigars in Moscow | CigarDomTabaka,130,315,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,101,en,/en/cigar/101/cohiba-siglo-vi,update,Cohiba Siglo VI — Cigars in Moscow | CigarDomTabaka,166,305,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,102,en,/en/cigar/102/cohiba-genios,preserve,Cohiba Genios Maduro 5 — Cigars in Moscow | CigarDomTabaka,141,325,0,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,103,en,/en/cigar/103/cohiba-magicos,preserve,Cohiba Mágicos Maduro 5 in Moscow | CigarDomTabaka,148,457,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,106,en,/en/cigar/106/cohiba-bhk-54,update,Cohiba BHK 54 — Cigars in Moscow | CigarDomTabaka,147,265,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1139,en,/en/cigar/1139/trinidad-fundadores,update,Trinidad Fundadores — Cigars in Moscow | CigarDomTabaka,109,447,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1143,en,/en/cigar/1143/trinidad-vigia,update,Trinidad Vigia — Cigars in Moscow | CigarDomTabaka,132,396,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1146,en,/en/cigar/1146/trinidad-media-luna,update,Trinidad Media Luna — Cigars in Moscow | CigarDomTabaka,89,430,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1147,en,/en/cigar/1147/trinidad-topes,update,Trinidad Topes — Cigars in Moscow | CigarDomTabaka,133,364,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1166,en,/en/cigar/1166/vegas-robaina-famosos,update,Vegas Robaina Famosos — Cigars in Moscow | CigarDomTabaka,116,404,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1189,en,/en/cigar/1189/vegueros-entretiempos,update,Vegueros Entretiempos — Cigars in Moscow | CigarDomTabaka,114,456,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1191,en,/en/cigar/1191/vegueros-tapados,update,Vegueros Tapados — Cigars in Moscow | CigarDomTabaka,76,447,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1212,en,/en/cigar/1212/cohiba-reserva-seleccion-other-special-release-reserva-seleccion,update,Cohiba Reserva Selección — Cigars in Moscow | CigarDomTabaka,240,253,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1343,en,/en/cigar/1343/hoyo-de-monterrey-epicure-2-d-c-cp-3-n-15,update,Hoyo de Monterrey EPICURE № 2 D-C-C/P-3-n-15 — Cigars in Moscow | CigarDomTabaka,133,215,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1346,en,/en/cigar/1346/la-gloria-cubana-turquinos,update,La Gloria Cubana TURQUINOS — Cigars in Moscow | CigarDomTabaka,110,317,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1359,en,/en/cigar/1359/quintero-brevas,update,Quintero BREVAS — Cigars in Moscow | CigarDomTabaka,120,442,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,180,en,/en/cigar/180/cuaba-exclusivos,update,Cuaba Exclusivos — Cigars in Moscow | CigarDomTabaka,143,274,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,182,en,/en/cigar/182/cuaba-distinguidos,update,Cuaba Distinguidos — Cigars in Moscow | CigarDomTabaka,155,329,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,197,en,/en/cigar/197/diplomaticos-diplomaticos-no2,update,Diplomáticos No.2 — Cigars in Moscow | CigarDomTabaka,175,283,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,266,en,/en/cigar/266/fonseca-delicias,update,Fonseca Delicias — Cigars in Moscow | CigarDomTabaka,161,290,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,281,en,/en/cigar/281/h-upmann-upmann-no2,update,H. Upmann Upmann No.2 — Cigars in Moscow | CigarDomTabaka,167,305,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,289,en,/en/cigar/289/h-upmann-connossieur-b,update,H. Upmann Connossieur B — Cigars in Moscow | CigarDomTabaka,171,330,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,355,en,/en/cigar/355/hoyo-de-monterrey-petit-robustos,update,Hoyo de Monterrey Petit Robustos — Cigars in Moscow | CigarDomTabaka,165,332,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,356,en,/en/cigar/356/hoyo-de-monterrey-epicure-especial,update,Hoyo de Monterrey Epicure Especial — Cigars in Moscow | CigarDomTabaka,163,348,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,358,en,/en/cigar/358/hoyo-de-monterrey-le-hoyo-de-san-juan,update,Hoyo de Monterrey Le Hoyo de San Juan — Cigars in Moscow | CigarDomTabaka,159,376,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,418,en,/en/cigar/418/jose-l-piedra-brevas,update,José L. Piedra Brevas — Cigars in Moscow | CigarDomTabaka,183,291,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,419,en,/en/cigar/419/jose-l-piedra-cazadores,update,José L. Piedra Cazadores — Cigars in Moscow | CigarDomTabaka,147,250,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,421,en,/en/cigar/421/jose-l-piedra-petit-cazadores,update,José L. Piedra Petit Cazadores — Cigars in Moscow | CigarDomTabaka,163,274,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,422,en,/en/cigar/422/jose-l-piedra-petit-caballeros,update,José L. Piedra Petit Caballeros — Cigars in Moscow | CigarDomTabaka,116,296,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,430,en,/en/cigar/430/juan-lopez-seleccion-no2,update,Juan López Selección No.2 — Cigars in Moscow | CigarDomTabaka,169,284,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,529,en,/en/cigar/529/montecristo-montecristo-no2,update,Montecristo No.2 — Cigars in Moscow | CigarDomTabaka,119,466,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,530,en,/en/cigar/530/montecristo-montecristo-no3,update,Montecristo No.3 — Cigars in Moscow | CigarDomTabaka,119,360,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,531,en,/en/cigar/531/montecristo-montecristo-no4,update,Montecristo No.4 — Cigars in Moscow | CigarDomTabaka,91,436,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,532,en,/en/cigar/532/montecristo-montecristo-no5,update,Montecristo No.5 — Cigars in Moscow | CigarDomTabaka,96,330,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,539,en,/en/cigar/539/montecristo-edmundo,update,Montecristo Edmundo — Cigars in Moscow | CigarDomTabaka,71,381,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,542,en,/en/cigar/542/montecristo-junior,update,Montecristo Junior — Cigars in Moscow | CigarDomTabaka,113,414,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,544,en,/en/cigar/544/montecristo-regata,update,Montecristo Regata — Cigars in Moscow | CigarDomTabaka,86,390,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,546,en,/en/cigar/546/montecristo-petit-no-2,update,Montecristo Petit No. 2 — Cigars in Moscow | CigarDomTabaka,88,441,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,599,en,/en/cigar/599/partagas-mille-fleurs,update,Partagás Mille Fleurs — Cigars in Moscow | CigarDomTabaka,108,342,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,603,en,/en/cigar/603/partagas-shorts,update,Partagás Shorts — Cigars in Moscow | CigarDomTabaka,96,382,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,606,en,/en/cigar/606/partagas-serie-d-no4,update,Partagás Serie D No.4 — Cigars in Moscow | CigarDomTabaka,103,354,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,610,en,/en/cigar/610/partagas-serie-d-no5,update,Partagás Serie D No.5 — Cigars in Moscow | CigarDomTabaka,92,397,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,611,en,/en/cigar/611/partagas-serie-e-no2,update,Partagás Serie E No.2 — Cigars in Moscow | CigarDomTabaka,106,379,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,612,en,/en/cigar/612/partagas-serie-d-no6,update,Partagás Serie D No.6 — Cigars in Moscow | CigarDomTabaka,85,383,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,615,en,/en/cigar/615/partagas-maduro-no-2,update,Partagás Maduro No. 2 — Cigars in Moscow | CigarDomTabaka,123,503,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,764,en,/en/cigar/764/punch-punch-punch,update,Punch Punch — Cigars in Moscow | CigarDomTabaka,126,433,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,839,en,/en/cigar/839/quai-dorsay-no54,update,Quai d'Orsay No.54 — Cigars in Moscow | CigarDomTabaka,106,378,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,840,en,/en/cigar/840/quai-dorsay-no52,update,Quai d'Orsay No.52 — Cigars in Moscow | CigarDomTabaka,110,349,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,876,en,/en/cigar/876/rafael-gonzalez-perlas,update,Rafael González Perlas — Cigars in Moscow | CigarDomTabaka,81,467,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,893,en,/en/cigar/893/ramon-allones-allones-specially-selected,update,Ramón Allones Allones Specially Selected — Cigars in Moscow | CigarDomTabaka,124,519,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,93,en,/en/cigar/93/cohiba-esplendidos,update,Cohiba Espléndidos — Cigars in Moscow | CigarDomTabaka,165,304,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,95,en,/en/cigar/95/cohiba-robustos,update,Cohiba Robustos — Cigars in Moscow | CigarDomTabaka,182,306,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,96,en,/en/cigar/96/cohiba-siglo-i,update,Cohiba Siglo I — Cigars in Moscow | CigarDomTabaka,168,326,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,97,en,/en/cigar/97/cohiba-siglo-ii,preserve,Cohiba Siglo II — Cigars in Moscow | CigarDomTabaka,150,342,0,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,979,en,/en/cigar/979/romeo-y-julieta-mille-fleurs,update,Romeo y Julieta Mille Fleurs — Cigars in Moscow | CigarDomTabaka,102,489,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,98,en,/en/cigar/98/cohiba-siglo-iii,preserve,Cohiba Siglo III — Cigars in Moscow | CigarDomTabaka,137,329,0,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,985,en,/en/cigar/985/romeo-y-julieta-romeo-no3,update,Romeo y Julieta Romeo No.3 — Cigars in Moscow | CigarDomTabaka,92,515,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,986,en,/en/cigar/986/romeo-y-julieta-sports-largos,update,Romeo y Julieta Sports Largos — Cigars in Moscow | CigarDomTabaka,108,421,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,990,en,/en/cigar/990/romeo-y-julieta-wide-churchills,update,Romeo y Julieta Wide Churchills — Cigars in Moscow | CigarDomTabaka,103,498,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,995,en,/en/cigar/995/romeo-y-julieta-dianas,update,Romeo y Julieta Dianas — Cigars in Moscow | CigarDomTabaka,120,515,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,999,en,/en/cigar/999/romeo-y-julieta-amantes,update,Romeo y Julieta Amantes — Cigars in Moscow | CigarDomTabaka,105,480,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,cohiba,ru,/ru/brand/cohiba,preserve,Сигары Cohiba в Москве | CigarDomTabaka,133,382,0,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,cuaba,ru,/ru/brand/cuaba,update,Сигары Cuaba в Москве | CigarDomTabaka,139,440,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,diplomaticos,ru,/ru/brand/diplomaticos,update,Сигары Diplomáticos в Москве | CigarDomTabaka,116,327,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,fonseca,ru,/ru/brand/fonseca,update,Сигары Fonseca в Москве | CigarDomTabaka,117,329,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,h-upmann,ru,/ru/brand/h-upmann,update,Сигары H. Upmann в Москве | CigarDomTabaka,128,348,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,hoyo-de-monterrey,ru,/ru/brand/hoyo-de-monterrey,update,Сигары Hoyo de Monterrey в Москве | CigarDomTabaka,156,312,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,jose-l-piedra,ru,/ru/brand/jose-l-piedra,update,Сигары José L. Piedra в Москве | CigarDomTabaka,132,396,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,juan-lopez,ru,/ru/brand/juan-lopez,update,Сигары Juan López в Москве | CigarDomTabaka,115,351,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,la-gloria-cubana,ru,/ru/brand/la-gloria-cubana,update,Сигары La Gloria Cubana в Москве | CigarDomTabaka,129,351,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,montecristo,ru,/ru/brand/montecristo,update,Сигары Montecristo в Москве | CigarDomTabaka,118,351,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,partagas,ru,/ru/brand/partagas,update,Сигары Partagás в Москве | CigarDomTabaka,113,351,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,punch,ru,/ru/brand/punch,update,Сигары Punch в Москве | CigarDomTabaka,120,342,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,quai-dorsay,ru,/ru/brand/quai-dorsay,update,Сигары Quai d'Orsay в Москве | CigarDomTabaka,108,362,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,quintero,ru,/ru/brand/quintero,update,Сигары Quintero в Москве | CigarDomTabaka,126,322,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,rafael-gonzalez,ru,/ru/brand/rafael-gonzalez,update,Сигары Rafael González в Москве | CigarDomTabaka,138,348,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,ramon-allones,ru,/ru/brand/ramon-allones,update,Сигары Ramón Allones в Москве | CigarDomTabaka,169,350,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,romeo-y-julieta,ru,/ru/brand/romeo-y-julieta,update,Сигары Romeo y Julieta в Москве | CigarDomTabaka,135,403,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,trinidad,ru,/ru/brand/trinidad,update,Сигары Trinidad в Москве | CigarDomTabaka,114,404,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,vegas-robaina,ru,/ru/brand/vegas-robaina,update,Сигары Vegas Robaina в Москве | CigarDomTabaka,102,366,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,brand,vegueros,ru,/ru/brand/vegueros,update,Сигары Vegueros в Москве | CigarDomTabaka,124,346,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,101,ru,/ru/cigar/101/cohiba-siglo-vi,update,Cohiba Siglo VI — сигары в Москве | CigarDomTabaka,131,296,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,102,ru,/ru/cigar/102/cohiba-genios,preserve,Cohiba Genios Maduro 5 — сигары в Москве | CigarDomTabaka,157,373,0,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,103,ru,/ru/cigar/103/cohiba-magicos,preserve,Cohiba Mágicos Maduro 5 в Москве | CigarDomTabaka,148,504,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,106,ru,/ru/cigar/106/cohiba-bhk-54,update,Cohiba BHK 54 — сигары в Москве | CigarDomTabaka,150,261,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1139,ru,/ru/cigar/1139/trinidad-fundadores,update,Trinidad Fundadores — сигары в Москве | CigarDomTabaka,104,465,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1143,ru,/ru/cigar/1143/trinidad-vigia,update,Trinidad Vigia — сигары в Москве | CigarDomTabaka,167,363,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1146,ru,/ru/cigar/1146/trinidad-media-luna,update,Trinidad Media Luna — сигары в Москве | CigarDomTabaka,93,462,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1147,ru,/ru/cigar/1147/trinidad-topes,update,Trinidad Topes — сигары в Москве | CigarDomTabaka,141,383,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1166,ru,/ru/cigar/1166/vegas-robaina-famosos,update,Vegas Robaina Famosos — сигары в Москве | CigarDomTabaka,128,410,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1189,ru,/ru/cigar/1189/vegueros-entretiempos,update,Vegueros Entretiempos — сигары в Москве | CigarDomTabaka,111,456,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1191,ru,/ru/cigar/1191/vegueros-tapados,update,Vegueros Tapados — сигары в Москве | CigarDomTabaka,81,449,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1212,ru,/ru/cigar/1212/cohiba-reserva-seleccion-other-special-release-reserva-seleccion,update,Cohiba Reserva Selección — сигары в Москве | CigarDomTabaka,230,239,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1343,ru,/ru/cigar/1343/hoyo-de-monterrey-epicure-2-d-c-cp-3-n-15,update,Hoyo de Monterrey EPICURE № 2 D-C-C/P-3-n-15 — сигары в Москве | CigarDomTabaka,154,240,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1346,ru,/ru/cigar/1346/la-gloria-cubana-turquinos,update,La Gloria Cubana TURQUINOS — сигары в Москве | CigarDomTabaka,116,335,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,1359,ru,/ru/cigar/1359/quintero-brevas,update,Quintero BREVAS — сигары в Москве | CigarDomTabaka,143,428,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,180,ru,/ru/cigar/180/cuaba-exclusivos,update,Cuaba Exclusivos — сигары в Москве | CigarDomTabaka,137,295,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,182,ru,/ru/cigar/182/cuaba-distinguidos,update,Cuaba Distinguidos — сигары в Москве | CigarDomTabaka,174,320,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,197,ru,/ru/cigar/197/diplomaticos-diplomaticos-no2,update,Diplomáticos No.2 — сигары в Москве | CigarDomTabaka,187,305,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,266,ru,/ru/cigar/266/fonseca-delicias,update,Fonseca Delicias — сигары в Москве | CigarDomTabaka,171,295,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,281,ru,/ru/cigar/281/h-upmann-upmann-no2,update,H. Upmann Upmann No.2 — сигары в Москве | CigarDomTabaka,191,339,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,289,ru,/ru/cigar/289/h-upmann-connossieur-b,update,H. Upmann Connossieur B — сигары в Москве | CigarDomTabaka,175,328,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,355,ru,/ru/cigar/355/hoyo-de-monterrey-petit-robustos,update,Hoyo de Monterrey Petit Robustos — сигары в Москве | CigarDomTabaka,166,315,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,356,ru,/ru/cigar/356/hoyo-de-monterrey-epicure-especial,update,Hoyo de Monterrey Epicure Especial — сигары в Москве | CigarDomTabaka,182,339,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,358,ru,/ru/cigar/358/hoyo-de-monterrey-le-hoyo-de-san-juan,update,Hoyo de Monterrey Le Hoyo de San Juan — сигары в Москве | CigarDomTabaka,172,362,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,418,ru,/ru/cigar/418/jose-l-piedra-brevas,update,José L. Piedra Brevas — сигары в Москве | CigarDomTabaka,171,307,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,419,ru,/ru/cigar/419/jose-l-piedra-cazadores,update,José L. Piedra Cazadores — сигары в Москве | CigarDomTabaka,154,271,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,421,ru,/ru/cigar/421/jose-l-piedra-petit-cazadores,update,José L. Piedra Petit Cazadores — сигары в Москве | CigarDomTabaka,189,298,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,422,ru,/ru/cigar/422/jose-l-piedra-petit-caballeros,update,José L. Piedra Petit Caballeros — сигары в Москве | CigarDomTabaka,142,313,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,430,ru,/ru/cigar/430/juan-lopez-seleccion-no2,update,Juan López Selección No.2 — сигары в Москве | CigarDomTabaka,161,306,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,529,ru,/ru/cigar/529/montecristo-montecristo-no2,update,Montecristo No.2 — сигары в Москве | CigarDomTabaka,125,417,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,530,ru,/ru/cigar/530/montecristo-montecristo-no3,update,Montecristo No.3 — сигары в Москве | CigarDomTabaka,134,385,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,531,ru,/ru/cigar/531/montecristo-montecristo-no4,update,Montecristo No.4 — сигары в Москве | CigarDomTabaka,99,423,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,532,ru,/ru/cigar/532/montecristo-montecristo-no5,update,Montecristo No.5 — сигары в Москве | CigarDomTabaka,97,369,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,539,ru,/ru/cigar/539/montecristo-edmundo,update,Montecristo Edmundo — сигары в Москве | CigarDomTabaka,71,428,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,542,ru,/ru/cigar/542/montecristo-junior,update,Montecristo Junior — сигары в Москве | CigarDomTabaka,129,418,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,544,ru,/ru/cigar/544/montecristo-regata,update,Montecristo Regata — сигары в Москве | CigarDomTabaka,89,388,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,546,ru,/ru/cigar/546/montecristo-petit-no-2,update,Montecristo Petit No. 2 — сигары в Москве | CigarDomTabaka,91,476,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,599,ru,/ru/cigar/599/partagas-mille-fleurs,update,Partagás Mille Fleurs — сигары в Москве | CigarDomTabaka,111,310,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,603,ru,/ru/cigar/603/partagas-shorts,update,Partagás Shorts — сигары в Москве | CigarDomTabaka,102,387,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,606,ru,/ru/cigar/606/partagas-serie-d-no4,update,Partagás Serie D No.4 — сигары в Москве | CigarDomTabaka,106,331,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,610,ru,/ru/cigar/610/partagas-serie-d-no5,update,Partagás Serie D No.5 — сигары в Москве | CigarDomTabaka,89,390,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,611,ru,/ru/cigar/611/partagas-serie-e-no2,update,Partagás Serie E No.2 — сигары в Москве | CigarDomTabaka,102,369,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,612,ru,/ru/cigar/612/partagas-serie-d-no6,update,Partagás Serie D No.6 — сигары в Москве | CigarDomTabaka,94,392,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,615,ru,/ru/cigar/615/partagas-maduro-no-2,update,Partagás Maduro No. 2 — сигары в Москве | CigarDomTabaka,122,460,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,764,ru,/ru/cigar/764/punch-punch-punch,update,Punch Punch — сигары в Москве | CigarDomTabaka,135,449,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,839,ru,/ru/cigar/839/quai-dorsay-no54,update,Quai d'Orsay No.54 — сигары в Москве | CigarDomTabaka,111,389,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,840,ru,/ru/cigar/840/quai-dorsay-no52,update,Quai d'Orsay No.52 — сигары в Москве | CigarDomTabaka,107,386,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,876,ru,/ru/cigar/876/rafael-gonzalez-perlas,update,Rafael González Perlas — сигары в Москве | CigarDomTabaka,85,426,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,893,ru,/ru/cigar/893/ramon-allones-allones-specially-selected,update,Ramón Allones Allones Specially Selected — сигары в Москве | CigarDomTabaka,128,544,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,93,ru,/ru/cigar/93/cohiba-esplendidos,update,Cohiba Espléndidos — сигары в Москве | CigarDomTabaka,186,322,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,95,ru,/ru/cigar/95/cohiba-robustos,update,Cohiba Robustos — сигары в Москве | CigarDomTabaka,159,314,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,96,ru,/ru/cigar/96/cohiba-siglo-i,update,Cohiba Siglo I — сигары в Москве | CigarDomTabaka,177,335,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,97,ru,/ru/cigar/97/cohiba-siglo-ii,preserve,Cohiba Siglo II — сигары в Москве | CigarDomTabaka,152,343,0,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,979,ru,/ru/cigar/979/romeo-y-julieta-mille-fleurs,update,Romeo y Julieta Mille Fleurs — сигары в Москве | CigarDomTabaka,107,486,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,98,ru,/ru/cigar/98/cohiba-siglo-iii,preserve,Cohiba Siglo III — сигары в Москве | CigarDomTabaka,123,333,0,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,985,ru,/ru/cigar/985/romeo-y-julieta-romeo-no3,update,Romeo y Julieta Romeo No.3 — сигары в Москве | CigarDomTabaka,92,519,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,986,ru,/ru/cigar/986/romeo-y-julieta-sports-largos,update,Romeo y Julieta Sports Largos — сигары в Москве | CigarDomTabaka,108,436,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,990,ru,/ru/cigar/990/romeo-y-julieta-wide-churchills,update,Romeo y Julieta Wide Churchills — сигары в Москве | CigarDomTabaka,112,540,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,995,ru,/ru/cigar/995/romeo-y-julieta-dianas,update,Romeo y Julieta Dianas — сигары в Москве | CigarDomTabaka,112,489,1,200,pass,pass,verified
-2026-10-26T18:14:14.592412+00:00,production public HTTP,product,999,ru,/ru/cigar/999/romeo-y-julieta-amantes,update,Romeo y Julieta Amantes — сигары в Москве | CigarDomTabaka,119,478,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,cohiba,zh,/brand/cohiba,preserve,高希霸雪茄 — 莫斯科 | CigarDomTabaka,81,172,0,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,cuaba,zh,/brand/cuaba,update,库阿巴雪茄 — 莫斯科 | CigarDomTabaka,46,219,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,diplomaticos,zh,/brand/diplomaticos,update,外交官雪茄 — 莫斯科 | CigarDomTabaka,66,144,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,fonseca,zh,/brand/fonseca,update,科塞卡雪茄 — 莫斯科 | CigarDomTabaka,63,182,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,h-upmann,zh,/brand/h-upmann,update,乌普曼雪茄 — 莫斯科 | CigarDomTabaka,60,204,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,hoyo-de-monterrey,zh,/brand/hoyo-de-monterrey,update,好友雪茄 — 莫斯科 | CigarDomTabaka,92,221,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,jose-l-piedra,zh,/brand/jose-l-piedra,update,荷西比雅达雪茄 — 莫斯科 | CigarDomTabaka,61,212,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,juan-lopez,zh,/brand/juan-lopez,update,胡安佩洛斯雪茄 — 莫斯科 | CigarDomTabaka,68,193,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,la-gloria-cubana,zh,/brand/la-gloria-cubana,update,古巴荣耀雪茄 — 莫斯科 | CigarDomTabaka,71,195,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,montecristo,zh,/brand/montecristo,update,蒙特雪茄 — 莫斯科 | CigarDomTabaka,54,209,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,partagas,zh,/brand/partagas,update,帕特加斯雪茄 — 莫斯科 | CigarDomTabaka,70,192,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,punch,zh,/brand/punch,update,潘趣雪茄 — 莫斯科 | CigarDomTabaka,42,177,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,quai-dorsay,zh,/brand/quai-dorsay,update,希多尔赛雪茄 — 莫斯科 | CigarDomTabaka,50,188,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,quintero,zh,/brand/quintero,update,金特罗雪茄 — 莫斯科 | CigarDomTabaka,74,197,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,rafael-gonzalez,zh,/brand/rafael-gonzalez,update,拉斐尔雪茄 — 莫斯科 | CigarDomTabaka,75,202,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,ramon-allones,zh,/brand/ramon-allones,update,雷蒙阿隆尼雪茄 — 莫斯科 | CigarDomTabaka,62,193,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,romeo-y-julieta,zh,/brand/romeo-y-julieta,update,罗密欧与朱丽叶雪茄 — 莫斯科 | CigarDomTabaka,58,222,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,trinidad,zh,/brand/trinidad,update,千里达雪茄 — 莫斯科 | CigarDomTabaka,53,196,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,vegas-robaina,zh,/brand/vegas-robaina,update,瓦格斯陆班纳雪茄 — 莫斯科 | CigarDomTabaka,68,211,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,vegueros,zh,/brand/vegueros,update,威古洛雪茄 — 莫斯科 | CigarDomTabaka,77,195,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,101,zh,/cigar/101/cohiba-siglo-vi,update,高希霸 世纪 6 号 — 莫斯科雪茄 | CigarDomTabaka,67,160,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,102,zh,/cigar/102/cohiba-genios,preserve,高希霸天才 — 莫斯科雪茄 | CigarDomTabaka,67,127,0,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,103,zh,/cigar/103/cohiba-magicos,update,高希霸魔术师 Cohiba Mágicos — 莫斯科 | CigarDomTabaka,103,225,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,106,zh,/cigar/106/cohiba-bhk-54,update,高希霸 贝伊可 54 — 莫斯科雪茄 | CigarDomTabaka,90,126,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1139,zh,/cigar/1139/trinidad-fundadores,update,千里达 创建 — 莫斯科雪茄 | CigarDomTabaka,55,250,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1143,zh,/cigar/1143/trinidad-vigia,update,千里达 暗礁 — 莫斯科雪茄 | CigarDomTabaka,55,236,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1146,zh,/cigar/1146/trinidad-media-luna,update,千里达 半月 — 莫斯科雪茄 | CigarDomTabaka,47,242,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1147,zh,/cigar/1147/trinidad-topes,update,千里达 托佩斯 — 莫斯科雪茄 | CigarDomTabaka,49,212,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1166,zh,/cigar/1166/vegas-robaina-famosos,update,瓦格斯陆班纳 名人 — 莫斯科雪茄 | CigarDomTabaka,63,229,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1189,zh,/cigar/1189/vegueros-entretiempos,update,威古洛 恩特雷蒂恩波 — 莫斯科雪茄 | CigarDomTabaka,55,215,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1191,zh,/cigar/1191/vegueros-tapados,update,威古洛 塔帕多 — 莫斯科雪茄 | CigarDomTabaka,44,242,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1212,zh,/cigar/1212/cohiba-reserva-seleccion-other-special-release-reserva-seleccion,update,高希霸 珍藏精选 — 莫斯科雪茄 | CigarDomTabaka,123,114,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1343,zh,/cigar/1343/hoyo-de-monterrey-epicure-2-d-c-cp-3-n-15,update,好友 美食家2号(3支装) — 莫斯科雪茄 | CigarDomTabaka,77,124,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1346,zh,/cigar/1346/la-gloria-cubana-turquinos,update,古巴荣耀 特昆斯 (土耳其人) — 莫斯科雪茄 | CigarDomTabaka,58,183,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1359,zh,/cigar/1359/quintero-brevas,update,金特罗 比华士 — 莫斯科雪茄 | CigarDomTabaka,48,229,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,180,zh,/cigar/180/cuaba-exclusivos,update,库阿巴 独家 — 莫斯科雪茄 | CigarDomTabaka,71,155,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,182,zh,/cigar/182/cuaba-distinguidos,update,库阿巴 杰出人物 — 莫斯科雪茄 | CigarDomTabaka,84,145,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,197,zh,/cigar/197/diplomaticos-diplomaticos-no2,update,外交官 ２ 号 — 莫斯科雪茄 | CigarDomTabaka,82,127,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,266,zh,/cigar/266/fonseca-delicias,update,科塞卡 喜喜 — 莫斯科雪茄 | CigarDomTabaka,47,128,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,281,zh,/cigar/281/h-upmann-upmann-no2,update,乌普曼 2 号 — 莫斯科雪茄 | CigarDomTabaka,85,161,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,289,zh,/cigar/289/h-upmann-connossieur-b,update,乌普曼 鉴赏家 B — 莫斯科雪茄 | CigarDomTabaka,105,203,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,355,zh,/cigar/355/hoyo-de-monterrey-petit-robustos,update,好友 小罗布图 — 莫斯科雪茄 | CigarDomTabaka,84,150,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,356,zh,/cigar/356/hoyo-de-monterrey-epicure-especial,update,好友 特级美食家 — 莫斯科雪茄 | CigarDomTabaka,107,185,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,358,zh,/cigar/358/hoyo-de-monterrey-le-hoyo-de-san-juan,update,好友 聖胡安 — 莫斯科雪茄 | CigarDomTabaka,79,221,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,418,zh,/cigar/418/jose-l-piedra-brevas,update,荷西比雅达 比华士 — 莫斯科雪茄 | CigarDomTabaka,67,148,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,419,zh,/cigar/419/jose-l-piedra-cazadores,update,荷西比雅达 猎人 — 莫斯科雪茄 | CigarDomTabaka,65,130,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,421,zh,/cigar/421/jose-l-piedra-petit-cazadores,update,荷西比雅达 小猎人 — 莫斯科雪茄 | CigarDomTabaka,74,141,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,422,zh,/cigar/422/jose-l-piedra-petit-caballeros,update,荷西比雅达 小卡巴耶罗 — 莫斯科雪茄 | CigarDomTabaka,76,153,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,430,zh,/cigar/430/juan-lopez-seleccion-no2,update,胡安佩洛斯 精选 2 号 — 莫斯科雪茄 | CigarDomTabaka,102,187,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,529,zh,/cigar/529/montecristo-montecristo-no2,update,蒙特 2 号 — 莫斯科雪茄 | CigarDomTabaka,50,217,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,530,zh,/cigar/530/montecristo-montecristo-no3,update,蒙特 3 号 — 莫斯科雪茄 | CigarDomTabaka,64,206,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,531,zh,/cigar/531/montecristo-montecristo-no4,update,蒙特 4 号 — 莫斯科雪茄 | CigarDomTabaka,40,210,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,532,zh,/cigar/532/montecristo-montecristo-no5,update,蒙特 5 号 — 莫斯科雪茄 | CigarDomTabaka,35,195,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,539,zh,/cigar/539/montecristo-edmundo,update,蒙特 艾蒙多 — 莫斯科雪茄 | CigarDomTabaka,44,217,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,542,zh,/cigar/542/montecristo-junior,update,蒙特 青年 — 莫斯科雪茄 | CigarDomTabaka,55,213,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,544,zh,/cigar/544/montecristo-regata,update,蒙特 赛帆 — 莫斯科雪茄 | CigarDomTabaka,46,209,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,546,zh,/cigar/546/montecristo-petit-no-2,update,蒙特 小2号 — 莫斯科雪茄 | CigarDomTabaka,37,262,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,599,zh,/cigar/599/partagas-mille-fleurs,update,帕特加斯 妙丽 — 莫斯科雪茄 | CigarDomTabaka,79,213,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,603,zh,/cigar/603/partagas-shorts,update,帕特加斯 短号 — 莫斯科雪茄 | CigarDomTabaka,44,195,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,606,zh,/cigar/606/partagas-serie-d-no4,update,帕特加斯 D系列 4号 — 莫斯科雪茄 | CigarDomTabaka,77,191,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,610,zh,/cigar/610/partagas-serie-d-no5,update,帕特加斯 D系列 5号 — 莫斯科雪茄 | CigarDomTabaka,42,208,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,611,zh,/cigar/611/partagas-serie-e-no2,update,帕特加斯 E系列 2号 — 莫斯科雪茄 | CigarDomTabaka,42,193,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,612,zh,/cigar/612/partagas-serie-d-no6,update,帕特加斯 D系列 6号 — 莫斯科雪茄 | CigarDomTabaka,46,216,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,615,zh,/cigar/615/partagas-maduro-no-2,update,帕特加斯 马杜罗 2 号 — 莫斯科雪茄 | CigarDomTabaka,64,270,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,764,zh,/cigar/764/punch-punch-punch,update,潘趣潘趣 — 莫斯科雪茄 | CigarDomTabaka,60,193,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,839,zh,/cigar/839/quai-dorsay-no54,update,希多尔赛 54号 — 莫斯科雪茄 | CigarDomTabaka,50,206,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,840,zh,/cigar/840/quai-dorsay-no52,update,希多尔赛 52号 — 莫斯科雪茄 | CigarDomTabaka,63,231,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,876,zh,/cigar/876/rafael-gonzalez-perlas,update,拉斐尔 珍珠 — 莫斯科雪茄 | CigarDomTabaka,43,215,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,893,zh,/cigar/893/ramon-allones-allones-specially-selected,update,雷蒙阿隆尼 阿万斯特选 — 莫斯科雪茄 | CigarDomTabaka,68,249,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,93,zh,/cigar/93/cohiba-esplendidos,update,高希霸 导师 — 莫斯科雪茄 | CigarDomTabaka,99,188,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,95,zh,/cigar/95/cohiba-robustos,update,高希霸 罗布图 — 莫斯科雪茄 | CigarDomTabaka,85,185,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,96,zh,/cigar/96/cohiba-siglo-i,update,高希霸 世纪 1 号 — 莫斯科雪茄 | CigarDomTabaka,87,186,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,97,zh,/cigar/97/cohiba-siglo-ii,preserve,高希霸世纪2号 — 莫斯科雪茄 | CigarDomTabaka,64,145,0,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,979,zh,/cigar/979/romeo-y-julieta-mille-fleurs,update,罗密欧与朱丽叶 妙丽 — 莫斯科雪茄 | CigarDomTabaka,57,297,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,98,zh,/cigar/98/cohiba-siglo-iii,preserve,高希霸世纪3号 — 莫斯科雪茄 | CigarDomTabaka,63,143,0,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,985,zh,/cigar/985/romeo-y-julieta-romeo-no3,update,罗密欧与朱丽叶 罗密欧 3 号 — 莫斯科雪茄 | CigarDomTabaka,45,259,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,986,zh,/cigar/986/romeo-y-julieta-sports-largos,update,罗密欧与朱丽叶 长运动 — 莫斯科雪茄 | CigarDomTabaka,63,224,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,990,zh,/cigar/990/romeo-y-julieta-wide-churchills,update,罗密欧与朱丽叶 宽 丘吉尔 — 莫斯科雪茄 | CigarDomTabaka,60,225,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,995,zh,/cigar/995/romeo-y-julieta-dianas,update,罗密欧与朱丽叶 戴安娜 — 莫斯科雪茄 | CigarDomTabaka,53,317,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,999,zh,/cigar/999/romeo-y-julieta-amantes,update,罗密欧与朱丽叶 恋人 — 莫斯科雪茄 | CigarDomTabaka,57,248,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,cohiba,en,/en/brand/cohiba,preserve,Cohiba cigars in Moscow | CigarDomTabaka,146,359,0,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,cuaba,en,/en/brand/cuaba,update,Cuaba cigars in Moscow | CigarDomTabaka,134,358,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,diplomaticos,en,/en/brand/diplomaticos,update,Diplomáticos cigars in Moscow | CigarDomTabaka,123,271,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,fonseca,en,/en/brand/fonseca,update,Fonseca cigars in Moscow | CigarDomTabaka,103,318,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,h-upmann,en,/en/brand/h-upmann,update,H. Upmann cigars in Moscow | CigarDomTabaka,132,327,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,hoyo-de-monterrey,en,/en/brand/hoyo-de-monterrey,update,Hoyo de Monterrey cigars in Moscow | CigarDomTabaka,151,305,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,jose-l-piedra,en,/en/brand/jose-l-piedra,update,José L. Piedra cigars in Moscow | CigarDomTabaka,117,315,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,juan-lopez,en,/en/brand/juan-lopez,update,Juan López cigars in Moscow | CigarDomTabaka,108,295,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,la-gloria-cubana,en,/en/brand/la-gloria-cubana,update,La Gloria Cubana cigars in Moscow | CigarDomTabaka,110,308,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,montecristo,en,/en/brand/montecristo,update,Montecristo cigars in Moscow | CigarDomTabaka,129,318,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,partagas,en,/en/brand/partagas,update,Partagás cigars in Moscow | CigarDomTabaka,129,276,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,punch,en,/en/brand/punch,update,Punch cigars in Moscow | CigarDomTabaka,128,329,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,quai-dorsay,en,/en/brand/quai-dorsay,update,Quai d'Orsay cigars in Moscow | CigarDomTabaka,115,314,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,quintero,en,/en/brand/quintero,update,Quintero cigars in Moscow | CigarDomTabaka,118,299,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,rafael-gonzalez,en,/en/brand/rafael-gonzalez,update,Rafael González cigars in Moscow | CigarDomTabaka,183,299,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,ramon-allones,en,/en/brand/ramon-allones,update,Ramón Allones cigars in Moscow | CigarDomTabaka,135,331,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,romeo-y-julieta,en,/en/brand/romeo-y-julieta,update,Romeo y Julieta cigars in Moscow | CigarDomTabaka,120,372,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,trinidad,en,/en/brand/trinidad,update,Trinidad cigars in Moscow | CigarDomTabaka,131,344,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,vegas-robaina,en,/en/brand/vegas-robaina,update,Vegas Robaina cigars in Moscow | CigarDomTabaka,104,326,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,vegueros,en,/en/brand/vegueros,update,Vegueros cigars in Moscow | CigarDomTabaka,130,315,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,101,en,/en/cigar/101/cohiba-siglo-vi,update,Cohiba Siglo VI — Cigars in Moscow | CigarDomTabaka,134,215,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,102,en,/en/cigar/102/cohiba-genios,preserve,Cohiba Genios Maduro 5 — Cigars in Moscow | CigarDomTabaka,141,325,0,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,103,en,/en/cigar/103/cohiba-magicos,update,Cohiba Mágicos Maduro 5 in Moscow | CigarDomTabaka,148,443,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,106,en,/en/cigar/106/cohiba-bhk-54,update,Cohiba BHK 54 — Cigars in Moscow | CigarDomTabaka,148,179,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1139,en,/en/cigar/1139/trinidad-fundadores,update,Trinidad Fundadores — Cigars in Moscow | CigarDomTabaka,109,440,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1143,en,/en/cigar/1143/trinidad-vigia,update,Trinidad Vigia — Cigars in Moscow | CigarDomTabaka,132,389,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1146,en,/en/cigar/1146/trinidad-media-luna,update,Trinidad Media Luna — Cigars in Moscow | CigarDomTabaka,89,423,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1147,en,/en/cigar/1147/trinidad-topes,update,Trinidad Topes — Cigars in Moscow | CigarDomTabaka,133,357,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1166,en,/en/cigar/1166/vegas-robaina-famosos,update,Vegas Robaina Famosos — Cigars in Moscow | CigarDomTabaka,116,372,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1189,en,/en/cigar/1189/vegueros-entretiempos,update,Vegueros Entretiempos — Cigars in Moscow | CigarDomTabaka,114,380,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1191,en,/en/cigar/1191/vegueros-tapados,update,Vegueros Tapados — Cigars in Moscow | CigarDomTabaka,76,405,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1212,en,/en/cigar/1212/cohiba-reserva-seleccion-other-special-release-reserva-seleccion,update,Cohiba Reserva Selección — Cigars in Moscow | CigarDomTabaka,204,204,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1343,en,/en/cigar/1343/hoyo-de-monterrey-epicure-2-d-c-cp-3-n-15,update,Hoyo de Monterrey EPICURE № 2 D-C-C/P-3-n-15 — Cigars in Moscow | CigarDomTabaka,123,167,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1346,en,/en/cigar/1346/la-gloria-cubana-turquinos,update,La Gloria Cubana TURQUINOS — Cigars in Moscow | CigarDomTabaka,95,297,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1359,en,/en/cigar/1359/quintero-brevas,update,Quintero BREVAS — Cigars in Moscow | CigarDomTabaka,108,395,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,180,en,/en/cigar/180/cuaba-exclusivos,update,Cuaba Exclusivos — Cigars in Moscow | CigarDomTabaka,143,254,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,182,en,/en/cigar/182/cuaba-distinguidos,update,Cuaba Distinguidos — Cigars in Moscow | CigarDomTabaka,155,227,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,197,en,/en/cigar/197/diplomaticos-diplomaticos-no2,update,Diplomáticos No.2 — Cigars in Moscow | CigarDomTabaka,175,164,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,266,en,/en/cigar/266/fonseca-delicias,update,Fonseca Delicias — Cigars in Moscow | CigarDomTabaka,121,237,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,281,en,/en/cigar/281/h-upmann-upmann-no2,update,H. Upmann Upmann No.2 — Cigars in Moscow | CigarDomTabaka,167,229,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,289,en,/en/cigar/289/h-upmann-connossieur-b,update,H. Upmann Connossieur B — Cigars in Moscow | CigarDomTabaka,171,265,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,355,en,/en/cigar/355/hoyo-de-monterrey-petit-robustos,update,Hoyo de Monterrey Petit Robustos — Cigars in Moscow | CigarDomTabaka,165,195,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,356,en,/en/cigar/356/hoyo-de-monterrey-epicure-especial,update,Hoyo de Monterrey Epicure Especial — Cigars in Moscow | CigarDomTabaka,163,255,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,358,en,/en/cigar/358/hoyo-de-monterrey-le-hoyo-de-san-juan,update,Hoyo de Monterrey Le Hoyo de San Juan — Cigars in Moscow | CigarDomTabaka,159,289,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,418,en,/en/cigar/418/jose-l-piedra-brevas,update,José L. Piedra Brevas — Cigars in Moscow | CigarDomTabaka,183,172,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,419,en,/en/cigar/419/jose-l-piedra-cazadores,update,José L. Piedra Cazadores — Cigars in Moscow | CigarDomTabaka,120,192,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,421,en,/en/cigar/421/jose-l-piedra-petit-cazadores,update,José L. Piedra Petit Cazadores — Cigars in Moscow | CigarDomTabaka,163,236,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,422,en,/en/cigar/422/jose-l-piedra-petit-caballeros,update,José L. Piedra Petit Caballeros — Cigars in Moscow | CigarDomTabaka,116,248,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,430,en,/en/cigar/430/juan-lopez-seleccion-no2,update,Juan López Selección No.2 — Cigars in Moscow | CigarDomTabaka,179,226,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,529,en,/en/cigar/529/montecristo-montecristo-no2,update,Montecristo No.2 — Cigars in Moscow | CigarDomTabaka,119,443,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,530,en,/en/cigar/530/montecristo-montecristo-no3,update,Montecristo No.3 — Cigars in Moscow | CigarDomTabaka,119,353,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,531,en,/en/cigar/531/montecristo-montecristo-no4,update,Montecristo No.4 — Cigars in Moscow | CigarDomTabaka,91,394,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,532,en,/en/cigar/532/montecristo-montecristo-no5,update,Montecristo No.5 — Cigars in Moscow | CigarDomTabaka,96,323,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,539,en,/en/cigar/539/montecristo-edmundo,update,Montecristo Edmundo — Cigars in Moscow | CigarDomTabaka,71,381,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,542,en,/en/cigar/542/montecristo-junior,update,Montecristo Junior — Cigars in Moscow | CigarDomTabaka,113,378,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,544,en,/en/cigar/544/montecristo-regata,update,Montecristo Regata — Cigars in Moscow | CigarDomTabaka,86,364,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,546,en,/en/cigar/546/montecristo-petit-no-2,update,Montecristo Petit No. 2 — Cigars in Moscow | CigarDomTabaka,88,401,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,599,en,/en/cigar/599/partagas-mille-fleurs,update,Partagás Mille Fleurs — Cigars in Moscow | CigarDomTabaka,108,293,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,603,en,/en/cigar/603/partagas-shorts,update,Partagás Shorts — Cigars in Moscow | CigarDomTabaka,96,368,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,606,en,/en/cigar/606/partagas-serie-d-no4,update,Partagás Serie D No.4 — Cigars in Moscow | CigarDomTabaka,103,279,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,610,en,/en/cigar/610/partagas-serie-d-no5,update,Partagás Serie D No.5 — Cigars in Moscow | CigarDomTabaka,92,381,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,611,en,/en/cigar/611/partagas-serie-e-no2,update,Partagás Serie E No.2 — Cigars in Moscow | CigarDomTabaka,106,336,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,612,en,/en/cigar/612/partagas-serie-d-no6,update,Partagás Serie D No.6 — Cigars in Moscow | CigarDomTabaka,85,353,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,615,en,/en/cigar/615/partagas-maduro-no-2,update,Partagás Maduro No. 2 — Cigars in Moscow | CigarDomTabaka,123,450,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,764,en,/en/cigar/764/punch-punch-punch,update,Punch Punch — Cigars in Moscow | CigarDomTabaka,126,404,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,839,en,/en/cigar/839/quai-dorsay-no54,update,Quai d'Orsay No.54 — Cigars in Moscow | CigarDomTabaka,106,371,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,840,en,/en/cigar/840/quai-dorsay-no52,update,Quai d'Orsay No.52 — Cigars in Moscow | CigarDomTabaka,110,342,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,876,en,/en/cigar/876/rafael-gonzalez-perlas,update,Rafael González Perlas — Cigars in Moscow | CigarDomTabaka,81,434,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,893,en,/en/cigar/893/ramon-allones-allones-specially-selected,update,Ramón Allones Allones Specially Selected — Cigars in Moscow | CigarDomTabaka,124,437,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,93,en,/en/cigar/93/cohiba-esplendidos,update,Cohiba Espléndidos — Cigars in Moscow | CigarDomTabaka,165,255,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,95,en,/en/cigar/95/cohiba-robustos,update,Cohiba Robustos — Cigars in Moscow | CigarDomTabaka,182,266,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,96,en,/en/cigar/96/cohiba-siglo-i,update,Cohiba Siglo I — Cigars in Moscow | CigarDomTabaka,168,307,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,97,en,/en/cigar/97/cohiba-siglo-ii,preserve,Cohiba Siglo II — Cigars in Moscow | CigarDomTabaka,150,342,0,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,979,en,/en/cigar/979/romeo-y-julieta-mille-fleurs,update,Romeo y Julieta Mille Fleurs — Cigars in Moscow | CigarDomTabaka,102,447,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,98,en,/en/cigar/98/cohiba-siglo-iii,preserve,Cohiba Siglo III — Cigars in Moscow | CigarDomTabaka,137,329,0,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,985,en,/en/cigar/985/romeo-y-julieta-romeo-no3,update,Romeo y Julieta Romeo No.3 — Cigars in Moscow | CigarDomTabaka,92,477,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,986,en,/en/cigar/986/romeo-y-julieta-sports-largos,update,Romeo y Julieta Sports Largos — Cigars in Moscow | CigarDomTabaka,108,365,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,990,en,/en/cigar/990/romeo-y-julieta-wide-churchills,update,Romeo y Julieta Wide Churchills — Cigars in Moscow | CigarDomTabaka,103,352,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,995,en,/en/cigar/995/romeo-y-julieta-dianas,update,Romeo y Julieta Dianas — Cigars in Moscow | CigarDomTabaka,120,481,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,999,en,/en/cigar/999/romeo-y-julieta-amantes,update,Romeo y Julieta Amantes — Cigars in Moscow | CigarDomTabaka,105,473,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,cohiba,ru,/ru/brand/cohiba,preserve,Сигары Cohiba в Москве | CigarDomTabaka,133,382,0,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,cuaba,ru,/ru/brand/cuaba,update,Сигары Cuaba в Москве | CigarDomTabaka,139,440,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,diplomaticos,ru,/ru/brand/diplomaticos,update,Сигары Diplomáticos в Москве | CigarDomTabaka,116,327,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,fonseca,ru,/ru/brand/fonseca,update,Сигары Fonseca в Москве | CigarDomTabaka,117,329,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,h-upmann,ru,/ru/brand/h-upmann,update,Сигары H. Upmann в Москве | CigarDomTabaka,128,348,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,hoyo-de-monterrey,ru,/ru/brand/hoyo-de-monterrey,update,Сигары Hoyo de Monterrey в Москве | CigarDomTabaka,156,312,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,jose-l-piedra,ru,/ru/brand/jose-l-piedra,update,Сигары José L. Piedra в Москве | CigarDomTabaka,132,396,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,juan-lopez,ru,/ru/brand/juan-lopez,update,Сигары Juan López в Москве | CigarDomTabaka,115,351,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,la-gloria-cubana,ru,/ru/brand/la-gloria-cubana,update,Сигары La Gloria Cubana в Москве | CigarDomTabaka,129,351,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,montecristo,ru,/ru/brand/montecristo,update,Сигары Montecristo в Москве | CigarDomTabaka,118,351,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,partagas,ru,/ru/brand/partagas,update,Сигары Partagás в Москве | CigarDomTabaka,113,351,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,punch,ru,/ru/brand/punch,update,Сигары Punch в Москве | CigarDomTabaka,120,342,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,quai-dorsay,ru,/ru/brand/quai-dorsay,update,Сигары Quai d'Orsay в Москве | CigarDomTabaka,108,362,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,quintero,ru,/ru/brand/quintero,update,Сигары Quintero в Москве | CigarDomTabaka,126,322,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,rafael-gonzalez,ru,/ru/brand/rafael-gonzalez,update,Сигары Rafael González в Москве | CigarDomTabaka,138,348,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,ramon-allones,ru,/ru/brand/ramon-allones,update,Сигары Ramón Allones в Москве | CigarDomTabaka,169,350,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,romeo-y-julieta,ru,/ru/brand/romeo-y-julieta,update,Сигары Romeo y Julieta в Москве | CigarDomTabaka,135,403,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,trinidad,ru,/ru/brand/trinidad,update,Сигары Trinidad в Москве | CigarDomTabaka,114,404,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,vegas-robaina,ru,/ru/brand/vegas-robaina,update,Сигары Vegas Robaina в Москве | CigarDomTabaka,102,366,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,brand,vegueros,ru,/ru/brand/vegueros,update,Сигары Vegueros в Москве | CigarDomTabaka,124,346,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,101,ru,/ru/cigar/101/cohiba-siglo-vi,update,Cohiba Siglo VI — сигары в Москве | CigarDomTabaka,115,236,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,102,ru,/ru/cigar/102/cohiba-genios,preserve,Cohiba Genios Maduro 5 — сигары в Москве | CigarDomTabaka,157,373,0,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,103,ru,/ru/cigar/103/cohiba-magicos,update,Cohiba Mágicos Maduro 5 в Москве | CigarDomTabaka,148,474,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,106,ru,/ru/cigar/106/cohiba-bhk-54,update,Cohiba BHK 54 — сигары в Москве | CigarDomTabaka,128,166,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1139,ru,/ru/cigar/1139/trinidad-fundadores,update,Trinidad Fundadores — сигары в Москве | CigarDomTabaka,104,455,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1143,ru,/ru/cigar/1143/trinidad-vigia,update,Trinidad Vigia — сигары в Москве | CigarDomTabaka,167,353,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1146,ru,/ru/cigar/1146/trinidad-media-luna,update,Trinidad Media Luna — сигары в Москве | CigarDomTabaka,93,452,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1147,ru,/ru/cigar/1147/trinidad-topes,update,Trinidad Topes — сигары в Москве | CigarDomTabaka,141,373,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1166,ru,/ru/cigar/1166/vegas-robaina-famosos,update,Vegas Robaina Famosos — сигары в Москве | CigarDomTabaka,128,375,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1189,ru,/ru/cigar/1189/vegueros-entretiempos,update,Vegueros Entretiempos — сигары в Москве | CigarDomTabaka,111,368,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1191,ru,/ru/cigar/1191/vegueros-tapados,update,Vegueros Tapados — сигары в Москве | CigarDomTabaka,81,425,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1212,ru,/ru/cigar/1212/cohiba-reserva-seleccion-other-special-release-reserva-seleccion,update,Cohiba Reserva Selección — сигары в Москве | CigarDomTabaka,187,192,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1343,ru,/ru/cigar/1343/hoyo-de-monterrey-epicure-2-d-c-cp-3-n-15,update,Hoyo de Monterrey EPICURE № 2 D-C-C/P-3-n-15 — сигары в Москве | CigarDomTabaka,140,184,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1346,ru,/ru/cigar/1346/la-gloria-cubana-turquinos,update,La Gloria Cubana TURQUINOS — сигары в Москве | CigarDomTabaka,100,299,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,1359,ru,/ru/cigar/1359/quintero-brevas,update,Quintero BREVAS — сигары в Москве | CigarDomTabaka,124,402,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,180,ru,/ru/cigar/180/cuaba-exclusivos,update,Cuaba Exclusivos — сигары в Москве | CigarDomTabaka,137,267,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,182,ru,/ru/cigar/182/cuaba-distinguidos,update,Cuaba Distinguidos — сигары в Москве | CigarDomTabaka,165,260,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,197,ru,/ru/cigar/197/diplomaticos-diplomaticos-no2,update,Diplomáticos No.2 — сигары в Москве | CigarDomTabaka,187,200,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,266,ru,/ru/cigar/266/fonseca-delicias,update,Fonseca Delicias — сигары в Москве | CigarDomTabaka,125,210,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,281,ru,/ru/cigar/281/h-upmann-upmann-no2,update,H. Upmann Upmann No.2 — сигары в Москве | CigarDomTabaka,191,231,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,289,ru,/ru/cigar/289/h-upmann-connossieur-b,update,H. Upmann Connossieur B — сигары в Москве | CigarDomTabaka,175,259,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,355,ru,/ru/cigar/355/hoyo-de-monterrey-petit-robustos,update,Hoyo de Monterrey Petit Robustos — сигары в Москве | CigarDomTabaka,166,191,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,356,ru,/ru/cigar/356/hoyo-de-monterrey-epicure-especial,update,Hoyo de Monterrey Epicure Especial — сигары в Москве | CigarDomTabaka,182,254,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,358,ru,/ru/cigar/358/hoyo-de-monterrey-le-hoyo-de-san-juan,update,Hoyo de Monterrey Le Hoyo de San Juan — сигары в Москве | CigarDomTabaka,172,292,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,418,ru,/ru/cigar/418/jose-l-piedra-brevas,update,José L. Piedra Brevas — сигары в Москве | CigarDomTabaka,171,203,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,419,ru,/ru/cigar/419/jose-l-piedra-cazadores,update,José L. Piedra Cazadores — сигары в Москве | CigarDomTabaka,118,182,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,421,ru,/ru/cigar/421/jose-l-piedra-petit-cazadores,update,José L. Piedra Petit Cazadores — сигары в Москве | CigarDomTabaka,189,243,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,422,ru,/ru/cigar/422/jose-l-piedra-petit-caballeros,update,José L. Piedra Petit Caballeros — сигары в Москве | CigarDomTabaka,142,244,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,430,ru,/ru/cigar/430/juan-lopez-seleccion-no2,update,Juan López Selección No.2 — сигары в Москве | CigarDomTabaka,208,248,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,529,ru,/ru/cigar/529/montecristo-montecristo-no2,update,Montecristo No.2 — сигары в Москве | CigarDomTabaka,125,395,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,530,ru,/ru/cigar/530/montecristo-montecristo-no3,update,Montecristo No.3 — сигары в Москве | CigarDomTabaka,134,375,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,531,ru,/ru/cigar/531/montecristo-montecristo-no4,update,Montecristo No.4 — сигары в Москве | CigarDomTabaka,99,397,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,532,ru,/ru/cigar/532/montecristo-montecristo-no5,update,Montecristo No.5 — сигары в Москве | CigarDomTabaka,97,359,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,539,ru,/ru/cigar/539/montecristo-edmundo,update,Montecristo Edmundo — сигары в Москве | CigarDomTabaka,71,428,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,542,ru,/ru/cigar/542/montecristo-junior,update,Montecristo Junior — сигары в Москве | CigarDomTabaka,113,417,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,544,ru,/ru/cigar/544/montecristo-regata,update,Montecristo Regata — сигары в Москве | CigarDomTabaka,89,333,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,546,ru,/ru/cigar/546/montecristo-petit-no-2,update,Montecristo Petit No. 2 — сигары в Москве | CigarDomTabaka,91,449,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,599,ru,/ru/cigar/599/partagas-mille-fleurs,update,Partagás Mille Fleurs — сигары в Москве | CigarDomTabaka,111,300,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,603,ru,/ru/cigar/603/partagas-shorts,update,Partagás Shorts — сигары в Москве | CigarDomTabaka,102,373,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,606,ru,/ru/cigar/606/partagas-serie-d-no4,update,Partagás Serie D No.4 — сигары в Москве | CigarDomTabaka,106,255,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,610,ru,/ru/cigar/610/partagas-serie-d-no5,update,Partagás Serie D No.5 — сигары в Москве | CigarDomTabaka,89,373,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,611,ru,/ru/cigar/611/partagas-serie-e-no2,update,Partagás Serie E No.2 — сигары в Москве | CigarDomTabaka,102,339,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,612,ru,/ru/cigar/612/partagas-serie-d-no6,update,Partagás Serie D No.6 — сигары в Москве | CigarDomTabaka,94,342,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,615,ru,/ru/cigar/615/partagas-maduro-no-2,update,Partagás Maduro No. 2 — сигары в Москве | CigarDomTabaka,122,418,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,764,ru,/ru/cigar/764/punch-punch-punch,update,Punch Punch — сигары в Москве | CigarDomTabaka,135,410,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,839,ru,/ru/cigar/839/quai-dorsay-no54,update,Quai d'Orsay No.54 — сигары в Москве | CigarDomTabaka,111,379,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,840,ru,/ru/cigar/840/quai-dorsay-no52,update,Quai d'Orsay No.52 — сигары в Москве | CigarDomTabaka,107,376,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,876,ru,/ru/cigar/876/rafael-gonzalez-perlas,update,Rafael González Perlas — сигары в Москве | CigarDomTabaka,85,398,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,893,ru,/ru/cigar/893/ramon-allones-allones-specially-selected,update,Ramón Allones Allones Specially Selected — сигары в Москве | CigarDomTabaka,128,478,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,93,ru,/ru/cigar/93/cohiba-esplendidos,update,Cohiba Espléndidos — сигары в Москве | CigarDomTabaka,186,279,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,95,ru,/ru/cigar/95/cohiba-robustos,update,Cohiba Robustos — сигары в Москве | CigarDomTabaka,159,271,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,96,ru,/ru/cigar/96/cohiba-siglo-i,update,Cohiba Siglo I — сигары в Москве | CigarDomTabaka,177,312,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,97,ru,/ru/cigar/97/cohiba-siglo-ii,preserve,Cohiba Siglo II — сигары в Москве | CigarDomTabaka,152,343,0,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,979,ru,/ru/cigar/979/romeo-y-julieta-mille-fleurs,update,Romeo y Julieta Mille Fleurs — сигары в Москве | CigarDomTabaka,107,450,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,98,ru,/ru/cigar/98/cohiba-siglo-iii,preserve,Cohiba Siglo III — сигары в Москве | CigarDomTabaka,123,333,0,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,985,ru,/ru/cigar/985/romeo-y-julieta-romeo-no3,update,Romeo y Julieta Romeo No.3 — сигары в Москве | CigarDomTabaka,92,467,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,986,ru,/ru/cigar/986/romeo-y-julieta-sports-largos,update,Romeo y Julieta Sports Largos — сигары в Москве | CigarDomTabaka,108,382,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,990,ru,/ru/cigar/990/romeo-y-julieta-wide-churchills,update,Romeo y Julieta Wide Churchills — сигары в Москве | CigarDomTabaka,112,340,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,995,ru,/ru/cigar/995/romeo-y-julieta-dianas,update,Romeo y Julieta Dianas — сигары в Москве | CigarDomTabaka,112,441,1,200,pass,pass,verified
+2026-10-27T02:56:12.921585+00:00,production public HTTP,product,999,ru,/ru/cigar/999/romeo-y-julieta-amantes,update,Romeo y Julieta Amantes — сигары в Москве | CigarDomTabaka,119,471,1,200,pass,pass,verified

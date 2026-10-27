@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Copy,
-  Check,
   Search,
   Plus,
   X,
@@ -30,6 +28,7 @@ import {
 } from "./privnotePayment";
 import { selectedIdsOnCustomEntry, type QuoteMode } from "./privnoteQuote";
 import AccessRecords from "../components/privnote/AccessRecords";
+import PrivnoteResult from "../components/privnote/PrivnoteResult";
 import PaymentMethodManager from "../components/privnote/PaymentMethodManager";
 
 const DURATIONS = [
@@ -185,7 +184,6 @@ export default function PrivnotePage() {
   const [result, setResult] = useState<{ url: string; token: string } | null>(
     null,
   );
-  const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -258,28 +256,6 @@ export default function PrivnotePage() {
       </div>
     );
   }
-
-  const copyUrl = async () => {
-    if (!result?.url) return;
-    let success: boolean;
-    try {
-      await navigator.clipboard.writeText(result.url);
-      success = true;
-    } catch {
-      const textarea = document.createElement("textarea");
-      textarea.value = result.url;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.select();
-      success = document.execCommand("copy");
-      document.body.removeChild(textarea);
-    }
-    if (success) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
 
   const addAttachment = () => {
     if (!attachName.trim() || !attachUrl.trim()) return;
@@ -438,34 +414,12 @@ export default function PrivnotePage() {
       ) : pageMode === "methods" ? (
         <PaymentMethodManager />
       ) : result ? (
-        <div className="bg-white border border-border rounded-sm p-6 text-center">
-          <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
-            <Check className="w-6 h-6 text-emerald-600" />
-          </div>
-          <h3 className="text-lg font-semibold text-fg mb-2">链接已生成</h3>
-          <div className="flex items-center gap-2 bg-accent-light rounded-sm p-3 mb-4">
-            <code className="text-sm text-fg flex-1 break-all">
-              {result.url}
-            </code>
-            <button
-              onClick={copyUrl}
-              className="p-2 rounded-sm text-accent hover:bg-accent/10 transition-colors shrink-0"
-            >
-              {copied ? (
-                <Check className="w-4 h-4" />
-              ) : (
-                <Copy className="w-4 h-4" />
-              )}
-            </button>
-          </div>
-          <button
-            onClick={resetAll}
-            className="text-sm text-accent hover:underline"
-          >
-            创建新的链接
-          </button>
-          <button type="button" className="ml-5 text-sm text-accent hover:underline" onClick={() => { setRecordToken(result.token); setPageMode("records"); }}>查看访问记录</button>
-        </div>
+        <PrivnoteResult
+          url={result.url}
+          token={result.token}
+          onCreateNew={resetAll}
+          onViewRecords={() => { setRecordToken(result.token); setPageMode("records"); }}
+        />
       ) : (
         <form onSubmit={handleCreate} className="space-y-5">
           {/* Note Config */}

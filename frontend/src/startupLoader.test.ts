@@ -1,8 +1,6 @@
 // @vitest-environment jsdom
 
-// @ts-expect-error Node types are intentionally absent from the browser app config.
 import { readFileSync } from 'node:fs';
-// @ts-expect-error Node types are intentionally absent from the browser app config.
 import { createHash } from 'node:crypto';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';

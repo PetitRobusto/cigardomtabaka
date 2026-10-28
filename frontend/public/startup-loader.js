@@ -10,6 +10,14 @@
   var surface = root.querySelector('.cdt-startup__surface');
   var appRoots = Array.prototype.slice.call(document.querySelectorAll('#root, #store-root'));
   if (!mark || !status || !retry || !surface || !appRoots.length) return;
+  var appRootState = appRoots.map(function (appRoot) {
+    return {
+      root: appRoot,
+      inert: appRoot.inert,
+      inertAttribute: appRoot.hasAttribute('inert'),
+      ariaHidden: appRoot.getAttribute('aria-hidden')
+    };
+  });
   // This script also starts before React in the static/Django shells. Keep its
   // small recovery dictionary aligned with customerMessages (covered by tests).
   var messages = {
@@ -56,10 +64,21 @@
   root.hidden = false;
   document.documentElement.dataset.cdtStarting = 'true';
   document.body.classList.add('cdt-starting');
+  appRoots.forEach(function (appRoot) {
+    appRoot.inert = true;
+    appRoot.setAttribute('inert', '');
+    appRoot.setAttribute('aria-hidden', 'true');
+  });
+  window.dispatchEvent(new Event('cdt:startup-started'));
   var motionSrc = mark.dataset.motionSrc || mark.getAttribute('src');
   var staticSrc = mark.dataset.staticSrc;
+  var staticSrcset = mark.dataset.staticSrcset;
+  var staticSizes = mark.dataset.staticSizes;
   var motionStart = null;
   var cycleDuration = 2580;
+  // Keep the opening mark visible, but do not make a ready page wait through
+  // the entire remaining cycle before handing off to React.
+  var maxReadyWait = 1800;
   var logoReady = false;
   var usingStaticLogo = false;
   var logoUnavailable = false;
@@ -76,6 +95,22 @@
   function clearTimers() {
     window.clearTimeout(handoffTimer);
     window.clearTimeout(slowTimer);
+  }
+
+  function releaseAppRoots() {
+    appRootState.forEach(function (saved) {
+      saved.root.inert = saved.inert;
+      if (saved.inertAttribute) saved.root.setAttribute('inert', '');
+      else saved.root.removeAttribute('inert');
+      if (saved.ariaHidden === null) saved.root.removeAttribute('aria-hidden');
+      else saved.root.setAttribute('aria-hidden', saved.ariaHidden);
+    });
+  }
+
+  function applyStaticLogo() {
+    if (staticSrcset) mark.setAttribute('srcset', staticSrcset);
+    if (staticSizes) mark.setAttribute('sizes', staticSizes);
+    if (staticSrc) mark.src = staticSrc;
   }
 
   function setStatus(text) {
@@ -95,7 +130,9 @@
     document.body.classList.remove('cdt-starting', 'cdt-revealing');
     document.documentElement.removeAttribute('data-cdt-starting');
     document.documentElement.removeAttribute('data-cdt-app-ready');
+    releaseAppRoots();
     observer && observer.disconnect();
+    window.dispatchEvent(new Event('cdt:startup-finished'));
   }
 
   function dock() {
@@ -136,7 +173,7 @@
     var targetTop = box.top + (box.height - targetHeight) / 2;
     var scale = box.width / from.width;
 
-    if (staticSrc) mark.src = staticSrc;
+    if (staticSrc) applyStaticLogo();
     mark.classList.add('cdt-startup__logo--docking');
     var flight = mark.animate(
       [
@@ -160,7 +197,7 @@
           return;
         }
         var elapsed = performance.now() - motionStart;
-        var wait = Math.max(cycleDuration - elapsed, 0);
+        var wait = Math.min(Math.max(cycleDuration - elapsed, 0), maxReadyWait);
         handoffTimer = window.setTimeout(dock, wait);
       });
     });
@@ -188,7 +225,7 @@
   function handleLogoError() {
     if (!usingStaticLogo && staticSrc) {
       usingStaticLogo = true;
-      mark.src = staticSrc;
+      applyStaticLogo();
       prepareCompleteLogo();
       return;
     }
@@ -224,6 +261,8 @@
     document.body.classList.remove('cdt-starting', 'cdt-revealing');
     document.documentElement.removeAttribute('data-cdt-starting');
     document.documentElement.removeAttribute('data-cdt-app-ready');
+    releaseAppRoots();
+    window.dispatchEvent(new Event('cdt:startup-finished'));
   }
 
   retry.addEventListener('click', function () { window.location.reload(); });

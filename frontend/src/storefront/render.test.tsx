@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderStorePage } from "./render";
 import { backendPageFixture } from "./fixture";
+import { homeHeroFirstImageSizes, homeHeroFirstImageSrcSet } from "./HomeHero.images";
 import publicDetails from "../../../storefront/public_details.json";
 
 
@@ -100,6 +101,22 @@ describe("storefront server renderer", () => {
     expect(html).toContain("10");
     expect(html).toContain("询价");
     expect(html.split('<script id="store-data"')[0]).not.toContain("10000.00");
+  });
+
+  it("preloads the first responsive home image with the same srcset and sizes as the image", () => {
+    const home = {
+      ...backendPageFixture,
+      locale: "zh" as const,
+      kind: "home" as const,
+      path: "/",
+      product: null,
+      alternates: [{ locale: "zh" as const, path: "/" }],
+      breadcrumbs: [],
+    };
+    const html = renderStorePage({ page: home, origin: "https://shop.example", assets: { js: [], css: [] } });
+    expect(html).toContain(`imageSrcSet="${homeHeroFirstImageSrcSet}"`);
+    expect(html).toContain(`imageSizes="${homeHeroFirstImageSizes}"`);
+    expect(html).toContain('fetchPriority="high"');
   });
 
   it("requires a title, description, and visible heading", () => {

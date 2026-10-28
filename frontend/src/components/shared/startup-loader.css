@@ -7,6 +7,7 @@ body { color: #2c2416; background: #faf8f5; font-family: -apple-system, BlinkMac
 .cdt-starting.cdt-revealing #root,
 .cdt-starting.cdt-revealing #store-root { opacity: 1; transition: opacity 290ms ease-out 70ms; }
 .cdt-starting [data-startup-logo-target] { visibility: hidden; }
+.cdt-starting [data-age-gate] { visibility: hidden; }
 #root, #store-root { min-height: 100vh; }
 
 #startup-loader { position: fixed; inset: 0; z-index: 9999; overflow: hidden; }

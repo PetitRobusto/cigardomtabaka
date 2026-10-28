@@ -28,7 +28,9 @@ export function StartupLoader({ locale }: StartupLoaderProps): ReactElement {
         <img
           className="cdt-startup__logo"
           data-motion-src="/static/frontend/logo-opening-motion-v2.svg"
-          data-static-src="/static/frontend/logo-motion.webp"
+          data-static-src="/static/frontend/logo-motion-376.webp"
+          data-static-srcset="/static/frontend/logo-motion-376.webp 376w, /static/frontend/logo-motion-564.webp 564w, /static/frontend/logo-motion-640.webp 640w"
+          data-static-sizes="(max-height: 420px) 132px, (max-width: 520px) 156px, 188px"
           width="640"
           height="525"
           alt=""

@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { matchRoutes } from 'react-router-dom';
 import type { CustomerLocale } from './messages';
 
 export const CUSTOMER_LANGUAGE_KEY = 'cdt.customer.language';
@@ -21,11 +20,6 @@ export function isCustomerLocale(value: unknown): value is CustomerLocale {
 
 export function isAgeConfirmationValid(confirmedAt: number | null, now = Date.now()): boolean {
   return confirmedAt !== null && Number.isFinite(confirmedAt) && confirmedAt > 0 && confirmedAt <= now && now - confirmedAt < AGE_CONFIRMATION_TTL;
-}
-
-// Explicit page boundary: do not opt management, product detail or customer documents in by default.
-export function isCustomerBrowsingPage(pathname: string): boolean {
-  return matchRoutes([{ path: '/' }, { path: '/brand/:slug' }], pathname) !== null;
 }
 
 function readStorage(key: string, session = false): string | null {

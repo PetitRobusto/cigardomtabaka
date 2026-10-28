@@ -1,17 +1,17 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ProductCard } from "./ProductDisplay";
 import { homePath } from "./browsing";
 import type { StoreLocale, StoreProduct } from "./types";
 import "./ProductCarousel.css";
 
-export function ProductCarousel({ products, locale, labels, title, href, linkLabel, sectionClass = "", linkClass = "" }: {
+export function ProductCarousel({ id, products, locale, labels, title, href, linkLabel, sectionClass = "", linkClass = "" }: {
+  id: string;
   products: StoreProduct[]; locale: StoreLocale; labels: Record<string, string>;
   title: string; href: string; linkLabel: string; sectionClass?: string; linkClass?: string;
 }) {
   const items = products.slice(0, 12);
   const productKey = items.map((product) => product.id).join(",");
-  const id = useId();
   const viewport = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ previous: false, next: items.length > 5 });
 

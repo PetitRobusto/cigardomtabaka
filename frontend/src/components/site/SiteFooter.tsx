@@ -1,8 +1,9 @@
 import { ArrowUpRight, MessageCircle, Send } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { siteLogoUrl as brandLogoUrl } from './siteAssets';
 import { customerMessages, type CustomerLocale } from '../../features/customer/messages';
 import publicDetails from '../../../../storefront/public_details.json';
+import { isStartupPending, useStartupPending } from '../shared/useStartupPending';
 import './site-footer.css';
 
 type SiteFooterDetails = {
@@ -30,7 +31,9 @@ function WechatContact({ account, label }: { account: string; label: string }) {
   const [open, setOpen] = useState(false);
   const [cardLeft, setCardLeft] = useState(0);
   const root = useRef<HTMLDivElement>(null);
-  const cardId = useId();
+  // There is one shared footer per document. Its ID must match the standalone
+  // SSR tree and the additional providers used by the hydrated storefront.
+  const cardId = 'site-footer-wechat-card';
   const show = () => {
     const bounds = root.current?.getBoundingClientRect();
     if (bounds) setCardLeft(Math.max(24, Math.min(bounds.left, window.innerWidth - 254)) - bounds.left);
@@ -60,6 +63,39 @@ function WechatContact({ account, label }: { account: string; label: string }) {
     <div id={cardId} className="site-footer-wechat-card" style={{ left: cardLeft }} role="tooltip" hidden={!open}>
       <span>{label}</span><strong>{account}</strong>
     </div>
+  </div>;
+}
+
+function StoreMap({ embed, href, title, label, inert }: { embed: string; href: string; title: string; label: string; inert: boolean }) {
+  const root = useRef<HTMLDivElement>(null);
+  const [nearby, setNearby] = useState(false);
+  const starting = useStartupPending();
+  useEffect(() => {
+    if (nearby || inert || starting || isStartupPending() || !root.current) return;
+    const reveal = () => setNearby(true);
+    if (typeof IntersectionObserver === 'undefined') {
+      // Older browsers still load the map on approach, rather than at startup.
+      const check = () => {
+        const bounds = root.current?.getBoundingClientRect();
+        if (bounds && bounds.top < window.innerHeight + 200 && bounds.bottom > -200) reveal();
+      };
+      check();
+      window.addEventListener('scroll', check, { passive: true });
+      window.addEventListener('resize', check);
+      return () => { window.removeEventListener('scroll', check); window.removeEventListener('resize', check); };
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        reveal();
+        observer.disconnect();
+      }
+    }, { rootMargin: '200px' });
+    observer.observe(root.current);
+    return () => observer.disconnect();
+  }, [nearby, inert, starting]);
+  return <div ref={root} className="site-footer-map">
+    <iframe src={nearby ? embed : undefined} title={title} width="560" height="330" loading="lazy" allowFullScreen />
+    <a className="site-footer-map-open" href={href} target="_blank" rel="noopener noreferrer">{label}<ArrowUpRight aria-hidden="true" /></a>
   </div>;
 }
 
@@ -123,10 +159,7 @@ export function SiteFooter({ locale = 'zh', customerPage = false, inert = false,
             </div>
           </div>
 
-          {mapEmbed && <div className="site-footer-map">
-            <iframe src={mapEmbed} title={text.storeMap} width="560" height="330" loading="lazy" allowFullScreen />
-            <a className="site-footer-map-open" href={mapUrl} target="_blank" rel="noopener noreferrer">{text.storeMapOpen}<ArrowUpRight aria-hidden="true" /></a>
-          </div>}
+          {mapEmbed && <StoreMap embed={mapEmbed} href={mapUrl} title={text.storeMap} label={text.storeMapOpen} inert={inert} />}
         </div>
 
         <div className="site-footer-bottom">

@@ -1,4 +1,4 @@
-/* Silhouettes traced from the five fixed JPEG sources in HomeHero.tsx.
+/* Silhouettes traced from the five existing JPEG sources used by HomeHero.tsx.
  * Clip only the white exterior; keep cigar/band pixels opaque for real occlusion.
  * These outlines must be updated if those source images change. */
 .store-home-hero__cigar--bhk56 img { clip-path: polygon(0.00% 46.76%, 0.30% 34.53%, 0.70% 33.09%, 1.50% 36.69%, 3.01% 14.39%, 6.42% 3.60%, 23.37% 0.00%, 23.87% 2.16%, 27.28% 0.00%, 96.29% 1.44%, 99.10% 4.32%, 99.90% 46.76%, 99.90% 47.48%, 99.60% 79.86%, 99.30% 93.53%, 98.90% 95.68%, 58.27% 98.56%, 49.95% 96.40%, 22.77% 98.56%, 8.02% 96.40%, 5.12% 92.81%, 3.81% 88.49%, 2.01% 74.82%, 1.20% 52.52%, 0.80% 53.24%, 0.60% 58.27%, 0.00% 52.52%); }

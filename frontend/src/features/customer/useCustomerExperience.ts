@@ -1,7 +1,8 @@
 import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { customerMessages } from './messages';
-import { isCustomerBrowsingPage, useCustomerPreferences } from './preferences';
+import { useCustomerPreferences } from './preferences';
+import { isCustomerBrowsingPage } from './customerRoutes';
 
 export function useCustomerExperience() {
   const { pathname } = useLocation();

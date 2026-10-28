@@ -1,13 +1,16 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { useCustomerPreferences } from './preferences';
 import { useCustomerExperience } from './useCustomerExperience';
+import { useStartupPending } from '../../components/shared/useStartupPending';
 
 export default function CustomerAgeGate({ scope }: { scope: RefObject<HTMLDivElement | null> }) {
   const { text } = useCustomerExperience();
   const { denied, confirmAge, denyAge, reconsiderAge } = useCustomerPreferences();
+  const startupPending = useStartupPending();
   const primary = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    if (startupPending) return;
     const previous = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -28,9 +31,9 @@ export default function CustomerAgeGate({ scope }: { scope: RefObject<HTMLDivEle
       document.removeEventListener('keydown', onKeyDown);
       if (previous?.isConnected) previous.focus();
     };
-  }, [denied, scope]);
+  }, [denied, scope, startupPending]);
 
-  return <div className="fixed inset-x-0 bottom-0 top-16 z-40 flex items-end justify-center bg-cream/95 sm:items-center sm:p-5">
+  return <div data-age-gate="true" className="fixed inset-x-0 bottom-0 top-16 z-40 flex items-end justify-center bg-cream/95 sm:items-center sm:p-5">
     <section role="dialog" aria-labelledby="customer-age-title" aria-describedby="customer-age-description"
       className="max-h-full w-full overflow-y-auto rounded-t-xl border border-border bg-white px-6 py-7 pb-[max(1.75rem,env(safe-area-inset-bottom))] shadow-lg sm:max-w-[430px] sm:rounded">
       <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-gold">{text.ageKicker}</p>

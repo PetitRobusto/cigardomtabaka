@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { createRef } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuthStore } from '../../store/authStore';
 import { CUSTOMER_AGE_KEY, CUSTOMER_LANGUAGE_KEY, readCustomerPreferences, useCustomerPreferences } from './preferences';
@@ -7,6 +9,7 @@ import { AGE_CONFIRMATION_KEY } from '../../storefront/ageConfirmation';
 import { backendPageFixture } from '../../storefront/fixture';
 import { LiveStorefront } from '../../storefront/LiveStorefront';
 import { Storefront } from '../../storefront/Storefront';
+import CustomerAgeGate from './CustomerAgeGate';
 
 function createStorage(): Storage {
   const values = new Map<string, string>();
@@ -99,5 +102,21 @@ describe('customer storefront experience', () => {
 
     expect(document.querySelector('[data-age-gate]')?.hasAttribute('hidden')).toBe(true);
     expect(window.localStorage.getItem(CUSTOMER_AGE_KEY)).toBeNull();
+  });
+
+  it('does not focus or trap the legacy age gate until startup finishes', async () => {
+    document.documentElement.dataset.cdtStarting = 'true';
+    const scope = createRef<HTMLDivElement>();
+    render(<MemoryRouter><div ref={scope}><CustomerAgeGate scope={scope} /></div></MemoryRouter>);
+    const confirm = screen.getByRole('button', { name: 'Yes, I am 18 or older' });
+
+    expect(document.activeElement).not.toBe(confirm);
+    const duringStartup = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    document.dispatchEvent(duringStartup);
+    expect(duringStartup.defaultPrevented).toBe(false);
+
+    delete document.documentElement.dataset.cdtStarting;
+    window.dispatchEvent(new Event('cdt:startup-finished'));
+    await waitFor(() => expect(document.activeElement).toBe(confirm));
   });
 });

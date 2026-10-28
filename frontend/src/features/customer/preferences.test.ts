@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AGE_CONFIRMATION_TTL, CUSTOMER_AGE_KEY, CUSTOMER_LANGUAGE_KEY, detectCustomerLocale, isAgeConfirmationValid, isCustomerBrowsingPage, readCustomerPreferences, useCustomerPreferences } from './preferences';
+import { AGE_CONFIRMATION_TTL, CUSTOMER_AGE_KEY, CUSTOMER_LANGUAGE_KEY, detectCustomerLocale, isAgeConfirmationValid, readCustomerPreferences, useCustomerPreferences } from './preferences';
+import { isCustomerBrowsingPage } from './customerRoutes';
 import { brandCategoryLabel, catalogCount } from './messages';
 import { catalogSectionLabel } from './catalogLabels';
 

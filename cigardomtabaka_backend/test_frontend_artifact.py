@@ -20,7 +20,9 @@ class FrontendArtifactTests(SimpleTestCase):
     }
     storefront_public_assets = (
         'startup-loader.js', 'favicon-96.png', 'logo-opening.webp',
-        'logo-motion.webp', 'logo-opening-motion-v2.svg',
+        'logo-motion.webp', 'logo-motion-112.webp', 'logo-motion-176.webp',
+        'logo-motion-188.webp', 'logo-motion-376.webp', 'logo-motion-564.webp',
+        'logo-motion-640.webp', 'logo-opening-motion-v2.svg',
     )
 
     def setUp(self):

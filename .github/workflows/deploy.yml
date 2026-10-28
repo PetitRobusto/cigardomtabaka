@@ -142,7 +142,12 @@ jobs:
             sudo -u www-data test -w .
             sudo -u www-data sqlite3 -cmd ".timeout 5000" cigars.db "BEGIN IMMEDIATE; ROLLBACK;"
 
+            echo "=== generate responsive home images from existing media ==="
+            DEPLOY_STAGE=generate-home-images
+            sudo -u www-data env DJANGO_DEBUG=False venv/bin/python frontend/scripts/generate_responsive_assets.py --media-root media
+
             echo "=== install verified frontend ==="
+            DEPLOY_STAGE=install-frontend
             python "$ARTIFACT_DIR/frontend_artifact.py" install "$ARTIFACT_DIR" "$DEPLOY_SHA" static/frontend
 
             echo "=== collectstatic ==="

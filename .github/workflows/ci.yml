@@ -117,22 +117,27 @@ jobs:
         working-directory: frontend
         run: npm run test:run
 
-      - name: Build frontend with typecheck
-        working-directory: frontend
-        run: npm run build
-
-      - name: Setup Python for storefront integration
+      - name: Setup Python for frontend asset generation and storefront integration
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
+
+      - name: Install backend and image pipeline dependencies
+        run: python3 -m pip install -r requirements.txt
+
+      - name: Verify responsive image generator with temporary fixture
+        run: python3 frontend/scripts/generate_responsive_assets.py --check-fixture
+
+      - name: Build frontend with typecheck
+        working-directory: frontend
+        run: npm run build
 
       - name: Verify built storefront with Django
         env:
           DJANGO_DEBUG: "True"
           DJANGO_SECRET_KEY: ci-test-key
         run: |
-          python3 -m pip install -r requirements.txt
           python3 manage.py test storefront.tests.test_render_integration \
             storefront.tests.test_prepare_cohiba_content \
             --settings=cigardomtabaka_backend.settings_test --verbosity=1

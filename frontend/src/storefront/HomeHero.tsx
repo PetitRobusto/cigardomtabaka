@@ -1,4 +1,5 @@
 import type { StoreHeroLinks, StoreLocale } from "./types";
+import { homeHeroImageSizes, homeHeroImageSrcSet } from "./HomeHero.images";
 import "./HomeHero.css";
 import "./HomeHero.outlines.css";
 
@@ -55,35 +56,40 @@ const cigars = [
   {
     className: "bhk56",
     name: "Cohiba BHK 56",
-    path: "/media/cigars/cohiba/bhk-56/cohiba-bhk-562-cigar.jpg",
+    stem: "cohiba-bhk-56",
+    maxWidth: 997,
     width: 997,
     height: 139,
   },
   {
     className: "siglo",
     name: "Cohiba Siglo VI",
-    path: "/media/cigars/cohiba/siglo-vi/cohiba-siglo-vi7-cigar.jpg",
+    stem: "cohiba-siglo-vi",
+    maxWidth: 999,
     width: 999,
     height: 145,
   },
   {
     className: "casilda",
     name: "Trinidad Casilda · Colección Habanos",
-    path: "/media/cigars/trinidad/casilda-habanos-collection-series/trinidad-casilda1-cigar.jpg",
+    stem: "trinidad-casilda",
+    maxWidth: 998,
     width: 998,
     height: 119,
   },
   {
     className: "bhk52",
     name: "Cohiba BHK 52",
-    path: "/media/cigars/cohiba/bhk-52/cohiba-bhk-52-cigar.jpg",
+    stem: "cohiba-bhk-52",
+    maxWidth: 996,
     width: 996,
     height: 171,
   },
   {
     className: "ingenios",
     name: "Trinidad Ingenios · Edición Limitada",
-    path: "/media/cigars/trinidad/ingenios-limited-edition-series/trinidad-ingenios-cigar.jpg",
+    stem: "trinidad-ingenios",
+    maxWidth: 999,
     width: 999,
     height: 101,
   },
@@ -115,7 +121,16 @@ export function HomeHero({ locale, catalogUrl, stockUrl, links }: HomeHeroProps)
           {cigars.map((cigar, index) => (
             <figure className={`store-home-hero__cigar store-home-hero__cigar--${cigar.className}`} key={cigar.name}>
               <a href={links?.[cigar.className] || catalogUrl} aria-label={cigar.name}>
-                <img src={cigar.path} alt={`${cigar.name} — ${locale === "zh" ? "单支雪茄图片" : locale === "ru" ? "изображение одной сигары" : "single cigar image"}`} width={cigar.width} height={cigar.height} />
+                <img
+                  src={`/media/home-hero-v1/${cigar.stem}-640.webp`}
+                  srcSet={homeHeroImageSrcSet(cigar.stem, cigar.maxWidth)}
+                  sizes={homeHeroImageSizes[cigar.className]}
+                  alt={`${cigar.name} — ${locale === "zh" ? "单支雪茄图片" : locale === "ru" ? "изображение одной сигары" : "single cigar image"}`}
+                  width={cigar.width}
+                  height={cigar.height}
+                  loading={index === 0 ? "eager" : "lazy"}
+                  fetchPriority={index === 0 ? "high" : "auto"}
+                />
               </a>
               <span className="store-home-hero__number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
             </figure>

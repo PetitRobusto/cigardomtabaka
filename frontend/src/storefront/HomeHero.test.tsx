@@ -3,6 +3,7 @@ import React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { HomeHero } from "./HomeHero";
+import { homeHeroFirstImageSizes, homeHeroFirstImageSrcSet } from "./HomeHero.images";
 import { Storefront } from "./Storefront";
 import { backendPageFixture } from "./fixture";
 import type { StoreHeroLinks } from "./types";
@@ -21,6 +22,14 @@ describe("storefront home hero", () => {
 
     expect(screen.getByRole("heading", { level: 1 }).textContent).toContain(title);
     expect(container.querySelectorAll(".store-home-hero__stage img")).toHaveLength(5);
+    const images = Array.from(container.querySelectorAll<HTMLImageElement>(".store-home-hero__stage img"));
+    expect(images[0].getAttribute("src")).toBe("/media/home-hero-v1/cohiba-bhk-56-640.webp");
+    expect(images[0].getAttribute("srcset")).toBe(homeHeroFirstImageSrcSet);
+    expect(images[0].getAttribute("sizes")).toBe(homeHeroFirstImageSizes);
+    expect(images[0].getAttribute("srcset")).toContain("cohiba-bhk-56-997.webp 997w");
+    expect(images[0].getAttribute("loading")).toBe("eager");
+    expect(images.slice(1).every((image) => image.getAttribute("loading") === "lazy")).toBe(true);
+    expect(images.every((image) => image.getAttribute("srcset")?.includes(".webp"))).toBe(true);
     expect(Array.from(container.querySelectorAll<HTMLAnchorElement>(".store-home-hero__stage a"))).toHaveLength(5);
     expect(Array.from(container.querySelectorAll<HTMLAnchorElement>(".store-home-hero__stage a")).every((link) => link.href.endsWith(catalogUrl))).toBe(true);
     expect(container.querySelector<HTMLAnchorElement>(".store-home-hero__primary")?.getAttribute("href")).toBe("#store-contact");

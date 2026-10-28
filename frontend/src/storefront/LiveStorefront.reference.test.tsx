@@ -20,6 +20,7 @@ it("recalculates reference prices when switching boxes and single-cigar inquiry"
   } : page })));
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => setTimeout(() => callback(0), 0));
   const { container } = render(<LiveStorefront initialPage={page} />);
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/rates/'))).toBe(false);
   fireEvent.click(container.querySelector('[data-age-confirm]')!);
   fireEvent.click(screen.getByRole("button", { name: "Reference currency" }));
   fireEvent.click(screen.getByRole("menuitemradio", { name: "CNY ¥" }));
@@ -40,4 +41,25 @@ it("recalculates reference prices when switching boxes and single-cigar inquiry"
   expect(container.querySelector(".d-price [data-reference-price]:not([hidden])")).toBeNull();
   expect(container.querySelector('.d-price')?.textContent).toContain('250');
   expect(container.querySelector('[data-rates-note]')?.hasAttribute('hidden')).toBe(true);
+  expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url).includes('/rates/'))).toHaveLength(1);
+});
+
+it('keeps RUB prices and avoids request loops when reference rates are unavailable', async () => {
+  const page = backendPageFixture;
+  const fetch = vi.fn(async (url: string) => ({ ok: true, status: 200, json: async () => url.includes('/rates/') ? {
+    source_updated_at: null, expires_at: null, cny_per_rub: null, usd_per_rub: null,
+  } : page }));
+  vi.stubGlobal('fetch', fetch);
+  vi.stubGlobal('requestAnimationFrame', () => 1);
+  const { container } = render(<LiveStorefront initialPage={page} />);
+  fireEvent.click(container.querySelector('[data-age-confirm]')!);
+  fireEvent.click(screen.getByRole('button', { name: 'Reference currency' }));
+  fireEvent.click(screen.getByRole('menuitemradio', { name: 'CNY ¥' }));
+  await waitFor(() => expect(container.querySelector('[data-rates-note]')?.textContent).toContain('unavailable'));
+  expect(fetch.mock.calls.filter(([url]) => url.includes('/rates/'))).toHaveLength(1);
+  expect(container.querySelector('.d-price .store-price')?.textContent).toBeTruthy();
+  expect(container.querySelector('.d-price [data-reference-price]:not([hidden])')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Reference currency' }));
+  fireEvent.click(screen.getByRole('menuitemradio', { name: 'USD $' }));
+  await waitFor(() => expect(fetch.mock.calls.filter(([url]) => url.includes('/rates/'))).toHaveLength(2));
 });

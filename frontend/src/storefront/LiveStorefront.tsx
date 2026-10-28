@@ -4,6 +4,7 @@ import { NotFoundPage } from "../components/site/NotFoundPage";
 import { localeForPath, notFoundCopy } from "../components/site/notFoundCopy";
 import { AGE_CONFIRMATION_TTL, CUSTOMER_AGE_KEY, isAgeConfirmationValid as isPreferenceAgeConfirmationValid, useCustomerPreferences } from "../features/customer/preferences";
 import "../components/shared/startup-loader.css";
+import { isStartupPending, useStartupPending } from "../components/shared/useStartupPending";
 import { Storefront } from "./Storefront";
 import { storeCopy } from "./copy";
 import { AGE_CONFIRMATION_KEY, isAgeConfirmationValid } from "./ageConfirmation";
@@ -82,7 +83,8 @@ function getAgeConfirmationSnapshot() {
 
 export function LiveStorefront({ initialPage, origin }: { initialPage: StorePageData; origin?: string }) {
   const { user, isLoading: authLoading, checkAuth, logout } = useAuthStore();
-  useEffect(() => { void checkAuth(); }, [checkAuth]);
+  const starting = useStartupPending();
+  useEffect(() => { if (!starting && !isStartupPending()) void checkAuth(); }, [checkAuth, starting]);
   useEffect(() => {
     document.documentElement.dataset.cdtAppReady = "true";
     window.dispatchEvent(new Event("cdt:app-ready"));
@@ -90,6 +92,7 @@ export function LiveStorefront({ initialPage, origin }: { initialPage: StorePage
   const currentUrl = useSyncExternalStore(subscribeLocation, locationSnapshot, () => initialPage.path);
   const [page, setPage] = useState<StorePageData | null>(initialPage);
   const [rates, setRates] = useState<StoreRates | null>(null);
+  const requestedRateCurrency = useRef<string | null>(null);
   const [currency, setCurrency] = useState<"RUB" | "CNY" | "USD">("RUB");
   const [refreshFailed, setRefreshFailed] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -103,7 +106,7 @@ export function LiveStorefront({ initialPage, origin }: { initialPage: StorePage
   useEffect(() => installStoreNavigation(document.getElementById("store-root") || document, (kind) => { navigationKind.current = kind; }), []);
 
   useEffect(() => {
-    if (ageConfirmed || !page) return;
+    if (ageConfirmed || !page || starting || isStartupPending()) return;
     const root = document.getElementById("store-root");
     const gate = root?.querySelector<HTMLElement>("[data-age-gate]");
     gate?.querySelector<HTMLElement>("[data-age-confirm]")?.focus();
@@ -122,7 +125,7 @@ export function LiveStorefront({ initialPage, origin }: { initialPage: StorePage
     };
     document.addEventListener("keydown", keydown);
     return () => { document.removeEventListener("keydown", keydown); document.body.style.overflow = previousOverflow; };
-  }, [ageConfirmed, page]);
+  }, [ageConfirmed, page, starting]);
 
   const confirmAge = () => {
     useCustomerPreferences.getState().confirmAge();
@@ -186,19 +189,28 @@ export function LiveStorefront({ initialPage, origin }: { initialPage: StorePage
   }, [requestPath, retryToken, origin]);
 
   useEffect(() => {
+    if (currency === "RUB") { requestedRateCurrency.current = null; return; }
+    if (isCurrentRate(rates) || requestedRateCurrency.current === currency) return;
+    requestedRateCurrency.current = currency;
     let active = true;
-    let expiryTimer: number | undefined;
-    fetch("/api/storefront/rates/", { headers: { Accept: "application/json" } })
+    const controller = new AbortController();
+    fetch("/api/storefront/rates/", { headers: { Accept: "application/json" }, signal: controller.signal })
       .then((response) => response.ok ? response.json() as Promise<StoreRates> : Promise.reject())
       .then((data) => {
         if (!active) return;
         setRates(data);
-        const expiry = data.expires_at ? Date.parse(data.expires_at) : NaN;
-        if (Number.isFinite(expiry)) expiryTimer = window.setTimeout(() => setRates(null), Math.max(0, expiry - Date.now()));
       })
       .catch(() => undefined);
-    return () => { active = false; if (expiryTimer !== undefined) window.clearTimeout(expiryTimer); };
-  }, []);
+    return () => { active = false; controller.abort(); };
+    // Retry on a new currency selection, not on an unavailable/expired response.
+  }, [currency, rates]);
+
+  useEffect(() => {
+    const expiry = rates?.expires_at ? Date.parse(rates.expires_at) : NaN;
+    if (!Number.isFinite(expiry)) return;
+    const timer = window.setTimeout(() => setRates(null), Math.min(MAX_TIMEOUT_MS, Math.max(0, expiry - Date.now())));
+    return () => window.clearTimeout(timer);
+  }, [rates]);
 
   useEffect(() => {
     const locale = page?.locale || initialPage.locale;

@@ -58,7 +58,9 @@ describe('startup logo fallback', () => {
   it('uses the static logo when the motion SVG fails and still opens the app', async () => {
     const logo = installLoader();
     logo.dispatchEvent(new Event('error'));
-    expect(logo.getAttribute('src')).toContain('/static/frontend/logo-motion.webp');
+    expect(logo.getAttribute('src')).toContain('/static/frontend/logo-motion-376.webp');
+    expect(logo.getAttribute('srcset')).toContain('/static/frontend/logo-motion-564.webp 564w');
+    expect(logo.getAttribute('sizes')).toContain('188px');
 
     Object.defineProperty(logo, 'naturalWidth', { configurable: true, value: 640 });
     logo.dispatchEvent(new Event('load'));
@@ -72,13 +74,57 @@ describe('startup logo fallback', () => {
   it('opens the app when both the motion image and static fallback fail', async () => {
     const logo = installLoader();
     logo.dispatchEvent(new Event('error'));
-    expect(logo.getAttribute('src')).toContain('/static/frontend/logo-motion.webp');
+    expect(logo.getAttribute('src')).toContain('/static/frontend/logo-motion-376.webp');
     logo.dispatchEvent(new Event('error'));
     (window as StartupWindow).CDTStartup!.ready();
     await vi.runAllTimersAsync();
 
     expect(document.getElementById('startup-loader')).toBeNull();
     expect(document.body.classList.contains('cdt-starting')).toBe(false);
+  });
+
+  it('keeps the cover until a slow motion image loads, then uses its responsive static dock asset', async () => {
+    const animate = vi.fn(() => ({ finished: Promise.resolve() }) as unknown as Animation);
+    Element.prototype.animate = animate;
+    const logo = installLoader();
+    (window as StartupWindow).CDTStartup!.ready();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(document.getElementById('startup-loader')).not.toBeNull();
+    expect(animate).not.toHaveBeenCalled();
+
+    Object.defineProperty(logo, 'naturalWidth', { configurable: true, value: 640 });
+    logo.dispatchEvent(new Event('load'));
+    await vi.runAllTimersAsync();
+
+    expect(logo.getAttribute('srcset')).toContain('/static/frontend/logo-motion-376.webp 376w');
+    expect(logo.getAttribute('sizes')).toContain('132px');
+    expect(document.getElementById('startup-loader')).toBeNull();
+  });
+
+  it('keeps the app inaccessible under the startup cover and restores it at handoff', async () => {
+    const finished = vi.fn();
+    window.addEventListener('cdt:startup-finished', finished);
+    const logo = installLoader();
+    const appRoot = document.getElementById('root')!;
+    expect(appRoot.hasAttribute('inert')).toBe(true);
+    expect(appRoot.getAttribute('aria-hidden')).toBe('true');
+    Object.defineProperty(logo, 'naturalWidth', { configurable: true, value: 640 });
+    logo.dispatchEvent(new Event('load'));
+    (window as StartupWindow).CDTStartup!.ready();
+    await vi.runAllTimersAsync();
+
+    expect(appRoot.hasAttribute('inert')).toBe(false);
+    expect(appRoot.hasAttribute('aria-hidden')).toBe(false);
+    expect(finished).toHaveBeenCalledTimes(1);
+    window.removeEventListener('cdt:startup-finished', finished);
+  });
+
+  it('leaves retry available and the covered app inert after a startup failure', () => {
+    installLoader();
+    (window as StartupWindow).CDTStartup!.fail();
+
+    expect(document.querySelector<HTMLButtonElement>('.cdt-startup__retry')!.hidden).toBe(false);
+    expect(document.getElementById('root')!.hasAttribute('inert')).toBe(true);
   });
 
   it('observes store-root and removes the overlay immediately for reduced motion', async () => {
@@ -96,17 +142,32 @@ describe('startup logo fallback', () => {
     expect(document.body.classList.contains('cdt-starting')).toBe(false);
   });
 
-  it('preserves the 2580 ms logo cycle and 400 ms docking animation', async () => {
+  it('keeps the logo animation while capping ready handoff wait at 1800 ms', async () => {
+    window.requestAnimationFrame = callback => { callback(performance.now()); return 0; };
     const animate = vi.fn(() => ({ finished: Promise.resolve() }) as unknown as Animation);
     Element.prototype.animate = animate;
     const logo = installLoader();
     Object.defineProperty(logo, 'naturalWidth', { configurable: true, value: 640 });
     logo.dispatchEvent(new Event('load'));
     (window as StartupWindow).CDTStartup!.ready();
-    await vi.advanceTimersByTimeAsync(2579);
+    await vi.advanceTimersByTimeAsync(1799);
     expect(animate).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
 
+    expect(animate).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ duration: 400 }));
+  });
+
+  it('waits briefly after readiness instead of completing a full logo cycle', async () => {
+    window.requestAnimationFrame = callback => { callback(performance.now()); return 0; };
+    const animate = vi.fn(() => ({ finished: Promise.resolve() }) as unknown as Animation);
+    Element.prototype.animate = animate;
+    const logo = installLoader();
+    Object.defineProperty(logo, 'naturalWidth', { configurable: true, value: 640 });
+    logo.dispatchEvent(new Event('load'));
+    (window as StartupWindow).CDTStartup!.ready();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(animate).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1500);
     expect(animate).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ duration: 400 }));
   });
 });
@@ -124,7 +185,8 @@ describe('server-rendered loader default', () => {
     const markup = renderToStaticMarkup(createElement(StartupLoader, { locale }));
     expect(markup).toContain(' hidden');
     expect(markup).toContain('/static/frontend/logo-opening-motion-v2.svg');
-    expect(markup).toContain('/static/frontend/logo-motion.webp');
+    expect(markup).toContain('/static/frontend/logo-motion-376.webp');
+    expect(markup).toContain('/static/frontend/logo-motion-564.webp 564w');
     expect(markup).not.toContain('/static/frontend/habanos-specialist.png');
     expect(markup).not.toContain('cdt-starting');
   });

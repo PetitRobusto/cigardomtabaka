@@ -8,6 +8,25 @@ import unittest
 
 
 class StorefrontWorkerDeployTests(unittest.TestCase):
+    def test_missing_image_sources_prevent_frontend_switch(self):
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/deploy.yml').read_text()
+        preparation = dedent(workflow[workflow.index('            echo "=== generate responsive home images'):
+                                     workflow.index('            echo "=== collectstatic ==="')])
+        with TemporaryDirectory() as directory:
+            calls = Path(directory) / 'calls'
+            shell = '''
+            sudo() { printf 'images\\n' >> "$CALLS"; return "$IMAGE_STATUS"; }
+            python() { printf 'install\\n' >> "$CALLS"; }
+            '''
+            for image_status, expected in [('7', ['images']), ('0', ['images', 'install'])]:
+                with self.subTest(image_status=image_status):
+                    calls.write_text('')
+                    result = subprocess.run(['bash', '-e', '-c', dedent(shell) + preparation],
+                                            env={**os.environ, 'CALLS': str(calls), 'IMAGE_STATUS': image_status},
+                                            capture_output=True, text=True)
+                    self.assertEqual(result.returncode, int(image_status))
+                    self.assertEqual(calls.read_text().splitlines(), expected)
+
     def run_workflow(self, **overrides):
         workflow = Path(__file__).resolve().parents[1] / '.github/workflows/deploy.yml'
         proposed = workflow.read_text()

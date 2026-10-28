@@ -23,6 +23,12 @@ private_payment_media/
 static/price-tracker/assets/
 static/price-tracker/.vite/
 frontend/dist/
+frontend/public/logo-motion-112.webp
+frontend/public/logo-motion-176.webp
+frontend/public/logo-motion-188.webp
+frontend/public/logo-motion-376.webp
+frontend/public/logo-motion-564.webp
+frontend/public/logo-motion-640.webp
 
 # Node
 node_modules/

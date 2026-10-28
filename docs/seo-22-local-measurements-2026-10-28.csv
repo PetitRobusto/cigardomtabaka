@@ -1,0 +1,13 @@
+version,age_state,run,app_ready_ms,loader_exit_ms,ready_to_exit_ms,lcp_ms,cls,age_overlap_frames,age_focus_during_startup_frames,yandex_request_attempts,hero_bytes,static_logo_bytes
+baseline-b4a108b,first-visit,1,2713,5934,3221,988,0,8,146,12,89274,92156
+baseline-b4a108b,first-visit,2,2849,6113,3264,1112,0,11,174,12,89274,92156
+baseline-b4a108b,first-visit,3,3184,6366,3182,1168,0,11,145,13,89274,92156
+baseline-b4a108b,confirmed,1,2993,6433,3440,1192,0,0,1,13,89274,92156
+baseline-b4a108b,confirmed,2,2839,5977,3138,904,0,0,1,12,89274,92156
+baseline-b4a108b,confirmed,3,3089,6271,3182,1240,0,0,1,5,89274,92156
+candidate-seo22,first-visit,1,2882,5486,2604,1056,0,0,0,0,33202,57464
+candidate-seo22,first-visit,2,4416,7136,2720,1064,0,0,0,0,33202,57464
+candidate-seo22,first-visit,3,3379,6333,2954,1044,0,0,0,0,33202,57464
+candidate-seo22,confirmed,1,3272,4916,1644,1932,0,0,0,0,33202,57464
+candidate-seo22,confirmed,2,3525,6515,2990,1028,0,0,0,0,33202,57464
+candidate-seo22,confirmed,3,3635,6456,2820,1260,0,0,0,0,33202,57464

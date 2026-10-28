@@ -1,17 +1,75 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, within } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SiteFooter } from './SiteFooter';
 import { Storefront } from '../../storefront/Storefront';
 import { backendPageFixture } from '../../storefront/fixture';
 import { storeStructuredData } from '../../storefront/metadata';
 import publicDetails from '../../../../storefront/public_details.json';
 
-afterEach(cleanup);
+let approach: IntersectionObserverCallback;
+const disconnect = vi.fn();
+const observe = vi.fn();
+beforeEach(() => {
+  observe.mockClear(); disconnect.mockClear();
+  vi.stubGlobal('IntersectionObserver', class {
+    constructor(callback: IntersectionObserverCallback) { approach = callback; }
+    observe = observe;
+    disconnect = disconnect;
+  });
+});
+function approachMap() {
+  act(() => approach([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver));
+}
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete document.documentElement.dataset.cdtStarting; });
 
 describe('shared site footer', () => {
+  it('keeps the map network request out of SSR and first paint, retaining the route link', () => {
+    const markup = renderToString(<SiteFooter />);
+    expect(markup).not.toMatch(/<iframe[^>]*\bsrc=/);
+    expect(markup).toContain(publicDetails.map_url);
+    const { container } = render(<SiteFooter />);
+    const map = container.querySelector('iframe')!;
+    expect(map.hasAttribute('src')).toBe(false);
+    act(() => approach([{ isIntersecting: false } as IntersectionObserverEntry], {} as IntersectionObserver));
+    expect(map.hasAttribute('src')).toBe(false);
+    approachMap();
+    expect(map.getAttribute('src')).toContain('https://yandex.com/map-widget/');
+    expect(disconnect).toHaveBeenCalled();
+  });
+
+  it('waits for both startup exit and age confirmation before observing the map', () => {
+    document.documentElement.dataset.cdtStarting = 'true';
+    const { container, rerender } = render(<SiteFooter inert />);
+    expect(observe).not.toHaveBeenCalled();
+    rerender(<SiteFooter />);
+    expect(observe).not.toHaveBeenCalled();
+    act(() => {
+      delete document.documentElement.dataset.cdtStarting;
+      window.dispatchEvent(new Event('cdt:startup-finished'));
+    });
+    expect(observe).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('iframe')?.hasAttribute('src')).toBe(false);
+    approachMap();
+    expect(container.querySelector('iframe')?.getAttribute('src')).toContain('map-widget');
+  });
+
+  it('loads on scroll near the contact area when IntersectionObserver is unavailable', () => {
+    vi.stubGlobal('IntersectionObserver', undefined);
+    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ top: 3000, bottom: 3330 } as DOMRect);
+    const { container, unmount } = render(<SiteFooter />);
+    expect(container.querySelector('iframe')?.hasAttribute('src')).toBe(false);
+    bounds.mockReturnValue({ top: 500, bottom: 830 } as DOMRect);
+    fireEvent.scroll(window);
+    expect(container.querySelector('iframe')?.getAttribute('src')).toContain('map-widget');
+    unmount();
+    bounds.mockRestore();
+  });
+
   it.each([undefined, { name: ' ', address: '', phone: ' ', wechat: '', map_url: '', hours: ' ' }])('retains the original contact details and channels when store fields are absent (%j)', (site) => {
     const { container } = render(<SiteFooter site={site} />);
+    approachMap();
     const footer = within(container.querySelector('footer')!);
     expect(footer.getByRole('img', { name: 'CigarDomTabaka' })).toBeTruthy();
     expect(footer.getByText(publicDetails.address.zh)).toBeTruthy();
@@ -29,6 +87,7 @@ describe('shared site footer', () => {
     const site = { ...backendPageFixture.site, address: publicDetails.address[locale], hours: publicDetails.hours[locale], phone: publicDetails.phone, map_url: publicDetails.map_url };
     const page = { ...backendPageFixture, locale, content_locale: locale, site };
     const { container } = render(<Storefront page={page} ageConfirmed />);
+    approachMap();
     const footer = within(container.querySelector('footer')!);
     expect(footer.getByText(publicDetails.address[locale])).toBeTruthy();
     expect(footer.queryByRole('link', { name: publicDetails.address[locale] })).toBeNull();

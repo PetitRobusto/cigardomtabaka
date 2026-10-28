@@ -1,0 +1,11 @@
+deployed_sha,started_at_utc,path,age_confirmed_before_visit,startup_frames,age_overlap_frames,age_focus_frames,accessibility_leak_frames,initial_yandex_requests,map_trigger_after_scroll,js_errors,hydration_errors,checks_passed,checks_total
+a2ec9468fc8c2d813a97761181b210342f0c23e7,2026-10-28T15:53:55Z,/,False,276,0,0,0,0,True,0,0,25,25
+a2ec9468fc8c2d813a97761181b210342f0c23e7,2026-10-28T15:53:55Z,/,True,229,0,0,0,0,True,0,0,18,18
+a2ec9468fc8c2d813a97761181b210342f0c23e7,2026-10-28T15:53:55Z,/en/,False,262,0,0,0,0,True,0,0,18,18
+a2ec9468fc8c2d813a97761181b210342f0c23e7,2026-10-28T15:53:55Z,/en/,True,233,0,0,0,0,True,0,0,18,18
+a2ec9468fc8c2d813a97761181b210342f0c23e7,2026-10-28T15:53:55Z,/ru/,False,259,0,0,0,0,True,0,0,18,18
+a2ec9468fc8c2d813a97761181b210342f0c23e7,2026-10-28T15:53:55Z,/ru/,True,283,0,0,0,0,True,0,0,18,18
+a2ec9468fc8c2d813a97761181b210342f0c23e7,2026-10-28T15:53:55Z,/ru/brand/cohiba,False,291,0,0,0,0,True,0,0,17,17
+a2ec9468fc8c2d813a97761181b210342f0c23e7,2026-10-28T15:53:55Z,/ru/brand/cohiba,True,290,0,0,0,0,True,0,0,17,17
+a2ec9468fc8c2d813a97761181b210342f0c23e7,2026-10-28T15:53:55Z,/ru/cigar/103/cohiba-magicos,False,217,0,0,0,0,True,0,0,17,17
+a2ec9468fc8c2d813a97761181b210342f0c23e7,2026-10-28T15:53:55Z,/ru/cigar/103/cohiba-magicos,True,209,0,0,0,0,True,0,0,20,20

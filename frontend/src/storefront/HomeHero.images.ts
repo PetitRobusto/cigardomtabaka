@@ -1,11 +1,11 @@
 const homeImageWidths = [320, 480, 640, 800] as const;
 
 const imageWidthFractions = {
-  bhk56: 0.96,
-  siglo: 0.82,
-  casilda: 0.74,
-  bhk52: 0.66,
-  ingenios: 0.58,
+  bhk56: 0.91,
+  siglo: 0.78,
+  casilda: 0.75,
+  bhk52: 0.63,
+  ingenios: 0.61,
 } as const;
 
 function imageSizes(widthFraction: number) {

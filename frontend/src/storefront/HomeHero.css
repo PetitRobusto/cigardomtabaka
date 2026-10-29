@@ -87,49 +87,30 @@
 }
 .store-home-hero__secondary:hover { border-color: var(--accent); color: var(--accent); }
 
-.store-home-hero__stage { position: relative; min-width: 0; min-height: 460px; isolation: isolate; }
-.store-home-hero__cigar {
-  position: absolute;
-  z-index: 1;
-  margin: 0;
-  opacity: 1;
-  --float-scale: 1;
-  transform-origin: center;
-  transition: scale 220ms ease, translate 220ms ease;
-}
+/* Approved cream stage: prepainted light and gradients, compositor-only motion. */
+.store-home-hero__stage { position: relative; min-width: 0; min-height: 460px; aspect-ratio: 1 / 1.05; isolation: isolate; contain: layout; }
+.store-home-hero__ambient { position: absolute; inset: 0; z-index: -2; pointer-events: none; background: radial-gradient(ellipse at 75% 28%, #f5e4bb3b, transparent 65%); }
+.store-home-hero__floor { position: absolute; inset: 75% 0 0; z-index: -1; pointer-events: none; background: radial-gradient(ellipse at 52% 60%, #e3d7c430, transparent 70%); }
+.store-home-hero__shadow { position: absolute; z-index: 0; pointer-events: none; transform-origin: center; background: radial-gradient(ellipse at center, #48352169 0%, #48352136 23%, #48352112 48%, transparent 73%); }
+.store-home-hero__cigar { position: absolute; z-index: 2; margin: 0; transform-origin: center; transform: rotate(var(--rest-angle)); }
+.store-home-hero__stage[data-motion-ready]:not(.is-sleeping) .store-home-hero__cigar { will-change: transform; }
+.store-home-hero__stage[data-motion-ready]:not(.is-sleeping) .store-home-hero__shadow { will-change: transform, opacity; }
+.store-home-hero__cigar.is-active { z-index: 8; }
 .store-home-hero__cigar a { display: block; border-radius: 3px; }
+.store-home-hero__cigar a:focus-visible { outline: 2px solid var(--gold); outline-offset: 6px; }
+.store-home-hero__cutout { display: block; position: relative; }
 .store-home-hero__cigar img { display: block; width: 100%; height: auto; }
-.store-home-hero__cigar::after {
-  position: absolute;
-  z-index: -1;
-  right: 8%;
-  bottom: -4.5%;
-  left: 8%;
-  height: 9%;
-  background: radial-gradient(ellipse at center, rgba(44, 36, 22, .3), rgba(44, 36, 22, 0) 68%);
-  content: "";
-  filter: blur(5px);
-  opacity: .55;
-  transition: opacity 220ms ease, scale 220ms ease;
-}
+.store-home-hero__surface-light, .store-home-hero__glint, .store-home-hero__rim { position: absolute; inset: 0; pointer-events: none; }
+.store-home-hero__surface-light { background: linear-gradient(175deg, #ffe7a51e, transparent 27%, transparent 73%, #271c100e); }
+.store-home-hero__glint { top: -10%; width: 32%; height: 120%; opacity: 0; transform: translate3d(-150%, 0, 0); background: linear-gradient(110deg, transparent 5%, #d4af371c 34%, #fff0bf9c 50%, #d4af375c 58%, transparent 90%); }
+.store-home-hero__cigar.is-active .store-home-hero__glint { opacity: .7; animation: store-home-hero-glint 7s ease-in-out infinite; }
+.store-home-hero__rim { opacity: 0; background: linear-gradient(180deg, #d4af37b3, #ffe8a13d 6%, transparent 20%, transparent 87%, #d4af3759); transition: opacity .2s; }
+.store-home-hero__cigar.is-active .store-home-hero__rim { opacity: 1; }
+.store-home-hero__stage.is-sleeping .store-home-hero__glint { animation-play-state: paused; }
 .store-home-hero__number { display: none; }
-.store-home-hero__cigar--bhk56 { top: 6%; left: 0; z-index: 5; width: 96%; rotate: -7deg; }
-.store-home-hero__cigar--siglo { top: 23%; left: 14%; z-index: 4; width: 82%; rotate: 3.5deg; }
-.store-home-hero__cigar--casilda { top: 44%; left: 1%; z-index: 3; width: 74%; rotate: -3deg; }
-.store-home-hero__cigar--bhk52 { top: 62%; left: 19%; z-index: 2; width: 66%; rotate: 6deg; }
-.store-home-hero__cigar--ingenios { top: 80%; left: 5%; z-index: 1; width: 58%; rotate: -4.5deg; }
-/* Independent full cycles and negative phases keep the display settled on first paint. */
-.store-home-hero__cigar--bhk56 { --float-time: 11.3s; --float-phase: -2.8s; --float-start: -22px; --float-end: 15px; --float-mid: -3px; }
-.store-home-hero__cigar--siglo { --float-time: 7.9s; --float-phase: -4.9s; --float-start: 17px; --float-end: -19px; --float-mid: 5px; }
-.store-home-hero__cigar--casilda { --float-time: 14.1s; --float-phase: -10.7s; --float-start: -14px; --float-end: 21px; --float-mid: 2px; }
-.store-home-hero__cigar--bhk52 { --float-time: 9.7s; --float-phase: -1.1s; --float-start: 20px; --float-end: -12px; --float-mid: -5px; }
-.store-home-hero__cigar--ingenios { --float-time: 16.3s; --float-phase: -9.2s; --float-start: -18px; --float-end: 12px; --float-mid: 4px; }
-/* Sway runs separately from vertical drift so the motion stays loose and varied. */
-.store-home-hero__cigar--bhk56 { --sway-time: 13.7s; --sway-phase: -6.2s; --sway-angle: 3deg; }
-.store-home-hero__cigar--siglo { --sway-time: 10.9s; --sway-phase: -1.8s; --sway-angle: -3.5deg; }
-.store-home-hero__cigar--casilda { --sway-time: 17.3s; --sway-phase: -8.4s; --sway-angle: 4deg; }
-.store-home-hero__cigar--bhk52 { --sway-time: 12.7s; --sway-phase: -4.6s; --sway-angle: -3deg; }
-.store-home-hero__cigar--ingenios { --sway-time: 19.1s; --sway-phase: -12.3s; --sway-angle: 3.5deg; }
+.store-home-hero__pause { display: none; position: absolute; right: 0; top: 0; z-index: 9; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 24px; background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; }
+.store-home-hero__stage[data-motion-ready] .store-home-hero__pause { display: block; }
+@keyframes store-home-hero-glint { 0% { transform: translate3d(-150%, 0, 0); } 55%, 100% { transform: translate3d(360%, 0, 0); } }
 .store-home-hero__legend {
   display: flex;
   flex-wrap: wrap;
@@ -140,43 +121,6 @@
 }
 .store-home-hero__legend span { color: var(--muted); font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .06em; }
 .store-home-hero__legend b { margin-right: 6px; color: var(--gold); font-weight: 700; }
-
-@media (prefers-reduced-motion: no-preference) {
-  .store-home-hero__cigar:focus-within { translate: 0 -5px; scale: 1.035; }
-  .store-home-hero__cigar img {
-    animation:
-      store-home-hero-drift var(--float-time) cubic-bezier(.45, 0, .55, 1) var(--float-phase) infinite,
-      store-home-hero-sway var(--sway-time) ease-in-out var(--sway-phase) infinite;
-  }
-}
-
-.store-home-hero__cigar:focus-within {
-  z-index: 8;
-}
-.store-home-hero__cigar:focus-within::after { opacity: 1; scale: 1.12; }
-
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .store-home-hero__cigar:hover {
-    z-index: 8;
-    translate: 0 -5px;
-    scale: 1.035;
-  }
-  .store-home-hero__cigar:hover::after { opacity: 1; scale: 1.12; }
-  .store-home-hero__cigar a:focus-visible { outline: 2px solid var(--gold); outline-offset: 6px; }
-  .store-home-hero__primary:hover,
-  .store-home-hero__secondary:hover { transform: translateY(-1px); }
-}
-
-@keyframes store-home-hero-drift {
-  0%, 100% { translate: 0 calc(var(--float-start) * var(--float-scale)); }
-  42% { translate: 0 calc(var(--float-end) * var(--float-scale)); }
-  73% { translate: 0 calc(var(--float-mid) * var(--float-scale)); }
-}
-
-@keyframes store-home-hero-sway {
-  0%, 100% { rotate: calc(var(--sway-angle) * -1); }
-  50% { rotate: var(--sway-angle); }
-}
 
 /* Keep the existing two-column composition on unfolded, near-square screens. */
 @media (min-width: 680px) and (max-width: 1023px) {
@@ -189,13 +133,9 @@
 
 @media (max-width: 679px) {
   .store-home-hero__inner { grid-template-columns: minmax(0, 1fr); gap: 32px; padding: 32px 16px 24px; }
-  .store-home-hero__stage { width: calc(100% - 32px); max-width: 480px; min-height: 260px; aspect-ratio: 1.3; margin: 12px auto 0; }
+  .store-home-hero__stage { width: calc(100% - 32px); max-width: 480px; min-height: 260px; aspect-ratio: 1 / 1.12; margin: 12px auto 0; }
   .store-home-hero__lead { max-width: none; }
   .store-home-hero__legend { gap: 4px 14px; }
-}
-
-@media (max-width: 1023px) {
-  .store-home-hero__cigar { --float-scale: .55; }
 }
 
 @media (max-width: 420px) {
@@ -204,10 +144,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .store-home-hero__cigar,
-  .store-home-hero__cigar::after,
-  .store-home-hero__cigar img,
-  .store-home-hero__primary,
-  .store-home-hero__secondary { animation: none !important; transition: none !important; }
-  .store-home-hero__cigar { translate: 0 0 !important; scale: 1 !important; }
+  .store-home-hero__cigar.is-active .store-home-hero__glint { animation: none; opacity: 0; }
+  .store-home-hero__rim, .store-home-hero__primary, .store-home-hero__secondary { transition: none !important; }
+  .store-home-hero__stage[data-motion-ready] .store-home-hero__pause { display: none; }
 }

@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { heroPositions, mountHeroMotion } from "./HomeHero.motion";
 import type { StoreHeroLinks, StoreLocale } from "./types";
 import { homeHeroImageSizes, homeHeroImageSrcSet } from "./HomeHero.images";
 import "./HomeHero.css";
@@ -19,6 +21,8 @@ const heroCopy: Record<StoreLocale, {
   contact: string;
   browseStock: string;
   stageLabel: string;
+  pause: string;
+  resume: string;
 }> = {
   zh: {
     kicker: "莫斯科古巴雪茄专业服务商",
@@ -29,6 +33,7 @@ const heroCopy: Record<StoreLocale, {
     contact: "联系门店",
     browseStock: "浏览现货",
     stageLabel: "雪茄陈列",
+    pause: "暂停漂浮", resume: "继续漂浮",
   },
   en: {
     kicker: "Cuban cigars in Moscow",
@@ -39,6 +44,7 @@ const heroCopy: Record<StoreLocale, {
     contact: "Contact the shop",
     browseStock: "Browse in-stock cigars",
     stageLabel: "Cigar display",
+    pause: "Pause motion", resume: "Resume motion",
   },
   ru: {
     kicker: "Специалисты по кубинским сигарам в Москве",
@@ -49,6 +55,7 @@ const heroCopy: Record<StoreLocale, {
     contact: "Связаться с магазином",
     browseStock: "Сигары в наличии",
     stageLabel: "Витрина сигар",
+    pause: "Остановить движение", resume: "Продолжить движение",
   },
 };
 
@@ -97,6 +104,16 @@ const cigars = [
 
 export function HomeHero({ locale, catalogUrl, stockUrl, links }: HomeHeroProps) {
   const copy = heroCopy[locale];
+  const stageRef = useRef<HTMLDivElement>(null);
+  const motionRef = useRef<ReturnType<typeof mountHeroMotion>>(undefined);
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    if (!stageRef.current) return;
+    const motion = mountHeroMotion(stageRef.current);
+    motionRef.current = motion;
+    return () => { motion?.destroy(); motionRef.current = undefined; };
+  }, []);
+  useEffect(() => { motionRef.current?.setPaused(paused); }, [paused]);
 
   return (
     <section className="store-home-hero" aria-labelledby="store-home-hero-title">
@@ -117,24 +134,35 @@ export function HomeHero({ locale, catalogUrl, stockUrl, links }: HomeHeroProps)
           </div>
         </div>
 
-        <div className="store-home-hero__stage" role="group" aria-label={copy.stageLabel}>
+        <div ref={stageRef} className="store-home-hero__stage" role="group" aria-label={copy.stageLabel}>
+          <div className="store-home-hero__ambient" aria-hidden="true" />
+          <div className="store-home-hero__floor" aria-hidden="true" />
+          {cigars.map((cigar) => <span className="store-home-hero__shadow" key={cigar.name} aria-hidden="true" />)}
           {cigars.map((cigar, index) => (
-            <figure className={`store-home-hero__cigar store-home-hero__cigar--${cigar.className}`} key={cigar.name}>
+            <figure className={`store-home-hero__cigar store-home-hero__cigar--${cigar.className}`} key={cigar.name}
+              style={{ left: `${heroPositions[index].x}%`, top: `${heroPositions[index].y}%`, width: `${heroPositions[index].w}%`, "--rest-angle": `${heroPositions[index].r}deg` } as CSSProperties}>
               <a href={links?.[cigar.className] || catalogUrl} aria-label={cigar.name}>
-                <img
-                  src={`/media/home-hero-v1/${cigar.stem}-640.webp`}
-                  srcSet={homeHeroImageSrcSet(cigar.stem, cigar.maxWidth)}
-                  sizes={homeHeroImageSizes[cigar.className]}
-                  alt={`${cigar.name} — ${locale === "zh" ? "单支雪茄图片" : locale === "ru" ? "изображение одной сигары" : "single cigar image"}`}
-                  width={cigar.width}
-                  height={cigar.height}
-                  loading={index === 0 ? "eager" : "lazy"}
-                  fetchPriority={index === 0 ? "high" : "auto"}
-                />
+                <span className="store-home-hero__cutout">
+                  <img
+                    src={`/media/home-hero-v1/${cigar.stem}-640.webp`}
+                    srcSet={homeHeroImageSrcSet(cigar.stem, cigar.maxWidth)}
+                    sizes={homeHeroImageSizes[cigar.className]}
+                    alt={`${cigar.name} — ${locale === "zh" ? "单支雪茄图片" : locale === "ru" ? "изображение одной сигары" : "single cigar image"}`}
+                    width={cigar.width}
+                    height={cigar.height}
+                    loading={index === 0 ? "eager" : "lazy"}
+                    fetchPriority={index === 0 ? "high" : "auto"}
+                  />
+                  <span className="store-home-hero__surface-light" aria-hidden="true" />
+                  <span className="store-home-hero__glint" aria-hidden="true" />
+                  <span className="store-home-hero__rim" aria-hidden="true" />
+                </span>
               </a>
               <span className="store-home-hero__number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
             </figure>
           ))}
+          <button type="button" className="store-home-hero__pause" aria-pressed={paused}
+            onClick={() => setPaused(value => !value)}>{paused ? copy.resume : copy.pause}</button>
         </div>
       </div>
       <div className="store-home-hero__legend" aria-hidden="true">

@@ -7,7 +7,7 @@ import { ProductCard } from "./ProductDisplay";
 import { commerceCopy } from "./commerceCopy";
 import { storeCopy } from "./copy";
 import { backendPageFixture } from "./fixture";
-import { detailImages, offerImages } from "./productImages";
+import { detailImages, imageDescription, offerImages } from "./productImages";
 import { Storefront } from "./Storefront";
 import type { StoreProduct } from "./types";
 
@@ -34,6 +34,37 @@ const product: StoreProduct = {
 const main = () => document.querySelector<HTMLImageElement>("[data-gallery-main]");
 
 describe("sale unit photos", () => {
+  it.each([
+    ['zh', '10支装雪茄盒', '单支雪茄'],
+    ['ru', 'коробка на 10 сигар', 'одна сигара'],
+    ['en', 'box of 10 cigars', 'single cigar'],
+  ] as const)('describes the displayed photo in %s and changes with the photo', (locale, box, single) => {
+    const { container } = render(<Storefront page={{ ...backendPageFixture, locale, product }} ageConfirmed />);
+    expect(main()?.alt).toBe(`${product.name} — ${box}`);
+    expect(container.querySelector<HTMLImageElement>('.store-lightbox img')?.alt).toBe(`${product.name} — ${box}`);
+    fireEvent.click(container.querySelectorAll<HTMLButtonElement>('.store-gallery-thumb')[1]);
+    expect(main()?.alt).toBe(`${product.name} — ${single}`);
+    expect(container.querySelector<HTMLImageElement>('.store-lightbox img')?.alt).toBe(`${product.name} — ${single}`);
+    // Labeled thumbnail buttons retain decorative image semantics.
+    expect(Array.from(container.querySelectorAll<HTMLImageElement>('.store-gallery-thumb img')).every((img) => img.alt === '')).toBe(true);
+  });
+
+  it('uses exact photo metadata on a filtered card and avoids inventing a box size', () => {
+    const { container } = render(<ProductCard product={product} locale="en" labels={commerceCopy.en} selectedBoxes={['25']} />);
+    expect(container.querySelector<HTMLImageElement>('.store-product-image img')?.alt).toBe(`${product.name} — box of 25 cigars`);
+    expect(imageDescription(product, '/unknown-box.jpg', 'en')).toBe(`${product.name} — packaging`);
+    expect(imageDescription(product, '/unknown.jpg', 'en')).toBe(`${product.name} — product image`);
+  });
+
+  it('identifies the brand when the stored display name contains only the model', () => {
+    expect(imageDescription({ ...product, name: 'Robustos', brand: 'Cohiba' }, '/single.jpg', 'en'))
+      .toBe('Cohiba Robustos — single cigar');
+    expect(imageDescription({ ...product, name: '罗布图', brand: '高希霸' }, '/box10.jpg', 'zh'))
+      .toBe('高希霸 罗布图 — 10支装雪茄盒');
+    expect(imageDescription({ ...product, name: 'Cohiba Robustos', brand: 'Cohiba' }, '/single.jpg', 'ru'))
+      .toBe('Cohiba Robustos — одна сигара');
+  });
+
   it("labels the card by the selected offer's availability", () => {
     const { container, rerender } = render(<ProductCard product={product} locale="en" labels={storeCopy.en} />);
     const card = container.querySelector(".store-product-card")!;

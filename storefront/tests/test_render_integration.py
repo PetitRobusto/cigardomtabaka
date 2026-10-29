@@ -132,7 +132,7 @@ class PrerenderIntegrationTests(TestCase):
             return Response(response.status_code, {key.lower(): value for key, value in response.items()},
                             response.content.decode())
 
-        report = audit(settings.STOREFRONT_ORIGIN, request=request,
+        report = audit(settings.STOREFRONT_ORIGIN, request=request, representative_pages=True,
                        extra_paths=['/catalog', '/ru/brand/cohiba', f'/en/cigar/{self.cigar.pk}/cohiba-robustos'])
         self.assertTrue(report['ready'], report['issues'])
         self.assertEqual(report['sitemap_url_count'], 12)

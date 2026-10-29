@@ -188,7 +188,8 @@ DJANGO_DEBUG=True .venv/bin/python manage.py check_storefront_seo --json --stric
 
 ```bash
 python3 deploy/verify_storefront_http.py https://cigardomtabaka.com \
-  --www-origin https://www.cigardomtabaka.com
+  --www-origin https://www.cigardomtabaka.com --representative-pages \
+  --timeout 10 --retries 2 --retry-delay 2
 ```
 
 默认检查中俄英首页、favicon 和启动脚本响应、robots、sitemap、真实 404 及可选 www
@@ -197,10 +198,20 @@ python3 deploy/verify_storefront_http.py https://cigardomtabaka.com \
 保留通用私密路径限制、允许读取登录页 noindex，且没有禁止所检查的商城资源；
 同时验证登录响应的 noindex。公共路由新增时应同步此验收工具。
 输出 JSON，全部通过退出 0，有错误退出 1；网络超时也作为失败记录。
+`--representative-pages` 从当前 sitemap 动态选择各语言的目录、品牌、商品代表页，
+同时校验 SSR 数据中的 path、locale、kind/view 和 indexable；目录页使用 `kind=home, view=catalog`。
+部署工作流在服务重启、Nginx reload 后执行这一检查，保留已有的部署前缓存/sitemap 刷新门禁。
+`--retries` 和 `--retry-delay` 仅用于网络异常或 429/502/503/504 的有限重试；
+canonical、noindex、SSR 数据及软 404 等语义错误立即失败。
 可重复传 `--path /实际品牌路径`、`--path /实际商品路径`、`--path '/catalog?page=2'`
 覆盖真实存在且允许收录的样例。不要把有意 noindex 的筛选或语言回退页传作收录样例。
 `--timeout 15` 设置每次请求超时秒数。只有三语首页时通过并不代表全站所有页面均已验证，
 也不代表搜索引擎已收录。测试和生产使用各自的规范 origin。
+
+公开商品的图片 sitemap 扩展复用当前可选择的图库图片；不额外公开内部型号。
+`check_storefront_sitemap` 同时比较页面和图片集合，图片变化后需要先重新渲染。
+Yandex 页面变更通知为默认关闭的独立功能，启用、逐 URL 状态查询与停用流程见
+[SEO-26 运维说明](seo-26-indexnow.md)。
 
 前端制品验证除 manifest 中的哈希资源外，还检查 SSR 直接引用的启动脚本、favicon
 及品牌图片；缺少关键固定资源时，在打包、验证或安装阶段拒绝制品并保留旧构建。

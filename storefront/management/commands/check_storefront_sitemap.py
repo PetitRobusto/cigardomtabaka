@@ -8,14 +8,16 @@ from django.core.management.base import BaseCommand, CommandError
 from django.test import Client
 
 from storefront.catalog import build_pages
+from storefront.images import product_image_urls
 from storefront.models import RefreshState
 
 
 SITEMAP_NS = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
+IMAGE_NS = "{http://www.google.com/schemas/sitemap-image/1.1}"
 
 
 class Command(BaseCommand):
-    help = "只读核对实时 sitemap 与当前可索引页面完全一致。"
+    help = "只读核对实时 sitemap 与当前可索引页面、展示图片完全一致。"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -51,7 +53,8 @@ class Command(BaseCommand):
             root = ElementTree.fromstring(response.content)
             if root.tag != SITEMAP_NS + "urlset":
                 raise ValueError("根元素不是 sitemap urlset")
-            locations = [node.text for node in root.findall(f"{SITEMAP_NS}url/{SITEMAP_NS}loc")]
+            entries = root.findall(f"{SITEMAP_NS}url")
+            locations = [node.findtext(f"{SITEMAP_NS}loc") for node in entries]
             if any(not location for location in locations):
                 raise ValueError("sitemap 包含空 URL")
         except (ElementTree.ParseError, ValueError) as error:
@@ -79,8 +82,29 @@ class Command(BaseCommand):
                 details.append(f"含 {len(unwanted)} 个不应收录页面，样例 {unwanted[:10]}")
             raise CommandError("sitemap 与当前可索引页面不一致：" + "；".join(details))
 
+        image_count = 0
+        for node, location in zip(entries, locations, strict=True):
+            path = location.removeprefix(origin)
+            expected_images = set(product_image_urls(pages[path], origin))
+            images = []
+            for image in node.findall(f"{IMAGE_NS}image"):
+                image_locations = image.findall(f"{IMAGE_NS}loc")
+                if len(image_locations) != 1 or not image_locations[0].text:
+                    raise CommandError(f"sitemap 图片缺少唯一有效 loc：{path}")
+                images.append(image_locations[0].text)
+            if len(images) != len(set(images)):
+                raise CommandError(f"sitemap 含重复图片：{path}")
+            missing_images = sorted(expected_images - set(images))
+            unwanted_images = sorted(set(images) - expected_images)
+            if missing_images or unwanted_images:
+                raise CommandError(
+                    f"sitemap 图片与当前展示集合不一致：{path}；"
+                    f"缺少 {missing_images[:5]}；不应包含 {unwanted_images[:5]}"
+                )
+            image_count += len(images)
+
         state_after = RefreshState.objects.filter(pk=1).values("revision", "processed_revision").first()
         if state_before != state_after or (state_after and state_after["revision"] != state_after["processed_revision"]):
             raise CommandError("Sitemap 验收期间商城内容发生变化或仍待校验，请重新渲染并验收。")
 
-        self.stdout.write(f"Sitemap 验收通过：{len(actual)} 个规范可索引 URL，集合完全一致。")
+        self.stdout.write(f"Sitemap 验收通过：{len(actual)} 个规范可索引 URL、{image_count} 个图片关联，集合完全一致。")

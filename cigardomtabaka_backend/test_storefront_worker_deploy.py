@@ -8,6 +8,28 @@ import unittest
 
 
 class StorefrontWorkerDeployTests(unittest.TestCase):
+    def test_public_acceptance_runs_after_reload_and_failure_fails_deploy(self):
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/deploy.yml').read_text()
+        marker = '            # Verify the public responses'
+        verification = dedent(workflow[workflow.index(marker):workflow.index('            echo "=== deploy done ==="')])
+        self.assertLess(workflow.index('manage.py check_storefront_sitemap'), workflow.index('systemctl restart gunicorn'))
+        self.assertLess(workflow.index('systemctl reload nginx'), workflow.index(marker))
+        self.assertIn('--representative-pages --timeout 10 --retries 2 --retry-delay 2', verification)
+        with TemporaryDirectory() as directory:
+            calls = Path(directory) / 'calls'
+            mock = 'sudo() { printf "%s\\n" "$*" >> "$CALLS"; return "$AUDIT_STATUS"; }\n'
+            for enabled, status, expected in [('true', '0', 0), ('true', '7', 7), ('false', '7', 0)]:
+                with self.subTest(enabled=enabled, status=status):
+                    calls.write_text('')
+                    result = subprocess.run(['bash', '-e', '-c', mock + verification], capture_output=True, text=True,
+                                            env={**os.environ, 'CALLS': str(calls), 'STOREFRONT_DEPLOY': enabled,
+                                                 'AUDIT_STATUS': status})
+                    self.assertEqual(result.returncode, expected)
+                    commands = calls.read_text().splitlines()
+                    self.assertEqual(len(commands), 1 if enabled == 'true' else 0)
+                    if commands:
+                        self.assertIn('deploy/verify_storefront_http.py https://cigardomtabaka.com', commands[0])
+
     def test_missing_image_sources_prevent_frontend_switch(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/deploy.yml').read_text()
         preparation = dedent(workflow[workflow.index('            echo "=== generate responsive home images'):

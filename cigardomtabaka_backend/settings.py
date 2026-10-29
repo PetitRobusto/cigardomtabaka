@@ -100,6 +100,11 @@ STOREFRONT_ENABLED = os.getenv('STOREFRONT_ENABLED', 'false').lower() in ('true'
 STOREFRONT_ORIGIN = os.getenv('STOREFRONT_ORIGIN', 'https://cigardomtabaka.com').rstrip('/')
 STOREFRONT_RENDERER = BASE_DIR / 'static' / 'frontend' / 'storefront-render' / 'render.mjs'
 
+# Opt in after deploying the public verification file and checking the site origin.
+# Tests inject a transport; development never inherits permission to notify a live engine.
+INDEXNOW_ENABLED = not DEBUG and os.getenv('INDEXNOW_ENABLED', 'false').lower() in ('true', '1', 'yes')
+INDEXNOW_KEY = os.getenv('INDEXNOW_KEY', '').strip()
+
 AUTH_USER_MODEL = 'cigars.User'
 
 LOGIN_URL = '/login/'

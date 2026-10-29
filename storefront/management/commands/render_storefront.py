@@ -17,17 +17,29 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         first = True
+        next_notification = 0.0
         while True:
             close_old_connections()
             try:
                 state, _ = RefreshState.objects.get_or_create(pk=1)
                 due = not state.reconciled_at or state.reconciled_at < timezone.now() - timedelta(hours=1)
                 assets = build_assets()
-                if first or due or state.revision != state.processed_revision:
+                reconciled = first or due or state.revision != state.processed_revision
+                if reconciled:
                     reconcile(assets=assets)
                 count = publish_pending(assets=assets)
                 if count:
                     self.stdout.write(f'已更新 {count} 个公开页面')
+                if options['watch'] and (reconciled or count or time.monotonic() >= next_notification):
+                    # Notify immediately after publication/reconciliation; check
+                    # delayed retries once a minute, not on every five-second poll.
+                    next_notification = time.monotonic() + 60
+                    # External discovery never decides whether publication succeeded.
+                    try:
+                        from storefront.indexnow import process_changes
+                        process_changes()
+                    except Exception as exc:
+                        self.stderr.write(f'IndexNow 通知暂缓：{type(exc).__name__}')
                 first = False
                 if not options['watch']:
                     failed = StorePage.objects.filter(active=True).exclude(error='').count()

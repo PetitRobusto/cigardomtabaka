@@ -110,7 +110,7 @@ class PublicCatalogBoundaryTests(TestCase):
                 self.assertEqual(self.client.get(path).status_code, 404 if path == target_path else 503)
         after = self.client.get("/sitemap-storefront.xml", HTTP_IF_NONE_MATCH=before["ETag"])
         self.assertEqual(after.status_code, 200)
-        urls = {element.text.removeprefix("http://testserver") for element in fromstring(after.content).iter()
-                if element.tag.endswith("}loc")}
+        urls = {element.text.removeprefix("http://testserver") for element in fromstring(after.content).findall(
+            '{http://www.sitemaps.org/schemas/sitemap/0.9}url/{http://www.sitemaps.org/schemas/sitemap/0.9}loc')}
         self.assertNotIn(target_path, urls)
         self.assertNotIn(target_path, after.content.decode())

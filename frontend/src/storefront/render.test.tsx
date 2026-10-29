@@ -7,6 +7,19 @@ import publicDetails from "../../../storefront/public_details.json";
 
 
 describe("storefront server renderer", () => {
+  it("discovers the startup image in the head before the deferred loader requests it", () => {
+    const html = renderStorePage({ page: backendPageFixture, origin: "https://shop.example", assets: { js: [], css: [] } });
+    const head = html.split('</head>')[0];
+    const loaderImage = html.match(/<img[^>]+class="cdt-startup__logo"[^>]*>/)![0];
+    const motionUrl = loaderImage.match(/data-motion-src="([^"]+)"/)![1];
+    const preloads = (head.match(/<link[^>]+rel="preload"[^>]*>/g) || [])
+      .filter(link => link.includes(`href="${motionUrl}"`));
+    expect(preloads).toHaveLength(1);
+    expect(preloads[0]).toContain('as="image"');
+    expect(preloads[0]).toContain('type="image/svg+xml"');
+    expect(motionUrl).toBe('/static/frontend/logo-opening-motion-v2.svg');
+    expect(loaderImage).not.toMatch(/\ssrc=/);
+  });
   it("renders each packaging price without JavaScript while the default stocked box remains inquiry-only", () => {
     const page = { ...backendPageFixture, product: { ...backendPageFixture.product!, availability: "in_stock" as const, offers: [
       { box_size: 10, price_rub: "108000.00", in_stock: false },

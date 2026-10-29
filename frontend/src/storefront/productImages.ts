@@ -1,4 +1,19 @@
-import type { StoreProduct } from "./types";
+import type { StoreLocale, StoreProduct } from "./types";
+
+/** Describe the photo's reviewed metadata, independently of the selected offer. */
+export function imageDescription(product: StoreProduct, url: string, locale: StoreLocale) {
+  const image = product.image_variants?.find((item) => item.url === url);
+  const kind = image?.image_type || product.image_kinds?.[url] || "";
+  const size = image?.box_size;
+  const descriptions: Record<StoreLocale, Record<string, string>> = {
+    zh: { cigar: "单支雪茄", packaging: size ? `${size}支装雪茄盒` : "雪茄包装", band: "雪茄茄标", special: size ? `${size}支装特别包装` : "特别包装", unknown: "商品图片" },
+    ru: { cigar: "одна сигара", packaging: size ? `коробка на ${size} сигар` : "упаковка", band: "сигарный бант", special: size ? `специальная упаковка на ${size} сигар` : "специальная упаковка", unknown: "изображение товара" },
+    en: { cigar: "single cigar", packaging: size ? `box of ${size} cigars` : "packaging", band: "cigar band", special: size ? `special packaging of ${size} cigars` : "special packaging", unknown: "product image" },
+  };
+  const name = product.name.toLocaleLowerCase().includes(product.brand.toLocaleLowerCase())
+    ? product.name : `${product.brand} ${product.name}`;
+  return `${name} — ${descriptions[locale][kind] || descriptions[locale].unknown}`;
+}
 
 /** Shared default selection for the visible product and its canonical preview. */
 export function chooseOffer(offers: StoreProduct["offers"]) {

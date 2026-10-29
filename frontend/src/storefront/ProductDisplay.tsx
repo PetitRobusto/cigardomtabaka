@@ -3,7 +3,7 @@ import type { StoreLocale, StorePageData, StoreProduct } from "./types";
 import { catalogPath, emptyFilters, filtersFromSearch, matchingOffers, productLink, type BrowseFilters } from "./browsing";
 import { useStoreModal } from "./Modal";
 import { ReferencePrice } from "./ReferencePrice";
-import { chooseOffer, detailImages, offerImages } from "./productImages";
+import { chooseOffer, detailImages, imageDescription, offerImages } from "./productImages";
 import { InlineSourceLinks } from "./InlineSourceLinks";
 
 type Labels = Record<string, string>;
@@ -54,7 +54,7 @@ export function ProductCard({ product, locale, labels, from, selectedBoxes = [],
   const availability = product.availability === "catalog" ? "catalog" : offer ? offer.in_stock ? "in_stock" : "out_of_stock" : product.availability;
   const href = productLink(product.path, from);
   return <article className={`pcard store-product-card store-product-card-${availability}`}>
-    <a className="pm store-product-image" href={href} onClick={rememberScroll}>{image ? <ProductImage src={image.thumbnail_url || image.url} alt={product.name} loading="lazy" /> : <span className="store-image-placeholder">{product.brand}</span>}</a>
+    <a className="pm store-product-image" href={href} onClick={rememberScroll}>{image ? <ProductImage src={image.thumbnail_url || image.url} alt={imageDescription(product, image.url, locale)} loading="lazy" /> : <span className="store-image-placeholder">{product.brand}</span>}</a>
     <div className="pcard-body store-product-copy">
       {product.brand_slug ? <a className="pcard-brand store-product-brand" href={brandPath(product, locale)}>{product.brand}</a> : <span className="pcard-brand">{product.brand}</span>}
       <h3><a className="pcard-name" href={href} onClick={rememberScroll}>{product.name}</a></h3>
@@ -89,7 +89,7 @@ export function ProductPage({ product, page, labels, returnPath }: { product: St
     <a className="backlink store-return-link" href={returnPath || catalogPath(page.locale)}>← {labels.previous}</a>
     <article className="detail store-product-detail">
       <div className="store-product-detail-gallery" aria-label={labels.productImages}>
-        {image ? <button className="gal-main store-product-detail-media" type="button" onClick={lightbox.show} aria-label={labels.openImage}><ProductImage src={image} alt={product.name} loading="eager" fetchPriority="high" data-gallery-main="true" /></button> : <div className="gal-main store-image-placeholder">{product.brand}</div>}
+        {image ? <button className="gal-main store-product-detail-media" type="button" onClick={lightbox.show} aria-label={labels.openImage}><ProductImage src={image} alt={imageDescription(product, image, page.locale)} loading="eager" fetchPriority="high" data-gallery-main="true" /></button> : <div className="gal-main store-image-placeholder">{product.brand}</div>}
         {image && <p className="gal-cap">{imageCaption(product, image, labels)}</p>}
         {(images.length > 1 || (images.length === 1 && !primaryImage)) && <div className="thumbs store-gallery-thumbs" aria-label={labels.productImages}>{imageVariants.map(({ url: source, thumbnail_url }, index) => <button className={`thumb store-gallery-thumb${source === image ? " on" : ""}`} type="button" key={source} aria-label={`${imageCaption(product, source, labels)} ${index + 1}`} aria-pressed={source === image} onClick={() => setActiveImage({ selection, url: source })}><img src={thumbnail_url || source} alt="" loading="lazy" decoding="async" /></button>)}</div>}
       </div>
@@ -107,7 +107,7 @@ export function ProductPage({ product, page, labels, returnPath }: { product: St
     </article>
     <dialog ref={lightboxRef} className="store-lightbox" aria-label={labels.productImages} onClose={lightbox.onClose} onClick={lightbox.onBackdropClick}>
       <button type="button" className="store-modal-close" aria-label={labels.close} onClick={lightbox.close}>×</button>
-      {image && <><img src={image} alt={product.name} /><p>{imageCaption(product, image, labels)}</p></>}
+      {image && <><img src={image} alt={imageDescription(product, image, page.locale)} /><p>{imageCaption(product, image, labels)}</p></>}
     </dialog>
   </>;
 }

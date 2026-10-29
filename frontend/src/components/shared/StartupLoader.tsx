@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { customerMessages, type CustomerLocale } from '../../features/customer/messages';
+import { siteStartupMotionUrl } from '../site/siteAssets';
 import './startup-loader.css';
 
 export interface StartupLoaderProps {
@@ -27,7 +28,7 @@ export function StartupLoader({ locale }: StartupLoaderProps): ReactElement {
       <div className="cdt-startup__composition">
         <img
           className="cdt-startup__logo"
-          data-motion-src="/static/frontend/logo-opening-motion-v2.svg"
+          data-motion-src={siteStartupMotionUrl}
           data-static-src="/static/frontend/logo-motion-376.webp"
           data-static-srcset="/static/frontend/logo-motion-376.webp 376w, /static/frontend/logo-motion-564.webp 564w, /static/frontend/logo-motion-640.webp 640w"
           data-static-sizes="(max-height: 420px) 132px, (max-width: 520px) 156px, 188px"

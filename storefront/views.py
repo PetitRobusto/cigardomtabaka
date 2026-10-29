@@ -18,6 +18,7 @@ from django.views.decorators.http import require_safe
 from price_tracker.models import ExchangeRate
 from .catalog import BROWSING_PARAMETERS, allowed_payload, browse_page, build_pages, public_dependencies, public_page_paths, resolve_path, search_products, semantic_hash
 from .models import StorePage
+from .images import product_image_urls
 
 
 def _enabled():
@@ -163,6 +164,7 @@ def sitemap(request):
     dependencies = public_dependencies()
     paths = public_page_paths(dependencies)
     entries = []
+    origin = settings.STOREFRONT_ORIGIN.rstrip("/")
     rows = StorePage.objects.filter(active=True, rendered_hash__gt="", html__gt="").values_list(
         "path", "rendered_payload", "rendered_changed_at",
     ).order_by("path")
@@ -170,23 +172,26 @@ def sitemap(request):
         if (path not in paths or not allowed_payload(payload, dependencies)
                 or not payload.get("indexable")):
             continue
-        entries.append((path, changed_at.date().isoformat() if changed_at else None))
-    origin = settings.STOREFRONT_ORIGIN.rstrip("/")
+        entries.append((path, changed_at.date().isoformat() if changed_at else None,
+                        product_image_urls(payload, origin)))
     # Revalidate live eligibility before consulting the cache or returning 304.
     # No signal/TTL gap can keep revoked pages in a cached sitemap.
-    digest = semantic_hash({"version": 1, "origin": origin, "entries": entries})
+    digest = semantic_hash({"version": 2, "origin": origin, "entries": entries})
     etag = '"' + digest + '"'
     response = get_conditional_response(request, etag=etag)
     if response is None:
         key = "storefront:sitemap:" + digest
         content = cache.get(key)
         if content is None:
-            root = Element("urlset", xmlns="http://www.sitemaps.org/schemas/sitemap/0.9")
-            for path, lastmod in entries:
+            root = Element("urlset", {"xmlns": "http://www.sitemaps.org/schemas/sitemap/0.9",
+                                      "xmlns:image": "http://www.google.com/schemas/sitemap-image/1.1"})
+            for path, lastmod, images in entries:
                 node = SubElement(root, "url")
                 SubElement(node, "loc").text = origin + path
                 if lastmod:
                     SubElement(node, "lastmod").text = lastmod
+                for image in images:
+                    SubElement(SubElement(node, "image:image"), "image:loc").text = image
             content = tostring(root, encoding="utf-8", xml_declaration=True)
             cache.set(key, content, timeout=300)
         response = HttpResponse(content, content_type="application/xml; charset=utf-8")

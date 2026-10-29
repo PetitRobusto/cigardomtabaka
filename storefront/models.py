@@ -136,3 +136,30 @@ class RefreshState(models.Model):
     revision = models.PositiveBigIntegerField(default=1)
     processed_revision = models.PositiveBigIntegerField(default=0)
     reconciled_at = models.DateTimeField(null=True)
+
+
+class IndexNowState(models.Model):
+    """One baseline and worker lease per canonical origin; no business facts."""
+    origin = models.URLField(unique=True)
+    initialized_at = models.DateTimeField(null=True)
+    key_hash = models.CharField(max_length=64, blank=True)
+    lease_token = models.CharField(max_length=32, blank=True)
+    lease_until = models.DateTimeField(null=True)
+
+
+class IndexNowURL(models.Model):
+    state = models.ForeignKey(IndexNowState, on_delete=models.CASCADE, related_name='urls')
+    path = models.CharField(max_length=250)
+    # Empty means a formerly public URL has left the indexable set.
+    desired_hash = models.CharField(max_length=64, blank=True)
+    notified_hash = models.CharField(max_length=64, blank=True)
+    attempts = models.PositiveIntegerField(default=0)
+    retry_at = models.DateTimeField(null=True)
+    last_attempt_at = models.DateTimeField(null=True)
+    last_status = models.PositiveSmallIntegerField(null=True)
+    error = models.CharField(max_length=300, blank=True)
+    updated_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['state', 'path'], name='indexnow_origin_path_unique')]
+        indexes = [models.Index(fields=['state', 'retry_at'], name='indexnow_due')]

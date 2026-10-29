@@ -189,4 +189,13 @@ jobs:
             sudo nginx -t
             sudo systemctl reload nginx
 
+            # Verify the public responses after the new services and assets are live.
+            # Keep the existing pre-restart cache/sitemap gates above.
+            if [ "$STOREFRONT_DEPLOY" = true ]; then
+              DEPLOY_STAGE=verify-public-storefront
+              sudo -u www-data venv/bin/python deploy/verify_storefront_http.py \
+                https://cigardomtabaka.com --www-origin https://www.cigardomtabaka.com \
+                --representative-pages --timeout 10 --retries 2 --retry-delay 2
+            fi
+
             echo "=== deploy done ==="

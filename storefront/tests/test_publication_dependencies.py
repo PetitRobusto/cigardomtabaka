@@ -55,8 +55,8 @@ class TranslationPublicationDependenciesTests(TestCase):
         self.assertEqual(response.status_code, 200)
         return {
             element.text.removeprefix("http://testserver")
-            for element in fromstring(response.content).iter()
-            if element.tag.endswith("}loc")
+            for element in fromstring(response.content).findall(
+                '{http://www.sitemaps.org/schemas/sitemap/0.9}url/{http://www.sitemaps.org/schemas/sitemap/0.9}loc')
         }
 
     def assert_unservable(self, paths, *, status=503):

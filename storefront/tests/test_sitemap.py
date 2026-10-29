@@ -14,7 +14,7 @@ from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
-from cigars.models import Brand, Cigar, PurchaseBatch
+from cigars.models import Brand, Cigar, CigarImage, PurchaseBatch
 from cigars.tests.inventory_fixtures import create_purchase_batch, force_inventory_update
 from storefront.catalog import build_pages, public_dependencies, public_page_paths, semantic_hash
 from storefront.models import ProductListing, StorePage, StoreTranslation
@@ -54,7 +54,8 @@ class SitemapTests(TestCase):
     def paths(self, response):
         self.assertEqual(response.status_code, 200)
         return {node.text.removeprefix('https://store.example')
-                for node in fromstring(response.content).iter() if node.tag.endswith('}loc')}
+                for node in fromstring(response.content).findall(
+                    '{http://www.sitemaps.org/schemas/sitemap/0.9}url/{http://www.sitemaps.org/schemas/sitemap/0.9}loc')}
 
     def test_request_skips_full_page_build_images_and_prices(self):
         pages = self.publish()
@@ -195,3 +196,58 @@ class SitemapTests(TestCase):
         self.publish()
         self.assertNotIn(product_path, self.paths(self.client.get(self.url)))
         call_command('check_storefront_sitemap', stdout=io.StringIO())
+
+    def test_images_follow_published_payload_revalidation_and_withdrawal(self):
+        pages = self.publish()
+        product_path = next(path for path, payload in pages.items() if payload['kind'] == 'product' and payload['locale'] == 'zh')
+        stored = StorePage.objects.get(path=product_path)
+        payload = deepcopy(stored.rendered_payload)
+        payload['product']['images'] = ['/media/selected.jpg']
+        payload['product']['image_variants'] = [
+            {'url': '/media/selected.jpg', 'image_type': 'packaging', 'box_size': 25},
+        ]
+        payload['product']['offers'] = [{'box_size': 25}]
+        StorePage.objects.filter(pk=stored.pk).update(rendered_payload=payload)
+        first = self.client.get(self.url)
+        xml = fromstring(first.content)
+        image_tag = '{http://www.google.com/schemas/sitemap-image/1.1}loc'
+        self.assertEqual([node.text for node in xml.iter(image_tag)], ['https://store.example/media/selected.jpg'])
+        # A newly desired payload must not expose its unrendered pictures.
+        desired = deepcopy(payload)
+        desired['product']['image_variants'][0]['url'] = '/media/new.jpg'
+        StorePage.objects.filter(pk=stored.pk).update(payload=desired)
+        self.assertEqual(self.client.get(self.url, HTTP_IF_NONE_MATCH=first['ETag']).status_code, 304)
+        StorePage.objects.filter(pk=stored.pk).update(rendered_payload=desired)
+        changed = self.client.get(self.url, HTTP_IF_NONE_MATCH=first['ETag'])
+        self.assertEqual(changed.status_code, 200)
+        self.assertContains(changed, '/media/new.jpg')
+        self.assertNotContains(changed, '/media/selected.jpg')
+        ProductListing.objects.filter(pk=self.listing.pk).update(withdrawn=True)
+        removed = self.client.get(self.url, HTTP_IF_NONE_MATCH=changed['ETag'])
+        self.assertNotContains(removed, '/media/new.jpg')
+        self.assertNotIn(product_path, self.paths(removed))
+
+    def test_release_gate_rejects_stale_images_until_the_new_gallery_is_rendered(self):
+        image = CigarImage.objects.create(cigar=self.cigar, image='cigars/old.jpg', image_type='cigar')
+        self.publish()
+        output = io.StringIO()
+        call_command('check_storefront_sitemap', stdout=output)
+        self.assertIn('1 个图片关联', output.getvalue())
+        # The page URLs have not changed, but the rendered media are stale.
+        CigarImage.objects.filter(pk=image.pk).update(image='cigars/new.jpg')
+        with self.assertRaisesMessage(CommandError, '图片与当前展示集合不一致'):
+            call_command('check_storefront_sitemap', stdout=io.StringIO())
+        self.publish()
+        call_command('check_storefront_sitemap', stdout=io.StringIO())
+
+    def test_release_gate_rejects_duplicate_image_entries(self):
+        CigarImage.objects.create(cigar=self.cigar, image='cigars/single.jpg', image_type='cigar')
+        self.publish()
+        response = self.client.get(self.url)
+        entry = b'<image:image><image:loc>https://store.example/media/cigars/single.jpg</image:loc></image:image>'
+        self.assertIn(entry, response.content)
+        response.content = response.content.replace(entry, entry + entry)
+        with patch('storefront.management.commands.check_storefront_sitemap.Client') as client:
+            client.return_value.get.return_value = response
+            with self.assertRaisesMessage(CommandError, '重复图片'):
+                call_command('check_storefront_sitemap', stdout=io.StringIO())

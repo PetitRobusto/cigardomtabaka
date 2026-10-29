@@ -20,10 +20,10 @@ describe("storefront product detail", () => {
     };
     render(<Storefront page={page} ageConfirmed />);
 
-    expect(screen.getByRole("img", { name: "Cohiba Robustos" }).getAttribute("src")).toBe("/media/original-one.jpg");
+    expect(screen.getByRole("img", { name: "Cohiba Robustos — product image" }).getAttribute("src")).toBe("/media/original-one.jpg");
     expect(screen.getByRole("button", { name: "Product image 2" }).getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(screen.getByRole("button", { name: "Product image 2" }));
-    expect(screen.getByRole("img", { name: "Cohiba Robustos" }).getAttribute("src")).toBe("/media/original-two.jpg");
+    expect(screen.getByRole("img", { name: "Cohiba Robustos — product image" }).getAttribute("src")).toBe("/media/original-two.jpg");
     expect(screen.getByRole("button", { name: "Product image 2" }).getAttribute("aria-pressed")).toBe("true");
     expect(document.querySelector('[data-gallery-main]')?.getAttribute("src")).not.toBe("/media/thumb.jpg");
   });

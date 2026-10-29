@@ -93,3 +93,37 @@ class ProductTranslationMigrationTests(TransactionTestCase):
                     self.assertEqual(self.translations.objects.get(pk=valid.pk).title, 'Keep me')
                 finally:
                     self.translations.objects.filter(pk=row.pk).delete()
+
+
+@tag('migration', 'migration-other')
+class IndexNowMigrationTests(TransactionTestCase):
+    def test_notification_tables_are_reversible_without_changing_publication_data(self):
+        before = [('storefront', '0004_storetranslation_seo_title')]
+        after = [('storefront', '0005_indexnow_queue')]
+        executor = MigrationExecutor(connection)
+        leaves = executor.loader.graph.leaf_nodes()
+        self.addCleanup(lambda: MigrationExecutor(connection).migrate(leaves))
+        executor.migrate(before)
+        apps = MigrationExecutor(connection).loader.project_state(before).apps
+        pages = apps.get_model('storefront', 'StorePage')
+        row = pages.objects.create(path='/ru/', payload={'title': 'Keep public content'},
+                                   rendered_payload={'title': 'Keep public content'},
+                                   html='<h1>Keep public content</h1>', desired_hash='same', rendered_hash='same')
+        original = pages.objects.values().get(pk=row.pk)
+        tables_before = set(connection.introspection.table_names())
+
+        MigrationExecutor(connection).migrate(after)
+        apps = MigrationExecutor(connection).loader.project_state(after).apps
+        states = apps.get_model('storefront', 'IndexNowState')
+        urls = apps.get_model('storefront', 'IndexNowURL')
+        state = states.objects.create(origin='https://store.example')
+        urls.objects.create(state=state, path='/ru/', desired_hash='new', notified_hash='old')
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            urls.objects.create(state=state, path='/ru/')
+        self.assertEqual(set(connection.introspection.table_names()) - tables_before,
+                         {'storefront_indexnowstate', 'storefront_indexnowurl'})
+        self.assertEqual(pages.objects.values().get(pk=row.pk), original)
+
+        MigrationExecutor(connection).migrate(before)
+        self.assertEqual(set(connection.introspection.table_names()), tables_before)
+        self.assertEqual(pages.objects.values().get(pk=row.pk), original)

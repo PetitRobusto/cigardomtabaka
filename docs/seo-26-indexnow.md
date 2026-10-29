@@ -87,3 +87,9 @@ venv/bin/python manage.py notify_indexnow --send
 2026-10-29，本地审查确认代码支持上述公开边界和队列行为。29 项目标测试通过：IndexNow 通知 24 项（`storefront.tests.test_indexnow`）、worker 4 项（`storefront.tests.test_indexnow_worker`）、迁移 1 项（`storefront.tests.test_migrations.IndexNowMigrationTests`）。包含静默基线、真实公开集合、撤回、内容代次变化、崩溃冷却、租约、限流/永久错误、key 路由、只读命令及逐 URL 状态查询、worker 隔离和迁移正反向数据保护。测试网络通过 mock 或注入 transport，没有真实提交。
 
 生产证据分开记录：验证文件公网检查证明 key 路由可访问；直接单 URL 请求只证明手动协议连通性与接口接收，不证明通知队列或 worker 自动发送；worker 的自然内容变更、队列状态及 API 响应才构成自动流程证据。搜索抓取、收录与排名另行观察，不由接口 200/202 推断。
+
+## 2026-10-29 生产启用记录
+
+用户授权部署试运行后，`2384604` 的 CI/Deploy 均成功，生产已启用。GET/HEAD 验证文件为 200，正文精确匹配且带 noindex/no-cache；255 缓存页、252 sitemap URL、384 图片关联检查通过。首次静默基线 tracked=252、pending=0，worker 已恢复。
+
+16:59:22 UTC 手动单 URL POST 俄语魔术师真实更新页，收到 202，表示通知接收且 key 验证待处理；该次未写入自动通知队列。下次自然内容变更继续验证 worker 自动发送。完整证据与后续步骤见[发布记录](seo-milestones-release-2026-10-29.md)，抓取/收录不由接口响应推断。

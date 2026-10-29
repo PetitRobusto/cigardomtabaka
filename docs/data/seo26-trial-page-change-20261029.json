@@ -1,0 +1,46 @@
+{
+  "utc": "2026-10-29T16:58:45.657198+00:00",
+  "release_sha": "23846042a2ebaae81439119f94c216224c5782db",
+  "url": "https://cigardomtabaka.com/ru/cigar/103/cohiba-magicos",
+  "status": 200,
+  "canonical": [
+    "https://cigardomtabaka.com/ru/cigar/103/cohiba-magicos"
+  ],
+  "before": [
+    {
+      "src": "/media/storefront/generated-v4/products/103-box-10-detail.webp",
+      "alt": "Cohiba Mágicos Maduro 5"
+    },
+    {
+      "src": "/media/storefront/generated-v4/products/103-box-10-list.webp",
+      "alt": ""
+    },
+    {
+      "src": "/media/storefront/generated-v4/products/103-single-list.webp",
+      "alt": ""
+    },
+    {
+      "src": "/media/storefront/generated-v4/products/103-box-10-detail.webp",
+      "alt": "Cohiba Mágicos Maduro 5"
+    }
+  ],
+  "after": [
+    {
+      "src": "/media/storefront/generated-v4/products/103-box-10-detail.webp",
+      "alt": "Cohiba Mágicos Maduro 5 — коробка на 10 сигар"
+    },
+    {
+      "src": "/media/storefront/generated-v4/products/103-box-10-list.webp",
+      "alt": ""
+    },
+    {
+      "src": "/media/storefront/generated-v4/products/103-single-list.webp",
+      "alt": ""
+    },
+    {
+      "src": "/media/storefront/generated-v4/products/103-box-10-detail.webp",
+      "alt": "Cohiba Mágicos Maduro 5 — коробка на 10 сигар"
+    }
+  ],
+  "actual_image_alt_update": true
+}

@@ -1,0 +1,123 @@
+{
+  "baseline_sha": "a319c2d66f3876542335d74a0e7cff8efe152867",
+  "release_sha": "23846042a2ebaae81439119f94c216224c5782db",
+  "passed": 18,
+  "runs": 18,
+  "scenarios": [
+    {
+      "path": "/",
+      "confirmed": false,
+      "ready": {
+        "before_ms": 5423.4,
+        "after_ms": 5756.3,
+        "difference_ms": 332.9
+      },
+      "exit": {
+        "before_ms": 8556.9,
+        "after_ms": 8439.7,
+        "difference_ms": -117.2
+      },
+      "lcp": {
+        "before_ms": 3388,
+        "after_ms": 3436,
+        "difference_ms": 48
+      }
+    },
+    {
+      "path": "/",
+      "confirmed": true,
+      "ready": {
+        "before_ms": 4953.6,
+        "after_ms": 4951.6,
+        "difference_ms": -2.0
+      },
+      "exit": {
+        "before_ms": 8334,
+        "after_ms": 8440.9,
+        "difference_ms": 106.9
+      },
+      "lcp": {
+        "before_ms": 3152,
+        "after_ms": 2976,
+        "difference_ms": -176
+      }
+    },
+    {
+      "path": "/ru/brand/cohiba",
+      "confirmed": false,
+      "ready": {
+        "before_ms": 5281.2,
+        "after_ms": 5288.5,
+        "difference_ms": 7.3
+      },
+      "exit": {
+        "before_ms": 8099.8,
+        "after_ms": 7364.5,
+        "difference_ms": -735.3
+      },
+      "lcp": {
+        "before_ms": 2796,
+        "after_ms": 2756,
+        "difference_ms": -40
+      }
+    },
+    {
+      "path": "/ru/brand/cohiba",
+      "confirmed": true,
+      "ready": {
+        "before_ms": 5192.7,
+        "after_ms": 5133.6,
+        "difference_ms": -59.1
+      },
+      "exit": {
+        "before_ms": 8196.5,
+        "after_ms": 7235.5,
+        "difference_ms": -961.0
+      },
+      "lcp": {
+        "before_ms": 2784,
+        "after_ms": 2904,
+        "difference_ms": 120
+      }
+    },
+    {
+      "path": "/ru/cigar/103/cohiba-magicos",
+      "confirmed": false,
+      "ready": {
+        "before_ms": 5128.2,
+        "after_ms": 5546.3,
+        "difference_ms": 418.1
+      },
+      "exit": {
+        "before_ms": 8191.7,
+        "after_ms": 8706.4,
+        "difference_ms": 514.7
+      },
+      "lcp": {
+        "before_ms": 5748,
+        "after_ms": 5660,
+        "difference_ms": -88
+      }
+    },
+    {
+      "path": "/ru/cigar/103/cohiba-magicos",
+      "confirmed": true,
+      "ready": {
+        "before_ms": 5277.9,
+        "after_ms": 5163.6,
+        "difference_ms": -114.3
+      },
+      "exit": {
+        "before_ms": 8226.8,
+        "after_ms": 8199.7,
+        "difference_ms": -27.1
+      },
+      "lcp": {
+        "before_ms": 5780,
+        "after_ms": 5708,
+        "difference_ms": -72
+      }
+    }
+  ],
+  "method": "Per-scenario medians, n=3, different measurement times; not a paired causal experiment or field CWV"
+}

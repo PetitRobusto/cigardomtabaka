@@ -1,0 +1,131 @@
+{
+  "baseline": {
+    "render_storefront": {
+      "returncode": 0,
+      "output": ""
+    },
+    "check_storefront_cache": {
+      "returncode": 0,
+      "output": "缓存验收通过：255 页与当前构建一致。"
+    },
+    "check_storefront_sitemap": {
+      "returncode": 0,
+      "output": "Sitemap 验收通过：252 个规范可索引 URL、384 个图片关联，集合完全一致。"
+    },
+    "notify_indexnow": {
+      "returncode": 0,
+      "output": "{\"blocked\": 0, \"enabled\": true, \"initialized\": true, \"key_validation_pending\": 0, \"origin\": \"https://cigardomtabaka.com\", \"pending\": 0, \"synced\": true, \"tracked\": 252}"
+    },
+    "time_utc": "2026-10-29T16:58:42.924322+00:00"
+  },
+  "trial": {
+    "time_utc": "2026-10-29T16:59:22.482981+00:00",
+    "endpoint": "https://yandex.com/indexnow",
+    "method": "POST",
+    "urls": [
+      "https://cigardomtabaka.com/ru/cigar/103/cohiba-magicos"
+    ],
+    "mode": "manual_single_url_protocol_trial",
+    "worker_end_to_end_proven": false,
+    "actual_change": "new Russian box-size image alt in release 2384604",
+    "attempts": 1,
+    "http_status": 202,
+    "retry_after": null,
+    "accepted": true
+  },
+  "protected": {
+    "utc": "2026-10-29T17:00:05.004225+00:00",
+    "protected_tables": 60,
+    "unchanged": false,
+    "changed_tables": [
+      "auth_permission",
+      "django_content_type"
+    ],
+    "excluded": [
+      "django_admin_log",
+      "django_migrations",
+      "django_session",
+      "sqlite_sequence",
+      "storefront_indexnowstate",
+      "storefront_indexnowurl",
+      "storefront_refreshstate",
+      "storefront_storepage"
+    ],
+    "expected_framework_additions": {
+      "content_types": 2,
+      "permissions": 8,
+      "existing_rows_modified": 0,
+      "existing_rows_removed": 0
+    },
+    "business_tables_unchanged": true,
+    "unchanged_tables": 58,
+    "accepted": true
+  },
+  "release_sha": "23846042a2ebaae81439119f94c216224c5782db",
+  "verification": {
+    "get_status": 200,
+    "head_status": 200,
+    "exact_content": true,
+    "head_empty": true,
+    "content_type": "text/plain; charset=utf-8",
+    "robots": "noindex",
+    "cache_control": "no-cache"
+  },
+  "workflow_runs": [
+    {
+      "id": 40916195175,
+      "name": "Deploy",
+      "head_sha": "23846042a2ebaae81439119f94c216224c5782db",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/PetitRobusto/cigardomtabaka/actions/runs/40916195175",
+      "created_at": "2026-10-29T16:54:45Z",
+      "updated_at": "2026-10-29T16:55:59Z"
+    },
+    {
+      "id": 40915374876,
+      "name": "CI",
+      "head_sha": "23846042a2ebaae81439119f94c216224c5782db",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/PetitRobusto/cigardomtabaka/actions/runs/40915374876",
+      "created_at": "2026-10-29T16:49:42Z",
+      "updated_at": "2026-10-29T16:54:42Z"
+    }
+  ],
+  "startup_preload": [
+    {
+      "path": "/",
+      "status": 200,
+      "preload": {
+        "rel": "preload",
+        "as": "image",
+        "href": "/static/frontend/logo-opening-motion-v2.svg",
+        "type": "image/svg+xml"
+      },
+      "startup_ssr_src_absent": true
+    },
+    {
+      "path": "/ru/brand/cohiba",
+      "status": 200,
+      "preload": {
+        "rel": "preload",
+        "as": "image",
+        "href": "/static/frontend/logo-opening-motion-v2.svg",
+        "type": "image/svg+xml"
+      },
+      "startup_ssr_src_absent": true
+    },
+    {
+      "path": "/ru/cigar/103/cohiba-magicos",
+      "status": 200,
+      "preload": {
+        "rel": "preload",
+        "as": "image",
+        "href": "/static/frontend/logo-opening-motion-v2.svg",
+        "type": "image/svg+xml"
+      },
+      "startup_ssr_src_absent": true
+    }
+  ]
+}

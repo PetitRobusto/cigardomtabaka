@@ -1,0 +1,1501 @@
+{
+  "run_id": "20261029T162121Z",
+  "captured_at_utc": "2026-10-29T16:21:21.533Z",
+  "measurement_location": "runner region unverified; local container",
+  "release_sha": "a319c2d66f3876542335d74a0e7cff8efe152867",
+  "origin": "https://cigardomtabaka.com",
+  "mirror_origin": "http://127.0.0.1:33759",
+  "html_snapshots": [
+    {
+      "path": "/",
+      "status": 200,
+      "captured_production_wire_bytes": 18914,
+      "captured_production_wire_sha256": "8307c49048edb999b32c5b00890f9faee46a5f28e7f5cb66aeff65b5fa99b141",
+      "content_encoding": "gzip",
+      "decoded_sha256": "e487e3432b36b101e59475294b0bf0b7fbb8eb75ae39ee56a85cc35d9a269019",
+      "baseline_control_wire_bytes": 15595,
+      "baseline_control_wire_sha256": "21a151b7e25cd2d86d1f569637282cf2d906b4a6b91fde978b03d3cdda5376f3",
+      "candidate_control_wire_bytes": 15604,
+      "candidate_control_wire_sha256": "3b4d267661de17bb86438763a322de28e76bcba29bb82c25a92b243737df91b9",
+      "decoded_candidate_sha256": "5b6c1f838fc72da9af69680441c42a0d0d010d57ec06d88e61ea71dadf7e11a7"
+    },
+    {
+      "path": "/ru/brand/cohiba",
+      "status": 200,
+      "captured_production_wire_bytes": 12194,
+      "captured_production_wire_sha256": "e267f96ca3b5c0963f89345abee2014f727c8eb751034925c8fe04f52faf86fd",
+      "content_encoding": "gzip",
+      "decoded_sha256": "bb23015f2f0665c4d86853646b30c5e871bd790cd87bb531a1d444149631fa9e",
+      "baseline_control_wire_bytes": 10328,
+      "baseline_control_wire_sha256": "03726bc62c8386e3efd3e047669a2bc1e11ceedcdd7c4d97e7277cd3a3251a67",
+      "candidate_control_wire_bytes": 10338,
+      "candidate_control_wire_sha256": "328c91907b289ef59bc0ea2cac7c46ef2bef3cce5dc71df2072c28b47cb03c91",
+      "decoded_candidate_sha256": "0f2e40414a9714faf7c066f8700a00e77a2d4e7587417b3b3a6e55a5cb6632d0"
+    },
+    {
+      "path": "/ru/cigar/103/cohiba-magicos",
+      "status": 200,
+      "captured_production_wire_bytes": 9166,
+      "captured_production_wire_sha256": "69f35d1e2e516888ba2a79fd69ea895a562dc3baab8b6dd4f4c1fe76e4340a09",
+      "content_encoding": "gzip",
+      "decoded_sha256": "56380289321320f3cd4036411ea71db3c1212b1e7ceb8b4610842df4117d292a",
+      "baseline_control_wire_bytes": 7990,
+      "baseline_control_wire_sha256": "3086940d28b2cf873193995ba71c71bc7a0082eb39aa58890188d55e9d53ba5f",
+      "candidate_control_wire_bytes": 8000,
+      "candidate_control_wire_sha256": "7f823f95e4775d05c9997d44088782270efe554e52fcc6b1571272b18ccb1567",
+      "decoded_candidate_sha256": "ff20ab109fdb182b7d5a4f9bde5aef8cc4843a76b01519340a81100ce8587ead"
+    }
+  ],
+  "html_candidate_delta": "after applying the same gzip encoding (level 6, mtime 0) to both arms, baseline is captured production decoded HTML and candidate differs by exactly one preload link immediately after the last stylesheet link",
+  "captured_production_html_wire_hashes": "recorded separately in html_snapshots; baseline/candidate browser responses are recompressed identically for controlled comparison",
+  "preload_markup": "<link rel=\"preload\" as=\"image\" href=\"/static/frontend/logo-opening-motion-v2.svg\" type=\"image/svg+xml\">",
+  "static_asset_source": "same production origin; raw response bodies and Content-Encoding headers cached once and served locally during all measured runs",
+  "absolute_origin_replay": "Playwright route.continue rewrites first-party production-origin requests to the local mirror; all other external requests are aborted; no route.fulfill",
+  "gzip_handling": "captured production HTML wire hash retained separately; both decoded HTML variants are gzip-compressed with level 6 and mtime 0; shared production CSS/JS raw gzip bytes and Content-Encoding are preserved",
+  "browser_cache": "disabled in every measured context; separate contexts; local mirror cache frozen before A/B",
+  "throttle": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "device_scale_factor": 2,
+    "latency": 150,
+    "downloadThroughput": 200000,
+    "uploadThroughput": 93750,
+    "cpu_slowdown": 4
+  },
+  "order": "paired/interleaved by scenario and repeat; one page/context at a time",
+  "chromium_version": "156.0.8078.47",
+  "mirror_cache_misses": 0,
+  "upstream_cache_fetch_count": 54,
+  "upstream_cached_resources": [
+    {
+      "path": "/static/frontend/assets/storefront-_jEqHMC6.css",
+      "status": 200,
+      "wire_bytes": 12721,
+      "wire_sha256": "123deb4f082f00578dce7a6cf13abbd4f9040fbc2b1100afabdf37a319248763",
+      "content_encoding": "gzip",
+      "content_type": "text/css",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/static/frontend/assets/NotFoundPage-hG-cGUmF.css",
+      "status": 200,
+      "wire_bytes": 3806,
+      "wire_sha256": "d04aa04cb8d530c990ca63c242068656253881ef7171377de98e0b99c5133e9f",
+      "content_encoding": "gzip",
+      "content_type": "text/css",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/home-hero-v1/cohiba-bhk-56-640.webp",
+      "status": 200,
+      "wire_bytes": 8822,
+      "wire_sha256": "f317c04827d53e6aa7cb923b7aa73535febc4253cd90a032335652307d8ffffe",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/static/frontend/assets/storefront-Ch8XQKYg.js",
+      "status": 200,
+      "wire_bytes": 26216,
+      "wire_sha256": "0566e2da585c42efd0a046be693b0fe218dcddea48dd6f6023d4fbea66dab840",
+      "content_encoding": "gzip",
+      "content_type": "application/javascript",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/static/frontend/logo-motion-176.webp",
+      "status": 200,
+      "wire_bytes": 15394,
+      "wire_sha256": "684b656f115b13e6fbd5a851a465895da9570b4bc52c6972339b51b322d62715",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/static/frontend/startup-loader.js",
+      "status": 200,
+      "wire_bytes": 3734,
+      "wire_sha256": "6c2e996a0f51a115003c889442c9a0e6ab877f55b4879fc11b897a69407d2d87",
+      "content_encoding": "gzip",
+      "content_type": "application/javascript",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/static/frontend/assets/NotFoundPage-D_izzydX.js",
+      "status": 200,
+      "wire_bytes": 84020,
+      "wire_sha256": "042ac1a25d98635d2f22beeee92a46e54ccce78b95f85b4f77d2da3d44113f52",
+      "content_encoding": "gzip",
+      "content_type": "application/javascript",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/static/frontend/assets/chevron-left-BCMR-IwL.js",
+      "status": 200,
+      "wire_bytes": 126,
+      "wire_sha256": "378b1175d3100b27ae5001d16089beb13293d647ac48379bae2e94f59d9491b4",
+      "content_encoding": null,
+      "content_type": "application/javascript",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/static/frontend/assets/priceData-DXo5R5TJ.js",
+      "status": 200,
+      "wire_bytes": 627,
+      "wire_sha256": "cc374b3544647704abdc00c16ea59df9bd9d07dee4eb72d5c291648612986820",
+      "content_encoding": "gzip",
+      "content_type": "application/javascript",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/static/frontend/logo-opening-motion-v2.svg",
+      "status": 200,
+      "wire_bytes": 99867,
+      "wire_sha256": "cbd6f46a28ee1c022e4c3c22244b5a18782e929163bb4c02ccc7ecd1a8c7c5a6",
+      "content_encoding": "gzip",
+      "content_type": "image/svg+xml",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/home-hero-v1/cohiba-siglo-vi-640.webp",
+      "status": 200,
+      "wire_bytes": 6938,
+      "wire_sha256": "fe98aedf0fca3c297f524dcdeb0b6ea60268a861fde165bdaca6d62ef581259b",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/home-hero-v1/trinidad-casilda-640.webp",
+      "status": 200,
+      "wire_bytes": 5766,
+      "wire_sha256": "6c0782f2f9c476ee89e2050ffae4fc3da015e762cd2fa2cd3def87b1d5afcf1a",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/home-hero-v1/cohiba-bhk-52-480.webp",
+      "status": 200,
+      "wire_bytes": 6582,
+      "wire_sha256": "91cc38a5591a59b54dfb1f163474793194d0f9617d66211f1befbac7ef0c8eb1",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/home-hero-v1/trinidad-ingenios-480.webp",
+      "status": 200,
+      "wire_bytes": 5094,
+      "wire_sha256": "d1fae979d7585df8e65210554a846e2697f2203e40d5d5824cc5912d0512c7ec",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/cohiba.jpg",
+      "status": 200,
+      "wire_bytes": 13878,
+      "wire_sha256": "017a3881b78e65e204e3f62e625692c36d27ba42c304c238d5ef7fd790edb4fc",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/montecristo.jpg",
+      "status": 200,
+      "wire_bytes": 7230,
+      "wire_sha256": "1f1c0e9e38b8e5948619463b8017c4b895ae0201e0b6989cdf881fe12248faaa",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/romeo-y-julieta.jpg",
+      "status": 200,
+      "wire_bytes": 11171,
+      "wire_sha256": "a76690bc776736124a2039ffb32386829e0d91ffd7c2ad90fd002424ecdaf67e",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/partag%C3%A1s.jpg",
+      "status": 200,
+      "wire_bytes": 14838,
+      "wire_sha256": "2a26014e81dfc6c9a3a38bbb185881af033560153519a2ed1292bd10ab7fd0cb",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/hoyo-de-monterrey.jpg",
+      "status": 200,
+      "wire_bytes": 14161,
+      "wire_sha256": "a67391e26ff2e9fe63ea03ca5c6f9a0bf6cac6a7f50998fcae29662e81f55e10",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/h-upmann.jpg",
+      "status": 200,
+      "wire_bytes": 11057,
+      "wire_sha256": "00916c0235a9a18740abcc8caded46f4f4a283f40fe93db33970feacbe3cc5ec",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/la-gloria-cubana.jpg",
+      "status": 200,
+      "wire_bytes": 12032,
+      "wire_sha256": "e219bf9348effb95f187f29c4f4fda5d0721e43da8c3734823b49c21c1854b5d",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/cuaba.jpg",
+      "status": 200,
+      "wire_bytes": 11308,
+      "wire_sha256": "89fa4ae865673bc7eb9835137a5c344d71db406fab9d7a53457b2dcc8b27381b",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/vegueros.jpg",
+      "status": 200,
+      "wire_bytes": 9387,
+      "wire_sha256": "c0982a0d11d0b7379865a60a9c231ab231f7019a73f8e161f09b93cae7bc960e",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/diplom%C3%A1ticos.jpg",
+      "status": 200,
+      "wire_bytes": 14132,
+      "wire_sha256": "0dd6b8019f4fa866b2900bb211268bbeb5f1dd443fbea19bd26f8f6ec92fa817",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/rafael-gonz%C3%A1lez.jpg",
+      "status": 200,
+      "wire_bytes": 11919,
+      "wire_sha256": "4a25f5a65085513f08c534b82f374b31df61023e193824ae8d99149b3f7c5587",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/fonseca.jpg",
+      "status": 200,
+      "wire_bytes": 14826,
+      "wire_sha256": "484252685ac280306cb0d168236086873a772dfc37b49172d0191e8a13f58728",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/juan-l%C3%B3pez.jpg",
+      "status": 200,
+      "wire_bytes": 12224,
+      "wire_sha256": "5d89045a570beb31ffb515392674a756c2451112ac8ec22e4231fe805ed9ca2d",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/jos%C3%A9-l-piedra.jpg",
+      "status": 200,
+      "wire_bytes": 10827,
+      "wire_sha256": "c5f64942ac7aa10fad934b55393604addb0f898bf7553081aa9fe68404b2f4aa",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/quintero.jpg",
+      "status": 200,
+      "wire_bytes": 10204,
+      "wire_sha256": "75df5e61afb2163cf4e41b9976df8785605b67ebf66f12d456bf075d26f41ee1",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/ram%C3%B3n-allones.jpg",
+      "status": 200,
+      "wire_bytes": 10081,
+      "wire_sha256": "7feeccf5fae6abc4b30fa8228fead18e6e2b6cf8f516818506a7e4c0b9dced1d",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/trinidad.jpg",
+      "status": 200,
+      "wire_bytes": 9336,
+      "wire_sha256": "25dc87fac91c5a16b74775207ff4b65985bb508be57e81d1983e8296e9560526",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/quai-dorsay.jpg",
+      "status": 200,
+      "wire_bytes": 8271,
+      "wire_sha256": "4c402edfb077db0d702438a8fe34fdc05b54c85450eb0c32d99b9ab34d1b2fb4",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/punch.jpg",
+      "status": 200,
+      "wire_bytes": 10833,
+      "wire_sha256": "ac82c39b522f6cc86be33a2324f1664388e09c12a5121494731ff7a0254dfe2c",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/brand_logos/vegas-robaina.jpg",
+      "status": 200,
+      "wire_bytes": 11214,
+      "wire_sha256": "972d1fcb7a21ee223ab2877125817fe64c89f6a24baea8799001c9de2bce5733",
+      "content_encoding": null,
+      "content_type": "image/jpeg",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/storefront/generated-v3/products/102-box-10-list.webp",
+      "status": 200,
+      "wire_bytes": 23222,
+      "wire_sha256": "f7a777c6b05135e8bd9cfc587b2246b8fcba0257635925430cb540727ab43e2c",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/storefront/generated-v3/products/101-box-10-list.webp",
+      "status": 200,
+      "wire_bytes": 23664,
+      "wire_sha256": "7e0f68c0da59eef86419316b28308db83332235d7bf915e91d5bcc8b556fe778",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/storefront/generated-v2/products/97-box-25-list.webp",
+      "status": 200,
+      "wire_bytes": 16052,
+      "wire_sha256": "609a26bdd04fb3b7e724aaffd9e35b9aa86b4660c2f6e5a6f90245efde0fb551",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/storefront/generated-v4/products/103-box-10-list.webp",
+      "status": 200,
+      "wire_bytes": 32256,
+      "wire_sha256": "3d23a1ba2eae52c413271b83b8c7f5695cf7670b2ace76945b30ffc415f9e751",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/storefront/generated-v3/products/182-box-10-list.webp",
+      "status": 200,
+      "wire_bytes": 24822,
+      "wire_sha256": "050805cba2c54e6abec2f5869c013b2e0a98f4fe65c565f92bd5f9648ec7f2d5",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/api/storefront/page/",
+      "status": 200,
+      "wire_bytes": 10348,
+      "wire_sha256": "e5150d692712033b6e649449692645fcd66977b746a296f6670c5cbb7437b955",
+      "content_encoding": "gzip",
+      "content_type": "application/json",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/storefront/generated-v3/products/98-box-25-list.webp",
+      "status": 200,
+      "wire_bytes": 24754,
+      "wire_sha256": "ae4e7f42b6c85c6df52ee7f0931b1c88ad1443309fe41128c8b83481a0ddabd2",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/storefront/generated-v3/products/180-box-25-list.webp",
+      "status": 200,
+      "wire_bytes": 26510,
+      "wire_sha256": "5df40b1b7075c7cb52aca5c6b3a8d24960150a436da5cf0661f0baa38cd43106",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/storefront/generated-v3/products/197-box-25-list.webp",
+      "status": 200,
+      "wire_bytes": 26382,
+      "wire_sha256": "d01998631ad2610909c0cf41253a0ad8ff57efb37a8ffcf967b7d842e0922062",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/static/frontend/favicon-96.png",
+      "status": 200,
+      "wire_bytes": 11451,
+      "wire_sha256": "5472df06c508ecdd2957d9d4a4e234d2b079613229f8a058af748892cf476597",
+      "content_encoding": null,
+      "content_type": "image/png",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/static/frontend/logo-motion-376.webp",
+      "status": 200,
+      "wire_bytes": 42070,
+      "wire_sha256": "8bec28d30709b3a5046d301e06c3c408ea7c6a94b9cbcf00928863f9e44aaf1a",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/api/auth/me/",
+      "status": 200,
+      "wire_bytes": 24,
+      "wire_sha256": "91f2bfe1f6989649cdde3c01b74317d28a404b2754715a9e40e4284bfca9d848",
+      "content_encoding": null,
+      "content_type": "application/json",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/storefront/generated-v3/products/106-box-10-list.webp",
+      "status": 200,
+      "wire_bytes": 21444,
+      "wire_sha256": "e8418dbd2a0bee4f2b7c87896b8f9c2a7534839b1c385a86a0c69855ce2d2c25",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/storefront/generated-v2/products/93-single-list.webp",
+      "status": 200,
+      "wire_bytes": 7644,
+      "wire_sha256": "28c8915966df43764a5692eec3f1d02d1085e006f192de23b8d8ff6e8226fa03",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/storefront/generated-v2/products/1212-single-list.webp",
+      "status": 200,
+      "wire_bytes": 8454,
+      "wire_sha256": "4632edc2bab9a0a20a42ab2b9a8d5f851bf73852886065d7695f1db2a89504d8",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/storefront/generated-v3/products/95-box-25-list.webp",
+      "status": 200,
+      "wire_bytes": 23520,
+      "wire_sha256": "3b09258986f714e96703b8e51e18cb0d526a5823cbe1820f0d09e28c4fb03f1e",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/api/storefront/page/",
+      "status": 200,
+      "wire_bytes": 4765,
+      "wire_sha256": "3633ab21ff94e0ae07ed6167fb52a0942125a2c4cb3b142dc5503f67db53a16a",
+      "content_encoding": "gzip",
+      "content_type": "application/json",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/storefront/generated-v4/products/103-box-10-detail.webp",
+      "status": 200,
+      "wire_bytes": 183594,
+      "wire_sha256": "e85c93a16288be7aa9c1d8277d4b51a452a1c9d5f12796e42a24d6c5fff0d2ce",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/media/storefront/generated-v4/products/103-single-list.webp",
+      "status": 200,
+      "wire_bytes": 11338,
+      "wire_sha256": "bd374b12ce27c5111fa38795796c132d49b960c59d322afc39cdb13af33dc8a4",
+      "content_encoding": null,
+      "content_type": "image/webp",
+      "reused_existing_cache": true
+    },
+    {
+      "path": "/api/storefront/page/",
+      "status": 200,
+      "wire_bytes": 3104,
+      "wire_sha256": "7618056f6282b41307ebcbf3e322bf12718be16ed8f2ef0db160a360f53158e6",
+      "content_encoding": "gzip",
+      "content_type": "application/json",
+      "reused_existing_cache": true
+    }
+  ],
+  "cache_discovery_errors": [],
+  "runner": {
+    "hostname": "moltbot",
+    "platform": "Linux-6.8.0-134-generic-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "logical_cpu_count": 4
+  },
+  "smoke_only_unconfirmed": true,
+  "runs": [
+    {
+      "run_id": "20261029T162121Z",
+      "path": "/",
+      "confirmed": false,
+      "repeat": 1,
+      "variant": "candidate",
+      "errors": [],
+      "console_errors": [],
+      "screenshot": null,
+      "http_status": 200,
+      "started": true,
+      "ready": 3701.1000003814697,
+      "exit": 4791.5,
+      "lcp": 1208,
+      "cls": 0,
+      "overlaps": 0,
+      "earlyFocus": 0,
+      "startupFrames": 152,
+      "logoVisibleFrames": 109,
+      "logoImageLoadedFrames": 109,
+      "logoFirstVisible": 1705.1000003814697,
+      "logoFirstVisibleSrc": "http://127.0.0.1:33759/static/frontend/logo-opening-motion-v2.svg",
+      "gateHidden": false,
+      "gateConfirmPresent": true,
+      "activeElement": "BUTTON",
+      "logoVisibleNow": null,
+      "navigationStart": 0,
+      "ttfb": 37.5,
+      "responseEnd": 266,
+      "logoEntries": [
+        {
+          "name": "http://127.0.0.1:33759/static/frontend/logo-opening-motion-v2.svg",
+          "initiatorType": "link",
+          "startTime": 273.20000076293945,
+          "fetchStart": 273.20000076293945,
+          "responseStart": 373,
+          "responseEnd": 1631.6000003814697,
+          "duration": 1358.3999996185303,
+          "transferSize": 100167,
+          "encodedBodySize": 99867,
+          "decodedBodySize": 134042
+        }
+      ],
+      "logoRequestCount": 1,
+      "logoFirstStartMs": 273.20000076293945,
+      "logoTransferBytes": 100167,
+      "initialMapSrc": null,
+      "resourceBytes": 770197,
+      "effective_page_url": "http://127.0.0.1:33759/",
+      "navigation_response_url": "http://127.0.0.1:33759/",
+      "navigation_response_content_encoding": "gzip",
+      "response_audit": [
+        {
+          "path": "/static/frontend/assets/storefront-_jEqHMC6.css",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "text/css",
+          "content_length": "12721"
+        },
+        {
+          "path": "/static/frontend/assets/NotFoundPage-hG-cGUmF.css",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "text/css",
+          "content_length": "3806"
+        },
+        {
+          "path": "/static/frontend/logo-opening-motion-v2.svg",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "image/svg+xml",
+          "content_length": "99867"
+        },
+        {
+          "path": "/static/frontend/startup-loader.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "3734"
+        },
+        {
+          "path": "/static/frontend/assets/storefront-Ch8XQKYg.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "26216"
+        },
+        {
+          "path": "/static/frontend/assets/chevron-left-BCMR-IwL.js",
+          "status": 200,
+          "content_encoding": null,
+          "content_type": "application/javascript",
+          "content_length": "126"
+        },
+        {
+          "path": "/static/frontend/assets/priceData-DXo5R5TJ.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "627"
+        },
+        {
+          "path": "/static/frontend/assets/NotFoundPage-D_izzydX.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "84020"
+        }
+      ],
+      "blocked_external_requests": [],
+      "first_party_route_rewrites": [],
+      "age_confirmation_click_hid_gate": true,
+      "age_confirmation_storage_set": true,
+      "wall_ms": 6872.463328763843,
+      "handoff_ms": 1090.3999996185303,
+      "logo_duplicate_requests": 0,
+      "logo_request_initiators": [
+        "link"
+      ],
+      "initialMapRequests": 0,
+      "cache_misses": 0,
+      "passed": true
+    },
+    {
+      "run_id": "20261029T162121Z",
+      "path": "/",
+      "confirmed": false,
+      "repeat": 1,
+      "variant": "baseline",
+      "errors": [],
+      "console_errors": [],
+      "screenshot": null,
+      "http_status": 200,
+      "started": true,
+      "ready": 4046.5,
+      "exit": 6954.700000762939,
+      "lcp": 1268,
+      "cls": 0,
+      "overlaps": 0,
+      "earlyFocus": 0,
+      "startupFrames": 261,
+      "logoVisibleFrames": 115,
+      "logoImageLoadedFrames": 115,
+      "logoFirstVisible": 4166.39999961853,
+      "logoFirstVisibleSrc": "http://127.0.0.1:33759/static/frontend/logo-opening-motion-v2.svg",
+      "gateHidden": false,
+      "gateConfirmPresent": true,
+      "activeElement": "BUTTON",
+      "logoVisibleNow": null,
+      "navigationStart": 0,
+      "ttfb": 22.200000762939453,
+      "responseEnd": 265.5,
+      "logoEntries": [
+        {
+          "name": "http://127.0.0.1:33759/static/frontend/logo-opening-motion-v2.svg",
+          "initiatorType": "img",
+          "startTime": 1219.1000003814697,
+          "fetchStart": 1219.1000003814697,
+          "responseStart": 1510.7000007629395,
+          "responseEnd": 3568,
+          "duration": 2348.8999996185303,
+          "transferSize": 100167,
+          "encodedBodySize": 99867,
+          "decodedBodySize": 134042
+        }
+      ],
+      "logoRequestCount": 1,
+      "logoFirstStartMs": 1219.1000003814697,
+      "logoTransferBytes": 100167,
+      "initialMapSrc": null,
+      "resourceBytes": 770197,
+      "effective_page_url": "http://127.0.0.1:33759/",
+      "navigation_response_url": "http://127.0.0.1:33759/",
+      "navigation_response_content_encoding": "gzip",
+      "response_audit": [
+        {
+          "path": "/static/frontend/assets/storefront-_jEqHMC6.css",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "text/css",
+          "content_length": "12721"
+        },
+        {
+          "path": "/static/frontend/assets/NotFoundPage-hG-cGUmF.css",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "text/css",
+          "content_length": "3806"
+        },
+        {
+          "path": "/static/frontend/startup-loader.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "3734"
+        },
+        {
+          "path": "/static/frontend/assets/storefront-Ch8XQKYg.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "26216"
+        },
+        {
+          "path": "/static/frontend/logo-opening-motion-v2.svg",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "image/svg+xml",
+          "content_length": "99867"
+        },
+        {
+          "path": "/static/frontend/assets/chevron-left-BCMR-IwL.js",
+          "status": 200,
+          "content_encoding": null,
+          "content_type": "application/javascript",
+          "content_length": "126"
+        },
+        {
+          "path": "/static/frontend/assets/priceData-DXo5R5TJ.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "627"
+        },
+        {
+          "path": "/static/frontend/assets/NotFoundPage-D_izzydX.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "84020"
+        }
+      ],
+      "blocked_external_requests": [],
+      "first_party_route_rewrites": [],
+      "age_confirmation_click_hid_gate": true,
+      "age_confirmation_storage_set": true,
+      "wall_ms": 9005.42620010674,
+      "handoff_ms": 2908.2000007629395,
+      "logo_duplicate_requests": 0,
+      "logo_request_initiators": [
+        "img"
+      ],
+      "initialMapRequests": 0,
+      "cache_misses": 0,
+      "passed": true
+    },
+    {
+      "run_id": "20261029T162121Z",
+      "path": "/ru/brand/cohiba",
+      "confirmed": false,
+      "repeat": 1,
+      "variant": "baseline",
+      "errors": [],
+      "console_errors": [],
+      "screenshot": null,
+      "http_status": 200,
+      "started": true,
+      "ready": 3472.7000007629395,
+      "exit": 6023.300001144409,
+      "lcp": 1256,
+      "cls": 0,
+      "overlaps": 0,
+      "earlyFocus": 0,
+      "startupFrames": 248,
+      "logoVisibleFrames": 116,
+      "logoImageLoadedFrames": 116,
+      "logoFirstVisible": 3523.2000007629395,
+      "logoFirstVisibleSrc": "http://127.0.0.1:33759/static/frontend/logo-opening-motion-v2.svg",
+      "gateHidden": false,
+      "gateConfirmPresent": true,
+      "activeElement": "BUTTON",
+      "logoVisibleNow": null,
+      "navigationStart": 0,
+      "ttfb": 13.5,
+      "responseEnd": 232.89999961853027,
+      "logoEntries": [
+        {
+          "name": "http://127.0.0.1:33759/static/frontend/logo-opening-motion-v2.svg",
+          "initiatorType": "img",
+          "startTime": 1174,
+          "fetchStart": 1174,
+          "responseStart": 1748.7000007629395,
+          "responseEnd": 3202.800001144409,
+          "duration": 2028.8000011444092,
+          "transferSize": 100167,
+          "encodedBodySize": 99867,
+          "decodedBodySize": 134042
+        }
+      ],
+      "logoRequestCount": 1,
+      "logoFirstStartMs": 1174,
+      "logoTransferBytes": 100167,
+      "initialMapSrc": null,
+      "resourceBytes": 474955,
+      "effective_page_url": "http://127.0.0.1:33759/ru/brand/cohiba",
+      "navigation_response_url": "http://127.0.0.1:33759/ru/brand/cohiba",
+      "navigation_response_content_encoding": "gzip",
+      "response_audit": [
+        {
+          "path": "/static/frontend/assets/storefront-_jEqHMC6.css",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "text/css",
+          "content_length": "12721"
+        },
+        {
+          "path": "/static/frontend/assets/NotFoundPage-hG-cGUmF.css",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "text/css",
+          "content_length": "3806"
+        },
+        {
+          "path": "/static/frontend/startup-loader.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "3734"
+        },
+        {
+          "path": "/static/frontend/assets/storefront-Ch8XQKYg.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "26216"
+        },
+        {
+          "path": "/static/frontend/logo-opening-motion-v2.svg",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "image/svg+xml",
+          "content_length": "99867"
+        },
+        {
+          "path": "/static/frontend/assets/chevron-left-BCMR-IwL.js",
+          "status": 200,
+          "content_encoding": null,
+          "content_type": "application/javascript",
+          "content_length": "126"
+        },
+        {
+          "path": "/static/frontend/assets/priceData-DXo5R5TJ.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "627"
+        },
+        {
+          "path": "/static/frontend/assets/NotFoundPage-D_izzydX.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "84020"
+        }
+      ],
+      "blocked_external_requests": [],
+      "first_party_route_rewrites": [],
+      "age_confirmation_click_hid_gate": true,
+      "age_confirmation_storage_set": true,
+      "wall_ms": 7769.821548834443,
+      "handoff_ms": 2550.6000003814697,
+      "logo_duplicate_requests": 0,
+      "logo_request_initiators": [
+        "img"
+      ],
+      "initialMapRequests": 0,
+      "cache_misses": 0,
+      "passed": true
+    },
+    {
+      "run_id": "20261029T162121Z",
+      "path": "/ru/brand/cohiba",
+      "confirmed": false,
+      "repeat": 1,
+      "variant": "candidate",
+      "errors": [],
+      "console_errors": [],
+      "screenshot": null,
+      "http_status": 200,
+      "started": true,
+      "ready": 2939.1000003814697,
+      "exit": 4376,
+      "lcp": 1268,
+      "cls": 0,
+      "overlaps": 0,
+      "earlyFocus": 0,
+      "startupFrames": 166,
+      "logoVisibleFrames": 140,
+      "logoImageLoadedFrames": 140,
+      "logoFirstVisible": 1349.3000011444092,
+      "logoFirstVisibleSrc": "http://127.0.0.1:33759/static/frontend/logo-opening-motion-v2.svg",
+      "gateHidden": false,
+      "gateConfirmPresent": true,
+      "activeElement": "BUTTON",
+      "logoVisibleNow": null,
+      "navigationStart": 0,
+      "ttfb": 47.5,
+      "responseEnd": 226.60000038146973,
+      "logoEntries": [
+        {
+          "name": "http://127.0.0.1:33759/static/frontend/logo-opening-motion-v2.svg",
+          "initiatorType": "link",
+          "startTime": 256.6000003814697,
+          "fetchStart": 256.6000003814697,
+          "responseStart": 326.3999996185303,
+          "responseEnd": 1269.2000007629395,
+          "duration": 1012.6000003814697,
+          "transferSize": 100167,
+          "encodedBodySize": 99867,
+          "decodedBodySize": 134042
+        }
+      ],
+      "logoRequestCount": 1,
+      "logoFirstStartMs": 256.6000003814697,
+      "logoTransferBytes": 100167,
+      "initialMapSrc": null,
+      "resourceBytes": 474955,
+      "effective_page_url": "http://127.0.0.1:33759/ru/brand/cohiba",
+      "navigation_response_url": "http://127.0.0.1:33759/ru/brand/cohiba",
+      "navigation_response_content_encoding": "gzip",
+      "response_audit": [
+        {
+          "path": "/static/frontend/assets/storefront-_jEqHMC6.css",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "text/css",
+          "content_length": "12721"
+        },
+        {
+          "path": "/static/frontend/assets/NotFoundPage-hG-cGUmF.css",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "text/css",
+          "content_length": "3806"
+        },
+        {
+          "path": "/static/frontend/logo-opening-motion-v2.svg",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "image/svg+xml",
+          "content_length": "99867"
+        },
+        {
+          "path": "/static/frontend/startup-loader.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "3734"
+        },
+        {
+          "path": "/static/frontend/assets/storefront-Ch8XQKYg.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "26216"
+        },
+        {
+          "path": "/static/frontend/assets/chevron-left-BCMR-IwL.js",
+          "status": 200,
+          "content_encoding": null,
+          "content_type": "application/javascript",
+          "content_length": "126"
+        },
+        {
+          "path": "/static/frontend/assets/priceData-DXo5R5TJ.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "627"
+        },
+        {
+          "path": "/static/frontend/assets/NotFoundPage-D_izzydX.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "84020"
+        }
+      ],
+      "blocked_external_requests": [],
+      "first_party_route_rewrites": [],
+      "age_confirmation_click_hid_gate": true,
+      "age_confirmation_storage_set": true,
+      "wall_ms": 6274.879403412342,
+      "handoff_ms": 1436.8999996185303,
+      "logo_duplicate_requests": 0,
+      "logo_request_initiators": [
+        "link"
+      ],
+      "initialMapRequests": 0,
+      "cache_misses": 0,
+      "passed": true
+    },
+    {
+      "run_id": "20261029T162121Z",
+      "path": "/ru/cigar/103/cohiba-magicos",
+      "confirmed": false,
+      "repeat": 1,
+      "variant": "candidate",
+      "errors": [],
+      "console_errors": [],
+      "screenshot": null,
+      "http_status": 200,
+      "started": true,
+      "ready": 3394.7000007629395,
+      "exit": 5787.60000038147,
+      "lcp": 2700,
+      "cls": 0,
+      "overlaps": 0,
+      "earlyFocus": 0,
+      "startupFrames": 227,
+      "logoVisibleFrames": 139,
+      "logoImageLoadedFrames": 139,
+      "logoFirstVisible": 2643,
+      "logoFirstVisibleSrc": "http://127.0.0.1:33759/static/frontend/logo-opening-motion-v2.svg",
+      "gateHidden": false,
+      "gateConfirmPresent": true,
+      "activeElement": "BUTTON",
+      "logoVisibleNow": null,
+      "navigationStart": 0,
+      "ttfb": 25.700000762939453,
+      "responseEnd": 227.89999961853027,
+      "logoEntries": [
+        {
+          "name": "http://127.0.0.1:33759/static/frontend/logo-opening-motion-v2.svg",
+          "initiatorType": "link",
+          "startTime": 260.29999923706055,
+          "fetchStart": 260.29999923706055,
+          "responseStart": 361,
+          "responseEnd": 2548.3999996185303,
+          "duration": 2288.1000003814697,
+          "transferSize": 100167,
+          "encodedBodySize": 99867,
+          "decodedBodySize": 134042
+        }
+      ],
+      "logoRequestCount": 1,
+      "logoFirstStartMs": 260.29999923706055,
+      "logoTransferBytes": 100167,
+      "initialMapSrc": null,
+      "resourceBytes": 593286,
+      "effective_page_url": "http://127.0.0.1:33759/ru/cigar/103/cohiba-magicos",
+      "navigation_response_url": "http://127.0.0.1:33759/ru/cigar/103/cohiba-magicos",
+      "navigation_response_content_encoding": "gzip",
+      "response_audit": [
+        {
+          "path": "/static/frontend/assets/NotFoundPage-hG-cGUmF.css",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "text/css",
+          "content_length": "3806"
+        },
+        {
+          "path": "/static/frontend/assets/storefront-_jEqHMC6.css",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "text/css",
+          "content_length": "12721"
+        },
+        {
+          "path": "/static/frontend/logo-opening-motion-v2.svg",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "image/svg+xml",
+          "content_length": "99867"
+        },
+        {
+          "path": "/static/frontend/startup-loader.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "3734"
+        },
+        {
+          "path": "/static/frontend/assets/storefront-Ch8XQKYg.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "26216"
+        },
+        {
+          "path": "/static/frontend/assets/chevron-left-BCMR-IwL.js",
+          "status": 200,
+          "content_encoding": null,
+          "content_type": "application/javascript",
+          "content_length": "126"
+        },
+        {
+          "path": "/static/frontend/assets/priceData-DXo5R5TJ.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "627"
+        },
+        {
+          "path": "/static/frontend/assets/NotFoundPage-D_izzydX.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "84020"
+        }
+      ],
+      "blocked_external_requests": [],
+      "first_party_route_rewrites": [],
+      "age_confirmation_click_hid_gate": true,
+      "age_confirmation_storage_set": true,
+      "wall_ms": 7663.460345938802,
+      "handoff_ms": 2392.8999996185303,
+      "logo_duplicate_requests": 0,
+      "logo_request_initiators": [
+        "link"
+      ],
+      "initialMapRequests": 0,
+      "cache_misses": 0,
+      "passed": true
+    },
+    {
+      "run_id": "20261029T162121Z",
+      "path": "/ru/cigar/103/cohiba-magicos",
+      "confirmed": false,
+      "repeat": 1,
+      "variant": "baseline",
+      "errors": [],
+      "console_errors": [],
+      "screenshot": null,
+      "http_status": 200,
+      "started": true,
+      "ready": 3486.1000003814697,
+      "exit": 5911.700000762939,
+      "lcp": 2876,
+      "cls": 0,
+      "overlaps": 0,
+      "earlyFocus": 0,
+      "startupFrames": 242,
+      "logoVisibleFrames": 136,
+      "logoImageLoadedFrames": 136,
+      "logoFirstVisible": 2817.2000007629395,
+      "logoFirstVisibleSrc": "http://127.0.0.1:33759/static/frontend/logo-opening-motion-v2.svg",
+      "gateHidden": false,
+      "gateConfirmPresent": true,
+      "activeElement": "BUTTON",
+      "logoVisibleNow": null,
+      "navigationStart": 0,
+      "ttfb": 16.30000114440918,
+      "responseEnd": 212,
+      "logoEntries": [
+        {
+          "name": "http://127.0.0.1:33759/static/frontend/logo-opening-motion-v2.svg",
+          "initiatorType": "img",
+          "startTime": 793.5,
+          "fetchStart": 793.5,
+          "responseStart": 817.3000011444092,
+          "responseEnd": 2742.800001144409,
+          "duration": 1949.3000011444092,
+          "transferSize": 100167,
+          "encodedBodySize": 99867,
+          "decodedBodySize": 134042
+        }
+      ],
+      "logoRequestCount": 1,
+      "logoFirstStartMs": 793.5,
+      "logoTransferBytes": 100167,
+      "initialMapSrc": null,
+      "resourceBytes": 593286,
+      "effective_page_url": "http://127.0.0.1:33759/ru/cigar/103/cohiba-magicos",
+      "navigation_response_url": "http://127.0.0.1:33759/ru/cigar/103/cohiba-magicos",
+      "navigation_response_content_encoding": "gzip",
+      "response_audit": [
+        {
+          "path": "/static/frontend/assets/storefront-_jEqHMC6.css",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "text/css",
+          "content_length": "12721"
+        },
+        {
+          "path": "/static/frontend/assets/NotFoundPage-hG-cGUmF.css",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "text/css",
+          "content_length": "3806"
+        },
+        {
+          "path": "/static/frontend/startup-loader.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "3734"
+        },
+        {
+          "path": "/static/frontend/logo-opening-motion-v2.svg",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "image/svg+xml",
+          "content_length": "99867"
+        },
+        {
+          "path": "/static/frontend/assets/storefront-Ch8XQKYg.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "26216"
+        },
+        {
+          "path": "/static/frontend/assets/chevron-left-BCMR-IwL.js",
+          "status": 200,
+          "content_encoding": null,
+          "content_type": "application/javascript",
+          "content_length": "126"
+        },
+        {
+          "path": "/static/frontend/assets/priceData-DXo5R5TJ.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "627"
+        },
+        {
+          "path": "/static/frontend/assets/NotFoundPage-D_izzydX.js",
+          "status": 200,
+          "content_encoding": "gzip",
+          "content_type": "application/javascript",
+          "content_length": "84020"
+        }
+      ],
+      "blocked_external_requests": [],
+      "first_party_route_rewrites": [],
+      "age_confirmation_click_hid_gate": true,
+      "age_confirmation_storage_set": true,
+      "wall_ms": 7877.962926402688,
+      "handoff_ms": 2425.6000003814697,
+      "logo_duplicate_requests": 0,
+      "logo_request_initiators": [
+        "img"
+      ],
+      "initialMapRequests": 0,
+      "cache_misses": 0,
+      "passed": true
+    }
+  ],
+  "summary_medians": [
+    {
+      "path": "/",
+      "confirmed": false,
+      "variant": "baseline",
+      "samples": 1,
+      "median_ready": 4046.5,
+      "median_exit": 6954.700000762939,
+      "median_handoff_ms": 2908.2000007629395,
+      "median_lcp": 1268,
+      "median_cls": 0,
+      "median_logoFirstStartMs": 1219.1000003814697,
+      "median_logoTransferBytes": 100167,
+      "logo_request_count_total": 1,
+      "logo_duplicate_requests_total": 0,
+      "cache_misses_total": 0
+    },
+    {
+      "path": "/",
+      "confirmed": false,
+      "variant": "candidate",
+      "samples": 1,
+      "median_ready": 3701.1000003814697,
+      "median_exit": 4791.5,
+      "median_handoff_ms": 1090.3999996185303,
+      "median_lcp": 1208,
+      "median_cls": 0,
+      "median_logoFirstStartMs": 273.20000076293945,
+      "median_logoTransferBytes": 100167,
+      "logo_request_count_total": 1,
+      "logo_duplicate_requests_total": 0,
+      "cache_misses_total": 0
+    },
+    {
+      "path": "/",
+      "confirmed": true,
+      "variant": "baseline",
+      "samples": 0,
+      "median_ready": null,
+      "median_exit": null,
+      "median_handoff_ms": null,
+      "median_lcp": null,
+      "median_cls": null,
+      "median_logoFirstStartMs": null,
+      "median_logoTransferBytes": null,
+      "logo_request_count_total": 0,
+      "logo_duplicate_requests_total": 0,
+      "cache_misses_total": 0
+    },
+    {
+      "path": "/",
+      "confirmed": true,
+      "variant": "candidate",
+      "samples": 0,
+      "median_ready": null,
+      "median_exit": null,
+      "median_handoff_ms": null,
+      "median_lcp": null,
+      "median_cls": null,
+      "median_logoFirstStartMs": null,
+      "median_logoTransferBytes": null,
+      "logo_request_count_total": 0,
+      "logo_duplicate_requests_total": 0,
+      "cache_misses_total": 0
+    },
+    {
+      "path": "/ru/brand/cohiba",
+      "confirmed": false,
+      "variant": "baseline",
+      "samples": 1,
+      "median_ready": 3472.7000007629395,
+      "median_exit": 6023.300001144409,
+      "median_handoff_ms": 2550.6000003814697,
+      "median_lcp": 1256,
+      "median_cls": 0,
+      "median_logoFirstStartMs": 1174,
+      "median_logoTransferBytes": 100167,
+      "logo_request_count_total": 1,
+      "logo_duplicate_requests_total": 0,
+      "cache_misses_total": 0
+    },
+    {
+      "path": "/ru/brand/cohiba",
+      "confirmed": false,
+      "variant": "candidate",
+      "samples": 1,
+      "median_ready": 2939.1000003814697,
+      "median_exit": 4376,
+      "median_handoff_ms": 1436.8999996185303,
+      "median_lcp": 1268,
+      "median_cls": 0,
+      "median_logoFirstStartMs": 256.6000003814697,
+      "median_logoTransferBytes": 100167,
+      "logo_request_count_total": 1,
+      "logo_duplicate_requests_total": 0,
+      "cache_misses_total": 0
+    },
+    {
+      "path": "/ru/brand/cohiba",
+      "confirmed": true,
+      "variant": "baseline",
+      "samples": 0,
+      "median_ready": null,
+      "median_exit": null,
+      "median_handoff_ms": null,
+      "median_lcp": null,
+      "median_cls": null,
+      "median_logoFirstStartMs": null,
+      "median_logoTransferBytes": null,
+      "logo_request_count_total": 0,
+      "logo_duplicate_requests_total": 0,
+      "cache_misses_total": 0
+    },
+    {
+      "path": "/ru/brand/cohiba",
+      "confirmed": true,
+      "variant": "candidate",
+      "samples": 0,
+      "median_ready": null,
+      "median_exit": null,
+      "median_handoff_ms": null,
+      "median_lcp": null,
+      "median_cls": null,
+      "median_logoFirstStartMs": null,
+      "median_logoTransferBytes": null,
+      "logo_request_count_total": 0,
+      "logo_duplicate_requests_total": 0,
+      "cache_misses_total": 0
+    },
+    {
+      "path": "/ru/cigar/103/cohiba-magicos",
+      "confirmed": false,
+      "variant": "baseline",
+      "samples": 1,
+      "median_ready": 3486.1000003814697,
+      "median_exit": 5911.700000762939,
+      "median_handoff_ms": 2425.6000003814697,
+      "median_lcp": 2876,
+      "median_cls": 0,
+      "median_logoFirstStartMs": 793.5,
+      "median_logoTransferBytes": 100167,
+      "logo_request_count_total": 1,
+      "logo_duplicate_requests_total": 0,
+      "cache_misses_total": 0
+    },
+    {
+      "path": "/ru/cigar/103/cohiba-magicos",
+      "confirmed": false,
+      "variant": "candidate",
+      "samples": 1,
+      "median_ready": 3394.7000007629395,
+      "median_exit": 5787.60000038147,
+      "median_handoff_ms": 2392.8999996185303,
+      "median_lcp": 2700,
+      "median_cls": 0,
+      "median_logoFirstStartMs": 260.29999923706055,
+      "median_logoTransferBytes": 100167,
+      "logo_request_count_total": 1,
+      "logo_duplicate_requests_total": 0,
+      "cache_misses_total": 0
+    },
+    {
+      "path": "/ru/cigar/103/cohiba-magicos",
+      "confirmed": true,
+      "variant": "baseline",
+      "samples": 0,
+      "median_ready": null,
+      "median_exit": null,
+      "median_handoff_ms": null,
+      "median_lcp": null,
+      "median_cls": null,
+      "median_logoFirstStartMs": null,
+      "median_logoTransferBytes": null,
+      "logo_request_count_total": 0,
+      "logo_duplicate_requests_total": 0,
+      "cache_misses_total": 0
+    },
+    {
+      "path": "/ru/cigar/103/cohiba-magicos",
+      "confirmed": true,
+      "variant": "candidate",
+      "samples": 0,
+      "median_ready": null,
+      "median_exit": null,
+      "median_handoff_ms": null,
+      "median_lcp": null,
+      "median_cls": null,
+      "median_logoFirstStartMs": null,
+      "median_logoTransferBytes": null,
+      "logo_request_count_total": 0,
+      "logo_duplicate_requests_total": 0,
+      "cache_misses_total": 0
+    }
+  ]
+}

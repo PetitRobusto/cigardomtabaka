@@ -1,0 +1,460 @@
+{
+  "path": "/ru/cigar/103/cohiba-magicos",
+  "confirmed": false,
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "device_scale_factor": 2,
+  "latency_ms": 150,
+  "download_bytes_per_second": 200000,
+  "upload_bytes_per_second": 93750,
+  "cpu_slowdown": 4,
+  "browser_cache": "disabled",
+  "measurement_location": "unverified; runner geographic region not determined",
+  "started_at_utc": "2026-10-29T15:56:11Z",
+  "chromium_version": "156.0.8078.47",
+  "lcpCandidates": [
+    {
+      "startTime": 3084,
+      "loadTime": 0,
+      "renderTime": 3084,
+      "size": 16343,
+      "url": "",
+      "tag": "H2",
+      "id": "store-age-title",
+      "className": "",
+      "currentSrc": ""
+    },
+    {
+      "startTime": 5448,
+      "loadTime": 5401.60000038147,
+      "renderTime": 5448,
+      "size": 19968,
+      "url": "https://cigardomtabaka.com/static/frontend/logo-opening-motion-v2.svg",
+      "tag": "IMG",
+      "id": "",
+      "className": "cdt-startup__logo",
+      "currentSrc": "https://cigardomtabaka.com/static/frontend/logo-opening-motion-v2.svg"
+    }
+  ],
+  "resources": [
+    {
+      "name": "https://cigardomtabaka.com/media/storefront/generated-v4/products/103-box-10-detail.webp",
+      "initiatorType": "link",
+      "startTime": 2017.8000011444092,
+      "duration": 3589.8999996185303,
+      "requestStart": 2817.2000007629395,
+      "responseStart": 3296.6000003814697,
+      "responseEnd": 5607.700000762939,
+      "transferSize": 183894,
+      "encodedBodySize": 183594,
+      "decodedBodySize": 183594
+    },
+    {
+      "name": "https://cigardomtabaka.com/static/frontend/logo-opening-motion-v2.svg",
+      "initiatorType": "img",
+      "startTime": 3275.6000003814697,
+      "duration": 2091.300001144409,
+      "requestStart": 3282.900001525879,
+      "responseStart": 3784.2000007629395,
+      "responseEnd": 5366.900001525879,
+      "transferSize": 100167,
+      "encodedBodySize": 99867,
+      "decodedBodySize": 134042
+    },
+    {
+      "name": "https://cigardomtabaka.com/static/frontend/assets/NotFoundPage-D_izzydX.js",
+      "initiatorType": "script",
+      "startTime": 3784.1000003814697,
+      "duration": 1672.8999996185303,
+      "requestStart": 3789.2000007629395,
+      "responseStart": 4160.800001144409,
+      "responseEnd": 5457,
+      "transferSize": 84320,
+      "encodedBodySize": 84020,
+      "decodedBodySize": 225397
+    },
+    {
+      "name": "https://cigardomtabaka.com/media/storefront/generated-v4/products/103-box-10-list.webp",
+      "initiatorType": "img",
+      "startTime": 3005.5,
+      "duration": 1334.1000003814697,
+      "requestStart": 3283.1000003814697,
+      "responseStart": 3776,
+      "responseEnd": 4339.60000038147,
+      "transferSize": 32556,
+      "encodedBodySize": 32256,
+      "decodedBodySize": 32256
+    },
+    {
+      "name": "https://cigardomtabaka.com/static/frontend/assets/storefront-Ch8XQKYg.js",
+      "initiatorType": "script",
+      "startTime": 2018.8000011444092,
+      "duration": 1758.5,
+      "requestStart": 2901.5,
+      "responseStart": 3395.300001144409,
+      "responseEnd": 3777.300001144409,
+      "transferSize": 26516,
+      "encodedBodySize": 26216,
+      "decodedBodySize": 69151
+    },
+    {
+      "name": "https://cigardomtabaka.com/media/storefront/generated-v3/products/101-box-10-list.webp",
+      "initiatorType": "img",
+      "startTime": 3008.1000003814697,
+      "duration": 3214,
+      "requestStart": 5459.800001144409,
+      "responseStart": 5935.400001525879,
+      "responseEnd": 6222.10000038147,
+      "transferSize": 23964,
+      "encodedBodySize": 23664,
+      "decodedBodySize": 23664
+    },
+    {
+      "name": "https://cigardomtabaka.com/media/storefront/generated-v3/products/102-box-10-list.webp",
+      "initiatorType": "img",
+      "startTime": 3005.800001144409,
+      "duration": 3134,
+      "requestStart": 5367.60000038147,
+      "responseStart": 5856.800001144409,
+      "responseEnd": 6139.800001144409,
+      "transferSize": 23522,
+      "encodedBodySize": 23222,
+      "decodedBodySize": 23222
+    },
+    {
+      "name": "https://cigardomtabaka.com/media/storefront/generated-v2/products/97-box-25-list.webp",
+      "initiatorType": "img",
+      "startTime": 3005.900001525879,
+      "duration": 3021.5,
+      "requestStart": 5367.800001144409,
+      "responseStart": 5853.400001525879,
+      "responseEnd": 6027.400001525879,
+      "transferSize": 16352,
+      "encodedBodySize": 16052,
+      "decodedBodySize": 16052
+    },
+    {
+      "name": "https://cigardomtabaka.com/static/frontend/logo-motion-176.webp",
+      "initiatorType": "link",
+      "startTime": 2016.7000007629395,
+      "duration": 1596.2000007629395,
+      "requestStart": 2908.300001144409,
+      "responseStart": 3384.7000007629395,
+      "responseEnd": 3612.900001525879,
+      "transferSize": 15694,
+      "encodedBodySize": 15394,
+      "decodedBodySize": 15394
+    },
+    {
+      "name": "https://cigardomtabaka.com/static/frontend/assets/storefront-_jEqHMC6.css",
+      "initiatorType": "link",
+      "startTime": 2015.400001525879,
+      "duration": 441.8999996185303,
+      "requestStart": 2024.2000007629395,
+      "responseStart": 2395.400001525879,
+      "responseEnd": 2457.300001144409,
+      "transferSize": 13021,
+      "encodedBodySize": 12721,
+      "decodedBodySize": 46064
+    },
+    {
+      "name": "https://cigardomtabaka.com/static/frontend/favicon-96.png",
+      "initiatorType": "other",
+      "startTime": 5712.10000038147,
+      "duration": 518.1000003814697,
+      "requestStart": 5714.200000762939,
+      "responseStart": 6095.5,
+      "responseEnd": 6230.200000762939,
+      "transferSize": 11751,
+      "encodedBodySize": 11451,
+      "decodedBodySize": 11451
+    },
+    {
+      "name": "https://cigardomtabaka.com/media/storefront/generated-v4/products/103-single-list.webp",
+      "initiatorType": "img",
+      "startTime": 3005.7000007629395,
+      "duration": 846.7999992370605,
+      "requestStart": 3283.1000003814697,
+      "responseStart": 3662,
+      "responseEnd": 3852.5,
+      "transferSize": 11638,
+      "encodedBodySize": 11338,
+      "decodedBodySize": 11338
+    },
+    {
+      "name": "https://cigardomtabaka.com/static/frontend/assets/NotFoundPage-hG-cGUmF.css",
+      "initiatorType": "link",
+      "startTime": 2016.6000003814697,
+      "duration": 800.3999996185303,
+      "requestStart": 2457.5,
+      "responseStart": 2796.6000003814697,
+      "responseEnd": 2817,
+      "transferSize": 4106,
+      "encodedBodySize": 3806,
+      "decodedBodySize": 13223
+    },
+    {
+      "name": "https://cigardomtabaka.com/static/frontend/startup-loader.js?v=f690bd75ac38",
+      "initiatorType": "script",
+      "startTime": 2017.900001525879,
+      "duration": 1249,
+      "requestStart": 2908.300001144409,
+      "responseStart": 3249.900001525879,
+      "responseEnd": 3266.900001525879,
+      "transferSize": 4034,
+      "encodedBodySize": 3734,
+      "decodedBodySize": 10775
+    },
+    {
+      "name": "https://cigardomtabaka.com/api/storefront/page/?path=%2Fru%2Fcigar%2F103%2Fcohiba-magicos",
+      "initiatorType": "fetch",
+      "startTime": 5648.300001144409,
+      "duration": 663.7999992370605,
+      "requestStart": 5688.800001144409,
+      "responseStart": 6296.300001144409,
+      "responseEnd": 6312.10000038147,
+      "transferSize": 3404,
+      "encodedBodySize": 3104,
+      "decodedBodySize": 13261
+    },
+    {
+      "name": "https://cigardomtabaka.com/static/frontend/assets/priceData-DXo5R5TJ.js",
+      "initiatorType": "script",
+      "startTime": 3784.400001525879,
+      "duration": 443.8999996185303,
+      "requestStart": 3852.7000007629395,
+      "responseStart": 4191.800001144409,
+      "responseEnd": 4228.300001144409,
+      "transferSize": 927,
+      "encodedBodySize": 627,
+      "decodedBodySize": 1647
+    },
+    {
+      "name": "https://cigardomtabaka.com/static/frontend/assets/chevron-left-BCMR-IwL.js",
+      "initiatorType": "script",
+      "startTime": 3784.2000007629395,
+      "duration": 368.6000003814697,
+      "requestStart": 3791.300001144409,
+      "responseStart": 4126.10000038147,
+      "responseEnd": 4152.800001144409,
+      "transferSize": 426,
+      "encodedBodySize": 126,
+      "decodedBodySize": 126
+    }
+  ],
+  "imageState": [
+    {
+      "currentSrc": "https://cigardomtabaka.com/static/frontend/logo-opening-motion-v2.svg",
+      "complete": true,
+      "naturalWidth": 183,
+      "width": 156,
+      "height": 127.96875
+    },
+    {
+      "currentSrc": "https://cigardomtabaka.com/static/frontend/logo-motion-176.webp",
+      "complete": true,
+      "naturalWidth": 176,
+      "width": 40,
+      "height": 40
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "https://cigardomtabaka.com/media/storefront/generated-v4/products/103-box-10-detail.webp",
+      "complete": true,
+      "naturalWidth": 1200,
+      "width": 304,
+      "height": 312
+    },
+    {
+      "currentSrc": "https://cigardomtabaka.com/media/storefront/generated-v4/products/103-box-10-list.webp",
+      "complete": true,
+      "naturalWidth": 480,
+      "width": 62,
+      "height": 36
+    },
+    {
+      "currentSrc": "https://cigardomtabaka.com/media/storefront/generated-v4/products/103-single-list.webp",
+      "complete": true,
+      "naturalWidth": 480,
+      "width": 62,
+      "height": 36
+    },
+    {
+      "currentSrc": "https://cigardomtabaka.com/media/storefront/generated-v4/products/103-box-10-detail.webp",
+      "complete": true,
+      "naturalWidth": 1200,
+      "width": 0,
+      "height": 0
+    },
+    {
+      "currentSrc": "https://cigardomtabaka.com/media/storefront/generated-v3/products/102-box-10-list.webp",
+      "complete": true,
+      "naturalWidth": 480,
+      "width": 139.5,
+      "height": 146.5
+    },
+    {
+      "currentSrc": "https://cigardomtabaka.com/media/storefront/generated-v2/products/97-box-25-list.webp",
+      "complete": true,
+      "naturalWidth": 480,
+      "width": 139.5,
+      "height": 146.5
+    },
+    {
+      "currentSrc": "https://cigardomtabaka.com/media/storefront/generated-v3/products/101-box-10-list.webp",
+      "complete": true,
+      "naturalWidth": 480,
+      "width": 139.5,
+      "height": 146.5
+    },
+    {
+      "currentSrc": "",
+      "complete": false,
+      "naturalWidth": 0,
+      "width": 72,
+      "height": 72
+    }
+  ],
+  "finished_at_utc": "2026-10-29T15:56:19Z"
+}

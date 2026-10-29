@@ -1,0 +1,127 @@
+{
+  "checked_at": "2026-10-29T15:23:44.791884+00:00",
+  "sitemap_count": 252,
+  "passed": true,
+  "checks": [
+    {
+      "url": "https://cigardomtabaka.com/cigar/141/cohiba-siglo-vi",
+      "status": 404,
+      "noindex": true,
+      "canonical": null,
+      "in_sitemap": false,
+      "passed": true
+    },
+    {
+      "url": "https://cigardomtabaka.com/cigar/133/cohiba-robustos",
+      "status": 404,
+      "noindex": true,
+      "canonical": null,
+      "in_sitemap": false,
+      "passed": true
+    },
+    {
+      "url": "https://cigardomtabaka.com/cigar/124/cohiba-siglo-ii",
+      "status": 404,
+      "noindex": true,
+      "canonical": null,
+      "in_sitemap": false,
+      "passed": true
+    },
+    {
+      "url": "https://cigardomtabaka.com/cigar/101/cohiba-siglo-vi",
+      "status": 200,
+      "noindex": false,
+      "canonical": "https://cigardomtabaka.com/cigar/101/cohiba-siglo-vi",
+      "in_sitemap": true,
+      "passed": true
+    },
+    {
+      "url": "https://cigardomtabaka.com/cigar/95/cohiba-robustos",
+      "status": 200,
+      "noindex": false,
+      "canonical": "https://cigardomtabaka.com/cigar/95/cohiba-robustos",
+      "in_sitemap": true,
+      "passed": true
+    },
+    {
+      "url": "https://cigardomtabaka.com/ru/cigar/141/cohiba-siglo-vi",
+      "status": 404,
+      "noindex": true,
+      "canonical": null,
+      "in_sitemap": false,
+      "passed": true
+    },
+    {
+      "url": "https://cigardomtabaka.com/ru/cigar/133/cohiba-robustos",
+      "status": 404,
+      "noindex": true,
+      "canonical": null,
+      "in_sitemap": false,
+      "passed": true
+    },
+    {
+      "url": "https://cigardomtabaka.com/ru/cigar/124/cohiba-siglo-ii",
+      "status": 404,
+      "noindex": true,
+      "canonical": null,
+      "in_sitemap": false,
+      "passed": true
+    },
+    {
+      "url": "https://cigardomtabaka.com/ru/cigar/101/cohiba-siglo-vi",
+      "status": 200,
+      "noindex": false,
+      "canonical": "https://cigardomtabaka.com/ru/cigar/101/cohiba-siglo-vi",
+      "in_sitemap": true,
+      "passed": true
+    },
+    {
+      "url": "https://cigardomtabaka.com/ru/cigar/95/cohiba-robustos",
+      "status": 200,
+      "noindex": false,
+      "canonical": "https://cigardomtabaka.com/ru/cigar/95/cohiba-robustos",
+      "in_sitemap": true,
+      "passed": true
+    },
+    {
+      "url": "https://cigardomtabaka.com/en/cigar/141/cohiba-siglo-vi",
+      "status": 404,
+      "noindex": true,
+      "canonical": null,
+      "in_sitemap": false,
+      "passed": true
+    },
+    {
+      "url": "https://cigardomtabaka.com/en/cigar/133/cohiba-robustos",
+      "status": 404,
+      "noindex": true,
+      "canonical": null,
+      "in_sitemap": false,
+      "passed": true
+    },
+    {
+      "url": "https://cigardomtabaka.com/en/cigar/124/cohiba-siglo-ii",
+      "status": 404,
+      "noindex": true,
+      "canonical": null,
+      "in_sitemap": false,
+      "passed": true
+    },
+    {
+      "url": "https://cigardomtabaka.com/en/cigar/101/cohiba-siglo-vi",
+      "status": 200,
+      "noindex": false,
+      "canonical": "https://cigardomtabaka.com/en/cigar/101/cohiba-siglo-vi",
+      "in_sitemap": true,
+      "passed": true
+    },
+    {
+      "url": "https://cigardomtabaka.com/en/cigar/95/cohiba-robustos",
+      "status": 200,
+      "noindex": false,
+      "canonical": "https://cigardomtabaka.com/en/cigar/95/cohiba-robustos",
+      "in_sitemap": true,
+      "passed": true
+    }
+  ]
+}

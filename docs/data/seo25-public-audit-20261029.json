@@ -1,0 +1,31 @@
+{
+  "origin": "https://cigardomtabaka.com",
+  "ready": true,
+  "checked_urls": [
+    "https://cigardomtabaka.com/sitemap-storefront.xml",
+    "https://cigardomtabaka.com/",
+    "https://cigardomtabaka.com/static/frontend/favicon-96.png",
+    "https://cigardomtabaka.com/static/frontend/startup-loader.js?v=f690bd75ac38",
+    "https://cigardomtabaka.com/ru/",
+    "https://cigardomtabaka.com/en/",
+    "https://cigardomtabaka.com/catalog",
+    "https://cigardomtabaka.com/brand/cohiba",
+    "https://cigardomtabaka.com/cigar/101/cohiba-siglo-vi",
+    "https://cigardomtabaka.com/ru/catalog",
+    "https://cigardomtabaka.com/ru/brand/cohiba",
+    "https://cigardomtabaka.com/ru/cigar/101/cohiba-siglo-vi",
+    "https://cigardomtabaka.com/en/catalog",
+    "https://cigardomtabaka.com/en/brand/cohiba",
+    "https://cigardomtabaka.com/en/cigar/101/cohiba-siglo-vi",
+    "https://cigardomtabaka.com/robots.txt",
+    "https://cigardomtabaka.com/login",
+    "https://cigardomtabaka.com/__seo_audit_missing_page__",
+    "https://cigardomtabaka.com/ru/__seo_audit_missing_page__",
+    "https://cigardomtabaka.com/en/__seo_audit_missing_page__",
+    "https://cigardomtabaka.com/api/storefront/page/?path=%2F__seo_audit_missing_page__",
+    "https://www.cigardomtabaka.com/"
+  ],
+  "sitemap_url_count": 252,
+  "issues": [],
+  "retries": []
+}

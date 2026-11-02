@@ -24,7 +24,7 @@ describe('销售动作后的查询刷新', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/sales?order=19']}><SalesPage /></MemoryRouter></QueryClientProvider>);
     expect(await screen.findByText('选中 19')).toBeTruthy();
-    expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ q: 'SO-000019', date_from: undefined, date_to: undefined }));
+    expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ q: 'SO-000019', date_from: undefined, date_to: undefined, recent_only: 0 }));
   });
   it.each([
     ['2026-10-21T00:00:00Z', '2026-09-01', '2026-09-30'],
@@ -38,7 +38,7 @@ describe('销售动作后的查询刷新', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<QueryClientProvider client={client}><MemoryRouter><SalesPage /></MemoryRouter></QueryClientProvider>);
     fireEvent.click(await screen.findByRole('button', { name: '上个月' }));
-    await waitFor(() => expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ date_from: start, date_to: end })));
+    await waitFor(() => expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ date_from: start, date_to: end, recent_only: 0 })));
     expect((screen.getByLabelText('订单日期') as HTMLInputElement).value).toBe(start);
     expect((screen.getByLabelText('结束日期') as HTMLInputElement).value).toBe(end);
     expect(screen.getByRole('button', { name: '上个月' }).className).toContain('bg-fg');
@@ -46,20 +46,20 @@ describe('销售动作后的查询刷新', () => {
     await waitFor(() => expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ date_to: shanghaiBusinessDate() })));
   });
 
-  it('订单轨道默认只查询本月至今', async () => {
+  it('订单轨道默认跨月份按时间查询最近60条，每页20条', async () => {
     mocks.fetchSalesOrderList.mockResolvedValue({ results: [], pending_collection: { order_count: 2, amount_cny: '88.00' } });
     mocks.fetchAccountingAccounts.mockResolvedValue([]);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const today = shanghaiBusinessDate();
     render(<QueryClientProvider client={client}><MemoryRouter><SalesPage /></MemoryRouter></QueryClientProvider>);
 
     await waitFor(() => expect(mocks.fetchSalesOrderList).toHaveBeenCalledWith(expect.objectContaining({
-      date_from: `${today.slice(0, 8)}01`,
-      date_to: today,
+      date_from: undefined,
+      date_to: undefined,
+      recent_only: 1, page: 1, limit: 20,
     })));
-    expect((await screen.findByLabelText('订单日期') as HTMLInputElement).value).toBe(`${today.slice(0, 8)}01`);
-    expect((screen.getByLabelText('结束日期') as HTMLInputElement).value).toBe(today);
-    expect(screen.getByRole('button', { name: '本月' }).className).toContain('bg-fg');
+    expect((await screen.findByLabelText('订单日期') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('结束日期') as HTMLInputElement).value).toBe('');
+    expect(screen.getByRole('button', { name: '最近 60 条' }).className).toContain('bg-fg');
     expect(screen.getByText('¥88.00')).toBeTruthy();
     expect(screen.getByText('2 笔已确认未收款订单')).toBeTruthy();
   });
@@ -185,4 +185,28 @@ describe('订单分页', () => {
     expect((screen.getByRole('button', { name: '上一页' }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('button', { name: '下一页' }) as HTMLButtonElement).disabled).toBe(true);
   });
+});
+
+it('最近60条最多三页，全部解除上限，再选最近60条清除日期并回到第一页', async () => {
+  renderPagination();
+  await screen.findByText('订单 1');
+  mocks.fetchSalesOrderList.mockImplementation(({ page = 1, recent_only }) => Promise.resolve(paginatedResponse(page, recent_only ? 60 : 85)));
+  fireEvent.click(screen.getByRole('button', { name: '刷新' }));
+  await screen.findByText('共 60 条 · 每页 20 条 · 第 1 / 3 页');
+  fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+  await screen.findByText('订单 21');
+  fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+  await screen.findByText('订单 60');
+  expect(screen.getByText('共 60 条 · 每页 20 条 · 第 3 / 3 页')).toBeTruthy();
+  expect((screen.getByRole('button', { name: '下一页' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: '全部' }));
+  await screen.findByText('共 85 条 · 每页 20 条 · 第 1 / 5 页');
+  expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, recent_only: 0 }));
+  fireEvent.click(screen.getByRole('button', { name: '本月' }));
+  await waitFor(() => expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ recent_only: 0, date_to: shanghaiBusinessDate() })));
+  fireEvent.click(screen.getByRole('button', { name: '最近 60 条' }));
+  await screen.findByText('共 60 条 · 每页 20 条 · 第 1 / 3 页');
+  expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, limit: 20, recent_only: 1, date_from: undefined, date_to: undefined }));
+  expect((screen.getByLabelText('订单日期') as HTMLInputElement).value).toBe('');
+  expect((screen.getByLabelText('结束日期') as HTMLInputElement).value).toBe('');
 });

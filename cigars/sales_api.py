@@ -230,6 +230,9 @@ def sales_orders(request):
     review_only = request.GET.get("review_only", "0")
     if review_only not in ("0", "1"):
         return _error("review_only 必须是 0 或 1", 400)
+    recent_only = request.GET.get("recent_only", "0")
+    if recent_only not in ("0", "1"):
+        return _error("recent_only 必须是 0 或 1", 400)
     orders = SalesOrder.objects.select_related(
         "customer", "sales_shipment", "sales_refund",
         "sales_return", "sales_transport_cost",
@@ -282,14 +285,16 @@ def sales_orders(request):
     if review_only == "1":
         orders = orders.filter(_review_status=PaymentSubmission.Status.PENDING)
     count = counts["review_count"] if review_only == "1" else counts["count"]
+    if recent_only == "1":
+        count = min(count, 60)
     pages = max(1, (count + limit - 1) // limit)
     page = min(page, pages)
     offset = (page - 1) * limit
     orders = orders.order_by("-created_at", "-id")
     return _json({
-        "results": [serialize_sales_order(order) for order in orders[offset:offset + limit]],
+        "results": [serialize_sales_order(order) for order in orders[offset:min(offset + limit, count)]],
         "count": count, "page": page, "pages": pages, "limit": limit,
-        "review_count": counts["review_count"],
+        "review_count": min(counts["review_count"], 60) if recent_only == "1" else counts["review_count"],
         "pending_collection": pending_collection_summary(),
     })
 

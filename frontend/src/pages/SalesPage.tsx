@@ -13,7 +13,7 @@ import { salesOrderFinancialView } from '../components/sales/SalesOrderCard.logi
 import { shanghaiBusinessDate, shiftIsoDate } from '../utils/businessDate';
 import { DelayedAppSkeleton } from '../components/layout/AppSkeleton';
 
-type QuickDate = 'all' | 'today' | 'week' | 'month' | 'last_month' | 'custom';
+type QuickDate = 'recent' | 'all' | 'today' | 'week' | 'month' | 'last_month' | 'custom';
 
 export default function SalesPage() {
   const { setMeta } = usePageMeta();
@@ -23,9 +23,9 @@ export default function SalesPage() {
   const initialOrderId = Number.isSafeInteger(requestedId) && requestedId > 0 ? requestedId : null;
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState(() => initialOrderId ? `SO-${String(initialOrderId).padStart(6, '0')}` : '');
-  const [dateFrom, setDateFrom] = useState(() => initialOrderId ? '' : `${shanghaiBusinessDate().slice(0, 8)}01`);
-  const [dateTo, setDateTo] = useState(() => initialOrderId ? '' : shanghaiBusinessDate());
-  const [quickDate, setQuickDate] = useState<QuickDate>(initialOrderId ? 'all' : 'month');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [quickDate, setQuickDate] = useState<QuickDate>(initialOrderId ? 'all' : 'recent');
   const [fulfillment, setFulfillment] = useState('');
   const [payment, setPayment] = useState('');
   const [reviewOnly, setReviewOnly] = useState(false);
@@ -38,7 +38,7 @@ export default function SalesPage() {
   useEffect(() => { setMeta({ title: '销售订单工作台', breadcrumbs: [{ label: '首页', to: '/' }, { label: '销售订单' }] }); }, [setMeta]);
 
   const ordersQuery = useQuery({
-    queryKey: ['sales-orders', search, dateFrom, dateTo, fulfillment, payment, reviewOnly, page],
+    queryKey: ['sales-orders', search, dateFrom, dateTo, fulfillment, payment, reviewOnly, page, quickDate === 'recent'],
     queryFn: () => fetchSalesOrderList({
       q: search || undefined,
       date_from: dateFrom || undefined,
@@ -48,6 +48,7 @@ export default function SalesPage() {
       limit: 20,
       page,
       review_only: reviewOnly ? 1 : 0,
+      recent_only: quickDate === 'recent' ? 1 : 0,
     }),
     // 筛选变化时保留当前工作台，只在真正的首次加载显示整页骨架。
     placeholderData: previous => previous,
@@ -101,7 +102,7 @@ export default function SalesPage() {
     setPage(1);
     setQuickDate(value);
     const today = shanghaiBusinessDate();
-    if (value === 'all') { setDateFrom(''); setDateTo(''); return; }
+    if (value === 'all' || value === 'recent') { setDateFrom(''); setDateTo(''); return; }
     if (value === 'today') { setDateFrom(today); setDateTo(today); return; }
     if (value === 'last_month') {
       const end = shiftIsoDate(`${today.slice(0, 8)}01`, -1);
@@ -120,14 +121,14 @@ export default function SalesPage() {
     <SalesSectionNav />
     <header className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Master-detail bench</p><h1 className="mt-1 font-display text-3xl font-semibold sm:text-4xl">销售订单工作台</h1><p className="mt-2 text-sm text-muted">订单、客户、商品成本与收付款事实在同一主从工作台中推进。</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => setCustomerModal({ mode: 'create', id: null })} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><UserPlus className="h-4 w-4" />新建客户</button><button type="button" onClick={() => { setCreateOpen(true); setFormError(''); }} className="inline-flex items-center gap-1 rounded bg-accent px-3 py-2 text-sm font-semibold text-white hover:bg-accent-hover"><Plus className="h-4 w-4" />新建销售单</button><button type="button" onClick={invalidateSales} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
 
-    <section className="mb-4 grid grid-cols-2 overflow-hidden rounded-md border border-border bg-white shadow-sm lg:grid-cols-4"><SummaryCell label="订单数" value={String(count)} hint="当前筛选范围" /><SummaryCell label="应收合计" value={formatCny(totalDue)} hint="当前页订单" /><SummaryCell label="待收金额" value={formatCny(pendingCollection?.amount_cny)} hint={`${pendingCollection?.order_count ?? 0} 笔已确认未收款订单`} /><SummaryCell label="预计贡献利润" value={formatCny(totalProfit)} hint="当前页，按商品成本估算" /></section>
+    <section className="mb-4 grid grid-cols-2 overflow-hidden rounded-md border border-border bg-white shadow-sm lg:grid-cols-4"><SummaryCell label="订单数" value={String(count)} hint={quickDate === 'recent' ? '最近 60 条，按创建时间倒序' : '当前筛选范围'} /><SummaryCell label="应收合计" value={formatCny(totalDue)} hint="当前页订单" /><SummaryCell label="待收金额" value={formatCny(pendingCollection?.amount_cny)} hint={`${pendingCollection?.order_count ?? 0} 笔已确认未收款订单`} /><SummaryCell label="预计贡献利润" value={formatCny(totalProfit)} hint="当前页，按商品成本估算" /></section>
 
     <section className="mb-4 rounded-md border border-border bg-white p-3 shadow-sm">
       <div className="flex flex-wrap items-end gap-2">
         <label className="text-[11px] font-semibold text-muted">订单日期<input type="date" value={dateFrom} onChange={event => { setSelectedId(null); setPage(1); setDateFrom(event.target.value); setQuickDate('custom'); }} className="mt-1 block rounded border border-border px-2 py-1.5 text-xs text-fg" /></label>
         <span className="pb-2 text-xs text-muted">至</span>
         <label className="text-[11px] font-semibold text-muted"><span className="sr-only">结束日期</span><input type="date" value={dateTo} onChange={event => { setSelectedId(null); setPage(1); setDateTo(event.target.value); setQuickDate('custom'); }} className="mt-1 block rounded border border-border px-2 py-1.5 text-xs text-fg" /></label>
-        <div className="flex flex-wrap gap-1">{([['all', '全部'], ['today', '今天'], ['week', '近 7 天'], ['month', '本月'], ['last_month', '上个月']] as [QuickDate, string][]).map(([value, label]) => <button key={value} type="button" onClick={() => selectQuickDate(value)} className={'rounded-full border px-3 py-1.5 text-xs font-semibold ' + (quickDate === value ? 'border-fg bg-fg text-white' : 'border-border hover:border-gold')}>{label}</button>)}</div>
+        <div className="flex flex-wrap gap-1">{([['recent', '最近 60 条'], ['all', '全部'], ['today', '今天'], ['week', '近 7 天'], ['month', '本月'], ['last_month', '上个月']] as [QuickDate, string][]).map(([value, label]) => <button key={value} type="button" onClick={() => selectQuickDate(value)} className={'rounded-full border px-3 py-1.5 text-xs font-semibold ' + (quickDate === value ? 'border-fg bg-fg text-white' : 'border-border hover:border-gold')}>{label}</button>)}</div>
         <label className="text-[11px] font-semibold text-muted">订单<select value={fulfillment} onChange={event => { setSelectedId(null); setPage(1); setFulfillment(event.target.value); }} className="mt-1 block rounded border border-border bg-white px-2 py-1.5 text-xs text-fg"><option value="">全部订单</option><option value="draft">草稿</option><option value="confirmed">已确认</option><option value="shipped">已出库</option><option value="cancelled">已取消</option><option value="returned">已退货</option></select></label>
         <label className="text-[11px] font-semibold text-muted">付款<select value={payment} onChange={event => { setSelectedId(null); setPage(1); setPayment(event.target.value); }} className="mt-1 block rounded border border-border bg-white px-2 py-1.5 text-xs text-fg"><option value="">全部付款</option><option value="unpaid">未收款</option><option value="partial">部分收款</option><option value="paid">已收款</option><option value="refund_pending">待退款</option><option value="refunded">已退款</option></select></label>
         <button type="button" onClick={() => { setSelectedId(null); setPage(1); setReviewOnly(value => !value); }} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${reviewOnly ? 'border-accent bg-accent text-white' : reviewCount ? 'border-orange-200 bg-orange-50 text-orange-800' : 'border-border text-muted'}`}>待核实 <span className="font-mono">{reviewCount}</span></button>

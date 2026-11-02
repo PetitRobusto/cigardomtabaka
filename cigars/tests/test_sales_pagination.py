@@ -40,7 +40,7 @@ class SalesPaginationTest(TestCase):
 
     def test_invalid_pagination_is_rejected(self):
         for params in [{'page': value} for value in ['0', '-1', '1.5', 'abc', '2147483648']] + [
-            {'limit': '0'}, {'limit': '101'}, {'limit': 'bad'}, {'review_only': 'yes'},
+            {'limit': '0'}, {'limit': '101'}, {'limit': 'bad'}, {'review_only': 'yes'}, {'recent_only': 'yes'},
         ]:
             with self.subTest(params=params):
                 self.assertEqual(self.client.get('/api/sales/orders/', params).status_code, 400)
@@ -78,3 +78,26 @@ class SalesPaginationTest(TestCase):
         )
         filtered = self.client.get('/api/sales/orders/', {'q': f'SO-{target.id:06}', 'review_only': 1}).json()
         self.assertEqual((filtered['count'], filtered['review_count'], filtered['results']), (0, 0, []))
+
+    def test_recent_sixty_cross_months_sorted_and_capped_before_pagination(self):
+        SalesOrder.objects.bulk_create([
+            SalesOrder(customer_name='较新订单', operator=self.staff) for _ in range(44)
+        ])
+        # 旧月份也包含在默认最近订单范围；不能把最近理解成当月。
+        SalesOrder.objects.filter(id__in=[o.id for o in self.orders]).update(
+            created_at=timezone.now() - timedelta(days=65),
+        )
+        expected = list(SalesOrder.objects.order_by('-created_at', '-id').values_list('id', flat=True)[:60])
+        seen = []
+        for page in [1, 2, 3]:
+            data = self.client.get('/api/sales/orders/', {'recent_only': 1, 'page': page}).json()
+            self.assertEqual((data['count'], data['pages'], data['page'], len(data['results'])), (60, 3, page, 20))
+            seen.extend(row['id'] for row in data['results'])
+        self.assertEqual(seen, expected)
+        last = self.client.get('/api/sales/orders/', {'recent_only': 1, 'page': 4}).json()
+        self.assertEqual(last['page'], 3)
+        self.assertEqual([row['id'] for row in last['results']], expected[40:])
+        unlimited = self.client.get('/api/sales/orders/', {'recent_only': 0}).json()
+        self.assertEqual((unlimited['count'], unlimited['pages']), (85, 5))
+        large_page = self.client.get('/api/sales/orders/', {'recent_only': 1, 'limit': 100}).json()
+        self.assertEqual(len(large_page['results']), 60)

@@ -1,3 +1,7 @@
+// @vitest-environment jsdom
+import { installIncomeTestLocks } from '../features/accounting/incomeTestLocks';
+installIncomeTestLocks();
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // 资金动作必须把金额作为 Decimal 字符串传给后端，不能先转成 JS number。
@@ -43,6 +47,10 @@ import {
   returnSalesOrder,
   recordExpense,
   recordFundReceipt,
+  recordOtherIncome,
+  reverseOtherIncome,
+  fetchOtherIncomes,
+  fetchOtherIncome,
   fetchFundReceipts,
   refundExpense,
   fetchAccountingExpense,
@@ -59,6 +67,26 @@ function response<T>(data: T) {
 
 describe('accounting action API contracts', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it('其他收入及冲正保留 Decimal 字符串，超时重试复用同一个操作编号', async () => {
+    const payload = { category: 'interest' as const, fund_account_id: 2, amount: '11000.00', exchange_rate: '11.00000000', rate_source: '银行回单', business_date: businessDate, note: '存款利息' };
+    client.post.mockRejectedValueOnce(new Error('timeout')).mockReturnValueOnce(response({ income: { id: 12 } }));
+    await expect(recordOtherIncome(payload)).rejects.toThrow('timeout');
+    await expect(recordOtherIncome(payload)).resolves.toEqual({ id: 12 });
+    expect(client.post.mock.calls[0]).toEqual(client.post.mock.calls[1]);
+    expect(client.post).toHaveBeenLastCalledWith('/accounting/other-incomes/', payload, expect.objectContaining({ headers: { 'Idempotency-Key': expect.any(String) } }));
+    const reversal = { business_date: businessDate, note: '重复登记' };
+    client.post.mockRejectedValueOnce(new Error('timeout')).mockReturnValueOnce(response({ income: { id: 12, status: 'reversed' } }));
+    await expect(reverseOtherIncome(12, reversal)).rejects.toThrow('timeout');
+    await expect(reverseOtherIncome(12, reversal)).resolves.toEqual({ id: 12, status: 'reversed' });
+    expect(client.post.mock.calls[2]).toEqual(client.post.mock.calls[3]);
+    expect(client.post.mock.calls[2][0]).toBe('/accounting/other-incomes/12/reverse/');
+    client.get.mockReturnValueOnce(response({ incomes: [], page: 2 })).mockReturnValueOnce(response({ income: { id: 12 } }));
+    await fetchOtherIncomes('2026-08', 2);
+    expect(client.get).toHaveBeenLastCalledWith('/accounting/other-incomes/', { params: { month: '2026-08', page: 2 } });
+    await expect(fetchOtherIncome(12)).resolves.toEqual({ id: 12 });
+    expect(client.get).toHaveBeenLastCalledWith('/accounting/other-incomes/12/');
+  });
 
   it('余额不足显示中文并兼容旧接口，不改写其他错误', () => {
     const expected = '账户余额不足，请先补充余额或选择其他付款账户';

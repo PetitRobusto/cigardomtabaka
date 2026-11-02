@@ -1,0 +1,258 @@
+[
+  {
+    "value": "financial",
+    "label": "利息与汇兑",
+    "items": [
+      {
+        "value": "bank_interest",
+        "label": "活期存款利息",
+        "category": "interest",
+        "notice": "公司银行账户已到账的存款利息。",
+        "manual_entry_enabled": true,
+        "requires_recognition": false
+      },
+      {
+        "value": "term_interest",
+        "label": "定期存款利息",
+        "category": "interest",
+        "notice": "仅登记已到账利息，不包含存款本金。",
+        "manual_entry_enabled": true,
+        "requires_recognition": false
+      },
+      {
+        "value": "fx_gain",
+        "label": "汇兑收益",
+        "category": "other",
+        "notice": "需由外币兑换或期末重估计算，不能手工作为一笔新收款登记。",
+        "manual_entry_enabled": false,
+        "requires_recognition": true
+      }
+    ]
+  },
+  {
+    "value": "disposal",
+    "label": "物品与资产处置",
+    "items": [
+      {
+        "value": "used_item_sale",
+        "label": "旧物出售",
+        "category": "used_item",
+        "notice": "仅支持已费用化且剩余账面价值为零的旧物。",
+        "manual_entry_enabled": true,
+        "requires_recognition": false
+      },
+      {
+        "value": "scrap_sale",
+        "label": "废料出售",
+        "category": "used_item",
+        "notice": "废料须已费用化且无剩余账面成本；有成本需先结转。",
+        "manual_entry_enabled": true,
+        "requires_recognition": false
+      },
+      {
+        "value": "packaging_sale",
+        "label": "包装物出售",
+        "category": "used_item",
+        "notice": "包装物须已费用化且无剩余账面成本。",
+        "manual_entry_enabled": true,
+        "requires_recognition": false
+      },
+      {
+        "value": "asset_disposal",
+        "label": "有账面价值的资产处置",
+        "category": "other",
+        "notice": "需先结转资产账面价值并计算处置损益，当前入口暂不支持。",
+        "manual_entry_enabled": false,
+        "requires_recognition": true
+      }
+    ]
+  },
+  {
+    "value": "services",
+    "label": "服务与经营收入",
+    "items": [
+      {
+        "value": "storage_service",
+        "label": "仓储／保管服务费",
+        "category": "other",
+        "notice": "服务已履行；预收服务费、押金和代收款不能在此登记。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      },
+      {
+        "value": "repair_service",
+        "label": "维修服务费",
+        "category": "other",
+        "notice": "维修服务已完成；相关成本按实际业务另行记录。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      },
+      {
+        "value": "consulting_service",
+        "label": "咨询服务费",
+        "category": "other",
+        "notice": "咨询服务已履行，仅登记已取得的服务报酬。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      },
+      {
+        "value": "commission",
+        "label": "佣金／介绍费",
+        "category": "other",
+        "notice": "仅登记已赚取的佣金，不包含替他人代收的货款。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      },
+      {
+        "value": "space_rental",
+        "label": "场地租金",
+        "category": "other",
+        "notice": "仅限当期已取得的租金；押金及预收以后期间租金不支持。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      },
+      {
+        "value": "equipment_rental",
+        "label": "设备租金",
+        "category": "other",
+        "notice": "仅限当期已取得的租金；押金及预收以后期间租金不支持。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      },
+      {
+        "value": "promotion",
+        "label": "活动推广费",
+        "category": "other",
+        "notice": "约定的推广服务已完成；尚未履约的收款不支持。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      },
+      {
+        "value": "advertising",
+        "label": "广告／展示费",
+        "category": "other",
+        "notice": "约定的广告或展示服务已完成，不包含以后期间预收款。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      }
+    ]
+  },
+  {
+    "value": "compensation",
+    "label": "赔偿与违约金",
+    "items": [
+      {
+        "value": "penalty",
+        "label": "违约金",
+        "category": "other",
+        "notice": "收款权利已确定；不得重复结算已记应收款，也不是原款退款。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      },
+      {
+        "value": "damages",
+        "label": "损失赔偿",
+        "category": "other",
+        "notice": "请核对原损失记录；不含费用退款或已入账应收赔款的收回。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      },
+      {
+        "value": "insurance",
+        "label": "保险赔付",
+        "category": "other",
+        "notice": "赔付已确定，原损失已核算；资产处置款及已记应收赔款收回不支持。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      }
+    ]
+  },
+  {
+    "value": "subsidies",
+    "label": "补贴与奖励",
+    "items": [
+      {
+        "value": "operating_subsidy",
+        "label": "经营补贴",
+        "category": "other",
+        "notice": "仅限已满足全部条件、属于当期且无需递延的收益补贴。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      },
+      {
+        "value": "business_reward",
+        "label": "经营奖励",
+        "category": "other",
+        "notice": "奖励条件已满足且归属当期；采购返利应调整成本，不在此登记。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      },
+      {
+        "value": "asset_subsidy",
+        "label": "资产相关补助",
+        "category": "other",
+        "notice": "需结合资产成本及使用期间核算，当前入口暂不支持。",
+        "manual_entry_enabled": false,
+        "requires_recognition": true
+      }
+    ]
+  },
+  {
+    "value": "investment",
+    "label": "投资收益",
+    "items": [
+      {
+        "value": "investment_dividend",
+        "label": "投资分红",
+        "category": "other",
+        "notice": "仅限公司投资已确定并到账的分红；不含本金或已记应收股利的收回。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      },
+      {
+        "value": "investment_interest",
+        "label": "投资利息",
+        "category": "other",
+        "notice": "仅限本期已取得且未记账的投资利息；本金及已记应收利息收回不支持。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      },
+      {
+        "value": "investment_disposal",
+        "label": "投资处置收益",
+        "category": "other",
+        "notice": "需区分收回本金、投资成本和处置收益，当前入口暂不支持。",
+        "manual_entry_enabled": false,
+        "requires_recognition": true
+      }
+    ]
+  },
+  {
+    "value": "donation",
+    "label": "捐赠收益",
+    "items": [
+      {
+        "value": "cash_donation",
+        "label": "现金捐赠",
+        "category": "other",
+        "notice": "无偿取得且无待履行条件；股东出资、借款及实物捐赠不在此登记。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      }
+    ]
+  },
+  {
+    "value": "other",
+    "label": "其他收益",
+    "items": [
+      {
+        "value": "other_gain",
+        "label": "其他已实现收益",
+        "category": "other",
+        "notice": "须说明明确来源；不含销售货款、预收款、退款、返利、借款、出资或内部转账。",
+        "manual_entry_enabled": true,
+        "requires_recognition": true
+      }
+    ]
+  }
+]

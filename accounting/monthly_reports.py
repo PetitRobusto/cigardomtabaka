@@ -135,7 +135,7 @@ def _profit_facts(*, start, end):
     reconciliation_adjustment = _money(
         facts['reconciliation_gain_cny'] - facts['reconciliation_loss_cny']
     )
-    net_profit = _money(core_profit + inventory_adjustment + reconciliation_adjustment)
+    net_profit = _money(facts['net_profit_cny'])
     return {
         'sales_revenue_cny': sales_revenue,
         'product_cost_cny': product_cost,
@@ -148,6 +148,8 @@ def _profit_facts(*, start, end):
         'inventory_adjustment_cny': inventory_adjustment,
         'reconciliation_adjustment_cny': reconciliation_adjustment,
         'net_operating_profit_cny': net_profit,
+        'other_income_cny': facts['other_income_cny'],
+        'other_income_breakdown': facts['other_income_breakdown'],
     }
 
 

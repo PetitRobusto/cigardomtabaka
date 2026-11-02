@@ -58,13 +58,15 @@ export default function MonthlyBusinessReportPanel({ report, error, month, onRet
     ...expenseItems,
   ];
   const hasCostReversals = [...costItems, ...expenseItems].some(item => item.value < 0);
-  const hasAdjustments = Number(report.profit.inventory_adjustment_cny) !== 0
+  const hasOtherIncome = Number(report.profit.other_income_cny || 0) !== 0
+    || Object.values(report.profit.other_income_breakdown || {}).some(value => Number(value) !== 0);
+  const hasAdjustments = hasOtherIncome || Number(report.profit.inventory_adjustment_cny) !== 0
     || Number(report.profit.reconciliation_adjustment_cny) !== 0;
   const totalCost = Number(report.profit.product_cost_cny)
     + Number(report.profit.human_cost_cny)
     + Number(report.profit.operating_expenses_cny);
   const operatingProfit = Number(report.profit.core_operating_profit_cny);
-  const operatingProfitLabel = hasAdjustments ? '调整前经营利润' : '经营净利润';
+  const operatingProfitLabel = hasOtherIncome ? '主营经营利润' : hasAdjustments ? '调整前经营利润' : '经营净利润';
   const salesRevenue = Number(report.profit.sales_revenue_cny);
   const canShowProfitShare = salesRevenue > 0 && totalCost >= 0 && operatingProfit >= 0
     && Math.abs(totalCost + operatingProfit - salesRevenue) < 0.005;
@@ -98,15 +100,20 @@ export default function MonthlyBusinessReportPanel({ report, error, month, onRet
           note={`销售利润率 ${report.profit.sales_profit_rate == null ? '—' : `${(Number(report.profit.sales_profit_rate) * 100).toFixed(1)}%`}`}
         />
         <HeadlineMetric
-          label="经营净利润"
+          label="最终管理利润"
           value={formatSignedCny(report.profit.net_operating_profit_cny)}
           comparison={report.comparison.metrics.net_operating_profit_cny}
-          note="销售利润扣除经营费用后的最终经营结果"
+          note="销售利润减经营费用，加其他收入、库存及对账调整"
           emphasized
         >
           {hasAdjustments && (
             <div className="mt-3 space-y-1 border-t border-dashed border-border pt-2 text-[11px] text-muted">
-              <MetricLine label="调整前经营利润" value={formatSignedCny(report.profit.core_operating_profit_cny)} />
+              <MetricLine label={hasOtherIncome ? '主营经营利润' : '调整前经营利润'} value={formatSignedCny(report.profit.core_operating_profit_cny)} />
+              {report.profit.other_income_breakdown ? <>
+                <MetricLine label="存款利息" value={formatSignedCny(report.profit.other_income_breakdown.interest_cny)} />
+                <MetricLine label="旧物出售" value={formatSignedCny(report.profit.other_income_breakdown.used_item_cny)} />
+                <MetricLine label="其他收益" value={formatSignedCny(report.profit.other_income_breakdown.other_cny)} />
+              </> : hasOtherIncome && <MetricLine label="其他收入" value={formatSignedCny(report.profit.other_income_cny)} /> }
               <MetricLine label="库存调整" value={formatSignedCny(report.profit.inventory_adjustment_cny)} />
               <MetricLine label="对账调整" value={formatSignedCny(report.profit.reconciliation_adjustment_cny)} />
             </div>
@@ -114,7 +121,7 @@ export default function MonthlyBusinessReportPanel({ report, error, month, onRet
         </HeadlineMetric>
       </div>
 
-      <ReportSection title="成本与利润占比" meta="按净销售收入计算；库存和对账调整不纳入占比">
+      <ReportSection title="成本与利润占比" meta="按净销售收入计算；其他收入、库存和对账调整不纳入占比">
         <ReportCard>
           <div className="mx-auto max-w-2xl">
             {canShowProfitShare ? (
@@ -128,7 +135,7 @@ export default function MonthlyBusinessReportPanel({ report, error, month, onRet
             ) : (
               <p className="text-sm leading-6 text-muted">本月{shareUnavailableReason}，无法绘制成本与利润占比。总成本 {formatSignedCny(totalCost)} · {operatingProfitLabel} {formatSignedCny(operatingProfit)}</p>
             )}
-            {hasAdjustments && <p className="mt-3 text-[11px] leading-5 text-muted">含库存和对账调整后的经营净利润为 {formatSignedCny(report.profit.net_operating_profit_cny)}，不计入此图。</p>}
+            {hasAdjustments && <p className="mt-3 text-[11px] leading-5 text-muted">含其他收入、库存和对账调整后的经营净利润为 {formatSignedCny(report.profit.net_operating_profit_cny)}，不计入此图。</p>}
           </div>
         </ReportCard>
       </ReportSection>

@@ -29,6 +29,8 @@ from accounting.dividend_actions import (
 from accounting.expense_actions import ExpenseActionError, record_expense, reverse_expense, refund_expense
 from accounting.expense_reads import expense_queryset, expense_period
 from accounting.fund_receipts import record_fund_receipt, serialize_fund_receipt
+from accounting.other_income import record_other_income, reverse_other_income
+from accounting.other_income_reads import income_period, income_queryset, serialize_income
 from accounting.purchase_actions import (
     PurchaseActionError, cancel_purchase_order, create_purchase_order,
     pay_purchase_order, receive_paid_purchase_order,
@@ -64,6 +66,9 @@ class ApiInputError(Exception):
 
 
 _ERROR_STATUS = {
+    'income_not_found': 404,
+    'income_has_later_activity': 409,
+    'income_reconciled_period': 409,
     'day1_incomplete': 409,
     'insufficient_balance': 409,
     'packaging_review_required': 409,
@@ -215,6 +220,52 @@ def fund_receipts(request):
             agent_source=payload.get('agent_source', ''),
         )
         return JsonResponse({'receipt': serialize_fund_receipt(receipt)}, status=201 if created else 200)
+    except (ApiInputError, LedgerError, Day1IncompleteError, InvalidOperation, ValueError) as error:
+        return error_response(error)
+
+
+@staff_json_required
+def other_incomes(request, income_id=None, action=None):
+    try:
+        if request.method == 'GET' and action is None:
+            if income_id is not None:
+                income = income_queryset().filter(pk=income_id).first()
+                if income is None:
+                    raise LedgerError('其他收入不存在', code='income_not_found')
+                return JsonResponse({'income': serialize_income(income)})
+            raw_page = request.GET.get('page', '1')
+            if not raw_page.isascii() or not raw_page.isdecimal() or len(raw_page) > 6 or int(raw_page) < 1:
+                raise ApiInputError('页码无效')
+            start = end = None
+            month = request.GET.get('month')
+            if month:
+                if len(month) != 7:
+                    raise ApiInputError('month 必须是 YYYY-MM')
+                start = date.fromisoformat(f'{month}-01')
+                end = date(start.year + (start.month == 12), 1 if start.month == 12 else start.month + 1, 1)
+            return JsonResponse(income_period(start=start, end=end, page=int(raw_page)))
+        if request.method != 'POST' or (income_id is not None and action != 'reverse'):
+            return _json_error('请求方法不支持', status=405, code='method_not_allowed')
+        payload = _json_object(request)
+        common = dict(business_date=_required_business_date(payload), operator=request.user,
+                      idempotency_key=_idempotency_key(request), note=_optional_note(payload),
+                      agent_source=payload.get('agent_source', ''))
+        if action == 'reverse':
+            reversal, created = reverse_other_income(income_id=income_id, **common)
+            income = income_queryset().get(pk=reversal.income_id)
+        else:
+            income, created = record_other_income(
+                category=payload.get('category'), fund_account_id=_required_id(payload, 'fund_account_id'),
+                amount=_required_decimal_string(payload, 'amount'),
+                exchange_rate=_required_decimal_string(payload, 'exchange_rate') if 'exchange_rate' in payload else None,
+                rate_source=payload.get('rate_source', ''), reference=payload.get('reference', ''),
+                zero_book_value_confirmed=payload.get('zero_book_value_confirmed', False), **common,
+                subcategory=payload.get('subcategory', ''), recognition_confirmed=payload.get('recognition_confirmed', False),
+            )
+            income = income_queryset().get(pk=income.pk)
+        return JsonResponse({'income': serialize_income(income)}, status=201 if created else 200)
+    except OperationalError:
+        return _busy_response()
     except (ApiInputError, LedgerError, Day1IncompleteError, InvalidOperation, ValueError) as error:
         return error_response(error)
 

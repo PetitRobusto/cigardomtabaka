@@ -9,7 +9,7 @@ import { moscowBusinessMonth } from '../utils/businessDate';
 const api = vi.hoisted(() => ({
   fetchAccountingDashboard: vi.fn(), fetchAccountingAccounts: vi.fn(), fetchAccountingActions: vi.fn(),
   fetchAccountingSummary: vi.fn(), fetchMonthlyProfit: vi.fn(), fetchMonthlyBusinessReport: vi.fn(), fetchReconciliations: vi.fn(),
-  fetchAccountingExpenses: vi.fn(), fetchAccountingExchangeTransactions: vi.fn(), recordExpense: vi.fn(),
+  fetchOtherIncomes: vi.fn(), fetchAccountingExpenses: vi.fn(), fetchAccountingExchangeTransactions: vi.fn(), recordExpense: vi.fn(),
   exchangeToRub: vi.fn(), reverseExpense: vi.fn(), refundExpense: vi.fn(), fetchAccountingExpense: vi.fn(), reverseExchange: vi.fn(), setMeta: vi.fn(),
   apiErrorMessage: (error: Error) => error.message,
   parseAccountingApiError: (error: Error) => ({ code: 'unknown', message: error.message }),
@@ -18,6 +18,7 @@ vi.mock('../api', () => api);
 vi.mock('../hooks/usePageMeta', () => ({ usePageMeta: () => ({ setMeta: api.setMeta }) }));
 vi.mock('../components/sales/AccountingPanel', () => ({ default: () => null }));
 vi.mock('../components/accounting/MonthlyBusinessReportPanel', () => ({ default: () => null }));
+vi.mock('../components/accounting/OtherIncomeDetails', () => ({ default: () => null }));
 vi.mock('../components/accounting/ExpenseDetails', () => ({ default: () => null }));
 vi.mock('../components/accounting/ExchangeDetails', () => ({ default: () => null }));
 vi.mock('../components/accounting/DividendSummaryCard', () => ({ default: () => <p>全部分红总览</p> }));
@@ -44,11 +45,12 @@ describe('财务默认动作及刷新', () => {
     api.fetchMonthlyBusinessReport.mockResolvedValue({ profit: { net_operating_profit_cny: '0.00' } });
     api.fetchReconciliations.mockResolvedValue([]);
     api.fetchAccountingExpenses.mockResolvedValue({ expenses: [] });
+    api.fetchOtherIncomes.mockResolvedValue({ incomes: [], reversals: [], summary: { received_cny: '0.00', reversed_cny: '0.00', net_cny: '0.00' } });
     api.fetchAccountingExchangeTransactions.mockResolvedValue([]);
     api.recordExpense.mockResolvedValue({ id: 3 });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 300000 } } });
     client.setQueryData(['dividend-rounds', 2], { old: true });
-    const purchaseRelatedKeys = [['sales-orders', 'confirmed'], ['sales-customer', 1], ['inventory'], ['inventory-purchases'], ['inventory-purchase', 9], ['preorder-source', 9]];
+    const purchaseRelatedKeys = [['other-incomes', '2026-08', 1], ['sales-orders', 'confirmed'], ['sales-customer', 1], ['inventory'], ['inventory-purchases'], ['inventory-purchase', 9], ['preorder-source', 9]];
     for (const key of purchaseRelatedKeys) client.setQueryData(key, { old: true });
     render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/accounting']}><GuideNavigation /><AccountingDashboardPage /></MemoryRouter></QueryClientProvider>);
     await screen.findByRole('heading', { name: '记录经营费用' });
@@ -64,10 +66,10 @@ describe('财务默认动作及刷新', () => {
     expect(within(rubCard).getByText('RUB / CNY · 当前卢布余额 ÷ 人民币账面成本')).toBeTruthy();
     const profitCard = screen.getByText('本月经营净利润').parentElement as HTMLElement;
     expect(within(profitCard).getByText('-¥25.00')).toBeTruthy();
-    expect(within(profitCard).getByText(`当前业务月 ${moscowBusinessMonth()} · 含库存及对账调整`)).toBeTruthy();
+    expect(within(profitCard).getByText(`当前业务月 ${moscowBusinessMonth()} · 含其他收入、库存及对账调整`)).toBeTruthy();
     expect(screen.queryByText('待收订单')).toBeNull();
     expect(screen.getByRole('link', { name: '月度经营报告' }).getAttribute('href')).toBe('/accounting/reports/monthly');
-    expect(screen.getByRole('button', { name: '记录费用', pressed: true })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '费用与其他收入', pressed: true })).toBeTruthy();
     const month = screen.getByLabelText('明细月份') as HTMLSelectElement;
     const chosenMonth = month.options[1].value;
     fireEvent.change(month, { target: { value: chosenMonth } });

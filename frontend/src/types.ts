@@ -771,7 +771,69 @@ export interface FundAccount {
   moving_average_cny?: string | null;
 }
 
+export interface OtherIncomeBreakdown {
+  interest_cny: string;
+  used_item_cny: string;
+  other_cny: string;
+}
+
+export interface OtherIncomePayload {
+  category: 'interest' | 'used_item' | 'other';
+  // Optional only for replaying requests saved before two-level classification.
+  subcategory?: string;
+  recognition_confirmed?: boolean;
+  fund_account_id: number;
+  amount: string;
+  business_date: string;
+  note: string;
+  exchange_rate?: string;
+  rate_source?: string;
+  reference?: string;
+  zero_book_value_confirmed?: boolean;
+}
+
+export interface OtherIncomeReversal {
+  id: number;
+  income_id: number;
+  business_date: string;
+  note: string;
+  operator_id: number;
+  agent_source: string;
+  ledger_transaction_id: number;
+}
+
+export interface OtherIncome extends OtherIncomePayload {
+  id: number;
+  category_label: string;
+  income_group?: string;
+  income_group_label?: string;
+  subcategory_label?: string;
+  fund_account_name: string;
+  currency: 'CNY' | 'RUB';
+  amount_cny: string;
+  exchange_rate: string;
+  rate_source: string;
+  reference: string;
+  operator_id: number;
+  agent_source: string;
+  ledger_transaction_id: number;
+  status: 'posted' | 'reversed';
+  reversal: OtherIncomeReversal | null;
+}
+
+export interface OtherIncomesResponse {
+  incomes: OtherIncome[];
+  reversals: (OtherIncomeReversal & Pick<OtherIncome, 'category_label' | 'income_group_label' | 'subcategory_label' | 'fund_account_name' | 'currency' | 'amount' | 'amount_cny'> & { income_business_date: string })[];
+  count: number;
+  reversal_count: number;
+  page: number;
+  next_page: number | null;
+  summary: { received_cny: string; reversed_cny: string; net_cny: string };
+}
+
 export interface MonthlyProfitReport {
+  other_income_cny?: string;
+  other_income_breakdown?: OtherIncomeBreakdown;
   period_start: string;
   period_end: string;
   sales_revenue_cny: string;
@@ -828,6 +890,8 @@ export interface MonthlyBusinessReport {
     return_order_count: number;
   };
   profit: {
+    other_income_cny?: string;
+    other_income_breakdown?: OtherIncomeBreakdown;
     sales_revenue_cny: string;
     product_cost_cny: string;
     human_cost_cny: string;

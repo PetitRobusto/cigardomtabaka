@@ -12,6 +12,8 @@ import { apiErrorMessage, exchangeToRub, recordExpense } from '../../api';
 import ExchangeAction from './ExchangeAction';
 import PurchaseAction from './PurchaseAction';
 import ExpenseAction from './ExpenseAction';
+import OtherIncomeAction from './OtherIncomeAction';
+import { incomeCreateScope, pendingIncomeRequest } from '../../features/accounting/incomeRequests';
 import DividendRoundsAction from './DividendRoundsAction';
 import { formatOriginalAmount } from '../sales/salesState';
 export type AccountingActionKind = 'exchange' | 'purchase' | 'expense' | 'dividend';
@@ -66,6 +68,9 @@ export default function AccountingActionCenter({
   const [activeAction, setActiveAction] = useState<AccountingActionKind>(initialAction === 'dividend' ? 'expense' : initialAction);
   const [dividendOpen, setDividendOpen] = useState(initialAction === 'dividend');
   const [dividendOpened, setDividendOpened] = useState(initialAction === 'dividend');
+  const [incomeRecovery] = useState(() => { try { return Boolean(pendingIncomeRequest(incomeCreateScope)); } catch { return true; } });
+  const [incomeMode, setIncomeMode] = useState(incomeRecovery);
+  const [incomeOpened, setIncomeOpened] = useState(incomeRecovery);
   const [previousInitialAction, setPreviousInitialAction] = useState(initialAction);
   // A guide can change the selected action without remounting an in-flight dividend.
   if (previousInitialAction !== initialAction) {
@@ -91,7 +96,7 @@ export default function AccountingActionCenter({
   };
 
   const actionButtons = [
-    { id: 'expense' as const, label: '记录费用', Icon: ReceiptText, count: 0 },
+    { id: 'expense' as const, label: '费用与其他收入', Icon: ReceiptText, count: 0 },
     { id: 'exchange' as const, label: '换汇', Icon: ArrowLeftRight, count: 0 },
     { id: 'dividend' as const, label: '分红', Icon: HandCoins, count: 0 },
     { id: 'purchase' as const, label: '采购', Icon: PackageCheck, count: actionPurchases.length },
@@ -100,7 +105,7 @@ export default function AccountingActionCenter({
   const actionPanel = {
     exchange: <ExchangeAction accounts={accounts} businessDate={businessDate} submit={submitExchange} />,
     purchase: <PurchaseAction purchases={actionPurchases} rubAccounts={accounts} businessDate={businessDate} onChanged={onChanged} />,
-    expense: <ExpenseAction accounts={accounts} businessDate={businessDate} submit={submitExpense} />,
+    expense: null,
     dividend: null,
   }[activeAction];
 
@@ -128,6 +133,15 @@ export default function AccountingActionCenter({
         {isLoading && <p role="status" className="mb-4 rounded border border-border bg-white px-4 py-3 text-sm text-muted">正在加载待处理账务动作…</p>}
         {listError && <p role="alert" className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{listError}</p>}
         <div role="region" aria-live="polite">{actionPanel}
+          <div hidden={activeAction !== 'expense'}>
+            <div aria-label="费用与其他收入登记" className="mb-3 inline-flex rounded border border-border bg-[#FAF8F5] p-1">
+              <button type="button" aria-pressed={!incomeMode} onClick={() => setIncomeMode(false)} className={`min-h-11 rounded px-3 text-sm ${!incomeMode ? 'bg-white font-semibold text-fg shadow-sm' : 'text-muted'}`}>登记费用</button>
+              <button type="button" aria-pressed={incomeMode} onClick={() => { setIncomeMode(true); setIncomeOpened(true); }} className={`min-h-11 rounded px-3 text-sm ${incomeMode ? 'bg-white font-semibold text-fg shadow-sm' : 'text-muted'}`}>登记其他收入</button>
+            </div>
+            {activeAction === 'expense' && !incomeMode && <ExpenseAction accounts={accounts} businessDate={businessDate} submit={submitExpense} />}
+            {/* 收入请求及未知结果重试在切换操作后仍保留。 */}
+            <div hidden={!incomeMode}>{incomeOpened && <OtherIncomeAction accounts={accounts} businessDate={businessDate} onChanged={onChanged} />}</div>
+          </div>
           {/* 切换操作不能丢失尚未确认结果的分红请求及其幂等重试状态。 */}
           {dividendOpened && <DividendRoundsAction open={dividendOpen} onClose={() => setDividendOpen(false)} accounts={accounts} businessDate={businessDate} onChanged={onChanged} />}
         </div>

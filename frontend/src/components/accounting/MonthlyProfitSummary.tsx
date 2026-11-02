@@ -35,7 +35,7 @@ export default function MonthlyProfitSummary({ profit, profitError, month }: Mon
       <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4">
         <div>
           <h2 className="font-display text-lg font-semibold">{monthTitle(month)}</h2>
-          <p className="mt-0.5 text-xs text-muted">销售、成本和费用均来自已入账流水。</p>
+          <p className="mt-0.5 text-xs text-muted">销售、成本、费用和其他收入均来自已入账流水。</p>
         </div>
         <span className="font-mono text-xs text-muted">{profit?.transaction_count ?? '—'} {profit ? '笔流水' : ''}</span>
       </div>
@@ -49,7 +49,7 @@ export default function MonthlyProfitSummary({ profit, profitError, month }: Mon
           <Metric label="商品成本" value={formatSignedCny(profit.cost_of_goods_sold_cny)} note="已履约商品的库存成本" />
           <Metric label="经营费用" value={formatSignedCny(operatingExpenses)} note="工资、房租、专业服务、财务费用等" />
           <Metric label="人肉成本" value={formatSignedCny(-transportCost)} note="实际人肉成本与运输结算" />
-          <Metric label="本月净利润" value={formatSignedCny(profit.net_profit_cny)} note="含库存及对账调整" net />
+          <Metric label="本月净利润" value={formatSignedCny(profit.net_profit_cny)} note={`含其他收入 ${formatSignedCny(profit.other_income_cny || '0')}、库存及对账调整`} net />
         </div>
       )}
       <div className="h-1 bg-gradient-to-r from-gold via-accent to-success" />

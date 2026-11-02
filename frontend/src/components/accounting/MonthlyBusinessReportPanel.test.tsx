@@ -46,6 +46,19 @@ function renderReport(value: MonthlyBusinessReport = report) {
 }
 
 describe('经营月报', () => {
+  it('其他收入与跨月冲正进入最终管理利润，主营成本占比不变', () => {
+    renderReport({ ...report, profit: { ...report.profit, other_income_cny: '-500.00', other_income_breakdown: { interest_cny: '100.00', used_item_cny: '0.00', other_cny: '-600.00' }, net_operating_profit_cny: '-410.00' } });
+    const overview = screen.getByRole('heading', { name: '成本与利润占比' }).closest('section') as HTMLElement;
+    expect(within(overview).getByRole('img', { name: '净销售收入环形图，合计¥190.00' })).toBeTruthy();
+    expect(within(overview).getByText('主营经营利润')).toBeTruthy();
+    expect(within(overview).getByText('¥90.00')).toBeTruthy();
+    expect(screen.getByText('最终管理利润')).toBeTruthy();
+    expect(screen.getByText('存款利息')).toBeTruthy();
+    expect(screen.getByText('-¥600.00')).toBeTruthy();
+    expect(screen.getAllByText('-¥410.00').length).toBeGreaterThan(0);
+    expect(within(overview).queryByText('存款利息')).toBeNull();
+  });
+
   it('只展示三个主指标，成本使用正数，并隐藏内部字段名', () => {
     renderReport();
 

@@ -376,6 +376,7 @@ class LedgerTransaction(models.Model):
         PURCHASE_RECEIPT = 'purchase_receipt', '采购到货'
         EXPENSE = 'expense', '经营费用'
         EXPENSE_REFUND = 'expense_refund', '费用退回'
+        OTHER_INCOME = 'other_income', '其他收入'
         DIVIDEND = 'dividend', '分红'
         DIVIDEND_PAYOUT = 'dividend_payout', '分红领取'
         INVENTORY_ADJUSTMENT = 'inventory_adjustment', '库存调整'
@@ -453,6 +454,9 @@ class LedgerPosting(models.Model):
         PROFESSIONAL_EXPENSE = 'professional_expense', '会计（专业服务）'
         INTEREST_EXPENSE = 'interest_expense', '利息支出（财务费用）'
         OTHER_EXPENSE = 'other_expense', '其他经营费用'
+        INTEREST_INCOME = 'interest_income', '存款利息收益'
+        USED_ITEM_INCOME = 'used_item_income', '已费用化旧物出售收益'
+        OTHER_INCOME = 'other_income', '其他收益'
         DIVIDEND_DISTRIBUTION = 'dividend_distribution', '分红分配'
         DIVIDEND_PAYABLE = 'dividend_payable', '待付分红'
         INVENTORY_ADJUSTMENT_GAIN = 'inventory_adjustment_gain', '库存调整收益'
@@ -773,6 +777,71 @@ class FundReceipt(models.Model):
 
     def delete(self, *args, **kwargs):
         raise LedgerMutationError('已入账记录不可删除')
+
+
+class OtherIncomeQuerySet(_FinalFactQuerySet):
+    _append_only = True
+
+    def get_or_create(self, defaults=None, **kwargs):
+        raise LedgerMutationError('其他收入事实只能通过受控命令创建')
+
+
+class _OtherIncomeFact(models.Model):
+    objects = OtherIncomeQuerySet.as_manager()
+    business_date = models.DateField()
+    operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    agent_source = models.CharField(max_length=128, blank=True, default='')
+    ledger_transaction = models.OneToOneField(LedgerTransaction, on_delete=models.PROTECT)
+    idempotency_key = models.CharField(max_length=128, unique=True)
+    note = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        abstract = True
+        base_manager_name = 'objects'
+        ordering = ['-business_date', '-id']
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding or self.pk is not None or kwargs.get('force_update') or kwargs.get('update_fields'):
+            raise LedgerMutationError('已入账其他收入事实不可修改')
+        if not _scope_allows('other_income', self._meta.label, _concrete_fields(self, kwargs), self.operator):
+            raise LedgerMutationError('其他收入事实只能通过受控命令创建')
+        kwargs['force_insert'] = True
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise LedgerMutationError('已入账其他收入事实不可删除')
+
+
+class OtherIncome(_OtherIncomeFact):
+    class Category(models.TextChoices):
+        INTEREST = 'interest', '存款利息'
+        USED_ITEM = 'used_item', '已费用化旧物出售'
+        OTHER = 'other', '其他收益'
+
+    category = models.CharField(max_length=16, choices=Category.choices)
+    subcategory = models.CharField(max_length=32, blank=True, default='')
+    recognition_confirmed = models.BooleanField(default=False)
+    fund_account = models.ForeignKey(FundAccount, on_delete=models.PROTECT)
+    currency = models.CharField(max_length=4, choices=[('CNY', '人民币'), ('RUB', '卢布')])
+    original_amount = models.DecimalField(max_digits=22, decimal_places=2)
+    amount_cny = models.DecimalField(max_digits=22, decimal_places=2)
+    exchange_rate = models.DecimalField(max_digits=18, decimal_places=8)
+    rate_source = models.CharField(max_length=500, blank=True, default='')
+    reference = models.CharField(max_length=500, blank=True, default='')
+    zero_book_value_confirmed = models.BooleanField(default=False)
+
+    class Meta(_OtherIncomeFact.Meta):
+        abstract = False
+        constraints = [
+            models.CheckConstraint(condition=Q(original_amount__gt=0, amount_cny__gt=0, exchange_rate__gt=0), name='other_income_positive_values'),
+            models.CheckConstraint(condition=Q(currency='RUB') | Q(currency='CNY', exchange_rate=1), name='other_income_currency_rate'),
+            models.CheckConstraint(condition=~Q(category='used_item') | Q(zero_book_value_confirmed=True), name='other_income_zero_book_value'),
+        ]
+
+
+class OtherIncomeReversal(_OtherIncomeFact):
+    income = models.OneToOneField(OtherIncome, on_delete=models.PROTECT, related_name='reversal')
 
 
 class Dividend(models.Model):

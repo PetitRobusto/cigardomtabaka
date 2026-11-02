@@ -101,12 +101,19 @@ def _operating_profit_facts(*, start=None, end=None):
     inventory_loss = _sum_category(LedgerPosting.Category.INVENTORY_ADJUSTMENT_LOSS, start=start, end=end)
     reconciliation_gain = -_sum_category(LedgerPosting.Category.RECONCILIATION_GAIN, start=start, end=end)
     reconciliation_loss = _sum_category(LedgerPosting.Category.RECONCILIATION_LOSS, start=start, end=end)
+    income_breakdown = {
+        'interest_cny': -_sum_category(LedgerPosting.Category.INTEREST_INCOME, start=start, end=end),
+        'used_item_cny': -_sum_category(LedgerPosting.Category.USED_ITEM_INCOME, start=start, end=end),
+        'other_cny': -_sum_category(LedgerPosting.Category.OTHER_INCOME, start=start, end=end),
+    }
+    other_income = sum(income_breakdown.values(), Decimal('0.00'))
     net_profit = (
         -revenue - transport_revenue - cost - transport_expense
         - sum(expenses.values(), Decimal('0.00'))
         - transport_settlement_expense
         + inventory_gain - inventory_loss
         + reconciliation_gain - reconciliation_loss
+        + other_income
     ).quantize(Decimal('0.01'))
     return {
         'sales_revenue_cny': revenue,
@@ -120,6 +127,8 @@ def _operating_profit_facts(*, start=None, end=None):
         'reconciliation_gain_cny': reconciliation_gain,
         'reconciliation_loss_cny': reconciliation_loss,
         'net_profit_cny': net_profit,
+        'other_income_cny': other_income,
+        'other_income_breakdown': income_breakdown,
     }
 
 

@@ -1,5 +1,6 @@
-import type { AccountingExpense, ExpenseRefundPayload, FundReceipt, FundReceiptPayload, FundReceiptsResponse } from './types';
+import type { AccountingExpense, ExpenseRefundPayload, FundReceipt, FundReceiptPayload, FundReceiptsResponse, OtherIncome, OtherIncomePayload, OtherIncomesResponse } from './types';
 import { privnoteDeviceHeaders } from './api/privnoteAccess';
+import { incomeCreateScope, incomeReverseScope, writeIncomeRequest } from './features/accounting/incomeRequests';
 import type { HistoryRange } from './types';
 import axios from 'axios';
 import type {
@@ -196,6 +197,22 @@ export const fetchAccountingAccounts = (): Promise<FundAccount[]> =>
 
 export const fetchFundReceipts = (page = 1): Promise<FundReceiptsResponse> =>
   api.get('/accounting/fund-receipts/', { params: { page } }).then(r => r.data);
+
+export const fetchOtherIncomes = (month: string, page = 1): Promise<OtherIncomesResponse> =>
+  api.get('/accounting/other-incomes/', { params: { month, page } }).then(r => r.data);
+
+export const fetchOtherIncome = (id: number): Promise<OtherIncome> =>
+  api.get(`/accounting/other-incomes/${id}/`).then(r => r.data.income);
+
+export const recordOtherIncome = (payload: OtherIncomePayload): Promise<OtherIncome> =>
+  writeIncomeRequest<{ income: OtherIncome }, OtherIncomePayload>(incomeCreateScope, payload, config =>
+    api.post('/accounting/other-incomes/', payload, config),
+  ).then(r => r.income);
+
+export const reverseOtherIncome = (id: number, payload: { business_date: string; note: string }): Promise<OtherIncome> =>
+  writeIncomeRequest<{ income: OtherIncome }, typeof payload>(incomeReverseScope(id), payload, config =>
+    api.post(`/accounting/other-incomes/${id}/reverse/`, payload, config),
+  ).then(r => r.income);
 
 export const recordFundReceipt = (payload: FundReceiptPayload): Promise<FundReceipt> =>
   writeWithIdempotency<{ receipt: FundReceipt }>('record-fund-receipt', payload, config =>

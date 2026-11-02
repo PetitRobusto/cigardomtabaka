@@ -17,6 +17,19 @@ class LedgerMutationScope:
 
 
 REASON_ALLOWED_FIELDS = {
+    'other_income': {
+        'accounting.OtherIncome': frozenset({
+            'id', 'category', 'subcategory', 'recognition_confirmed',
+            'fund_account', 'currency', 'original_amount', 'amount_cny',
+            'exchange_rate', 'rate_source', 'reference', 'zero_book_value_confirmed',
+            'business_date', 'operator', 'agent_source', 'ledger_transaction',
+            'idempotency_key', 'note', 'created_at',
+        }),
+        'accounting.OtherIncomeReversal': frozenset({
+            'id', 'income', 'business_date', 'operator', 'agent_source',
+            'ledger_transaction', 'idempotency_key', 'note', 'created_at',
+        }),
+    },
     'fund_receipt': {
         'accounting.FundReceipt': frozenset({
             'id', 'contributor', 'contributor_name', 'fund_account', 'amount_cny',

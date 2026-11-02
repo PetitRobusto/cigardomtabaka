@@ -91,7 +91,7 @@ export const fetchInventory = (params?: { brand?: string; q?: string }): Promise
 export const fetchSalesOrders = (params?: { q?: string; fulfillment_status?: string; payment_status?: string; date_from?: string; date_to?: string; limit?: number }): Promise<SalesOrder[]> =>
   api.get('/sales/orders/', { params }).then(r => r.data.results || []);
 
-export const fetchSalesOrderList = (params?: { q?: string; fulfillment_status?: string; payment_status?: string; date_from?: string; date_to?: string; limit?: number }): Promise<SalesOrderListResponse> =>
+export const fetchSalesOrderList = (params?: { page?: number; review_only?: number; q?: string; fulfillment_status?: string; payment_status?: string; date_from?: string; date_to?: string; limit?: number }): Promise<SalesOrderListResponse> =>
   api.get('/sales/orders/', { params }).then(r => r.data);
 
 export const fetchSalesCustomers = (q = ''): Promise<CustomerResult[]> =>

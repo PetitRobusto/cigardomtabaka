@@ -21,6 +21,7 @@ export default function SalesPage() {
   const [params] = useSearchParams();
   const requestedId = Number(params.get('order'));
   const initialOrderId = Number.isSafeInteger(requestedId) && requestedId > 0 ? requestedId : null;
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState(() => initialOrderId ? `SO-${String(initialOrderId).padStart(6, '0')}` : '');
   const [dateFrom, setDateFrom] = useState(() => initialOrderId ? '' : `${shanghaiBusinessDate().slice(0, 8)}01`);
   const [dateTo, setDateTo] = useState(() => initialOrderId ? '' : shanghaiBusinessDate());
@@ -37,14 +38,16 @@ export default function SalesPage() {
   useEffect(() => { setMeta({ title: '销售订单工作台', breadcrumbs: [{ label: '首页', to: '/' }, { label: '销售订单' }] }); }, [setMeta]);
 
   const ordersQuery = useQuery({
-    queryKey: ['sales-orders', search, dateFrom, dateTo, fulfillment, payment],
+    queryKey: ['sales-orders', search, dateFrom, dateTo, fulfillment, payment, reviewOnly, page],
     queryFn: () => fetchSalesOrderList({
       q: search || undefined,
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined,
       fulfillment_status: fulfillment || undefined,
       payment_status: payment || undefined,
-      limit: 100,
+      limit: 20,
+      page,
+      review_only: reviewOnly ? 1 : 0,
     }),
     // 筛选变化时保留当前工作台，只在真正的首次加载显示整页骨架。
     placeholderData: previous => previous,
@@ -52,8 +55,12 @@ export default function SalesPage() {
   const accountsQuery = useQuery({ queryKey: ['accounting-accounts'], queryFn: fetchAccountingAccounts });
   const orders = useMemo(() => ordersQuery.data?.results || [], [ordersQuery.data]);
   const pendingCollection = ordersQuery.data?.pending_collection;
-  const reviewCount = orders.filter(order => order.payment_review?.status === 'pending').length;
-  const visibleOrders = reviewOnly ? orders.filter(order => order.payment_review?.status === 'pending') : orders;
+  const reviewCount = ordersQuery.data?.review_count ?? 0;
+  const visibleOrders = orders;
+  const count = ordersQuery.data?.count ?? orders.length;
+  const currentPage = ordersQuery.data?.page ?? page;
+  const pages = ordersQuery.data?.pages ?? 1;
+  const changePage = (next: number) => { setSelectedId(null); setPage(next); };
   const totalDue = activeSalesAmount(visibleOrders);
   const totalProfit = visibleOrders.reduce((total, order) => total + (salesOrderFinancialView(order).contributionProfit ?? 0), 0);
 
@@ -79,6 +86,7 @@ export default function SalesPage() {
     try {
       const order = await createSalesOrder(payload);
       invalidateSales();
+      setPage(1);
       setSelectedId(order.id);
       setCreateOpen(false);
     } catch (error) {
@@ -89,6 +97,8 @@ export default function SalesPage() {
     }
   };
   const selectQuickDate = (value: QuickDate) => {
+    setSelectedId(null);
+    setPage(1);
     setQuickDate(value);
     const today = shanghaiBusinessDate();
     if (value === 'all') { setDateFrom(''); setDateTo(''); return; }
@@ -110,24 +120,32 @@ export default function SalesPage() {
     <SalesSectionNav />
     <header className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Master-detail bench</p><h1 className="mt-1 font-display text-3xl font-semibold sm:text-4xl">销售订单工作台</h1><p className="mt-2 text-sm text-muted">订单、客户、商品成本与收付款事实在同一主从工作台中推进。</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => setCustomerModal({ mode: 'create', id: null })} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><UserPlus className="h-4 w-4" />新建客户</button><button type="button" onClick={() => { setCreateOpen(true); setFormError(''); }} className="inline-flex items-center gap-1 rounded bg-accent px-3 py-2 text-sm font-semibold text-white hover:bg-accent-hover"><Plus className="h-4 w-4" />新建销售单</button><button type="button" onClick={invalidateSales} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
 
-    <section className="mb-4 grid grid-cols-2 overflow-hidden rounded-md border border-border bg-white shadow-sm lg:grid-cols-4"><SummaryCell label="订单数" value={String(orders.length)} hint="当前筛选范围" /><SummaryCell label="应收合计" value={formatCny(totalDue)} hint="当前筛选范围" /><SummaryCell label="待收金额" value={formatCny(pendingCollection?.amount_cny)} hint={`${pendingCollection?.order_count ?? 0} 笔已确认未收款订单`} /><SummaryCell label="预计贡献利润" value={formatCny(totalProfit)} hint="按商品成本估算" /></section>
+    <section className="mb-4 grid grid-cols-2 overflow-hidden rounded-md border border-border bg-white shadow-sm lg:grid-cols-4"><SummaryCell label="订单数" value={String(count)} hint="当前筛选范围" /><SummaryCell label="应收合计" value={formatCny(totalDue)} hint="当前页订单" /><SummaryCell label="待收金额" value={formatCny(pendingCollection?.amount_cny)} hint={`${pendingCollection?.order_count ?? 0} 笔已确认未收款订单`} /><SummaryCell label="预计贡献利润" value={formatCny(totalProfit)} hint="当前页，按商品成本估算" /></section>
 
     <section className="mb-4 rounded-md border border-border bg-white p-3 shadow-sm">
       <div className="flex flex-wrap items-end gap-2">
-        <label className="text-[11px] font-semibold text-muted">订单日期<input type="date" value={dateFrom} onChange={event => { setDateFrom(event.target.value); setQuickDate('custom'); }} className="mt-1 block rounded border border-border px-2 py-1.5 text-xs text-fg" /></label>
+        <label className="text-[11px] font-semibold text-muted">订单日期<input type="date" value={dateFrom} onChange={event => { setSelectedId(null); setPage(1); setDateFrom(event.target.value); setQuickDate('custom'); }} className="mt-1 block rounded border border-border px-2 py-1.5 text-xs text-fg" /></label>
         <span className="pb-2 text-xs text-muted">至</span>
-        <label className="text-[11px] font-semibold text-muted"><span className="sr-only">结束日期</span><input type="date" value={dateTo} onChange={event => { setDateTo(event.target.value); setQuickDate('custom'); }} className="mt-1 block rounded border border-border px-2 py-1.5 text-xs text-fg" /></label>
+        <label className="text-[11px] font-semibold text-muted"><span className="sr-only">结束日期</span><input type="date" value={dateTo} onChange={event => { setSelectedId(null); setPage(1); setDateTo(event.target.value); setQuickDate('custom'); }} className="mt-1 block rounded border border-border px-2 py-1.5 text-xs text-fg" /></label>
         <div className="flex flex-wrap gap-1">{([['all', '全部'], ['today', '今天'], ['week', '近 7 天'], ['month', '本月'], ['last_month', '上个月']] as [QuickDate, string][]).map(([value, label]) => <button key={value} type="button" onClick={() => selectQuickDate(value)} className={'rounded-full border px-3 py-1.5 text-xs font-semibold ' + (quickDate === value ? 'border-fg bg-fg text-white' : 'border-border hover:border-gold')}>{label}</button>)}</div>
-        <label className="text-[11px] font-semibold text-muted">订单<select value={fulfillment} onChange={event => setFulfillment(event.target.value)} className="mt-1 block rounded border border-border bg-white px-2 py-1.5 text-xs text-fg"><option value="">全部订单</option><option value="draft">草稿</option><option value="confirmed">已确认</option><option value="shipped">已出库</option><option value="cancelled">已取消</option><option value="returned">已退货</option></select></label>
-        <label className="text-[11px] font-semibold text-muted">付款<select value={payment} onChange={event => setPayment(event.target.value)} className="mt-1 block rounded border border-border bg-white px-2 py-1.5 text-xs text-fg"><option value="">全部付款</option><option value="unpaid">未收款</option><option value="partial">部分收款</option><option value="paid">已收款</option><option value="refund_pending">待退款</option><option value="refunded">已退款</option></select></label>
-        <button type="button" onClick={() => setReviewOnly(value => !value)} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${reviewOnly ? 'border-accent bg-accent text-white' : reviewCount ? 'border-orange-200 bg-orange-50 text-orange-800' : 'border-border text-muted'}`}>待核实 <span className="font-mono">{reviewCount}</span></button>
-        <div className="relative min-w-48 flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="搜索订单号或客户" className="w-full rounded border border-border py-2 pl-9 pr-3 text-sm outline-none focus:border-gold" /></div>
+        <label className="text-[11px] font-semibold text-muted">订单<select value={fulfillment} onChange={event => { setSelectedId(null); setPage(1); setFulfillment(event.target.value); }} className="mt-1 block rounded border border-border bg-white px-2 py-1.5 text-xs text-fg"><option value="">全部订单</option><option value="draft">草稿</option><option value="confirmed">已确认</option><option value="shipped">已出库</option><option value="cancelled">已取消</option><option value="returned">已退货</option></select></label>
+        <label className="text-[11px] font-semibold text-muted">付款<select value={payment} onChange={event => { setSelectedId(null); setPage(1); setPayment(event.target.value); }} className="mt-1 block rounded border border-border bg-white px-2 py-1.5 text-xs text-fg"><option value="">全部付款</option><option value="unpaid">未收款</option><option value="partial">部分收款</option><option value="paid">已收款</option><option value="refund_pending">待退款</option><option value="refunded">已退款</option></select></label>
+        <button type="button" onClick={() => { setSelectedId(null); setPage(1); setReviewOnly(value => !value); }} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${reviewOnly ? 'border-accent bg-accent text-white' : reviewCount ? 'border-orange-200 bg-orange-50 text-orange-800' : 'border-border text-muted'}`}>待核实 <span className="font-mono">{reviewCount}</span></button>
+        <div className="relative min-w-48 flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" /><input value={search} onChange={event => { setSelectedId(null); setPage(1); setSearch(event.target.value); }} placeholder="搜索订单号或客户" className="w-full rounded border border-border py-2 pl-9 pr-3 text-sm outline-none focus:border-gold" /></div>
       </div>
     </section>
 
     {ordersQuery.error && <p className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{apiErrorMessage(ordersQuery.error, '订单加载失败')}</p>}
     {accountsQuery.error && <p className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">资金账户加载失败，收款和人肉成本动作暂不可用。</p>}
-    <SalesOrderWorkbench orders={visibleOrders} selectedId={visibleSelectedId} accounts={accountsQuery.data || []} accountsError={accountsQuery.error ? apiErrorMessage(accountsQuery.error) : ''} onSelect={setSelectedId} onChanged={invalidateSales} onCustomer={id => setCustomerModal({ mode: 'detail', id })} />
+    <nav aria-label="订单分页" className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded border border-border bg-cream px-4 py-3 text-xs text-muted">
+      <span aria-live="polite">{ordersQuery.error ? `第 ${currentPage} 页加载失败` : `共 ${count} 条 · 每页 20 条 · 第 ${currentPage} / ${pages} 页`}</span>
+      <div className="flex gap-2">
+        <button type="button" disabled={ordersQuery.isFetching || currentPage <= 1} onClick={() => changePage(currentPage - 1)} className="rounded border border-border bg-white px-3 py-2 text-xs font-semibold hover:border-gold disabled:opacity-40">上一页</button>
+        <button type="button" disabled={ordersQuery.isFetching || Boolean(ordersQuery.error) || currentPage >= pages} onClick={() => changePage(currentPage + 1)} className="rounded border border-border bg-white px-3 py-2 text-xs font-semibold hover:border-gold disabled:opacity-40">下一页</button>
+        {ordersQuery.error && <button type="button" onClick={() => void ordersQuery.refetch()} disabled={ordersQuery.isFetching} className="rounded border border-border bg-white px-3 py-2 text-xs font-semibold disabled:opacity-40">重试</button>}
+      </div>
+    </nav>
+    {ordersQuery.isPlaceholderData ? <p role="status" className="py-8 text-center text-sm text-muted">正在加载订单…</p> : !ordersQuery.error && <SalesOrderWorkbench orders={visibleOrders} selectedId={visibleSelectedId} accounts={accountsQuery.data || []} accountsError={accountsQuery.error ? apiErrorMessage(accountsQuery.error) : ''} onSelect={setSelectedId} onChanged={invalidateSales} onCustomer={id => setCustomerModal({ mode: 'detail', id })} />}
 
     {createOpen && <div role="dialog" aria-modal="true" aria-label="新建销售单" className="fixed inset-0 z-50 grid place-items-center bg-fg/30 p-3" onMouseDown={event => { if (event.target === event.currentTarget) setCreateOpen(false); }}><div className="relative max-h-[calc(100vh-1.5rem)] w-full max-w-4xl overflow-y-auto"><button type="button" aria-label="关闭新建销售单" onClick={() => setCreateOpen(false)} className="absolute right-5 top-5 z-10 text-muted"><X className="h-4 w-4" /></button><SalesOrderForm onSubmit={create} busy={creating} error={formError} /></div></div>}
     {customerModal && <SalesCustomerModal customerId={customerModal.id} mode={customerModal.mode} onClose={() => setCustomerModal(null)} onCreated={() => setCustomerModal(null)} />}

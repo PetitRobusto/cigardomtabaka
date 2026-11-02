@@ -726,6 +726,11 @@ export interface PendingCollectionSummary {
 }
 
 export interface SalesOrderListResponse {
+  count: number;
+  page: number;
+  pages: number;
+  limit: number;
+  review_count: number;
   results: SalesOrder[];
   pending_collection: PendingCollectionSummary;
 }

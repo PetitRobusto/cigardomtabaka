@@ -11,7 +11,7 @@ from decimal import Decimal
 from django.db import IntegrityError, OperationalError
 
 from django.db import transaction
-from django.db.models import Count, Max, Q, Sum
+from django.db.models import Count, Max, OuterRef, Q, Subquery, Sum
 from django.http import FileResponse, Http404, JsonResponse
 from django.utils import timezone
 
@@ -216,11 +216,20 @@ def sales_orders(request):
     if request.method == "POST":
         return _write(request, "create_sales_order_draft", _create_handler, 201)
     try:
-        limit = int(request.GET.get("limit", "30"))
+        limit = int(request.GET.get("limit", "20"))
         if not 1 <= limit <= 100:
             raise ValueError
     except (TypeError, ValueError):
         return _error("limit 必须是 1 到 100 之间的整数", 400)
+    try:
+        page = int(request.GET.get("page", "1"))
+        if not 1 <= page <= 2147483647:
+            raise ValueError
+    except (TypeError, ValueError):
+        return _error("page 必须是 1 到 2147483647 之间的整数", 400)
+    review_only = request.GET.get("review_only", "0")
+    if review_only not in ("0", "1"):
+        return _error("review_only 必须是 0 或 1", 400)
     orders = SalesOrder.objects.select_related(
         "customer", "sales_shipment", "sales_refund",
         "sales_return", "sales_transport_cost",
@@ -260,8 +269,27 @@ def sales_orders(request):
                 orders = orders.filter(id=int(order_match.group(1)))
             else:
                 orders = orders.filter(customer_name__icontains=query)
+    # 与详情的 payment_review 一致：取最新待核实/需补充凭证，再分页。
+    current_review = PaymentSubmission.objects.filter(
+        sales_order_id=OuterRef("pk"),
+        status__in=(PaymentSubmission.Status.PENDING, PaymentSubmission.Status.NEEDS_MORE),
+    ).order_by("-submitted_at", "-id").values("status")[:1]
+    orders = orders.annotate(_review_status=Subquery(current_review))
+    counts = orders.aggregate(
+        count=Count("pk"),
+        review_count=Count("pk", filter=Q(_review_status=PaymentSubmission.Status.PENDING)),
+    )
+    if review_only == "1":
+        orders = orders.filter(_review_status=PaymentSubmission.Status.PENDING)
+    count = counts["review_count"] if review_only == "1" else counts["count"]
+    pages = max(1, (count + limit - 1) // limit)
+    page = min(page, pages)
+    offset = (page - 1) * limit
+    orders = orders.order_by("-created_at", "-id")
     return _json({
-        "results": [serialize_sales_order(order) for order in orders[:limit]],
+        "results": [serialize_sales_order(order) for order in orders[offset:offset + limit]],
+        "count": count, "page": page, "pages": pages, "limit": limit,
+        "review_count": counts["review_count"],
         "pending_collection": pending_collection_summary(),
     })
 

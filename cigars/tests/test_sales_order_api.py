@@ -513,9 +513,9 @@ class SalesOrderApiTest(TestCase):
         for index in range(5):
             self.create_order(key=f"query-order-{index}", body=self.body(quantity=2))
         self.login()
-        # Notes and evidence each use one prefetch, independent of order count.
+        # Notes/evidence use fixed prefetches; one aggregate counts orders and reviews.
         for limit in (1, 5):
-            with self.subTest(limit=limit), self.assertNumQueries(10):
+            with self.subTest(limit=limit), self.assertNumQueries(11):
                 response = self.client.get(f"/api/sales/orders/?limit={limit}")
             self.assertEqual(response.status_code, 200)
             self.assertEqual(len(response.json()["results"]), limit)

@@ -12,9 +12,9 @@ vi.mock('../api', () => ({ ...mocks, apiErrorMessage: (error: Error) => error.me
 vi.mock('../hooks/usePageMeta', () => ({ usePageMeta: () => ({ setMeta: mocks.setMeta }) }));
 vi.mock('../components/sales/SalesCustomerModal', () => ({ default: () => null }));
 vi.mock('../components/sales/SalesOrderForm', () => ({ default: () => null }));
-vi.mock('../components/sales/SalesOrderWorkbench', () => ({ default: ({ selectedId, onSelect, onChanged }: {
-  selectedId: number | null; onSelect: (id: number) => void; onChanged: () => void;
-}) => <div><span>选中 {selectedId || '无'}</span><button onClick={() => onSelect(1)}>选订单</button><button onClick={onChanged}>动作成功</button><button>动作失败</button></div> }));
+vi.mock('../components/sales/SalesOrderWorkbench', () => ({ default: ({ orders, selectedId, onSelect, onChanged }: {
+  orders: SalesOrder[]; selectedId: number | null; onSelect: (id: number) => void; onChanged: () => void;
+}) => <div>{orders.map(order => <span key={order.id}>订单 {order.id}</span>)}<span>选中 {selectedId || '无'}</span><button onClick={() => onSelect(1)}>选订单</button><button onClick={onChanged}>动作成功</button><button>动作失败</button></div> }));
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe('销售动作后的查询刷新', () => {
@@ -104,5 +104,85 @@ describe('销售动作后的查询刷新', () => {
     const freshReceipts = vi.fn().mockResolvedValue({ fresh: true });
     await expect(client.fetchQuery({ queryKey: ['sales-receipts'], queryFn: freshReceipts })).resolves.toEqual({ fresh: true });
     expect(freshReceipts).toHaveBeenCalledTimes(1);
+  });
+});
+
+function paginatedResponse(page = 1, count = 42) {
+  const current = Math.min(page, Math.max(1, Math.ceil(count / 20)));
+  return {
+    results: Array.from({ length: Math.max(0, Math.min(20, count - (current - 1) * 20)) }, (_, index) => ({
+      id: (current - 1) * 20 + index + 1, items: [], fulfillment_status: 'confirmed',
+      amount_due_cny: 10, available_actions: [],
+    })),
+    count, page: current, pages: Math.max(1, Math.ceil(count / 20)), limit: 20, review_count: 21,
+    pending_collection: { order_count: 42, amount_cny: '420.00' },
+  };
+}
+function renderPagination() {
+  mocks.fetchSalesOrderList.mockReset().mockImplementation(({ page = 1 }) => Promise.resolve(paginatedResponse(page)));
+  mocks.fetchAccountingAccounts.mockResolvedValue([]);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><MemoryRouter><SalesPage /></MemoryRouter></QueryClientProvider>);
+}
+
+describe('订单分页', () => {
+  it('每页请求20条，跨页清除选单，末页禁止向后翻页，返回保留查询条件', async () => {
+    renderPagination();
+    await screen.findByText('共 42 条 · 每页 20 条 · 第 1 / 3 页');
+    expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, limit: 20 }));
+    expect(screen.getByText('订单 20')).toBeTruthy();
+    expect(screen.queryByText('订单 21')).toBeNull();
+    expect((screen.getByRole('button', { name: '上一页' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '选订单' }));
+    expect(screen.getByText('选中 1')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    await screen.findByText('订单 21');
+    expect(screen.getByText('选中 无')).toBeTruthy();
+    expect(screen.queryByText('订单 1')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    await screen.findByText('订单 42');
+    expect(screen.getByText('共 42 条 · 每页 20 条 · 第 3 / 3 页')).toBeTruthy();
+    expect((screen.getByRole('button', { name: '下一页' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '上一页' }));
+    await screen.findByText('订单 21');
+    expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, limit: 20, review_only: 0 }));
+    expect(screen.getByText('当前页订单')).toBeTruthy();
+  });
+
+  it.each(['search', 'dateFrom', 'dateTo', 'fulfillment', 'payment', 'review', 'quickDate'])('改变%s筛选后从第一页查询', async filter => {
+    renderPagination();
+    fireEvent.click(await screen.findByRole('button', { name: '下一页' }));
+    await screen.findByText('订单 21');
+    const changes: Record<string, () => void> = {
+      search: () => fireEvent.change(screen.getByPlaceholderText('搜索订单号或客户'), { target: { value: '客户甲' } }),
+      dateFrom: () => fireEvent.change(screen.getByLabelText('订单日期'), { target: { value: '2026-01-01' } }),
+      dateTo: () => fireEvent.change(screen.getByLabelText('结束日期'), { target: { value: '2026-12-31' } }),
+      fulfillment: () => fireEvent.change(screen.getByLabelText('订单'), { target: { value: 'shipped' } }),
+      payment: () => fireEvent.change(screen.getByLabelText('付款'), { target: { value: 'unpaid' } }),
+      review: () => fireEvent.click(screen.getByRole('button', { name: '待核实 21' })),
+      quickDate: () => fireEvent.click(screen.getByRole('button', { name: '全部' })),
+    };
+    changes[filter]();
+    await waitFor(() => expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, limit: 20, ...(filter === 'review' ? { review_only: 1 } : {}) })));
+    await screen.findByText('订单 1');
+  });
+
+  it('翻页请求中不展示旧页可操作订单；失败可重试并采用服务端规范页码', async () => {
+    renderPagination();
+    await screen.findByText('订单 1');
+    let rejectPage!: (error: Error) => void;
+    mocks.fetchSalesOrderList.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectPage = reject; }));
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    await screen.findByRole('status');
+    expect(screen.queryByRole('button', { name: '选订单' })).toBeNull();
+    expect((screen.getByRole('button', { name: '下一页' }) as HTMLButtonElement).disabled).toBe(true);
+    rejectPage(new Error('网络错误'));
+    await screen.findByText('网络错误');
+    expect((screen.getByRole('button', { name: '上一页' }) as HTMLButtonElement).disabled).toBe(false);
+    mocks.fetchSalesOrderList.mockResolvedValueOnce(paginatedResponse(1, 1));
+    fireEvent.click(screen.getByRole('button', { name: '重试' }));
+    await screen.findByText('共 1 条 · 每页 20 条 · 第 1 / 1 页');
+    expect((screen.getByRole('button', { name: '上一页' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: '下一页' }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

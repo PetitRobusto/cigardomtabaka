@@ -43,6 +43,7 @@ import { formatShanghaiDateTime } from "../../utils/businessDate";
 import PaymentRequestModal from "./PaymentRequestModal";
 import PaymentDialog from "../privnote/PaymentDialog";
 import SalesOrderStatusTags from "./SalesOrderStatusTags";
+import SalesOrderListItem from "./SalesOrderListItem";
 import { salesPreorderLabel } from "./preorderState";
 
 function publicPrivnoteUrl(value: string): string {
@@ -122,34 +123,12 @@ export default function SalesOrderWorkbench({
         </div>
         <div className="max-h-[calc(100vh-22rem)] min-h-60 overflow-y-auto lg:max-h-[calc(100vh-20rem)]">
           {orders.map((order) => (
-            <button
+            <SalesOrderListItem
               key={order.id}
-              type="button"
-              onClick={() => {
-                onSelect(order.id);
-              }}
-              aria-current={selected?.id === order.id ? 'true' : undefined}
-              className={`block w-full border-b border-border px-4 py-3 text-left last:border-0 hover:bg-[#FFFCF9] ${selected?.id === order.id ? "border-l-[3px] border-l-accent bg-[#FFFCF4]" : salesPreorderLabel(order) ? "bg-[#FFFCF4]" : ""}`}
-            >
-              <span className="flex items-baseline justify-between gap-2">
-                <span className="font-mono text-[11px] font-semibold">
-                  {order.order_number}
-                </span>
-                <strong className="font-mono text-xs">
-                  {formatCny(order.amount_due_cny)}
-                </strong>
-              </span>
-              <strong className="mt-1 block truncate text-sm">
-                {order.customer_name || "散客"}
-              </strong>
-              {salesPreorderLabel(order) && <span className="mt-1.5 block"><PreorderTag order={order} /></span>}
-              <span className="mt-2 flex items-center justify-between gap-2 text-[10px] text-muted">
-                <span>
-                  {formatShanghaiDateTime(order.created_at).slice(0, 10)}
-                </span>
-                <span className="flex items-center gap-1"><SalesOrderStatusTags order={order} compact />{order.payment_review?.status === "pending" && <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-bold text-orange-800">待核实</span>}</span>
-              </span>
-            </button>
+              order={order}
+              selected={selected?.id === order.id}
+              onSelect={onSelect}
+            />
           ))}
           {!orders.length && (
             <div className="px-4 py-14 text-center text-sm text-muted">

@@ -9,6 +9,7 @@ export interface DraftProduct {
   quantity: string;
   unitPrice: string;
   fulfillmentType: 'in_stock' | 'preorder';
+  packagingOptions?: { saleUnit: 'box' | 'stick'; boxSize: string }[];
   sourceId?: number;
   sourceNumber?: string;
 }
@@ -20,7 +21,7 @@ export function canEditDraft(order: SalesOrder): boolean {
 
 export function draftProducts(order: SalesOrder): DraftProduct[] {
   return order.items.map(item => ({
-    cigarId: item.cigar_id, name: item.cigar_name,
+    cigarId: item.cigar_id, name: cigarSearchDisplayName({ name: item.cigar_name, brand: item.cigar_brand ?? '', brand_cn: item.cigar_brand_cn }),
     saleUnit: item.sale_unit === 'box' ? 'box' : 'stick',
     boxSize: String(item.box_size ?? ''),
     quantity: String(item.sale_unit === 'box' ? item.sale_quantity : item.quantity),
@@ -32,13 +33,17 @@ export function draftProducts(order: SalesOrder): DraftProduct[] {
 }
 
 export function catalogProduct(cigar: SearchCigarResult): DraftProduct {
-  const size = cigar.box_options[0]?.box_size ?? cigar.packaging_sizes[0];
-  return { cigarId: cigar.id, name: cigarSearchDisplayName(cigar), saleUnit: size ? 'box' : 'stick',
-    boxSize: size ? String(size) : '', quantity: '1', unitPrice: '', fulfillmentType: 'in_stock' };
+  const packagingOptions: NonNullable<DraftProduct['packagingOptions']> = cigar.box_options
+    .filter(option => option.box_size > 0 && option.available_boxes > 0)
+    .map(option => ({ saleUnit: 'box', boxSize: String(option.box_size) }));
+  if (cigar.available_sticks > 0) packagingOptions.push({ saleUnit: 'stick', boxSize: '' });
+  const packaging = packagingOptions[0] ?? { saleUnit: 'stick' as const, boxSize: '' };
+  return { cigarId: cigar.id, name: cigarSearchDisplayName(cigar), ...packaging, packagingOptions,
+    quantity: '1', unitPrice: '', fulfillmentType: 'in_stock' };
 }
 
 export function sourceProduct(source: PreorderSource, item: PreorderSource['items'][number]): DraftProduct {
-  return { cigarId: item.cigar_id, name: item.cigar_name, saleUnit: item.sale_unit,
+  return { cigarId: item.cigar_id, name: cigarSearchDisplayName({ name: item.cigar_name, brand: item.cigar_brand ?? '', brand_cn: item.cigar_brand_cn }), saleUnit: item.sale_unit,
     boxSize: String(item.box_size ?? ''), quantity: '1', unitPrice: '', fulfillmentType: 'preorder',
     sourceId: source.purchase_order_id, sourceNumber: source.order_number };
 }

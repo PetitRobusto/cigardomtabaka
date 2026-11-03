@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
-import type { SalesOrder } from '../../types';
-import { canEditDraft, draftGoodsCents, draftItemsPayload, draftProducts, moneyCents } from './salesDraftItems';
+import type { SalesOrder, SearchCigarResult } from '../../types';
+import { catalogProduct, canEditDraft, draftGoodsCents, draftItemsPayload, draftProducts, moneyCents } from './salesDraftItems';
 
 const order = { id: 1, draft_revision: 42, fulfillment_status: 'draft', payment_status: 'unpaid', locked: false,
   items: [{ id: 2, cigar_id: 3, cigar_name: '预售雪茄', sale_unit: 'box', sale_quantity: 2, quantity: 50, box_size: 25,
@@ -35,4 +35,11 @@ it('does not allow confirmed, paid, locked or allocated orders', () => {
   for (const patch of [{ fulfillment_status: 'confirmed' }, { payment_status: 'paid' }, { locked: true }, { items: [{ ...order.items[0], allocations: [{ id: 5 }] }] }]) {
     expect(canEditDraft({ ...order, ...patch } as SalesOrder)).toBe(false);
   }
+});
+
+
+it('uses loose stock directly without inventing a box from catalog packaging', () => {
+  const product = catalogProduct({ id: 1, name: 'D 4', brand: 'Partagás', brand_cn: '帕特加斯',
+    box_options: [], packaging_sizes: [25], available_sticks: 3 } as unknown as SearchCigarResult);
+  expect(product).toMatchObject({ saleUnit: 'stick', boxSize: '', packagingOptions: [{ saleUnit: 'stick', boxSize: '' }] });
 });

@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Outlet, Routes, Route, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, Routes, Route, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { PageMetaProvider } from './contexts/PageMetaContext';
@@ -254,21 +254,19 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <PageMetaProvider>
-        <CustomerDocumentLanguage />
-        <StartupLoaderHandoff />
-        <Routes>
-          {/* Routes without AppLayout keep a full-screen initial fallback. */}
-          <Route path="/login" element={<Suspense fallback={<BrandLoader fullScreen />}><LoginPage /></Suspense>} />
-          <Route path="/p/:token" element={<Suspense fallback={<BrandLoader fullScreen />}><PrivnoteViewPage /></Suspense>} />
-          {/* In-app route chunks load inside the content area without replacing navigation. */}
-          <Route
-            path="/*"
-            element={<AppRoutes />}
-          />
-        </Routes>
-      </PageMetaProvider>
-    </BrowserRouter>
+    <PageMetaProvider>
+      <CustomerDocumentLanguage />
+      <StartupLoaderHandoff />
+      <Routes>
+        {/* Routes without AppLayout keep a full-screen initial fallback. */}
+        <Route path="/login" element={<Suspense fallback={<BrandLoader fullScreen />}><LoginPage /></Suspense>} />
+        <Route path="/p/:token" element={<Suspense fallback={<BrandLoader fullScreen />}><PrivnoteViewPage /></Suspense>} />
+        {/* In-app route chunks load inside the content area without replacing navigation. */}
+        <Route
+          path="/*"
+          element={<AppRoutes />}
+        />
+      </Routes>
+    </PageMetaProvider>
   );
 }

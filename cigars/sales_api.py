@@ -240,7 +240,7 @@ def sales_orders(request):
         "items__cigar", "items__allocations__purchase_batch", "privnote_set", "payment_submissions",
         "sales_receipts__fund_account", "sales_receipts__ledger_transaction",
         "sales_receipts__reversal_ledger_transaction",
-    ).all()
+    ).annotate(_draft_revision=Max('events__id'))
     fulfillment = request.GET.get("fulfillment_status", "").strip()
     payment = request.GET.get("payment_status", "").strip()
     try:
@@ -341,7 +341,7 @@ def _customer_payload(customer, include_orders=False):
             "sales_receipts__fund_account", "sales_receipts__ledger_transaction",
             "sales_receipts__reversal_ledger_transaction",
         )[:20]
-        payload["recent_orders"] = [serialize_sales_order(order) for order in recent_orders]
+        payload["recent_orders"] = [serialize_sales_order(order) for order in recent_orders.annotate(_draft_revision=Max('events__id'))]
     return payload
 
 
@@ -517,6 +517,9 @@ def sales_order_detail(request, order_id):
         return _json(_response(order))
 
     def handler(body, operator, context):
+        items_only = body.get("items_only", False)
+        if type(items_only) is not bool:
+            raise ActionInputError("items_only 必须是布尔值")
         return _response(update_sales_order_draft(
             sales_order_id=order.id, items=body.get("items"), operator=operator,
             customer_id=body.get("customer_id"),
@@ -526,6 +529,7 @@ def sales_order_detail(request, order_id):
             customer_transport_fee_cny=body.get("customer_transport_fee_cny", 0),
             transport_payer=body.get("transport_payer"),
             note=_optional_note(body).strip(), agent_context=context,
+            items_only=items_only, expected_revision=body.get("expected_revision"),
         ))
     return _write(request, "update_sales_order_draft", handler)
 

@@ -11,7 +11,6 @@ import SalesSectionNav from '../components/sales/SalesSectionNav';
 import { activeSalesAmount, formatCny } from '../components/sales/salesState';
 import { salesOrderFinancialView } from '../components/sales/SalesOrderCard.logic';
 import { shanghaiBusinessDate, shiftIsoDate } from '../utils/businessDate';
-import { DelayedAppSkeleton } from '../components/layout/AppSkeleton';
 
 type QuickDate = 'recent' | 'all' | 'today' | 'week' | 'month' | 'last_month' | 'custom';
 
@@ -115,8 +114,6 @@ export default function SalesPage() {
     setDateTo(today);
   };
 
-  if (ordersQuery.isLoading) return <DelayedAppSkeleton path="/sales" label="加载订单工作台…" />;
-
   return <div className="w-full">
     <SalesSectionNav />
     <header className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Master-detail bench</p><h1 className="mt-1 font-display text-3xl font-semibold sm:text-4xl">销售订单工作台</h1><p className="mt-2 text-sm text-muted">订单、客户、商品成本与收付款事实在同一主从工作台中推进。</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => setCustomerModal({ mode: 'create', id: null })} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><UserPlus className="h-4 w-4" />新建客户</button><button type="button" onClick={() => { setCreateOpen(true); setFormError(''); }} className="inline-flex items-center gap-1 rounded bg-accent px-3 py-2 text-sm font-semibold text-white hover:bg-accent-hover"><Plus className="h-4 w-4" />新建销售单</button><button type="button" onClick={invalidateSales} className="inline-flex items-center gap-1 rounded border border-border bg-white px-3 py-2 text-sm hover:border-gold"><RefreshCw className="h-4 w-4" />刷新</button></div></header>
@@ -146,7 +143,7 @@ export default function SalesPage() {
         {ordersQuery.error && <button type="button" onClick={() => void ordersQuery.refetch()} disabled={ordersQuery.isFetching} className="rounded border border-border bg-white px-3 py-2 text-xs font-semibold disabled:opacity-40">重试</button>}
       </div>
     </nav>
-    {ordersQuery.isPlaceholderData ? <p role="status" className="py-8 text-center text-sm text-muted">正在加载订单…</p> : !ordersQuery.error && <SalesOrderWorkbench orders={visibleOrders} selectedId={visibleSelectedId} accounts={accountsQuery.data || []} accountsError={accountsQuery.error ? apiErrorMessage(accountsQuery.error) : ''} onSelect={setSelectedId} onChanged={invalidateSales} onCustomer={id => setCustomerModal({ mode: 'detail', id })} />}
+    <SalesOrderWorkbench loading={ordersQuery.isLoading || ordersQuery.isPlaceholderData} orders={ordersQuery.isPlaceholderData || ordersQuery.error ? [] : visibleOrders} selectedId={ordersQuery.isPlaceholderData || ordersQuery.error ? null : visibleSelectedId} accounts={accountsQuery.data || []} accountsError={accountsQuery.error ? apiErrorMessage(accountsQuery.error) : ''} onSelect={setSelectedId} onChanged={invalidateSales} onCustomer={id => setCustomerModal({ mode: 'detail', id })} />
 
     {createOpen && <div role="dialog" aria-modal="true" aria-label="新建销售单" className="fixed inset-0 z-50 grid place-items-center bg-fg/30 p-3" onMouseDown={event => { if (event.target === event.currentTarget) setCreateOpen(false); }}><div className="relative max-h-[calc(100vh-1.5rem)] w-full max-w-4xl overflow-y-auto"><button type="button" aria-label="关闭新建销售单" onClick={() => setCreateOpen(false)} className="absolute right-5 top-5 z-10 text-muted"><X className="h-4 w-4" /></button><SalesOrderForm onSubmit={create} busy={creating} error={formError} /></div></div>}
     {customerModal && <SalesCustomerModal customerId={customerModal.id} mode={customerModal.mode} onClose={() => setCustomerModal(null)} onCreated={() => setCustomerModal(null)} />}

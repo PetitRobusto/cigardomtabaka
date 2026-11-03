@@ -12,9 +12,9 @@ vi.mock('../api', () => ({ ...mocks, apiErrorMessage: (error: Error) => error.me
 vi.mock('../hooks/usePageMeta', () => ({ usePageMeta: () => ({ setMeta: mocks.setMeta }) }));
 vi.mock('../components/sales/SalesCustomerModal', () => ({ default: () => null }));
 vi.mock('../components/sales/SalesOrderForm', () => ({ default: () => null }));
-vi.mock('../components/sales/SalesOrderWorkbench', () => ({ default: ({ orders, selectedId, onSelect, onChanged }: {
-  orders: SalesOrder[]; selectedId: number | null; onSelect: (id: number) => void; onChanged: () => void;
-}) => <div>{orders.map(order => <span key={order.id}>订单 {order.id}</span>)}<span>选中 {selectedId || '无'}</span><button onClick={() => onSelect(1)}>选订单</button><button onClick={onChanged}>动作成功</button><button>动作失败</button></div> }));
+vi.mock('../components/sales/SalesOrderWorkbench', () => ({ default: ({ orders, loading, selectedId, onSelect, onChanged }: {
+  orders: SalesOrder[]; loading?: boolean; selectedId: number | null; onSelect: (id: number) => void; onChanged: () => void;
+}) => loading ? <p role="status">正在加载订单…</p> : <div>{orders.map(order => <span key={order.id}>订单 {order.id}</span>)}<span>选中 {selectedId || '无'}</span><button onClick={() => onSelect(1)}>选订单</button><button onClick={onChanged}>动作成功</button><button>动作失败</button></div> }));
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe('销售动作后的查询刷新', () => {
@@ -151,7 +151,8 @@ describe('订单分页', () => {
 
   it.each(['search', 'dateFrom', 'dateTo', 'fulfillment', 'payment', 'review', 'quickDate'])('改变%s筛选后从第一页查询', async filter => {
     renderPagination();
-    fireEvent.click(await screen.findByRole('button', { name: '下一页' }));
+    await screen.findByText('订单 1');
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
     await screen.findByText('订单 21');
     const changes: Record<string, () => void> = {
       search: () => fireEvent.change(screen.getByPlaceholderText('搜索订单号或客户'), { target: { value: '客户甲' } }),

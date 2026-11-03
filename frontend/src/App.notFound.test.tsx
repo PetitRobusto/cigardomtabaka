@@ -2,7 +2,7 @@
 import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes } from 'react-router-dom';
 import App, { StaffNotFoundRoute } from './App';
 import { PageMetaProvider } from './contexts/PageMetaContext';
 import { usePageMetaContext } from './contexts/usePageMetaContext';
@@ -40,7 +40,8 @@ it('renders a standalone localized not-found page and updates noindex page metad
 
 it.each(['zh', 'ru', 'en'] as const)('keeps an unknown %s app route outside the shared header, footer and staff dock', async (locale) => {
   window.history.replaceState(null, '', `/${locale}/unknown-workspace-route`);
-  const { container } = render(<App />);
+  const router = createMemoryRouter([{ path: '*', element: <App /> }], { initialEntries: [`/${locale}/unknown-workspace-route`] });
+  const { container } = render(<RouterProvider router={router} />);
   expect(await screen.findByRole('heading', { name: notFoundCopy[locale].heading })).toBeTruthy();
   expect(document.documentElement.lang).toBe(locale === 'zh' ? 'zh-CN' : locale);
   expect(document.title).toBe(notFoundCopy[locale].title);
@@ -48,5 +49,6 @@ it.each(['zh', 'ru', 'en'] as const)('keeps an unknown %s app route outside the 
   expect(container.querySelector('.not-found-footer')).toBeTruthy();
   expect(container.querySelector('.site-header, .site-footer, .staff-dock')).toBeNull();
   expect(container.querySelectorAll('main')).toHaveLength(1);
+  router.dispose();
   window.history.replaceState(null, '', '/');
 });

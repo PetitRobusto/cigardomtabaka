@@ -198,6 +198,116 @@ class SalesOrderApiTest(TestCase):
         self.assertEqual(payload["items"][0]["quantity"], 4)
         self.assertEqual(payload["amount_due_cny"], 83)
 
+    def test_items_only_patch_preserves_metadata_and_replays_once(self):
+        customer = Customer.objects.create(name="编辑客户")
+        body = {**self.body(), "customer_id": customer.pk, "customer_name": "快照称呼",
+                "payment_manual": {"account": "原收款信息"}}
+        created = self.create_order(body=body).json()["sales_order"]
+        order = SalesOrder.objects.get(pk=created["id"])
+        # 归档不应阻止保留已有引用的商品编辑。
+        customer.deleted_at = timezone.now()
+        customer.save(update_fields=["deleted_at"])
+        patch = {"items_only": True, "expected_revision": created["draft_revision"],
+                 "items": self.body(quantity=4)["items"]}
+        path = f"/api/sales/orders/{order.pk}/"
+        before_events = order.events.count()
+        response = self.request("patch", path, patch, "items-only")
+        self.assertEqual(response.status_code, 200, response.content)
+        replay = self.request("patch", path, patch, "items-only")
+        self.assertEqual(response.json(), replay.json())
+        order.refresh_from_db()
+        self.assertEqual(order.customer_id, customer.pk)
+        self.assertEqual(order.customer_name, "快照称呼")
+        self.assertEqual(order.payment_manual, body["payment_manual"])
+        self.assertEqual(order.note, body["note"])
+        self.assertEqual(order.customer_transport_fee_cny, Decimal("3.00"))
+        self.assertEqual(order.amount_due_cny, Decimal("83.00"))
+        self.assertEqual(order.fulfillment_status, "draft")
+        self.assertEqual(order.events.count(), before_events + 1)
+        self.assertFalse(StockMovement.objects.exists())
+        self.assertFalse(StockAllocation.objects.exists())
+        self.assertFalse(LedgerPosting.objects.exists())
+        self.assertGreater(response.json()["sales_order"]["draft_revision"], created["draft_revision"])
+        patch["items"][0]["quantity"] = 5
+        self.assertEqual(self.request("patch", path, patch, "items-only").status_code, 409)
+
+    def test_items_only_patch_rejects_stale_or_missing_revision_without_changes(self):
+        created = self.create_order().json()["sales_order"]
+        path = f'/api/sales/orders/{created["id"]}/'
+        patch = {"items_only": True, "expected_revision": created["draft_revision"],
+                 "items": self.body(quantity=4)["items"]}
+        self.assertEqual(self.request("patch", path, patch, "revision-first").status_code, 200)
+        order = SalesOrder.objects.get(pk=created["id"])
+        ids = list(order.items.values_list("id", flat=True))
+        patch["items"] = self.body(quantity=7)["items"]
+        stale = self.request("patch", path, patch, "revision-stale")
+        self.assertEqual(stale.status_code, 400)
+        self.assertIn("其他人修改", stale.json()["error"])
+        for value in (None, True, "1", -1):
+            patch["expected_revision"] = value
+            self.assertEqual(self.request("patch", path, patch, f"bad-revision-{value}").status_code, 400)
+        self.assertEqual(list(order.items.values_list("id", flat=True)), ids)
+        self.assertEqual(order.items.get().quantity, 4)
+
+    def test_items_only_patch_rejects_non_staff_and_confirmed_order(self):
+        self.create_batch(quantity=10)
+        created = self.create_order().json()["sales_order"]
+        path = f'/api/sales/orders/{created["id"]}/'
+        patch = {"items_only": True, "expected_revision": created["draft_revision"],
+                 "items": self.body(quantity=4)["items"]}
+        self.login(self.non_staff)
+        self.assertEqual(self.request("patch", path, patch, "non-staff-edit").status_code, 403)
+        self.login()
+        self.assertEqual(self.request("post", path + "confirm/", {}, "confirm-edit").status_code, 200)
+        movements = StockMovement.objects.count()
+        self.assertEqual(self.request("patch", path, patch, "confirmed-edit").status_code, 400)
+        self.assertEqual(StockMovement.objects.count(), movements)
+        self.assertEqual(SalesOrder.objects.get(pk=created["id"]).items.get().quantity, 2)
+
+    def test_items_only_patch_keeps_company_transport_zero_and_rolls_back_bad_items(self):
+        body = {**self.body(), "transport_payer": "company", "customer_transport_fee_cny": "0"}
+        created = self.create_order(body=body).json()["sales_order"]
+        path = f'/api/sales/orders/{created["id"]}/'
+        patch = {"items_only": True, "expected_revision": created["draft_revision"],
+                 "items": self.body(quantity=4)["items"]}
+        response = self.request("patch", path, patch, "company-edit")
+        self.assertEqual(response.status_code, 200)
+        saved = response.json()["sales_order"]
+        self.assertEqual(saved["transport_payer"], "company")
+        self.assertEqual(saved["amount_due_cny"], 80)
+        patch["expected_revision"] = saved["draft_revision"]
+        patch["items"][0].update(fulfillment_type="preorder", source_purchase_order_id=999999)
+        self.assertEqual(self.request("patch", path, patch, "invalid-source-edit").status_code, 400)
+        latest = self.client.get(path).json()["sales_order"]
+        self.assertEqual(latest["items"], saved["items"])
+        self.assertEqual(latest["draft_revision"], saved["draft_revision"])
+
+    def test_items_only_patch_preserves_mixed_preorder_source_and_rejects_mismatch(self):
+        batch = self.create_batch(quantity=50, box_size=25)
+        source = batch.purchase_order_item.purchase_order
+        source.items.update(packaging_status='normalized', box_quantity=2, unit_price_rub_per_box=Decimal('25.00'))
+        created = self.create_order().json()["sales_order"]
+        path = f'/api/sales/orders/{created["id"]}/'
+        preorder = {**self.body(sale_unit="box", sale_quantity=1, box_size=25)["items"][0],
+                    "fulfillment_type": "preorder", "source_purchase_order_id": source.pk}
+        patch = {"items_only": True, "expected_revision": created["draft_revision"],
+                 "items": [*self.body(quantity=3)["items"], preorder]}
+        response = self.request("patch", path, patch, "mixed-edit")
+        self.assertEqual(response.status_code, 200, response.content)
+        saved = response.json()["sales_order"]
+        self.assertEqual(saved["items"][1]["source_purchase_order_id"], source.pk)
+        self.assertEqual(saved["items"][1]["sale_quantity"], 1)
+        self.assertEqual(saved["items"][1]["quantity"], 25)
+        self.assertFalse(StockAllocation.objects.exists())
+        patch["expected_revision"] = saved["draft_revision"]
+        for changes in ({"box_size": 10, "quantity": 10},
+                        {"sale_quantity": 3, "quantity": 75},
+                        {"fulfillment_type": "in_stock"}):
+            patch["items"] = [{**preorder, **changes}]
+            response = self.request("patch", path, patch, f"bad-source-{changes}")
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(self.client.get(path).json()["sales_order"]["items"], saved["items"])
+
     def test_confirm_reserves_sticks_and_locks_order(self):
         batch = self.create_batch(quantity=10)
         created = self.create_order(key="confirm-create")

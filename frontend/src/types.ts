@@ -656,6 +656,7 @@ export interface SalesOrderItem {
 }
 
 export interface SalesOrder {
+  draft_revision?: number | null;
   id: number;
   order_number: string;
   status: string;
@@ -736,6 +737,8 @@ export interface SalesOrderListResponse {
 }
 
 export interface SalesOrderPayload {
+  items_only?: boolean;
+  expected_revision?: number;
   items: { cigar_id: number; sale_unit: string; quantity: number; unit_price: string; sale_quantity?: number; box_size?: number; fulfillment_type?: 'in_stock' | 'preorder'; source_purchase_order_id?: number }[];
   customer_id?: number | null;
   customer_name?: string;

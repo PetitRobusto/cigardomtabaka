@@ -298,6 +298,7 @@ def serialize_sales_order(order):
         'contribution_profit': _decimal_to_json(order.contribution_profit_cny),
         'actual_transport_cost_cny': _decimal_to_json(order.actual_transport_cost_cny),
         'locked': order.locked,
+        'draft_revision': sales_draft_revision(order) if order.fulfillment_status == 'draft' else None,
         'created_at': order.created_at.isoformat() if order.created_at else None,
         'confirmed_at': order.confirmed_at.isoformat() if order.confirmed_at else None,
         'cancelled_at': order.cancelled_at.isoformat() if order.cancelled_at else None,
@@ -589,11 +590,19 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
     return order
 
 
+def sales_draft_revision(order):
+    """订单业务事件是草稿的修订标识；无需另建可变版本字段。"""
+    if hasattr(order, '_draft_revision'):
+        return order._draft_revision or 0
+    return order.events.order_by('-id').values_list('id', flat=True).first() or 0
+
+
 @transaction.atomic
 def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, customer_id=None,
                              customer_name="", payment_method_id=None, payment_manual=None,
                              customer_transport_fee_cny=0, transport_payer=None,
-                             note="", agent_context=None, business_date=None):
+                             note="", agent_context=None, business_date=None,
+                             items_only=False, expected_revision=None):
     """整体替换未锁定、未收款草稿的业务快照。"""
     operator = _require_operator(operator)
     context = agent_context or AgentContext(command_name="update_sales_order_draft")
@@ -604,6 +613,17 @@ def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, 
         raise OrderServiceError("当前订单不能编辑草稿")
     if StockAllocation.objects.filter(sales_order_item__sales_order=order).exists():
         raise OrderServiceError("存在库存分配的订单不能编辑草稿")
+    if items_only:
+        if type(expected_revision) is not int or expected_revision < 0:
+            raise OrderServiceError("请重新打开草稿后编辑商品")
+        if expected_revision != sales_draft_revision(order):
+            raise OrderServiceError("订单已被其他人修改，请保留当前输入并重新打开最新草稿")
+        # 商品编辑仅替换明细，保留锁内读取的客户、收款配置、运费和备注。
+        customer, customer_id = order.customer, order.customer_id
+        customer_name = order.customer_name
+        payment_method_id, payment_manual = order.payment_method_id, order.payment_manual
+        customer_transport_fee_cny, transport_payer = order.customer_transport_fee_cny, order.transport_payer
+        note = order.note
     if not isinstance(items, list) or not items:
         raise OrderServiceError("至少需要一个商品")
     transport_fee = _to_money(customer_transport_fee_cny, "客户人肉费")

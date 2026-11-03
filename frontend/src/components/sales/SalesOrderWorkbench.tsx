@@ -14,6 +14,7 @@ import {
   createPrivnote,
   fetchPaymentSubmissions,
   fetchPaymentMethods,
+  fetchSalesOrder,
   confirmSalesOrder,
   receiveSalesOrder,
   recordSalesTransportCost,
@@ -45,6 +46,10 @@ import PaymentDialog from "../privnote/PaymentDialog";
 import SalesOrderStatusTags from "./SalesOrderStatusTags";
 import SalesOrderListItem from "./SalesOrderListItem";
 import { salesPreorderLabel } from "./preorderState";
+import SalesDraftItemsEditor from './SalesDraftItemsEditor';
+import { canEditDraft } from './salesDraftItems';
+import { discardDraftMessage } from './DraftNavigationGuard';
+import { DelayedAppSkeleton } from '../layout/AppSkeleton';
 
 function publicPrivnoteUrl(value: string): string {
   if (typeof window === "undefined") return value;
@@ -85,6 +90,7 @@ async function copyText(value: string): Promise<boolean> {
 }
 
 interface Props {
+  loading?: boolean;
   orders: SalesOrder[];
   selectedId: number | null;
   accounts: FundAccount[];
@@ -95,15 +101,46 @@ interface Props {
 }
 
 export default function SalesOrderWorkbench({
+  loading = false,
   orders,
   selectedId,
   accounts: allAccounts,
   accountsError = "",
-  onSelect,
+  onSelect: selectOrder,
   onChanged,
   onCustomer,
 }: Props) {
-  const selected = orders.find((order) => order.id === selectedId) || null;
+  const [editing, setEditing] = useState<SalesOrder | null>(null);
+  const [saved, setSaved] = useState<SalesOrder | null>(null);
+  const [editState, setEditState] = useState({ dirty: false, busy: false });
+  const [loadingEdit, setLoadingEdit] = useState(false);
+  const [editError, setEditError] = useState('');
+  const listed = orders.find((order) => order.id === selectedId) || null;
+  const selected = editing || (saved?.id === selectedId && listed?.fulfillment_status === 'draft'
+    && (listed.draft_revision ?? -1) < (saved?.draft_revision ?? 0) ? saved : listed);
+  const closeEditor = () => {
+    if (editState.busy || loadingEdit) return false;
+    if (editState.dirty && !window.confirm(discardDraftMessage)) return false;
+    setEditing(null); setEditState({ dirty: false, busy: false });
+    return true;
+  };
+  const onSelect = (id: number | null) => {
+    if (id === selected?.id || !closeEditor()) return;
+    setEditError(''); selectOrder(id);
+  };
+  const beginEdit = async () => {
+    if (!selected || loadingEdit) return;
+    setLoadingEdit(true); setEditError('');
+    try {
+      const current = await fetchSalesOrder(selected.id);
+      if (!canEditDraft(current) || current.draft_revision == null) throw new Error('当前订单不能编辑草稿，请刷新后重试');
+      setEditState({ dirty: false, busy: false }); setEditing(current);
+    } catch (failure) { setEditError(apiErrorMessage(failure, '草稿加载失败')); }
+    finally { setLoadingEdit(false); }
+  };
+
+  // Keep the editor mounted through pagination/filter loading and failures.
+  if (loading && !editing) return <DelayedAppSkeleton path="/sales" label="正在加载订单…" />;
 
   return (
     <div
@@ -180,7 +217,7 @@ export default function SalesOrderWorkbench({
                   <SalesOrderStatusTags order={selected} />
                 </div>
               </div>
-              <OrderActions
+              {!editing && !loadingEdit && <><OrderActions
                 order={selected}
                 accounts={allAccounts}
                 accountsError={accountsError}
@@ -188,16 +225,19 @@ export default function SalesOrderWorkbench({
               />
               <div className="mt-4">
                 <ReceiptPanel key={selected.id} order={selected} accounts={allAccounts} onChanged={onChanged} />
-              </div>
+              </div></>}
+              {editing && <p className="mt-3 text-xs text-muted">{editing.customer_name || '散客'} · 正在编辑商品，请保存或放弃修改后再确认订单。</p>}
+              {editError && <p role="alert" className="mt-3 text-sm text-accent">{editError}</p>}
             </div>
             <div className="max-h-[calc(100vh-24rem)] min-h-[360px] space-y-6 overflow-y-auto p-4 sm:p-5">
-              <DetailSection title="概览">
+              {!editing && <DetailSection title="概览">
                 <Overview order={selected} onCustomer={onCustomer} />
-              </DetailSection>
-              <DetailSection title="商品明细">
-                <Items order={selected} />
-              </DetailSection>
-              <DetailSection title="金额与利润">
+              </DetailSection>}
+              <section>
+                <div className="mb-3 flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">商品明细</h3>{!editing && canEditDraft(selected) && <button type="button" disabled={loadingEdit} onClick={() => { void beginEdit(); }} className="rounded border border-border px-3 py-2 text-xs disabled:opacity-50">{loadingEdit ? '加载草稿…' : '编辑商品'}</button>}</div>
+                {editing ? <SalesDraftItemsEditor key={editing.id} order={editing} onStateChange={setEditState} onCancel={closeEditor} onSaved={order => { setSaved(order); setEditing(null); setEditState({ dirty: false, busy: false }); onChanged(); }} /> : <Items order={selected} />}
+              </section>
+              {!editing && <><DetailSection title="金额与利润">
                 <Amounts order={selected} />
               </DetailSection>
               <DetailSection title="业务事实">
@@ -205,7 +245,7 @@ export default function SalesOrderWorkbench({
               </DetailSection>
               <DetailSection title="时间线">
                 <Timeline order={selected} accounts={allAccounts} />
-              </DetailSection>
+              </DetailSection></>}
             </div>
           </>
         )}

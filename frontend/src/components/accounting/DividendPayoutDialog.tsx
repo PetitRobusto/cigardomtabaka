@@ -1,3 +1,4 @@
+import DateField from '../DateField';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
@@ -72,7 +73,7 @@ export default function DividendPayoutDialog({ round, accounts, businessDate, on
       <label className="block text-sm">领取人<select value={input.recipient} onChange={event => setInput({ ...input, recipient: event.target.value })} className={dividendInputClass}><option value="">选择领取人</option>{round.partners.map(partner => <option key={partner.id} value={partner.id} disabled={(dividendCents(partner.pending_cny) ?? 0n) <= 0n}>{partner.name} · 待领 {partner.pending_cny} CNY</option>)}</select></label>
       <label className="block text-sm">公司付款账户<select value={input.account} onChange={event => setInput({ ...input, account: event.target.value })} className={dividendInputClass}><option value="">选择人民币账户</option>{cnyAccounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
       <label className="block text-sm">领取金额（CNY）<input inputMode="decimal" value={input.amount} onChange={event => setInput({ ...input, amount: event.target.value })} className={dividendInputClass} /></label>
-      <label className="block text-sm">实际支付日期<input type="date" min={round.business_date} value={input.date} onChange={event => setInput({ ...input, date: event.target.value })} className={dividendInputClass} /></label>
+      <label className="block text-sm">实际支付日期<DateField min={round.business_date} value={input.date} onChange={event => setInput({ ...input, date: event.target.value })} className={dividendInputClass} /></label>
       <label className="block text-sm">领取备注<textarea value={input.note} onChange={event => setInput({ ...input, note: event.target.value })} className={dividendInputClass} /></label>
       {error && <p role="alert" className="text-sm text-accent">{error}</p>}
       <footer className="flex justify-end gap-2"><button type="button" onClick={onClose} className={dividendSecondaryClass}>取消</button><button type="submit" className={dividendButtonClass}>核对领取</button></footer>

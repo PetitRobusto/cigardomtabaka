@@ -1,3 +1,4 @@
+import DateField from '../DateField';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { ReceiptText, X } from 'lucide-react';
@@ -107,7 +108,7 @@ function IncomeDetailDialog({ id, onClose, onChanged }: { id: number; onClose: (
           ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd className="whitespace-pre-wrap">{value}</dd></div>)}</dl>
           {reverse && <form id="income-reverse-form" onSubmit={confirmReverse} className="space-y-3">
             <p className="expense-hint expense-hint--warning">将从原收款账户扣回 {money(income.amount, income.currency)}，并按原人民币金额 {money(income.amount_cny)} 冲减冲正月份的收益。原记录保留。</p>
-            <label className="expense-field-label">冲正日期<input className="expense-field" type="date" required min={income.business_date} max={moscowBusinessDate()} value={date} disabled={locked} onChange={event => setDate(event.target.value)} /></label>
+            <label className="expense-field-label">冲正日期<DateField className="expense-field" required min={income.business_date} max={moscowBusinessDate()} value={date} disabled={locked} onChange={event => setDate(event.target.value)} /></label>
             <label className="expense-field-label">冲正原因<textarea className="expense-field" rows={2} required maxLength={2000} value={note} disabled={locked} onChange={event => setNote(event.target.value)} /></label>
             <p className="expense-caption">若账户已有后续资金流水，或原收入日期已被确认对账覆盖，系统会拒绝直接冲正。</p>
             {error && <p role="alert" className="expense-hint expense-hint--danger">{error}</p>}

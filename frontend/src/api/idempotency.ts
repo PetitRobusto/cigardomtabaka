@@ -37,6 +37,7 @@ export function releaseIdempotencyKey(scope: string, payload: unknown): void {
 export function isRetryableWriteError(error: unknown): boolean {
   if (axios.isAxiosError(error)) {
     const status = error.response?.status;
+    if (error.response?.data?.code === 'exchange_rate_confirmation_required') return true;
     if (status === undefined || status >= 500) return true;
     if (status === 409 && error.response?.data?.error === '请求正在处理中，请稍后重试') return true;
     return false;

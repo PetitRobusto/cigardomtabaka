@@ -201,13 +201,24 @@ class AccountingOperationTest(TestCase):
         self.assertEqual((self.snapshot(self.usdt).original_balance, self.snapshot(self.usdt).cny_book_cost), (Decimal('0.00000000'), Decimal('0.00')))
         self.assertEqual((self.snapshot(target).original_balance, self.snapshot(target).cny_book_cost), (Decimal('3.00000000'), Decimal('10.00')))
 
+    def test_exchange_rate_boundaries_use_only_this_trade(self):
+        self.opening(self.cny, '1000', '1000', 'rate-opening-cny')
+        self.opening(self.rub, '5000', '10', 'rate-opening-rub')
+        for rub_amount in ('1000', '1500'):
+            exchange_to_rub(self.cny, self.rub, '100', rub_amount, self.business_date, self.operator, rub_amount)
+        for rub_amount in ('999.99', '1500.01'):
+            with self.assertRaises(LedgerError) as warning:
+                exchange_to_rub(self.cny, self.rub, '100', rub_amount, self.business_date, self.operator, rub_amount)
+            self.assertEqual(warning.exception.code, 'exchange_rate_confirmation_required')
+        self.assertEqual(self.snapshot(self.cny).original_balance, Decimal('800'))
+
     def test_usdt_exchange_partial_and_final_outflow_move_rounded_then_remaining_cost(self):
         self.opening(self.usdt, '3', '10', 'usdt-exchange-opening')
         first = exchange_to_rub(
-            self.usdt, self.rub, '1', '100', self.business_date, self.operator, 'usdt-exchange-first',
+            self.usdt, self.rub, '1', '40', self.business_date, self.operator, 'usdt-exchange-first',
         )
         second = exchange_to_rub(
-            self.usdt, self.rub, '2', '200', self.business_date, self.operator, 'usdt-exchange-final',
+            self.usdt, self.rub, '2', '80', self.business_date, self.operator, 'usdt-exchange-final',
         )
 
         self.assertEqual(first.postings.get(account=self.rub).cny_amount, Decimal('3.33'))
@@ -218,7 +229,7 @@ class AccountingOperationTest(TestCase):
         )
         self.assertEqual(
             (self.snapshot(self.rub).original_balance, self.snapshot(self.rub).cny_book_cost),
-            (Decimal('300.00000000'), Decimal('10.00')),
+            (Decimal('120.00000000'), Decimal('10.00')),
         )
 
     def test_rub_account_accumulates_cost_from_cny_and_usdt_exchanges(self):
@@ -425,7 +436,7 @@ class AccountingOperationTest(TestCase):
             ),
             'exchange_to_rub': (
                 'source_account', 'rub_account', 'source_amount', 'rub_amount',
-                'business_date', 'operator', 'idempotency_key', 'description',
+                'business_date', 'operator', 'idempotency_key', 'description', 'rate_confirmation',
             ),
             'transfer_same_currency': (
                 'source_account', 'target_account', 'amount', 'business_date',

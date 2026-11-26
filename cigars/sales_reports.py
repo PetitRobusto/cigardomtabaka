@@ -2,15 +2,16 @@
 
 from decimal import Decimal
 
-from django.db.models import Sum, Count, OuterRef, Subquery, DecimalField, Value
+from django.db.models import Sum, Count, Exists, F, Q, OuterRef, Subquery, DecimalField, Value
 from django.db.models.functions import Coalesce
 
-from cigars.models import SalesOrder, SalesReceipt
+from cigars.models import SalesOrder, SalesOrderItem, SalesReceipt, StockAllocation
 
 
-def pending_collection_summary():
-    """汇总所有已经确认生效、但尚未收款的销售订单。"""
-    orders = SalesOrder.objects.filter(
+def pending_collection_summary(orders=None):
+    if orders is None:
+        orders = SalesOrder.objects.all()
+    orders = orders.filter(
         deleted_at__isnull=True,
         fulfillment_status__in=(
             SalesOrder.FulfillmentStatus.CONFIRMED,
@@ -24,3 +25,28 @@ def pending_collection_summary():
         count=Count('id'), due=Sum('amount_due_cny'), received=Sum('_received_cny'),
     )
     return {'order_count': totals['count'], 'amount_cny': ((totals['due'] or Decimal('0.00')) - (totals['received'] or Decimal('0.00'))).quantize(Decimal('0.01'))}
+
+
+def sales_list_stats(orders):
+    """先按订单范围汇总；仅完整预留的已确认订单参与利润估算。"""
+    confirmed = SalesOrder.FulfillmentStatus.CONFIRMED
+    shipped = SalesOrder.FulfillmentStatus.SHIPPED
+    totals = orders.aggregate(
+        order_count=Count('id'),
+        amount_due=Sum('amount_due_cny', filter=Q(fulfillment_status__in=(confirmed, shipped))),
+        shipped_profit=Sum('contribution_profit_cny', filter=Q(fulfillment_status=shipped)),
+    )
+    incomplete_items = SalesOrderItem.objects.filter(sales_order_id=OuterRef('pk')).annotate(
+        reserved=Sum('allocations__quantity', filter=Q(allocations__status='reserved'), default=0),
+    ).exclude(reserved=F('quantity'))
+    estimated = orders.filter(fulfillment_status=confirmed).filter(~Exists(incomplete_items))
+    margin = estimated.aggregate(total=Sum(F('amount_due_cny') - F('actual_transport_cost_cny')))['total']
+    costs = StockAllocation.objects.filter(
+        status='reserved', sales_order_item__sales_order_id__in=estimated.values('pk'),
+    ).aggregate(total=Sum(Coalesce('fulfilled_cost_cny', F('purchase_batch__unit_cost_cny') * F('quantity'))))['total']
+    profit = (totals['shipped_profit'] or Decimal('0.00')) + (margin or 0) - (costs or 0)
+    return {
+        'order_count': totals['order_count'],
+        'amount_due_cny': totals['amount_due'] or Decimal('0.00'),
+        'contribution_profit_cny': profit.quantize(Decimal('0.01')),
+    }

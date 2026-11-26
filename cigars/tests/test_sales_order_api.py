@@ -422,12 +422,32 @@ class SalesOrderApiTest(TestCase):
         self.assertEqual(len(response.json()["results"]), 1)
         self.assertEqual(response.json()["results"][0]["id"], second.json()["sales_order"]["id"])
         self.assertEqual(response.json()["pending_collection"], {
-            "order_count": 2,
-            "amount_cny": "106.00",
+            "order_count": 1,
+            "amount_cny": "63.00",
         })
         detail = self.client.get(f"/api/sales/orders/{first.json()['sales_order']['id']}/")
         self.assertEqual(detail.status_code, 200)
         self.assertIn("fifo_cost", detail.json()["sales_order"])
+
+    def test_stats_use_all_filtered_orders_before_limit(self):
+        self.create_batch(quantity=10, unit_cost="4.00")
+        for key in ("first", "second"):
+            pk = self.create_order(key=key).json()["sales_order"]["id"]
+            self.login()
+            self.request("post", f"/api/sales/orders/{pk}/confirm/", {}, f"confirm-{key}")
+        cancelled = self.create_order(key="cancelled").json()["sales_order"]["id"]
+        self.request("post", f"/api/sales/orders/{cancelled}/cancel/", {}, "cancelled-action")
+        path = "/api/sales/orders/"
+        data = self.client.get(path, {"fulfillment_status": "non_cancelled", "limit": 1}).json()
+        self.assertEqual(len(data["results"]), 1)
+        self.assertEqual(data["stats"]["order_count"], 2)
+        self.assertEqual(Decimal(data["stats"]["amount_due_cny"]), Decimal("86"))
+        self.assertEqual(Decimal(data["stats"]["contribution_profit_cny"]), Decimal("70"))
+        self.assertEqual(data["pending_collection"]["order_count"], 2)
+        self.assertEqual(self.client.get(path, {"fulfillment_status": "cancelled"}).json()["results"][0]["id"], cancelled)
+        reviewed = self.client.get(path, {"review_only": "1"}).json()
+        self.assertEqual(reviewed["stats"]["order_count"], 0)
+        self.assertEqual(reviewed["pending_collection"]["order_count"], 0)
 
     def test_list_filters_created_date_inclusively_and_rejects_invalid_range(self):
         first = self.create_order(key="date-filter-one")
@@ -623,9 +643,9 @@ class SalesOrderApiTest(TestCase):
         for index in range(5):
             self.create_order(key=f"query-order-{index}", body=self.body(quantity=2))
         self.login()
-        # Notes/evidence use fixed prefetches; one aggregate counts orders and reviews.
+        # Filtered totals and detail prefetches use a fixed budget independent of page size.
         for limit in (1, 5):
-            with self.subTest(limit=limit), self.assertNumQueries(11):
+            with self.subTest(limit=limit), self.assertNumQueries(16):
                 response = self.client.get(f"/api/sales/orders/?limit={limit}")
             self.assertEqual(response.status_code, 200)
             self.assertEqual(len(response.json()["results"]), limit)

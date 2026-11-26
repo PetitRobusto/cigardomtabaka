@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 
 from django.test import TestCase
 from django.utils import timezone
@@ -88,10 +89,15 @@ class SalesPaginationTest(TestCase):
             created_at=timezone.now() - timedelta(days=65),
         )
         expected = list(SalesOrder.objects.order_by('-created_at', '-id').values_list('id', flat=True)[:60])
+        SalesOrder.objects.filter(id__in=expected).update(fulfillment_status='confirmed', amount_due_cny='2.00')
+        SalesOrder.objects.exclude(id__in=expected).update(fulfillment_status='confirmed', amount_due_cny='50.00')
         seen = []
         for page in [1, 2, 3]:
             data = self.client.get('/api/sales/orders/', {'recent_only': 1, 'page': page}).json()
             self.assertEqual((data['count'], data['pages'], data['page'], len(data['results'])), (60, 3, page, 20))
+            self.assertEqual(data['stats']['order_count'], 60)
+            self.assertEqual(Decimal(data['stats']['amount_due_cny']), Decimal('120.00'))
+            self.assertEqual(data['pending_collection'], {'order_count': 60, 'amount_cny': '120.00'})
             seen.extend(row['id'] for row in data['results'])
         self.assertEqual(seen, expected)
         last = self.client.get('/api/sales/orders/', {'recent_only': 1, 'page': 4}).json()

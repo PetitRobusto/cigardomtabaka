@@ -1,4 +1,4 @@
-import type { AccountingExpense, ExpenseRefundPayload, FundReceipt, FundReceiptPayload, FundReceiptsResponse, OtherIncome, OtherIncomePayload, OtherIncomesResponse } from './types';
+import type { ExchangeActionPayload, AccountingExpense, ExpenseRefundPayload, FundReceipt, FundReceiptPayload, FundReceiptsResponse, OtherIncome, OtherIncomePayload, OtherIncomesResponse } from './types';
 import { privnoteDeviceHeaders } from './api/privnoteAccess';
 import { incomeCreateScope, incomeReverseScope, writeIncomeRequest } from './features/accounting/incomeRequests';
 import type { HistoryRange } from './types';
@@ -302,16 +302,12 @@ export const createPurchaseSupplier = (payload: { name: string; phone: string })
     api.post('/inventory/suppliers/', payload, config),
   ).then(r => r.supplier);
 
-export const exchangeToRub = (payload: {
-  source_account_id: number;
-  rub_account_id: number;
-  source_amount: string;
-  rub_amount: string;
-  business_date: string;
-}): Promise<unknown> =>
-  writeWithIdempotency<{ transaction: unknown }>('exchange-to-rub', payload, config =>
-    api.post('/accounting/exchanges/', payload, config),
+export const exchangeToRub = (payload: ExchangeActionPayload): Promise<unknown> => {
+  const { rate_confirmation, ...exchange } = payload;
+  return writeWithIdempotency<{ transaction: unknown }>('exchange-to-rub', exchange, config =>
+    api.post('/accounting/exchanges/', { ...exchange, rate_confirmation }, config),
   ).then(r => r.transaction);
+};
 
 export const reverseExchange = (id: number, payload: { business_date: string; note: string }): Promise<AccountingTransaction> =>
   writeWithIdempotency<{ transaction: AccountingTransaction }>(`reverse-exchange-${id}`, payload, config =>

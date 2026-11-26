@@ -194,6 +194,16 @@ describe('accounting action API contracts', () => {
     );
   });
 
+  it('异常汇率再次确认时沿用同一笔换汇的操作编号', async () => {
+    const payload = { source_account_id: 1, rub_account_id: 3, source_amount: '100.00', rub_amount: '131.00', business_date: businessDate };
+    const warning = { isAxiosError: true, response: { status: 409, data: { code: 'exchange_rate_confirmation_required' } } };
+    client.post.mockRejectedValueOnce(warning).mockReturnValueOnce(response({ transaction: { id: 2 } }));
+    await expect(exchangeToRub(payload)).rejects.toEqual(warning);
+    const confirmed = { ...payload, rate_confirmation: 'verified-token' };
+    await expect(exchangeToRub(confirmed)).resolves.toEqual({ id: 2 });
+    expect(client.post).toHaveBeenLastCalledWith('/accounting/exchanges/', confirmed, client.post.mock.calls[0][2]);
+  });
+
   it('reverses one exchange through its narrow action endpoint', async () => {
     client.post.mockReturnValueOnce(response({ transaction: { id: 31, source_type: 'ledger_reversal' } }));
     const payload = { business_date: businessDate, note: '换汇金额录错' };

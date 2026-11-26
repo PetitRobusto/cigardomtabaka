@@ -1,3 +1,4 @@
+import DateField from '../DateField';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { apiErrorMessage, fetchFundReceipts, recordFundReceipt } from '../../api';
@@ -143,7 +144,7 @@ function ReceiptDialog({ accounts, contributors, loading, loadError, retry, onCl
           {!cnyAccounts.length && <p className="text-sm text-muted">请先在资金账户中创建或启用人民币账户。</p>}
           <label className="block text-sm">到账金额（CNY）<input className={inputClass} inputMode="decimal" required maxLength={15} placeholder="例如 30000.00" value={form.amount} onChange={event => setForm({ ...form, amount: event.target.value })} /></label>
           {form.amount && !validAmount && <p role="alert" className="text-sm text-red-700">请输入大于零、小于一万亿元的金额，最多两位小数。</p>}
-          <label className="block text-sm">实际到账日期<input className={`${inputClass} min-w-0 max-w-full`} type="date" required min="2026-08-10" max={moscowBusinessDate()} value={form.date} onChange={event => setForm({ ...form, date: event.target.value })} /></label>
+          <label className="block text-sm">实际到账日期<DateField className={`${inputClass} min-w-0 max-w-full`} required min="2026-08-10" max={moscowBusinessDate()} value={form.date} onChange={event => setForm({ ...form, date: event.target.value })} /></label>
           <label className="block text-sm">备注（选填）<textarea className={inputClass} rows={2} maxLength={2000} value={form.note} onChange={event => setForm({ ...form, note: event.target.value })} /></label>
         </form>}
         {confirmation && <p className="text-xs text-muted">请确认资金已实际到账。确认后保留正式流水，当前不提供撤回操作。</p>}

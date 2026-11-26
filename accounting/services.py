@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from functools import wraps
+import json
 import random
 import time
 
@@ -10,6 +11,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError, OperationalError, connection, models, transaction
 from django.db.models import Sum
 from django.utils import timezone
+from django.utils.crypto import constant_time_compare, salted_hmac
 
 from accounting.models import (
     AccountReconciliation, FundAccount, LedgerPosting, LedgerSequence,
@@ -885,15 +887,16 @@ def _record_opening_balance_with_result(account, original_amount, cny_book_cost,
 @_retry_sqlite_locked
 @transaction.atomic
 def exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
-                    business_date, operator, idempotency_key, description=''):
+                    business_date, operator, idempotency_key, description='', *, rate_confirmation=None):
     return _exchange_to_rub(
         source_account, rub_account, source_amount, rub_amount,
-        business_date, operator, idempotency_key, description,
+        business_date, operator, idempotency_key, description, rate_confirmation=rate_confirmation,
     )
 
 
 def _exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
-                     business_date, operator, idempotency_key, description='', return_result=False):
+                     business_date, operator, idempotency_key, description='', return_result=False,
+                     rate_confirmation=None):
     _acquire_sqlite_writer_gate()
     persisted_operator, existing = _existing_operation(
         LedgerTransaction.TransactionType.EXCHANGE, business_date, operator, idempotency_key,
@@ -926,6 +929,17 @@ def _exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
     source_amount = _positive_amount(source_amount, source_account.currency, '换汇转出原币金额')
     rub_amount = _positive_amount(rub_amount, FundAccount.Currency.RUB, '换汇转入卢布金额')
     cny_cost = _outflow_cny_cost(source_account, source_amount)
+    if not 10 * cny_cost <= rub_amount <= 15 * cny_cost:
+        facts = [source_account.pk, rub_account.pk, source_amount, rub_amount, cny_cost,
+                 business_date, persisted_operator.pk, idempotency_key, description]
+        token = salted_hmac('exchange-rate-confirmation', json.dumps(facts, default=str),
+                            algorithm='sha256').hexdigest()
+        if not isinstance(rate_confirmation, str) or not constant_time_compare(rate_confirmation, token):
+            rate = f'{rub_amount / cny_cost:.6f}' if cny_cost else '无法计算（人民币成本为零）'
+            raise LedgerError(
+                f'本笔成交汇率为 {rate} RUB/CNY，请再次核对金额后确认入账。',
+                code='exchange_rate_confirmation_required', details={'rate_confirmation': token},
+            )
 
     return _post_transaction_once(
         transaction_type=LedgerTransaction.TransactionType.EXCHANGE,
@@ -947,10 +961,10 @@ def _exchange_to_rub(source_account, rub_account, source_amount, rub_amount,
 @_retry_sqlite_locked
 @transaction.atomic
 def _exchange_to_rub_with_result(source_account, rub_account, source_amount, rub_amount,
-                                 business_date, operator, idempotency_key, description=''):
+                                 business_date, operator, idempotency_key, description='', rate_confirmation=None):
     return _exchange_to_rub(
         source_account, rub_account, source_amount, rub_amount,
-        business_date, operator, idempotency_key, description, return_result=True,
+        business_date, operator, idempotency_key, description, return_result=True, rate_confirmation=rate_confirmation,
     )
 
 

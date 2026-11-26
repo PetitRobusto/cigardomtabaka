@@ -1,3 +1,4 @@
+import DateField from '../components/DateField';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
 import { apiErrorMessage, clearDay1ValidationDetails, confirmDay1, day1ErrorMessage, day1ValidationDetails, fetchDay1State, saveDay1Draft } from '../api';
@@ -140,7 +141,7 @@ export default function Day1SetupPage() {
 }
 
 function RulesStep({ date, businessDateError, onDateChange }: { date: string; readOnly: boolean; businessDateError?: string; onDateChange: (date: string) => void }) {
-  return <section className="rounded-md border border-border bg-white p-5 shadow-sm"><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Step 1 · Rules</p><h2 className="mt-1 font-display text-2xl font-semibold">先确认初始化规则</h2><div className="mt-5 grid gap-4 md:grid-cols-2"><div className="rounded bg-cream p-4 text-sm leading-6 text-muted"><p className="font-semibold text-fg">这是共同草稿</p><p className="mt-2">保存后会共享给另一位经营者。保存使用版本号保护，若对方先更新，系统会提示刷新，不会覆盖你的本地表单。</p></div><div className="rounded bg-gold/10 p-4 text-sm leading-6 text-muted"><p className="font-semibold text-fg">确认是不可逆操作</p><p className="mt-2">确认后生成账户、期初库存和账务交易，并冻结完成摘要；同一初始化不能再次运行。</p></div></div><label className="mt-6 block text-sm font-medium text-fg">业务日期<input type="date" value={date} onChange={event => onDateChange(event.target.value)} className="mt-2 block w-full max-w-xs rounded border border-border px-3 py-2" />{businessDateError && <span className="mt-1 block text-xs text-red-700">{businessDateError}</span>}</label></section>;
+  return <section className="rounded-md border border-border bg-white p-5 shadow-sm"><p className="text-[11px] font-bold uppercase tracking-[.12em] text-accent">Step 1 · Rules</p><h2 className="mt-1 font-display text-2xl font-semibold">先确认初始化规则</h2><div className="mt-5 grid gap-4 md:grid-cols-2"><div className="rounded bg-cream p-4 text-sm leading-6 text-muted"><p className="font-semibold text-fg">这是共同草稿</p><p className="mt-2">保存后会共享给另一位经营者。保存使用版本号保护，若对方先更新，系统会提示刷新，不会覆盖你的本地表单。</p></div><div className="rounded bg-gold/10 p-4 text-sm leading-6 text-muted"><p className="font-semibold text-fg">确认是不可逆操作</p><p className="mt-2">确认后生成账户、期初库存和账务交易，并冻结完成摘要；同一初始化不能再次运行。</p></div></div><label className="mt-6 block text-sm font-medium text-fg">业务日期<DateField value={date} onChange={event => onDateChange(event.target.value)} className="mt-2 block w-full max-w-xs rounded border border-border px-3 py-2" />{businessDateError && <span className="mt-1 block text-xs text-red-700">{businessDateError}</span>}</label></section>;
 }
 
 export function Day1ReadonlySummary({ server, summaryRef }: { server: Day1State; summaryRef?: RefObject<HTMLDivElement | null> }) {

@@ -46,6 +46,44 @@ describe('销售动作后的查询刷新', () => {
     await waitFor(() => expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ date_to: shanghaiBusinessDate() })));
   });
 
+  it('切换月份保留日历，点日期后才应用筛选', async () => {
+    mocks.fetchSalesOrderList.mockReset().mockResolvedValue({ results: [] });
+    mocks.fetchAccountingAccounts.mockResolvedValue([]);
+    const client = new QueryClient();
+    render(<QueryClientProvider client={client}><MemoryRouter><SalesPage /></MemoryRouter></QueryClientProvider>);
+    const field = await screen.findByLabelText('订单日期') as HTMLInputElement;
+    fireEvent.click(field);
+    const calendar = document.querySelector('.flatpickr-calendar.open')!;
+    const month = calendar.querySelector('select')!;
+    const calls = mocks.fetchSalesOrderList.mock.calls.length;
+    fireEvent.change(month, { target: { value: month.value === '0' ? '1' : '0' } });
+    expect(calendar.classList.contains('open')).toBe(true);
+    expect(mocks.fetchSalesOrderList).toHaveBeenCalledTimes(calls);
+    const day = calendar.querySelector<HTMLElement>('.flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)')!;
+    const selected = day.getAttribute('aria-label');
+    fireEvent.click(day);
+    expect(field.value).toBe(selected);
+    expect(calendar.classList.contains('open')).toBe(false);
+    await waitFor(() => expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ date_from: selected })));
+  });
+
+  it('默认排除已取消，待核实筛选更新全量统计', async () => {
+    mocks.fetchAccountingAccounts.mockResolvedValue([]);
+    mocks.fetchSalesOrderList.mockImplementation(async ({ review_only }) => ({
+      results: [],
+      stats: { order_count: review_only ? 3 : 120, amount_due_cny: review_only ? '55' : '750', contribution_profit_cny: '4' },
+      pending_collection: { order_count: 1, amount_cny: review_only ? '22' : '75' }, review_count: 3,
+    }));
+    const client = new QueryClient();
+    render(<QueryClientProvider client={client}><MemoryRouter><SalesPage /></MemoryRouter></QueryClientProvider>);
+    expect(await screen.findByText('120')).toBeTruthy();
+    expect(screen.getByDisplayValue('未取消订单')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /待核实/ }));
+    expect(await screen.findByText('¥55.00')).toBeTruthy();
+    expect(screen.getByText('¥22.00')).toBeTruthy();
+    expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ review_only: 1, fulfillment_status: 'non_cancelled' }));
+  });
+
   it('订单轨道默认跨月份按时间查询最近60条，每页20条', async () => {
     mocks.fetchSalesOrderList.mockResolvedValue({ results: [], pending_collection: { order_count: 2, amount_cny: '88.00' } });
     mocks.fetchAccountingAccounts.mockResolvedValue([]);
@@ -146,7 +184,7 @@ describe('订单分页', () => {
     fireEvent.click(screen.getByRole('button', { name: '上一页' }));
     await screen.findByText('订单 21');
     expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, limit: 20, review_only: 0 }));
-    expect(screen.getByText('当前页订单')).toBeTruthy();
+    expect(screen.getByText('按商品成本估算')).toBeTruthy();
   });
 
   it.each(['search', 'dateFrom', 'dateTo', 'fulfillment', 'payment', 'review', 'quickDate'])('改变%s筛选后从第一页查询', async filter => {

@@ -1,3 +1,4 @@
+import DateField from '../DateField';
 import { useMemo, useState } from 'react';
 import type {
   FundAccount,
@@ -219,7 +220,7 @@ export default function PurchaseAction({
                   {packagingReviewRequired && <span role="status" className="text-[#7A1F2E]">包装待复核：后端 packaging gate 会阻止付款/到货</span>}
                 </div>
                 {purchase.status === 'received' && !reverseOpen ? <div className="mt-4 flex justify-end border-t border-[#E8E0D6] pt-3"><button data-guide="accounting-purchase-reverse-reveal" type="button" onClick={() => setReverseVisible(previous => ({ ...previous, [purchase.id]: true }))} className="text-xs text-[#8A7E6E] underline decoration-dotted underline-offset-4 hover:text-[#7A1F2E]">显示撤销到货</button></div> : <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
-                  <label className="text-sm">业务日期<input data-guide={purchase.status === 'received' ? 'accounting-purchase-reverse-date' : 'accounting-purchase-date'} type="date" value={input.businessDate} onChange={event => updateInput(purchase.id, { businessDate: event.target.value })} className="mt-1 block w-full rounded-lg border border-[#E8E0D6] p-2" /></label>
+                  <label className="text-sm">业务日期<DateField data-guide={purchase.status === 'received' ? 'accounting-purchase-reverse-date' : 'accounting-purchase-date'} value={input.businessDate} onChange={event => updateInput(purchase.id, { businessDate: event.target.value })} className="mt-1 block w-full rounded-lg border border-[#E8E0D6] p-2" /></label>
                   {purchase.status === 'draft' ? (
                     <label className="text-sm">卢布账户<select data-guide="accounting-purchase-account" value={accountId ? String(accountId) : ''} onChange={event => updateInput(purchase.id, { accountId: event.target.value })} className="mt-1 block w-full rounded-lg border border-[#E8E0D6] bg-white p-2"><option value="">选择账户</option>{activeRubAccounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
                   ) : <label className="text-sm">{purchase.status === 'received' ? '撤销原因' : '备注'}<input data-guide={purchase.status === 'received' ? 'accounting-purchase-reverse-reason' : 'accounting-purchase-note'} value={input.note} onChange={event => updateInput(purchase.id, { note: event.target.value })} className="mt-1 block w-full rounded-lg border border-[#E8E0D6] p-2" /></label>}

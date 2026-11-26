@@ -57,6 +57,28 @@ describe('换汇高风险交互', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
+  it('异常汇率须单独确认，返回修改会丢弃旧确认', async () => {
+    const warning = { isAxiosError: true, response: { status: 409, data: {
+      code: 'exchange_rate_confirmation_required', error: '成交汇率 1.31 RUB/CNY',
+      details: { rate_confirmation: 'server-token' },
+    } } };
+    const submit = vi.fn().mockRejectedValueOnce(warning).mockRejectedValueOnce(warning).mockResolvedValue({});
+    const screen = render(<ExchangeAction accounts={accounts} businessDate="2026-09-11"
+      value={{ source_amount: '100', rub_amount: '131' }} submit={submit} />);
+    for (const cancel of [true, false]) {
+      fireEvent.click(screen.getByRole('button', { name: '记录换汇' }));
+      const dialog = within(screen.getByRole('dialog'));
+      fireEvent.click(dialog.getByRole('button', { name: '确认换汇并入账' }));
+      const accept = await dialog.findByRole('button', { name: '已核对异常汇率，确认入账' });
+      expect(dialog.getByRole('alert').textContent).toContain('1.31 RUB/CNY');
+      expect(submit.mock.lastCall?.[0]).not.toHaveProperty('rate_confirmation');
+      fireEvent.click(cancel ? dialog.getByRole('button', { name: '返回修改' }) : accept);
+    }
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(submit).toHaveBeenCalledTimes(3);
+    expect(submit.mock.lastCall?.[0]).toHaveProperty('rate_confirmation', 'server-token');
+  });
+
   it('请求失败时保留确认快照，并支持 Esc 关闭后恢复焦点', async () => {
     const submit = vi.fn().mockRejectedValue(new Error('账务系统繁忙'));
     const screen = render(<ExchangeAction

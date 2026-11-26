@@ -98,6 +98,7 @@ _ERROR_STATUS = {
     'refund_exceeded': 409,
     'refund_currency_mismatch': 400,
     'exchange_not_found': 404,
+    'exchange_rate_confirmation_required': 409,
     'exchange_has_later_activity': 409,
     'exchange_reconciled_period': 409,
     'invalid_exchange_structure': 409,
@@ -621,6 +622,7 @@ def exchanges(request, exchange_id=None, action=None):
         payload = _json_object(request)
         key = _idempotency_key(request)
         result = _exchange_to_rub_with_result(
+            rate_confirmation=payload.get('rate_confirmation'),
             source_account=FundAccount.objects.get(pk=_required_id(payload, 'source_account_id')),
             rub_account=FundAccount.objects.get(pk=_required_id(payload, 'rub_account_id')),
             source_amount=_required_decimal_string(payload, 'source_amount'),

@@ -1,3 +1,4 @@
+import DateField from '../DateField';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, ArrowRight, Check, CornerDownLeft, MoreHorizontal, ReceiptText, Undo2, Wallet, X } from 'lucide-react';
@@ -237,7 +238,7 @@ function ExpenseDialog({ id, initial, mode: initialMode, accounts, onLoad, onRef
               {mode === 'refund' && <>
                 <label className="expense-field-label">本次退回金额（{expense.currency}）<input autoComplete="off" inputMode="decimal" required value={amount} onChange={event => setAmount(event.target.value)} className={`${fieldClass} font-mono`} placeholder="请输入实际收到的金额" /></label>
                 {overLimit && <p role="alert" className="expense-hint expense-hint--danger">不能超过剩余可退金额 {money(remaining(expense), expense.currency)}</p>}
-                <label className="expense-field-label">实际到账日期<input type="date" required min={expense.business_date} value={businessDate} onChange={event => setBusinessDate(event.target.value)} className={fieldClass} /></label>
+                <label className="expense-field-label">实际到账日期<DateField required min={expense.business_date} value={businessDate} onChange={event => setBusinessDate(event.target.value)} className={fieldClass} /></label>
                 <label className="expense-field-label">收款账户<select required value={accountId} onChange={event => setAccountId(event.target.value)} className={fieldClass}><option value="">请选择实际收款账户</option>{eligible.map(item => <option key={item.id} value={item.id}>{item.name} · {item.currency}</option>)}</select></label>
                 {!eligible.length && <p role="alert" className="expense-hint expense-hint--danger">没有启用的同币种公司账户，暂时无法登记退回。</p>}
               </>}

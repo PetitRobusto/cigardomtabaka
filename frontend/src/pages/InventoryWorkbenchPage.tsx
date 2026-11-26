@@ -1,3 +1,4 @@
+import DateField from '../components/DateField';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { RefreshCw, Search, ShieldCheck } from 'lucide-react';
@@ -279,7 +280,7 @@ function InventoryAdjustmentsPanel({
               <p className="mt-1 text-[11px] text-muted">{item.business_date}{item.reason ? ' · ' + item.reason : ''}</p>
               {item.can_reverse && !item.reversed_at && (
                 <div className="mt-3 grid gap-2">
-                  <label className="text-xs text-muted">撤销日期<input data-guide="inventory-adjustment-date" type="date" value={input.businessDate} onChange={event => onInputChange(item.id, { ...input, businessDate: event.target.value })} className="mt-1 w-full rounded border border-border px-2 py-1.5 text-sm outline-none focus:border-gold" /></label>
+                  <label className="text-xs text-muted">撤销日期<DateField data-guide="inventory-adjustment-date" value={input.businessDate} onChange={event => onInputChange(item.id, { ...input, businessDate: event.target.value })} className="mt-1 w-full rounded border border-border px-2 py-1.5 text-sm outline-none focus:border-gold" /></label>
                   <label className="text-xs text-muted">撤销原因<input data-guide="inventory-adjustment-reason" value={input.reason} onChange={event => onInputChange(item.id, { ...input, reason: event.target.value })} className="mt-1 w-full rounded border border-border px-2 py-1.5 text-sm outline-none focus:border-gold" placeholder="说明为什么撤销" /></label>
                   <button data-guide="inventory-adjustment-submit" type="button" disabled={busyId === item.id} onClick={() => onReverse(item)} className="rounded border border-accent px-3 py-1.5 text-sm text-accent hover:bg-accent/5 disabled:opacity-50">{busyId === item.id ? '处理中…' : '撤销调整'}</button>
                 </div>

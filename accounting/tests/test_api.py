@@ -189,14 +189,22 @@ class AccountingApiPermissionTest(TestCase):
                 'business_date': '2026-08-10', 'description': '人民币换汇',
             }, content_type='application/json', HTTP_IDEMPOTENCY_KEY='api-exchange-cny-rub',
         )
-        usdt_exchange = self.client.post(
-            '/api/accounting/exchanges/',
-            data={
-                'source_account_id': usdt.pk, 'rub_account_id': rub.pk,
-                'source_amount': '1.00000000', 'rub_amount': '100.00',
-                'business_date': '2026-08-10',
-            }, content_type='application/json', HTTP_IDEMPOTENCY_KEY='api-exchange-usdt-rub',
-        )
+        usdt_payload = {
+            'source_account_id': usdt.pk, 'rub_account_id': rub.pk,
+            'source_amount': '1.00000000', 'rub_amount': '100.00', 'business_date': '2026-08-10',
+        }
+        def post_usdt(**changes):
+            return self.client.post('/api/accounting/exchanges/', data={**usdt_payload, **changes},
+                                    content_type='application/json', HTTP_IDEMPOTENCY_KEY='api-exchange-usdt-rub')
+        warning = post_usdt()
+        self.assertEqual(warning.status_code, 409)
+        self.assertEqual(warning.json()['code'], 'exchange_rate_confirmation_required')
+        self.assertIn('2.000000 RUB/CNY', warning.json()['error'])
+        token = warning.json()['details']['rate_confirmation']
+        self.assertEqual(post_usdt(rub_amount='101', rate_confirmation=token).status_code, 409)
+        self.assertFalse(LedgerTransaction.objects.filter(idempotency_key='api-exchange-usdt-rub').exists())
+        usdt_exchange = post_usdt(rate_confirmation=token)
+        self.assertEqual(post_usdt(rate_confirmation=token).status_code, 200)
         retry = self.client.post(
             '/api/accounting/exchanges/',
             data={

@@ -61,5 +61,5 @@ class DashboardRubRateTests(TestCase):
     def test_future_exchange_does_not_change_current_rate(self):
         rub = self.account('rub', 'RUB', '1300', '100')
         cny = self.account('cny', 'CNY', '100', '100')
-        exchange_to_rub(cny, rub, '100', '2600', date(2026, 10, 1), self.operator, 'future-exchange')
+        exchange_to_rub(cny, rub, '100', '1400', date(2026, 10, 1), self.operator, 'future-exchange')
         self.assertEqual(self.rate(), Decimal('13.0000'))

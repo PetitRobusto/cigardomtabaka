@@ -20,7 +20,7 @@ from accounting.guards import Day1IncompleteError
 from accounting.services import LedgerError, _acquire_sqlite_writer_gate
 
 from .models import Customer, IdempotencyRecord, SalesOrder
-from .sales_reports import pending_collection_summary
+from .sales_reports import pending_collection_summary, sales_list_stats
 
 
 from .services import (
@@ -233,14 +233,7 @@ def sales_orders(request):
     recent_only = request.GET.get("recent_only", "0")
     if recent_only not in ("0", "1"):
         return _error("recent_only 必须是 0 或 1", 400)
-    orders = SalesOrder.objects.select_related(
-        "customer", "sales_shipment", "sales_refund",
-        "sales_return", "sales_transport_cost",
-    ).prefetch_related(
-        "items__cigar", "items__allocations__purchase_batch", "privnote_set", "payment_submissions",
-        "sales_receipts__fund_account", "sales_receipts__ledger_transaction",
-        "sales_receipts__reversal_ledger_transaction",
-    ).annotate(_draft_revision=Max('events__id'))
+    orders = SalesOrder.objects.all()
     fulfillment = request.GET.get("fulfillment_status", "").strip()
     payment = request.GET.get("payment_status", "").strip()
     try:
@@ -254,7 +247,9 @@ def sales_orders(request):
         orders = orders.filter(created_at__date__gte=date_from)
     if date_to:
         orders = orders.filter(created_at__date__lte=date_to)
-    if fulfillment:
+    if fulfillment == "non_cancelled":
+        orders = orders.exclude(fulfillment_status=SalesOrder.FulfillmentStatus.CANCELLED)
+    elif fulfillment:
         if fulfillment not in SalesOrder.FulfillmentStatus.values:
             return _error("履约状态无效", 400)
         orders = orders.filter(fulfillment_status=fulfillment)
@@ -277,26 +272,38 @@ def sales_orders(request):
         sales_order_id=OuterRef("pk"),
         status__in=(PaymentSubmission.Status.PENDING, PaymentSubmission.Status.NEEDS_MORE),
     ).order_by("-submitted_at", "-id").values("status")[:1]
-    orders = orders.annotate(_review_status=Subquery(current_review))
-    counts = orders.aggregate(
-        count=Count("pk"),
-        review_count=Count("pk", filter=Q(_review_status=PaymentSubmission.Status.PENDING)),
+    pending = orders.alias(_review_status=Subquery(current_review)).filter(
+        _review_status=PaymentSubmission.Status.PENDING,
     )
     if review_only == "1":
-        orders = orders.filter(_review_status=PaymentSubmission.Status.PENDING)
-    count = counts["review_count"] if review_only == "1" else counts["count"]
-    if recent_only == "1":
-        count = min(count, 60)
-    pages = max(1, (count + limit - 1) // limit)
-    page = min(page, pages)
-    offset = (page - 1) * limit
-    orders = orders.order_by("-created_at", "-id")
-    return _json({
-        "results": [serialize_sales_order(order) for order in orders[offset:min(offset + limit, count)]],
-        "count": count, "page": page, "pages": pages, "limit": limit,
-        "review_count": min(counts["review_count"], 60) if recent_only == "1" else counts["review_count"],
-        "pending_collection": pending_collection_summary(),
-    })
+        orders = pending
+    recent = recent_only == "1"
+    if recent:
+        recent_ids = orders.order_by("-created_at", "-id").values("pk")[:60]
+        orders = SalesOrder.objects.filter(pk__in=recent_ids)
+    with transaction.atomic():
+        stats = sales_list_stats(orders)
+        count = stats["order_count"]
+        # 待核实按钮显示切换此筛选后可见的订单数。
+        review_count = count if review_only == "1" else (pending[:60] if recent else pending).count()
+        pages = max(1, (count + limit - 1) // limit)
+        page = min(page, pages)
+        offset = (page - 1) * limit
+        rows = orders.select_related(
+            "customer", "sales_shipment", "sales_refund",
+            "sales_return", "sales_transport_cost",
+        ).prefetch_related(
+            "items__cigar", "items__allocations__purchase_batch", "privnote_set", "payment_submissions",
+            "sales_receipts__fund_account", "sales_receipts__ledger_transaction",
+            "sales_receipts__reversal_ledger_transaction",
+        ).annotate(_draft_revision=Max('events__id'))
+        rows = rows.order_by("-created_at", "-id")[offset:offset + limit]
+        return _json({
+            "results": [serialize_sales_order(order) for order in rows],
+            "count": count, "page": page, "pages": pages, "limit": limit,
+            "review_count": review_count, "stats": stats,
+            "pending_collection": pending_collection_summary(orders),
+        })
 
 
 def _customer_payload(customer, include_orders=False):

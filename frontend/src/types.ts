@@ -727,6 +727,7 @@ export interface PendingCollectionSummary {
 }
 
 export interface SalesOrderListResponse {
+  stats: { order_count: number; amount_due_cny: string; contribution_profit_cny: string };
   count: number;
   page: number;
   pages: number;
@@ -1383,6 +1384,7 @@ export interface AccountingTransactionsResponse {
 
 
 export interface ExchangeActionPayload {
+  rate_confirmation?: string;
   source_account_id: number;
   rub_account_id: number;
   source_amount: string;

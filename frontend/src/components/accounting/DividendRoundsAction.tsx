@@ -1,3 +1,4 @@
+import DateField from '../DateField';
 import { useState } from 'react';
 import { parseAccountingApiError } from '../../api';
 import type { DividendPreview, FundAccount, PaidDividendPayload } from '../../types';
@@ -26,7 +27,7 @@ export default function DividendRoundsAction({ accounts, businessDate, onChanged
           <fieldset disabled={busy || Boolean(attempt)} className="grid gap-3 sm:grid-cols-2">
             {(['a', 'b'] as const).map(key => <label key={key} className="text-xs font-semibold text-muted">{key === 'a' ? '本次领取人' : '另一位合伙人'}<select data-guide={`accounting-dividend-partner-${key}`} value={input[key]} onChange={event => setInput({ ...input, [key]: event.target.value })} className={dividendInputClass}><option value="">选择合伙人</option>{form.recipients.map(user => <option key={user.id} value={user.id} disabled={key === 'b' && String(user.id) === input.a}>{user.name}</option>)}</select></label>)}
             <label className="text-xs font-semibold text-muted">个人实领金额（CNY）<input data-guide="accounting-dividend-total" inputMode="decimal" placeholder="例如：5000" value={input.amount} onChange={event => setInput({ ...input, amount: event.target.value })} className={dividendInputClass} /></label>
-            <label className="text-xs font-semibold text-muted">实际支付日期<input data-guide="accounting-dividend-date" type="date" value={input.date} onChange={event => setInput({ ...input, date: event.target.value })} className={dividendInputClass} /></label>
+            <label className="text-xs font-semibold text-muted">实际支付日期<DateField data-guide="accounting-dividend-date" value={input.date} onChange={event => setInput({ ...input, date: event.target.value })} className={dividendInputClass} /></label>
             <label className="text-xs font-semibold text-muted sm:col-span-2">公司付款账户<select data-guide="accounting-dividend-account" value={input.account} onChange={event => setInput({ ...input, account: event.target.value })} className={dividendInputClass}><option value="">选择人民币账户</option>{form.cnyAccounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
             <label className="text-xs font-semibold text-muted sm:col-span-2">备注（选填）<input value={input.note} onChange={event => setInput({ ...input, note: event.target.value })} placeholder="例如：十月利润分红" className={dividendInputClass} /></label>
             <label className="flex items-start gap-2 text-xs text-muted sm:col-span-2"><input type="checkbox" checked={input.bothPaid} onChange={event => setInput({ ...input, bothPaid: event.target.checked })} className="mt-0.5 accent-accent" />另一位合伙人也已领取同额分红</label>

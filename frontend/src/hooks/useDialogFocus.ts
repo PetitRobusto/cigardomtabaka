@@ -21,7 +21,8 @@ export function useDialogFocus(onClose: () => void, locked: boolean) {
         return;
       }
       if (event.key !== 'Tab' || !dialog) return;
-      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE));
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE))
+        .filter(element => !element.closest('[aria-hidden="true"], [inert]'));
       if (!focusable.length) {
         event.preventDefault();
         dialog.focus();

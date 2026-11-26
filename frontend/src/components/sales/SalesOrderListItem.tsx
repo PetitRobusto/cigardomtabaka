@@ -39,21 +39,21 @@ export default function SalesOrderListItem({ order, selected, onSelect }: {
     type="button"
     onClick={() => onSelect(order.id)}
     aria-current={selected ? 'true' : undefined}
-    className={`relative block w-full min-w-0 border-b border-l-[3px] border-b-border px-3 py-3 text-left last:border-b-0 hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-fg/20 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gold ${tone.row} ${selected ? 'shadow-[inset_0_0_0_1.5px_#2C2416]' : ''}`}
+    className={`relative grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-2 lg:block border-b border-l-[3px] border-b-border px-3 py-3 text-left last:border-b-0 hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-fg/20 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gold ${tone.row} ${selected ? 'shadow-[inset_0_0_0_1.5px_#2C2416]' : ''}`}
   >
-    <span className="flex items-baseline justify-between gap-2">
-      <span className="min-w-0 truncate font-mono text-[11px] font-semibold" title={order.order_number}>{order.order_number}</span>
-      <span className="flex shrink-0 items-center gap-1">
-        <strong className="whitespace-nowrap font-mono text-xs">{formatCny(order.amount_due_cny)}</strong>
-        <ChevronRight aria-hidden="true" className={`h-3 w-3 ${selected ? 'opacity-100' : 'opacity-0'}`} />
+    <span className="contents lg:flex lg:items-baseline lg:justify-between lg:gap-2">
+      <span className="col-start-1 row-start-2 min-w-0 truncate font-mono text-[11px] font-semibold" title={order.order_number}>{order.order_number}</span>
+      <span className="col-start-2 row-start-1 flex shrink-0 items-center justify-end gap-1">
+        <strong className="whitespace-nowrap font-mono text-base lg:text-xs">{formatCny(order.amount_due_cny)}</strong>
+        <ChevronRight aria-hidden="true" className={`h-3 w-3 ${selected ? 'opacity-100' : 'text-muted lg:opacity-0'}`} />
       </span>
     </span>
-    <span className="mt-1 flex min-w-0 items-center gap-2">
-      <strong className="min-w-0 truncate text-sm" title={order.customer_name || '散客'}>{order.customer_name || '散客'}</strong>
+    <span className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 lg:mt-1">
+      <strong className="min-w-0 truncate text-base lg:text-sm" title={order.customer_name || '散客'}>{order.customer_name || '散客'}</strong>
       {preorder && <span className="shrink-0 whitespace-nowrap rounded-full border border-gold bg-white px-1.5 py-0.5 text-[9px] font-semibold text-[#8A5A24]">{preorder}</span>}
     </span>
-    <span className="mt-1 block text-[10px] text-[#6E6353]">{formatShanghaiDateTime(order.created_at).slice(0, 10)}</span>
-    <span className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[10px]">
+    <span className="col-start-2 row-start-2 mt-1 block text-right text-[10px] lg:text-left text-[#6E6353]">{formatShanghaiDateTime(order.created_at).slice(0, 10)}</span>
+    <span className="col-span-2 row-start-3 mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[10px]">
       <span className="flex flex-wrap items-center gap-1">
         <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-1.5 py-0.5 font-bold ${tone.status}`}>
           {status === 'cancelled' ? <X aria-hidden="true" className="h-2.5 w-2.5" /> : <span aria-hidden="true" className="h-1 w-1 rounded-full bg-current" />}

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SalesOrder } from '../types';
 import SalesPage from './SalesPage';
@@ -12,9 +12,9 @@ vi.mock('../api', () => ({ ...mocks, apiErrorMessage: (error: Error) => error.me
 vi.mock('../hooks/usePageMeta', () => ({ usePageMeta: () => ({ setMeta: mocks.setMeta }) }));
 vi.mock('../components/sales/SalesCustomerModal', () => ({ default: () => null }));
 vi.mock('../components/sales/SalesOrderForm', () => ({ default: () => null }));
-vi.mock('../components/sales/SalesOrderWorkbench', () => ({ default: ({ orders, loading, selectedId, onSelect, onChanged }: {
-  orders: SalesOrder[]; loading?: boolean; selectedId: number | null; onSelect: (id: number) => void; onChanged: () => void;
-}) => loading ? <p role="status">正在加载订单…</p> : <div>{orders.map(order => <span key={order.id}>订单 {order.id}</span>)}<span>选中 {selectedId || '无'}</span><button onClick={() => onSelect(1)}>选订单</button><button onClick={onChanged}>动作成功</button><button>动作失败</button></div> }));
+vi.mock('../components/sales/SalesOrderWorkbench', () => ({ default: ({ orders, loading, selectedId, onSelect, onChanged, onHistoryBack }: {
+  orders: SalesOrder[]; loading?: boolean; selectedId: number | null; onSelect: (id: number) => void; onHistoryBack?: () => void; onChanged: () => void;
+}) => loading ? <p role="status">正在加载订单…</p> : <div>{orders.map(order => <span key={order.id}>订单 {order.id}</span>)}<span>选中 {selectedId || '无'}</span><button onClick={() => onSelect(orders[0].id)}>选订单</button>{onHistoryBack && <button onClick={onHistoryBack}>返回订单列表</button>}<button onClick={onChanged}>动作成功</button><button>动作失败</button></div> }));
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe('销售动作后的查询刷新', () => {
@@ -248,4 +248,60 @@ it('最近60条最多三页，全部解除上限，再选最近60条清除日期
   expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, limit: 20, recent_only: 1, date_from: undefined, date_to: undefined }));
   expect((screen.getByLabelText('订单日期') as HTMLInputElement).value).toBe('');
   expect((screen.getByLabelText('结束日期') as HTMLInputElement).value).toBe('');
+});
+
+function HistoryControls() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  return <><output>{location.pathname}{location.search}</output>
+    <button onClick={() => void navigate(-1)}>系统返回</button>
+    <button onClick={() => void navigate(1)}>系统前进</button></>;
+}
+
+it('手机从筛选后的第 2 页打开订单，系统返回恢复原位置，前进再打开同一单', async () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: true }));
+  vi.stubGlobal('scrollY', 810);
+  const restoreScroll = vi.fn();
+  vi.stubGlobal('scrollTo', restoreScroll);
+  const originalScroll = HTMLElement.prototype.scrollIntoView;
+  HTMLElement.prototype.scrollIntoView = vi.fn();
+  try {
+    mocks.fetchSalesOrderList.mockReset().mockImplementation(({ page = 1 }) => Promise.resolve(paginatedResponse(page)));
+    mocks.fetchAccountingAccounts.mockResolvedValue([]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/sales']}><HistoryControls /><SalesPage /></MemoryRouter></QueryClientProvider>);
+    await screen.findByText('订单 1');
+    fireEvent.change(screen.getByPlaceholderText('搜索订单号或客户'), { target: { value: 'UK' } });
+    await screen.findByText('订单 1');
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    await screen.findByText('订单 21');
+    const calls = mocks.fetchSalesOrderList.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: '选订单' }));
+    await screen.findByText('/sales?order=21');
+    expect(screen.getByText('选中 21')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '系统返回' }));
+    await screen.findByText('/sales');
+    expect(screen.getByText('选中 无')).toBeTruthy();
+    expect(screen.getByDisplayValue('UK')).toBeTruthy();
+    expect(screen.getByText('共 42 条 · 每页 20 条 · 第 2 / 3 页')).toBeTruthy();
+    expect(restoreScroll).toHaveBeenCalledWith(0, 810);
+    fireEvent.click(screen.getByRole('button', { name: '系统前进' }));
+    await screen.findByText('选中 21');
+    expect(mocks.fetchSalesOrderList).toHaveBeenCalledTimes(calls);
+  } finally {
+    HTMLElement.prototype.scrollIntoView = originalScroll;
+    vi.unstubAllGlobals();
+  }
+});
+
+it('手机订单直达链接可返回完整列表，移除地址中的订单号', async () => {
+  mocks.fetchSalesOrderList.mockReset().mockImplementation(() => Promise.resolve(paginatedResponse(1)));
+  mocks.fetchAccountingAccounts.mockResolvedValue([]);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/sales?order=11&source=link']}><HistoryControls /><SalesPage /></MemoryRouter></QueryClientProvider>);
+  await screen.findByText('选中 11');
+  fireEvent.click(screen.getByRole('button', { name: '返回订单列表' }));
+  await screen.findByText('/sales?source=link');
+  expect(await screen.findByText('选中 无')).toBeTruthy();
+  expect(mocks.fetchSalesOrderList).toHaveBeenLastCalledWith(expect.objectContaining({ q: undefined, recent_only: 1 }));
 });

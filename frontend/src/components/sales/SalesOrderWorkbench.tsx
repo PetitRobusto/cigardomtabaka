@@ -97,6 +97,7 @@ interface Props {
   accounts: FundAccount[];
   accountsError?: string;
   onSelect: (id: number | null) => void;
+  onHistoryBack?: () => void;
   onChanged: () => void;
   onCustomer: (customerId: number) => void;
 }
@@ -108,6 +109,7 @@ export default function SalesOrderWorkbench({
   accounts: allAccounts,
   accountsError = "",
   onSelect: selectOrder,
+  onHistoryBack,
   onChanged,
   onCustomer,
 }: Props) {
@@ -154,12 +156,12 @@ export default function SalesOrderWorkbench({
         }
       >
         <div className="border-b border-border px-4 py-3">
-          <h2 className="font-display text-base font-semibold">订单轨道</h2>
+          <h2 className="font-display text-base font-semibold">订单列表</h2>
           <p className="mt-0.5 text-[11px] text-muted">
             {orders.length} 笔筛选结果
           </p>
         </div>
-        <div className="max-h-[calc(100vh-22rem)] min-h-60 overflow-y-auto lg:max-h-[calc(100vh-20rem)]">
+        <div className="min-h-60 lg:max-h-[calc(100vh-20rem)] lg:overflow-y-auto">
           {orders.map((order) => (
             <SalesOrderListItem
               key={order.id}
@@ -178,8 +180,8 @@ export default function SalesOrderWorkbench({
 
       <section
         className={
-          (!selected ? "hidden lg:block " : "") +
-          "min-w-0 overflow-hidden rounded-md border border-border bg-white shadow-sm"
+          (!selected ? "hidden lg:block " : "flex lg:block ") +
+          "min-w-0 flex-col overflow-hidden rounded-md border border-border bg-white shadow-sm"
         }
       >
         {!selected && (
@@ -195,19 +197,23 @@ export default function SalesOrderWorkbench({
         )}
         {selected && (
           <>
-            <div className="border-b border-border bg-[#FFFDFA] px-4 py-4 sm:px-5">
+            <div className="contents lg:block lg:border-b lg:border-border lg:bg-[#FFFDFA] lg:px-5 lg:py-4">
+              <div className="border-b border-border bg-[#FFFDFA] p-4 lg:border-0 lg:p-0">
               <button
                 type="button"
-                onClick={() => onSelect(null)}
+                disabled={loadingEdit || editState.busy}
+                onClick={onHistoryBack ?? (() => onSelect(null))}
                 className="mb-3 rounded border border-border px-2 py-1 text-xs lg:hidden"
               >
-                ← 返回订单轨道
+                ← 返回订单列表
               </button>
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                 <div>
                   <h2 className="font-display text-xl font-semibold">
-                    {selected.order_number}
+                    <span className="lg:hidden">{selected.customer_name || '散客'}</span>
+                    <span className="hidden lg:inline">{selected.order_number}</span>
                   </h2>
+                  <p className="mt-1 font-mono text-xs text-muted lg:hidden">{selected.order_number}</p>
                   <p className="mt-1 text-xs text-muted">
                     创建于 {formatShanghaiDateTime(selected.created_at)} ·{" "}
                     {selected.items.length} 项商品
@@ -218,7 +224,8 @@ export default function SalesOrderWorkbench({
                   <SalesOrderStatusTags order={selected} />
                 </div>
               </div>
-              {!editing && !loadingEdit && <><OrderActions
+              </div>
+              {!editing && !loadingEdit && <div className="order-2 px-4 lg:px-0"><OrderActions
                 order={selected}
                 accounts={allAccounts}
                 accountsError={accountsError}
@@ -226,15 +233,15 @@ export default function SalesOrderWorkbench({
               />
               <div className="mt-4">
                 <ReceiptPanel key={selected.id} order={selected} accounts={allAccounts} onChanged={onChanged} />
-              </div></>}
-              {editing && <p className="mt-3 text-xs text-muted">{editing.customer_name || '散客'} · 正在编辑商品，请保存或放弃修改后再确认订单。</p>}
-              {editError && <p role="alert" className="mt-3 text-sm text-accent">{editError}</p>}
+              </div></div>}
+              {editing && <p className="order-2 px-4 pt-3 text-xs text-muted lg:px-0">{editing.customer_name || '散客'} · 正在编辑商品，请保存或放弃修改后再确认订单。</p>}
+              {editError && <p role="alert" className="order-2 px-4 pt-3 text-sm text-accent lg:px-0">{editError}</p>}
             </div>
-            <div className="max-h-[calc(100vh-24rem)] min-h-[360px] space-y-6 overflow-y-auto p-4 sm:p-5">
+            <div className="contents lg:block lg:min-h-[360px] lg:max-h-[calc(100vh-24rem)] lg:space-y-6 lg:overflow-y-auto lg:p-5">
               {!editing && <DetailSection title="概览">
                 <Overview order={selected} onCustomer={onCustomer} />
               </DetailSection>}
-              <section>
+              <section className="order-1 p-4 lg:p-0">
                 <div className="mb-3 flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">商品明细</h3>{!editing && canEditDraft(selected) && <button type="button" disabled={loadingEdit} onClick={() => { void beginEdit(); }} className="rounded border border-border px-3 py-2 text-xs disabled:opacity-50">{loadingEdit ? '加载草稿…' : '编辑商品'}</button>}</div>
                 {editing ? <SalesDraftItemsEditor key={editing.id} order={editing} onStateChange={setEditState} onCancel={closeEditor} onSaved={order => { setSaved(order); setEditing(null); setEditState({ dirty: false, busy: false }); onChanged(); }} /> : <Items order={selected} />}
               </section>
@@ -268,7 +275,7 @@ function DetailSection({
   children: React.ReactNode;
 }) {
   return (
-    <section>
+    <section className="order-3 p-4 lg:p-0">
       <div className="mb-2 flex items-center justify-between border-b border-border pb-2">
         <h3 className="font-display text-base font-semibold">{title}</h3>
         <span className="font-mono text-[10px] uppercase tracking-wide text-muted">
@@ -345,9 +352,9 @@ function Overview({
 
 function Items({ order }: { order: SalesOrder }) {
   return (
-    <div className="overflow-x-auto rounded border border-border">
-      <table className="w-full min-w-[680px] text-xs">
-        <thead className="bg-[#F5EFE8] text-muted">
+    <div className="rounded border border-border lg:overflow-x-auto">
+      <table className="block w-full text-xs lg:table lg:min-w-[680px]">
+        <thead className="sr-only bg-[#F5EFE8] text-muted lg:not-sr-only lg:table-header-group">
           <tr>
             <th className="px-3 py-2 text-left">品牌 / 商品</th>
             <th className="px-3 py-2 text-right">数量</th>
@@ -356,30 +363,30 @@ function Items({ order }: { order: SalesOrder }) {
             <th className="px-3 py-2 text-right">成本</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="block lg:table-row-group">
           {order.items.map((item) => (
             (() => {
               const cost = salesOrderItemCostView(order, item);
               return (
-            <tr key={item.id} className="border-t border-border">
-              <td className="px-3 py-3">
+            <tr key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-2 border-t border-border px-3 py-3 first:border-t-0 lg:table-row lg:p-0">
+              <td className="min-w-0 break-words lg:px-3 lg:py-3">
                 <span className="block text-[10px] font-bold uppercase tracking-wide text-muted">
                   {item.cigar_brand_cn || item.cigar_brand || "未标注品牌"}
                 </span>
-                <strong className="mt-0.5 block">{item.cigar_name}</strong>
+                <strong className="mt-0.5 block text-sm lg:text-xs">{item.cigar_name}</strong>
                 {item.fulfillment_type === 'preorder' && <div className="mt-1 space-y-1 text-[11px]">
                   <span className="inline-flex rounded-full bg-[#F5E8D8] px-2 py-0.5 font-semibold text-gold">预售 · {order.fulfillment_status === 'shipped' ? '已出库' : order.fulfillment_status === 'returned' ? '已退货' : order.fulfillment_status === 'cancelled' ? '已取消' : order.fulfillment_status === 'draft' ? '草稿' : item.preorder_reserved || item.preorder_prepared ? '已预留 · 待出库' : '待到货 / 待预留'}</span>
                   <span className="block text-muted">{item.source_purchase_order_number ? `来源采购单 ${item.source_purchase_order_number}` : '历史预售 · 未关联采购来源'}</span>
                 </div>}
               </td>
-              <td className="px-3 py-3 text-right">
+              <td className="whitespace-nowrap text-right text-sm font-semibold lg:px-3 lg:py-3 lg:text-xs">
                 {item.sale_unit === "box" ? item.sale_quantity : item.quantity}{" "}
                 {item.sale_unit === "box" ? "盒" : "支"}
               </td>
-              <td className="px-3 py-3 text-right font-mono">
-                {formatCny(item.unit_price)}
+              <td className="col-span-2 mt-2 font-mono lg:px-3 lg:py-3 lg:text-right">
+                <span className="text-muted lg:hidden">单价 </span>{formatCny(item.unit_price)}
               </td>
-              <td className="px-3 py-3 text-muted">
+              <td className="col-span-2 mt-1 text-muted lg:px-3 lg:py-3"><span className="lg:hidden">库存批次 · </span>
                 {item.allocations
                   .map(
                     (allocation) => {
@@ -390,8 +397,8 @@ function Items({ order }: { order: SalesOrder }) {
                   )
                   .join("，") || (item.fulfillment_type === 'preorder' ? '到货时自动预留' : "确认订单后分配")}
               </td>
-              <td className="px-3 py-3 text-right font-mono">
-                <span className="block">{cost.totalCost === null ? "—" : formatCny(cost.totalCost)}</span>
+              <td className="col-span-2 mt-1 font-mono lg:px-3 lg:py-3 lg:text-right">
+                <span className="block"><span className="lg:hidden">成本 · </span>{cost.totalCost === null ? "—" : formatCny(cost.totalCost)}</span>
                 <span className="block text-[10px] text-muted">{cost.label}{cost.unitCost === null ? "" : ` · ${formatCny(cost.unitCost)}/支`}</span>
               </td>
             </tr>

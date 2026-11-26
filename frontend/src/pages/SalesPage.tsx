@@ -230,7 +230,7 @@ function SalesOrders() {
     {ordersQuery.error && <p className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{apiErrorMessage(ordersQuery.error, '订单加载失败')}</p>}
     {accountsQuery.error && <p className="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">资金账户加载失败，收款和人肉成本动作暂不可用。</p>}
     <div className="flex flex-col gap-3">
-      <div ref={bench} className="order-1 scroll-mt-20">
+      <div ref={bench} className="order-1 scroll-mt-32 lg:scroll-mt-20">
         <SalesOrderWorkbench key={mobileList ? 'mobile-detail' : 'list'} loading={ordersQuery.isLoading || ordersQuery.isPlaceholderData} orders={ordersQuery.isPlaceholderData || ordersQuery.error ? [] : visibleOrders} selectedId={ordersQuery.isPlaceholderData || ordersQuery.error ? null : visibleSelectedId} accounts={accountsQuery.data || []} accountsError={accountsQuery.error ? apiErrorMessage(accountsQuery.error) : ''} onSelect={selectOrder} onHistoryBack={initialOrderId ? returnToList : undefined} onChanged={invalidateSales} onCustomer={id => setCustomerModal({ mode: 'detail', id })} />
       </div>
       <nav aria-label="订单分页" className={`${visibleSelectedId ? 'hidden lg:flex' : 'flex'} order-2 flex-col items-stretch lg:order-0 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between gap-3 rounded border border-border bg-cream px-4 py-3 text-xs text-muted`}>

@@ -20,6 +20,7 @@ from accounting.guards import Day1IncompleteError
 from accounting.services import LedgerError, _acquire_sqlite_writer_gate
 
 from .models import Customer, IdempotencyRecord, SalesOrder
+from .sales_pricing import PriceConflictError, change_sales_prices
 from .sales_reports import pending_collection_summary, sales_list_stats
 
 
@@ -144,7 +145,7 @@ def _write(request, command, handler, success_status=200):
             return _error("销售单不存在", 404)
         except ActionInputError as exc:
             return _error(str(exc), 400, getattr(exc, "details", None))
-        except ActionConflictError as exc:
+        except (ActionConflictError, PriceConflictError) as exc:
             return _error(str(exc), 409, getattr(exc, "details", None))
         except Day1IncompleteError as exc:
             return _error(str(exc), 409, getattr(exc, "details", None), exc.code)
@@ -296,7 +297,7 @@ def sales_orders(request):
             "items__cigar", "items__allocations__purchase_batch", "privnote_set", "payment_submissions",
             "sales_receipts__fund_account", "sales_receipts__ledger_transaction",
             "sales_receipts__reversal_ledger_transaction",
-        ).annotate(_draft_revision=Max('events__id'))
+        ).annotate(_order_revision=Max('events__id'))
         rows = rows.order_by("-created_at", "-id")[offset:offset + limit]
         return _json({
             "results": [serialize_sales_order(order) for order in rows],
@@ -348,7 +349,7 @@ def _customer_payload(customer, include_orders=False):
             "sales_receipts__fund_account", "sales_receipts__ledger_transaction",
             "sales_receipts__reversal_ledger_transaction",
         )[:20]
-        payload["recent_orders"] = [serialize_sales_order(order) for order in recent_orders.annotate(_draft_revision=Max('events__id'))]
+        payload["recent_orders"] = [serialize_sales_order(order) for order in recent_orders.annotate(_order_revision=Max('events__id'))]
     return payload
 
 
@@ -539,6 +540,21 @@ def sales_order_detail(request, order_id):
             items_only=items_only, expected_revision=body.get("expected_revision"),
         ))
     return _write(request, "update_sales_order_draft", handler)
+
+
+def sales_order_prices(request, order_id):
+    denied = _denied(request) or _method(request, {"POST"})
+    if denied:
+        return denied
+
+    def handler(body, operator, context):
+        if body.keys() - {"items", "expected_revision"}:
+            raise ActionInputError("改价只接受商品价格和订单版本")
+        return _response(change_sales_prices(
+            order_id=order_id, items=body.get("items"), expected_revision=body.get("expected_revision"),
+            operator=operator, context=context,
+        ))
+    return _write(request, "change_sales_prices", handler)
 
 
 def sales_order_confirm(request, order_id):

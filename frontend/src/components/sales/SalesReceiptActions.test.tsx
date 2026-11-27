@@ -8,6 +8,7 @@ vi.mock('../../api', async importOriginal => ({
   ...await importOriginal<typeof import('../../api')>(),
   receiveSalesOrder: vi.fn().mockResolvedValue({}),
   withdrawSalesOrderReceipt: vi.fn().mockResolvedValue({}),
+  changeSalesPrices: vi.fn().mockResolvedValue({}),
   fetchPaymentSubmissions: vi.fn().mockResolvedValue([]),
   acceptPaymentSubmission: vi.fn().mockResolvedValue({}),
 }));
@@ -28,6 +29,30 @@ const props = {
   orders: [baseOrder], selectedId: 31, accounts,
   onSelect: vi.fn(), onChanged: vi.fn(), onCustomer: vi.fn(),
 };
+
+it('确认后按盒改价，预览含运费和已收款，并按打开时版本保存', async () => {
+  const { changeSalesPrices } = await import('../../api');
+  const order = { ...baseOrder, price_revision: '7:90.00', payment_status: 'partial', received_amount_cny: 90,
+    goods_amount_cny: 100, amount_due_cny: 103, customer_transport_fee_cny: 3, items: [
+      { id: 11, cigar_id: 9, cigar_name: '盒装雪茄', quantity: 50, sale_quantity: 2, sale_unit: 'box',
+        box_size: 25, unit_price: 50, revenue: 100, cost: 0, unit_cost: 0, profit: 0, fulfillment_type: 'in_stock', allocations: [] },
+    ] };
+  const view = render(<SalesOrderWorkbench {...props} orders={[order]} />);
+  fireEvent.click(view.getByRole('button', { name: '修改单价' }));
+  const form = within(view.getByRole('dialog', { name: '修改商品单价' }));
+  const price = form.getByRole('spinbutton', { name: /2 盒.*元\/盒/ });
+  fireEvent.change(price, { target: { value: '40' } });
+  expect(form.getByRole('alert').textContent).toContain('不能低于累计有效实收');
+  expect((form.getByText('保存改价') as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.change(price, { target: { value: '51.23' } });
+  expect(form.getByText('¥105.46')).toBeTruthy();
+  view.rerender(<SalesOrderWorkbench {...props} orders={[{ ...order, price_revision: '8:90.00' }]} />);
+  fireEvent.click(form.getByText('保存改价'));
+  await waitFor(() => expect(changeSalesPrices).toHaveBeenCalledWith(31, '7:90.00', [{ id: 11, unit_price: '51.23' }]));
+  await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+  view.rerender(<SalesOrderWorkbench {...props} orders={[{ ...order, fulfillment_status: 'shipped' }]} />);
+  expect(view.queryByText('修改单价')).toBeNull();
+});
 
 it('部分收款继续登记实收，确认框展示余款且取消不入账', async () => {
   const { receiveSalesOrder } = await import('../../api');

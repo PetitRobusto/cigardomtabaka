@@ -663,6 +663,97 @@ class SalesOrderApiTest(TestCase):
     def action_account(self, key="action-account"):
         return FundAccount.objects.create(name=f"API 动作账户 {key}", currency=FundAccount.Currency.CNY, custodian=self.operator, creation_idempotency_key=key)
 
+    def test_reprice_boxes_and_legacy_sticks_preserves_reservations_and_ships_at_new_price(self):
+        self.create_batch(quantity=52, box_size=25)
+        body = self.body(quantity=2)
+        body["items"].append(self.body(sale_unit="box", sale_quantity=2)["items"][0])
+        order_id = self.create_order(body=body).json()["sales_order"]["id"]
+        base = f"/api/sales/orders/{order_id}/"
+        order = SalesOrder.objects.get(pk=order_id)
+        confirmed = self.request("post", base + "confirm/", {}, "confirm").json()["sales_order"]
+        order.items.filter(sale_unit="stick").update(sale_unit="", sale_quantity=None)
+        stick = order.items.get(sale_unit="")
+        box = order.items.get(sale_unit="box")
+        allocations = list(StockAllocation.objects.order_by("id").values())
+        movements = list(StockMovement.objects.order_by("id").values())
+        payload = {"expected_revision": confirmed["price_revision"], "items": [
+            {"id": box.pk, "unit_price": "512.34"}, {"id": stick.pk, "unit_price": "12.34"},
+        ]}
+        response = self.request("post", base + "prices/", payload, "prices")
+        self.assertEqual(response.status_code, 200, response.content)
+        result = response.json()["sales_order"]
+        self.assertEqual(result["goods_amount_cny"], 1049.36)
+        self.assertEqual(result["amount_due_cny"], 1052.36)
+        self.assertEqual(result["remaining_amount_cny"], 1052.36)
+        self.assertEqual(result["total_profit"], 0)
+        self.assertEqual(result["payment_status"], "unpaid")
+        self.assertEqual(result["fulfillment_status"], "confirmed")
+        self.assertTrue(result["locked"])
+        self.assertEqual(list(StockAllocation.objects.order_by("id").values()), allocations)
+        self.assertEqual(list(StockMovement.objects.order_by("id").values()), movements)
+        self.assertFalse(LedgerPosting.objects.exists())
+        event = order.events.get(command_name="change_sales_prices")
+        self.assertEqual(event.metadata["items"][0], {"id": box.pk, "old_unit_price": "20.00", "new_unit_price": "512.34"})
+        self.assertEqual(event.operator, self.operator)
+        self.assertEqual(event.metadata["idempotency_key"], "prices")
+        self.assertEqual(self.request("post", base + "prices/", payload, "prices").json(), response.json())
+        self.assertEqual(self.request("post", base + "prices/", payload, "stale").status_code, 409)
+        ship = self.request("post", base + "ship/", {"business_date": "2026-11-27"}, "ship")
+        self.assertEqual(ship.status_code, 200, ship.content)
+        self.assertEqual(LedgerPosting.objects.get(category=LedgerPosting.Category.SALES_REVENUE).amount, Decimal("-1049.36"))
+        self.assertEqual(self.request("post", base + "prices/", payload, "too-late").status_code, 409)
+
+    def test_reprice_after_prepayment_recalculates_payment_status_without_changing_receipt(self):
+        order_id = self.action_order()
+        base = f"/api/sales/orders/{order_id}/"
+        initial = self.client.get(base).json()["sales_order"]
+        account = self.action_account()
+        received = self.request("post", base + "receive/", {"amount_cny": "23", "fund_account_id": account.id,
+            "business_date": "2026-08-10"}, "prepay").json()["sales_order"]
+        item = received["items"][0]
+        def change(revision, price, key):
+            return self.request("post", base + "prices/", {"expected_revision": revision,
+                "items": [{"id": item["id"], "unit_price": price}]}, key)
+
+        self.assertEqual(change(initial["price_revision"], "10", "stale").status_code, 409)
+        self.assertEqual(change(received["price_revision"], "9.99", "below-receipt").status_code, 409)
+        ledger = list(LedgerPosting.objects.order_by("pk").values())
+        paid = change(received["price_revision"], "10", "match-prepayment").json()["sales_order"]
+        self.assertEqual((paid["amount_due_cny"], paid["remaining_amount_cny"], paid["payment_status"], paid["status"]),
+                         (23, 0, "paid", "paid"))
+        self.assertEqual(change(received["price_revision"], "11", "match-prepayment").status_code, 409)
+        partial = change(paid["price_revision"], "15", "increase").json()["sales_order"]
+        self.assertEqual((partial["amount_due_cny"], partial["remaining_amount_cny"], partial["payment_status"], partial["status"]),
+                         (33, 10, "partial", "pending_payment"))
+        self.assertEqual(partial["sales_receipts"], received["sales_receipts"])
+        self.assertEqual(list(LedgerPosting.objects.order_by("pk").values()), ledger)
+
+    def test_reprice_validates_items_permissions_and_pending_payment_evidence(self):
+        from privnote.models import PaymentSubmission, Privnote
+        order_id = self.action_order()
+        base = f"/api/sales/orders/{order_id}/"
+        original = self.client.get(base).json()["sales_order"]
+        row = {"id": original["items"][0]["id"], "unit_price": "10"}
+        payload = {"expected_revision": original["price_revision"], "items": [row]}
+        self.login(self.non_staff)
+        self.assertEqual(self.request("post", base + "prices/", payload, "forbidden").status_code, 403)
+        self.login()
+        self.assertEqual(self.request("post", base + "prices/", payload).status_code, 400)
+        for items in ([row, row], [dict(row, id=0)], [dict(row, quantity=5)], [row, dict(row, id=row["id"] + 999)],
+                      *([dict(row, unit_price=value)] for value in ["-1", "0.001", "NaN", "Infinity", "9999999999.99", None])):
+            with self.subTest(items=items):
+                self.assertEqual(self.request("post", base + "prices/", dict(payload, items=items), "invalid").status_code, 400)
+        note = Privnote.create(note_type="payment", sales_order_id=order_id)
+        proof = PaymentSubmission.objects.create(sales_order_id=order_id, privnote=note, fund_account=self.action_account(),
+            amount_cny=43, idempotency_key="proof", request_hash="proof")
+        self.assertEqual(self.request("post", base + "prices/", payload, "pending").status_code, 409)
+        after = self.client.get(base).json()["sales_order"]
+        for field in ("amount_due_cny", "items", "price_revision"):
+            self.assertEqual(after[field], original[field])
+        proof.refresh_from_db()
+        self.assertEqual(proof.amount_cny, 43)
+        self.assertEqual(proof.status, PaymentSubmission.Status.PENDING)
+
     def test_ship_action_api_returns_serialized_order_and_shipment(self):
         order_id = self.action_order("api-ship")
         response = self.request("post", f"/api/sales/orders/{order_id}/ship/", {"business_date": "2026-08-10"}, "api-ship-action")

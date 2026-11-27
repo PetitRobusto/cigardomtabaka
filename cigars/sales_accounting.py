@@ -43,8 +43,8 @@ from .services import (
 MONEY_PLACES = Decimal("0.01")
 
 
-def _set_receipt_status(order, total):
-    order.payment_status = (SalesOrder.PaymentStatus.PAID if total == order.amount_due_cny
+def set_receipt_status(order, total):
+    order.payment_status = (SalesOrder.PaymentStatus.PAID if total > 0 and total == order.amount_due_cny
                             else SalesOrder.PaymentStatus.PARTIAL if total > 0
                             else SalesOrder.PaymentStatus.UNPAID)
     if order.fulfillment_status == SalesOrder.FulfillmentStatus.CONFIRMED:
@@ -414,7 +414,7 @@ def receive_sales_order_payment(*, order_id, amount_cny, fund_account,
         sales_order=order, amount_cny=amount, fund_account=account,
         business_date=business_date, ledger_transaction=ledger, operator=operator,
     )
-    _set_receipt_status(order, already_received + amount)
+    set_receipt_status(order, already_received + amount)
     order.save(update_fields=["payment_status", "status"])
     # Direct receipt and payment-evidence approval share this one accounting
     # command.  Close only other unresolved declarations; the reviewer marks
@@ -548,7 +548,7 @@ def withdraw_sales_order_payment(*, order_id, business_date, operator,
             'reversed_at', 'reversal_ledger_transaction',
             'reversal_operator', 'reversal_reason',
         ])
-    _set_receipt_status(order, received_amount(order))
+    set_receipt_status(order, received_amount(order))
     order.save(update_fields=['payment_status', 'status'])
     from .services import _record_order_event, _sales_event_metadata
     context = agent_context or AgentContext(

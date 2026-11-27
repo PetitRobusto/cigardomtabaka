@@ -141,6 +141,8 @@ const salesAction = (id: number, action: string, payload: Record<string, unknown
   ).then(r => r.sales_order);
 
 export const confirmSalesOrder = (id: number): Promise<SalesOrder> => salesAction(id, 'confirm');
+export const changeSalesPrices = (id: number, expected_revision: string, items: { id: number; unit_price: string }[]) =>
+  salesAction(id, 'prices', { expected_revision, items });
 export const cancelSalesOrder = (id: number): Promise<SalesOrder> => salesAction(id, 'cancel');
 export const shipSalesOrder = (id: number, business_date: string): Promise<SalesOrder> => salesAction(id, 'ship', { business_date });
 export const prepareSalesPreorder = (id: number, business_date: string): Promise<SalesOrder> => salesAction(id, 'prepare-preorder', { business_date });

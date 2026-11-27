@@ -298,7 +298,8 @@ def serialize_sales_order(order):
         'contribution_profit': _decimal_to_json(order.contribution_profit_cny),
         'actual_transport_cost_cny': _decimal_to_json(order.actual_transport_cost_cny),
         'locked': order.locked,
-        'draft_revision': sales_draft_revision(order) if order.fulfillment_status == 'draft' else None,
+        'draft_revision': sales_order_revision(order) if order.fulfillment_status == 'draft' else None,
+        'price_revision': sales_price_revision(order) if order.fulfillment_status == 'confirmed' else None,
         'created_at': order.created_at.isoformat() if order.created_at else None,
         'confirmed_at': order.confirmed_at.isoformat() if order.confirmed_at else None,
         'cancelled_at': order.cancelled_at.isoformat() if order.cancelled_at else None,
@@ -590,11 +591,15 @@ def create_sales_order_draft(*, items, operator, customer=None, customer_id=None
     return order
 
 
-def sales_draft_revision(order):
-    """订单业务事件是草稿的修订标识；无需另建可变版本字段。"""
-    if hasattr(order, '_draft_revision'):
-        return order._draft_revision or 0
+def sales_order_revision(order):
+    if hasattr(order, '_order_revision'):
+        return order._order_revision or 0
     return order.events.order_by('-id').values_list('id', flat=True).first() or 0
+
+
+def sales_price_revision(order):
+    # 常规收款不一定追加订单事件，改价预览同时依赖有效实收。
+    return f'{sales_order_revision(order)}:{received_amount(order):.2f}'
 
 
 @transaction.atomic
@@ -616,7 +621,7 @@ def update_sales_order_draft(*, sales_order_id, items, operator, customer=None, 
     if items_only:
         if type(expected_revision) is not int or expected_revision < 0:
             raise OrderServiceError("请重新打开草稿后编辑商品")
-        if expected_revision != sales_draft_revision(order):
+        if expected_revision != sales_order_revision(order):
             raise OrderServiceError("订单已被其他人修改，请保留当前输入并重新打开最新草稿")
         # 商品编辑仅替换明细，保留锁内读取的客户、收款配置、运费和备注。
         customer, customer_id = order.customer, order.customer_id

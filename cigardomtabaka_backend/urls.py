@@ -182,6 +182,7 @@ urlpatterns = [
     path('api/sales/orders/', sales_api.sales_orders, name='sales_orders'),
     path('api/sales/orders/<int:order_id>/', sales_api.sales_order_detail, name='sales_order_detail'),
     path('api/sales/orders/<int:order_id>/confirm/', sales_api.sales_order_confirm, name='sales_order_confirm'),
+    path('api/sales/orders/<int:order_id>/prices/', sales_api.sales_order_prices, name='sales_order_prices'),
     path('api/sales/orders/<int:order_id>/cancel/', sales_api.sales_order_cancel, name='sales_order_cancel'),
     path('api/sales/orders/<int:order_id>/ship/', sales_api.sales_order_ship, name='sales_order_ship'),
     path('api/sales/orders/<int:order_id>/prepare-preorder/', sales_api.sales_order_prepare_preorder, name='sales_order_prepare_preorder'),

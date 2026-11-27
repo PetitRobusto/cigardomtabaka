@@ -47,6 +47,7 @@ import PaymentDialog from "../privnote/PaymentDialog";
 import SalesOrderStatusTags from "./SalesOrderStatusTags";
 import SalesOrderListItem from "./SalesOrderListItem";
 import { salesPreorderLabel } from "./preorderState";
+import SalesPriceEditor from './SalesPriceEditor';
 import SalesDraftItemsEditor from './SalesDraftItemsEditor';
 import { canEditDraft } from './salesDraftItems';
 import { discardDraftMessage } from './DraftNavigationGuard';
@@ -242,7 +243,9 @@ export default function SalesOrderWorkbench({
                 <Overview order={selected} onCustomer={onCustomer} />
               </DetailSection>}
               <section className="order-1 p-4 lg:p-0">
-                <div className="mb-3 flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">商品明细</h3>{!editing && canEditDraft(selected) && <button type="button" disabled={loadingEdit} onClick={() => { void beginEdit(); }} className="rounded border border-border px-3 py-2 text-xs disabled:opacity-50">{loadingEdit ? '加载草稿…' : '编辑商品'}</button>}</div>
+                <div className="mb-3 flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">商品明细</h3>{!editing && canEditDraft(selected) && <button type="button" disabled={loadingEdit} onClick={() => { void beginEdit(); }} className="rounded border border-border px-3 py-2 text-xs disabled:opacity-50">{loadingEdit ? '加载草稿…' : '编辑商品'}</button>}
+                  {selected.fulfillment_status === 'confirmed' && selected.price_revision && <SalesPriceEditor key={selected.id} order={selected} onChanged={onChanged} />}
+                </div>
                 {editing ? <SalesDraftItemsEditor key={editing.id} order={editing} onStateChange={setEditState} onCancel={closeEditor} onSaved={order => { setSaved(order); setEditing(null); setEditState({ dirty: false, busy: false }); onChanged(); }} /> : <Items order={selected} />}
               </section>
               {!editing && <><DetailSection title="金额与利润">

@@ -656,6 +656,7 @@ export interface SalesOrderItem {
 }
 
 export interface SalesOrder {
+  price_revision?: string | null;
   draft_revision?: number | null;
   id: number;
   order_number: string;

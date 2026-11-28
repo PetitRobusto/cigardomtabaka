@@ -44,6 +44,7 @@
 .not-found-footer a { display:inline-flex; align-items:center; gap:8px; min-height:32px; }
 .not-found-phone { white-space:nowrap; }
 .not-found-page--embedded { min-height:0; padding:0 24px; }
+.not-found-page.page-error { align-items:center; justify-content:center; gap:24px; text-align:center; }
 .not-found-page--embedded .not-found-main { padding:70px 0; }
 @media(max-width:767px) {
   .not-found-page { padding:0 24px; }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useAuthStore } from "../store/authStore";
+import { useStartupReady } from "../hooks/useStartupReady";
 import { NotFoundPage } from "../components/site/NotFoundPage";
 import { localeForPath, notFoundCopy } from "../components/site/notFoundCopy";
 import { AGE_CONFIRMATION_TTL, CUSTOMER_AGE_KEY, isAgeConfirmationValid as isPreferenceAgeConfirmationValid, useCustomerPreferences } from "../features/customer/preferences";
@@ -82,13 +83,10 @@ function getAgeConfirmationSnapshot() {
 }
 
 export function LiveStorefront({ initialPage, origin }: { initialPage: StorePageData; origin?: string }) {
+  useStartupReady();
   const { user, isLoading: authLoading, checkAuth, logout } = useAuthStore();
   const starting = useStartupPending();
   useEffect(() => { if (!starting && !isStartupPending()) void checkAuth(); }, [checkAuth, starting]);
-  useEffect(() => {
-    document.documentElement.dataset.cdtAppReady = "true";
-    window.dispatchEvent(new Event("cdt:app-ready"));
-  }, []);
   const currentUrl = useSyncExternalStore(subscribeLocation, locationSnapshot, () => initialPage.path);
   const [page, setPage] = useState<StorePageData | null>(initialPage);
   const [rates, setRates] = useState<StoreRates | null>(null);

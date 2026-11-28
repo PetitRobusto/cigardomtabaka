@@ -30,6 +30,7 @@ import { selectedIdsOnCustomEntry, type QuoteMode } from "./privnoteQuote";
 import AccessRecords from "../components/privnote/AccessRecords";
 import PrivnoteResult from "../components/privnote/PrivnoteResult";
 import PaymentMethodManager from "../components/privnote/PaymentMethodManager";
+import { formatDisplayPrice } from "../utils/formatDisplayPrice";
 
 const DURATIONS = [
   { value: "1", label: "1 小时" },
@@ -753,12 +754,11 @@ export default function PrivnotePage() {
                                           />
                                           <div className="text-right shrink-0 w-24">
                                             <div className="text-sm font-mono font-semibold text-accent">
-                                              ¥
-                                              {(
+                                              {formatDisplayPrice(
                                                 customPrices[
                                                   `${p.cigar_id}:${p.box_size}`
                                                 ] ?? p.wholesale_price
-                                              ).toLocaleString()}
+                                              )}
                                             </div>
                                             <div className="text-xs text-muted">
                                               {p.box_size}支/盒
@@ -836,8 +836,8 @@ export default function PrivnotePage() {
                       {eligibleOrders.map((order) => (
                         <option key={order.id} value={order.id}>
                           {order.order_number || `SO-${order.id}`} ·{" "}
-                          {order.customer_name || "散客"} · ¥
-                          {Number(order.remaining_amount_cny ?? order.amount_due_cny).toLocaleString()} ·{" "}
+                          {order.customer_name || "散客"} ·{" "}
+                          {formatDisplayPrice(order.remaining_amount_cny ?? order.amount_due_cny, { unavailable: "—" })} ·{" "}
                           {order.display_status || order.status}
                         </option>
                       ))}
@@ -881,10 +881,7 @@ export default function PrivnotePage() {
                                   剩余待收
                                 </span>
                                 <p className="font-mono font-semibold text-accent">
-                                  ¥
-                                  {Number(
-                                    summary.remaining_amount_cny,
-                                  ).toLocaleString()}
+                                  {formatDisplayPrice(summary.remaining_amount_cny, { unavailable: "—" })}
                                 </p>
                               </div>
                             </div>
@@ -897,8 +894,8 @@ export default function PrivnotePage() {
                                   <span>{item.name}</span>
                                   <span className="text-muted">
                                     {item.quantity}{" "}
-                                    {item.sale_unit === "box" ? "盒" : "支"} · ¥
-                                    {Number(item.unit_price).toLocaleString()}
+                                    {item.sale_unit === "box" ? "盒" : "支"} ·{" "}
+                                    {formatDisplayPrice(item.unit_price, { unavailable: "—" })}
                                   </span>
                                 </div>
                               ))}

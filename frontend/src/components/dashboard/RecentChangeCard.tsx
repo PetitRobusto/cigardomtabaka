@@ -1,5 +1,6 @@
 import { TrendingUp, TrendingDown, Package } from 'lucide-react';
 import { BRAND_LOGO_LOCAL } from '../../utils/priceData';
+import { formatDisplayPrice } from '../../utils/formatDisplayPrice';
 import type { RecentPriceChange, RecentRestock } from '../../types';
 
 interface Props {
@@ -76,9 +77,9 @@ export function RecentChangeCard({ item, type, onClick }: Props) {
         </div>
         {type === 'price_change' && isPriceChange(item) && (
           <div className="mt-1.5 flex items-baseline gap-2 text-[0.75rem]">
-            <span className="text-muted line-through">¥{item.old_price_cny?.toLocaleString() || '—'}</span>
+            <span className="text-muted line-through">{formatDisplayPrice(item.old_price_cny, { unavailable: '—' })}</span>
             <span className={`font-bold font-mono ${item.change_direction === 'up' ? 'text-red-600' : 'text-emerald-600'}`}>
-              ¥{item.new_price_cny?.toLocaleString() || '—'}
+              {formatDisplayPrice(item.new_price_cny, { unavailable: '—' })}
             </span>
           </div>
         )}

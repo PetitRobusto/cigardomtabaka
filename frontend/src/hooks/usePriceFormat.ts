@@ -1,3 +1,5 @@
+import { formatDisplayPrice } from '../utils/formatDisplayPrice';
+
 const CURRENCY_SYMBOLS: Record<string, string> = {
   USD: '$',
   CHF: 'CHF ',
@@ -6,9 +8,8 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
 
 export function usePriceFormat() {
   const formatPrice = (price: number | null | undefined, currency?: string) => {
-    if (price == null) return '-';
     const symbol = (currency && CURRENCY_SYMBOLS[currency]) || '';
-    return `${symbol}${price.toLocaleString()}`;
+    return formatDisplayPrice(price, { prefix: symbol, unavailable: '-' });
   };
 
   const formatBoxSize = (boxSize: number | null | undefined) => {

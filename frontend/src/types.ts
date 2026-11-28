@@ -520,8 +520,8 @@ export interface InventoryViewData {
       full_boxes: number;
       loose: number;
       total_sticks: number;
-      box_price: number;
-      stick_price: number;
+      box_price: number | null;
+      stick_price: number | null;
       thumb_url: string;
     }[];
   }[];

@@ -25,6 +25,7 @@ import { trackAccessAction } from "../api/privnoteAccess";
 import StoreHeader from "../components/privnote/StoreHeader";
 import PaymentView from "../components/privnote/PaymentView";
 import { brandLogoUrl } from '../utils/brandAssets';
+import { formatDisplayPrice } from '../utils/formatDisplayPrice';
 
 export default function PrivnoteViewPage() {
   const { token } = useParams<{ token: string }>();
@@ -312,10 +313,10 @@ function InventoryView({ data }: { data: InventoryViewData }) {
                       {item.loose}
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
-                      ¥{item.box_price.toLocaleString()}
+                      {formatDisplayPrice(item.box_price)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
-                      ¥{item.stick_price.toLocaleString()}
+                      {formatDisplayPrice(item.stick_price)}
                     </td>
                   </tr>
                 ))}
@@ -496,10 +497,10 @@ function QuoteView({
                         {item.box_size}
                       </td>
                       <td className="px-4 py-3 text-right font-mono font-medium">
-                        ¥{item.wholesale_price.toLocaleString()}
+                        {formatDisplayPrice(item.wholesale_price)}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-gold">
-                        ¥{item.per_stick_price.toLocaleString()}
+                        {formatDisplayPrice(item.per_stick_price)}
                       </td>
                     </tr>
                   ))}
@@ -568,10 +569,10 @@ function QuoteView({
                     </span>
                     <div className="text-right">
                       <span className="text-lg font-mono text-accent">
-                        ¥{item.wholesale_price.toLocaleString()}
+                        {formatDisplayPrice(item.wholesale_price)}
                       </span>
                       <span className="text-xs text-gold ml-1.5">
-                        ~¥{item.per_stick_price.toLocaleString()}/支
+                        {formatDisplayPrice(item.per_stick_price, { prefix: '~¥', suffix: '/支' })}
                       </span>
                     </div>
                   </div>

@@ -5,6 +5,7 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Storefront } from "./Storefront";
 import { backendPageFixture } from "./fixture";
+import { StorefrontErrorBoundary } from "../components/shared/PageError";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -16,7 +17,7 @@ describe("storefront hydration", () => {
     const errors: unknown[] = [];
     let root: ReturnType<typeof hydrateRoot>;
     await act(async () => {
-      root = hydrateRoot(container, <Storefront page={backendPageFixture} />, { onRecoverableError: (error) => errors.push(error) });
+      root = hydrateRoot(container, <StorefrontErrorBoundary><Storefront page={backendPageFixture} /></StorefrontErrorBoundary>, { onRecoverableError: (error) => errors.push(error) });
     });
     expect(container.querySelector("h1")?.textContent).toBe("Cohiba Robustos");
     expect(container.querySelector('[data-age-gate="true"]')).not.toBeNull();

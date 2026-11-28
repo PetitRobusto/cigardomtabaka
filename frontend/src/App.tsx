@@ -14,6 +14,7 @@ import { useCustomerExperience } from './features/customer/useCustomerExperience
 import { NotFoundPage } from './components/site/NotFoundPage';
 import { localeForPath, notFoundCopy } from './components/site/notFoundCopy';
 import { usePageMetaContext } from './contexts/usePageMetaContext';
+import { useStartupReady } from './hooks/useStartupReady';
 
 // Route components stay out of the startup bundle until their URL is rendered.
 const BrandListPage = lazy(() => import('./pages/BrandListPage'));
@@ -40,19 +41,6 @@ const MonthlyBusinessReportPage = lazy(() => import('./pages/MonthlyBusinessRepo
 const ContributionRankingPage = lazy(() => import('./pages/ContributionRankingPage'));
 const Day1SetupPage = lazy(() => import('./pages/Day1SetupPage'));
 const HelpPage = lazy(() => import('./pages/HelpPage'));
-
-function StartupLoaderHandoff() {
-  useEffect(() => {
-    document.documentElement.dataset.cdtAppReady = 'true';
-    window.dispatchEvent(new Event('cdt:app-ready'));
-    const startup = (window as Window & {
-      CDTStartup?: { ready(): void };
-    }).CDTStartup;
-    startup?.ready();
-  }, []);
-
-  return null;
-}
 
 function StaffGate({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated, user } = useAuthStore();
@@ -253,10 +241,10 @@ function AppRoutes() {
 }
 
 export default function App() {
+  useStartupReady();
   return (
     <PageMetaProvider>
       <CustomerDocumentLanguage />
-      <StartupLoaderHandoff />
       <Routes>
         {/* Routes without AppLayout keep a full-screen initial fallback. */}
         <Route path="/login" element={<Suspense fallback={<BrandLoader fullScreen />}><LoginPage /></Suspense>} />
